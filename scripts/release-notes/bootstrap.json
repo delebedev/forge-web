@@ -1,12 +1,12 @@
 {
-  "day": "2026-09-30",
-  "frontend": "e4829d7f3dac08250f7e92fd78094b93e4496d1d",
-  "backend": "e4829d7f3dac08250f7e92fd78094b93e4496d1d",
-  "run_id": 36729290448,
+  "day": "2026-10-09",
+  "frontend": "2285ead185a50629ca89ef3dca4e7846d43e82f3",
+  "backend": "2285ead185a50629ca89ef3dca4e7846d43e82f3",
   "bullets": [
-    "Play lands from your graveyard when a card such as Icetill Explorer allows it.",
-    "Using a Treasure while two Goldspan Dragons are in play no longer stalls the game.",
-    "Card previews stay the same size while spectating, even when they show mechanic explanations.",
-    "Share feedback from the roadmap without signing in."
+    "Commander games now grant one free first mulligan, and London redraws keep seven cards in hand until you choose which to bottom.",
+    "Proliferate lets you choose specific permanents or players to receive counters, rather than applying them automatically.",
+    "Sacrifice effects that require zero creatures (like Zodiark with only one eligible creature) no longer stall the game waiting for a choice.",
+    "Outpost Siege's entering mode choice now resolves correctly in Browser Local play.",
+    "Saga final chapters now resolve their sacrifice and departure cleanly, allowing multi-chapter progression and transforms to complete without getting stuck."
   ]
 }
