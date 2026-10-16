@@ -590,3 +590,47 @@ test('legacy weighted threshold instructions use total rather than cardinality',
     instruction: '1 selected, 2 total. Ready to submit.',
   })
 })
+
+for (const selected of [1, 2]) {
+  test(`named SelectN keeps exact prompt labels and encoded choice ${selected}`, async () => {
+    const host = encodedPromptHarness()
+    host.owner.applyFamilyRequest({
+      type: 22,
+      msgId: 77,
+      gameStateId: 88,
+      selectNReq: {
+        minSel: 1,
+        maxSel: 1,
+        listType: 2,
+        idType: 2,
+        ids: [1, 2],
+        prompt: {
+          parameters: [
+            { parameterName: 'Choice', type: 1, stringValue: 'red' },
+            { parameterName: 'Choice', type: 1, stringValue: 'Artifact' },
+          ],
+        },
+      },
+    })
+    const bound = bindingFor(host.owner, 'selectN')
+    expect(
+      bound.view.selectNCandidates.map((c) => ({
+        id: c.instanceId,
+        name: c.name,
+        staticChoice: c.staticChoice,
+      })),
+    ).toEqual([
+      { id: 1, name: 'red', staticChoice: true },
+      { id: 2, name: 'Artifact', staticChoice: true },
+    ])
+    expect(
+      bound.controls.toggle(bound.view.selectNCandidates.find((c) => c.instanceId === selected)!),
+    ).toBe(true)
+    expect(await bindingFor(host.owner, 'selectN').controls.submit()).toBe(true)
+    expect(await decodeGre(host.sent[0])).toMatchObject({
+      gameStateId: 88,
+      respId: 77,
+      selectNResp: { ids: [selected] },
+    })
+  })
+}

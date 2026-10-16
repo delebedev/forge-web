@@ -10,6 +10,8 @@ import {
 import { selectNListType } from '@engine/state/gre-view'
 import type { PromptFamily } from './family'
 
+const ID_TYPE_PROMPT_PARAMETER_INDEX = 2
+const PARAMETER_TYPE_NONLOCALIZED_STRING = 1
 const ALLOW_CANCEL_ABORT = 2
 const UNBOUNDED_MIN_WEIGHT = -2_147_483_648
 const UNBOUNDED_MAX_WEIGHT = 2_147_483_647
@@ -37,6 +39,8 @@ export function selectionPrompt(message: ProtoObject): PromptFamily | null {
   const maxSel = asNumber(req['maxSel']) || minSel
   const listType = selectNListType(req['listType'])
   const staticList = asNumber(req['staticList'])
+  const named = listType === 2 && asNumber(req['idType']) === ID_TYPE_PROMPT_PARAMETER_INDEX
+  const parameters = isRecord(req['prompt']) ? asArray(req['prompt']['parameters']) : []
   const rawIds = asArray(req['ids'])
   const weights = asArray(req['weights'])
   const weighted = rawIds.length > 0 && weights.length === rawIds.length
@@ -77,16 +81,33 @@ export function selectionPrompt(message: ProtoObject): PromptFamily | null {
         canSubmit: valid(),
         canCancel,
         selectNCandidates: domain.map(({ id, weight }) => {
-          const candidate = selectNCandidateView(
-            id,
-            selected,
-            tables,
-            cardMeta,
-            listType,
-            staticList,
-            interactionKey,
-            asNumber(req['idType']),
-          )!
+          const parameter = parameters[id - 1]
+          const label =
+            isRecord(parameter) &&
+            parameter['type'] === PARAMETER_TYPE_NONLOCALIZED_STRING &&
+            typeof parameter['stringValue'] === 'string'
+              ? parameter['stringValue']
+              : `Option ${id}`
+          const candidate = named
+            ? {
+                interactionKey,
+                instanceId: id,
+                grpId: 0,
+                name: label,
+                zoneType: 0,
+                selected: selected.has(id),
+                staticChoice: true,
+              }
+            : selectNCandidateView(
+                id,
+                selected,
+                tables,
+                cardMeta,
+                listType,
+                staticList,
+                interactionKey,
+                asNumber(req['idType']),
+              )!
           return weight == null ? candidate : { ...candidate, weight }
         }),
       }
