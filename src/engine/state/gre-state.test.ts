@@ -22,6 +22,7 @@ import {
   ZONE_SIDEBOARD,
   ZONE_STACK,
   deriveLegalActions,
+  selectManaAction,
   applyGsmToTables,
   attackCandidateView,
   blockCandidateView,
@@ -1239,4 +1240,73 @@ test('an ability listed outside the stack is not restored by its stale object zo
     zones: [{ zoneId: 50, type: 9, ownerSeatId: 0, objectInstanceIds: [302] }],
   })
   expect(stackEntryCount(tables)).toBe(0)
+})
+
+test('mana alternatives have distinct exact actions while simultaneous output stays together', () => {
+  const raw = {
+    actionType: 4,
+    instanceId: 100,
+    manaPaymentOptions: [
+      { mana: [{ color: 1, count: 2, srcInstanceId: 100 }] },
+      { mana: [{ color: 2, count: 2, srcInstanceId: 100 }] },
+    ],
+    manaSelections: [
+      { instanceId: 100, selectionCount: 1, options: [{ selectedColor: 1 }, { selectedColor: 2 }] },
+    ],
+  }
+  const views = deriveLegalActions([raw], emptyTables(), new Map())
+  expect(views.map((view) => view.label)).toEqual(['Use Card (White)', 'Use Card (Blue)'])
+  expect(new Set(views.map(legalActionKey)).size).toBe(2)
+  const simultaneous = {
+    ...raw,
+    manaPaymentOptions: [
+      {
+        mana: [
+          { color: 1, count: 1 },
+          { color: 2, count: 1 },
+        ],
+      },
+    ],
+    manaSelections: [],
+  }
+  expect(deriveLegalActions([simultaneous], emptyTables(), new Map())).toHaveLength(1)
+  expect(selectManaAction(simultaneous)).toBe(simultaneous)
+  expect(selectManaAction(simultaneous, 2)).toBeNull()
+  const multipleSelections = {
+    ...raw,
+    manaSelections: [...raw.manaSelections, ...raw.manaSelections],
+  }
+  expect(deriveLegalActions([multipleSelections], emptyTables(), new Map())).toHaveLength(1)
+  expect(selectManaAction(multipleSelections)).toBe(multipleSelections)
+})
+
+test('mana action labels retain ability text and the source-card fallback', () => {
+  const actions = [
+    { actionType: 4, instanceId: 100, grpId: 10, abilityGrpId: 401 },
+    { actionType: 4, instanceId: 100, grpId: 10, abilityGrpId: 402 },
+  ]
+  const metadata = new Map([
+    [
+      10,
+      {
+        grpId: 10,
+        name: 'Nykthos, Shrine to Nyx',
+        abilities: {
+          401: { text: 'Add {C}.' },
+          402: { text: 'Choose a color. Add mana equal to your devotion to that color.' },
+        },
+      },
+    ],
+  ])
+  expect(deriveLegalActions(actions, emptyTables(), metadata).map((view) => view.label)).toEqual([
+    'Nykthos, Shrine to Nyx — Add {C}.',
+    'Nykthos, Shrine to Nyx — Choose a color. Add mana equal to your devotion to that color.',
+  ])
+  expect(
+    deriveLegalActions(
+      actions,
+      emptyTables(),
+      new Map([[10, { grpId: 10, name: 'Nykthos, Shrine to Nyx' }]]),
+    )[0]!.label,
+  ).toBe('Use Nykthos, Shrine to Nyx')
 })

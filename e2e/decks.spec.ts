@@ -15,7 +15,6 @@ test('deck library import, editing and selection retain their controls at laptop
   await page.request.post('/api/auth/request-code', { data: { email } })
   const login = await page.request.post('/api/auth/verify', { data: { email, code: '123456' } })
   expect(login.ok()).toBe(true)
-  const accountId = ((await login.json()) as { playerId: string }).playerId
   await page.goto('/decks')
   await expect(page.getByText('10 decks', { exact: true })).toBeVisible()
   await expect(page.getByText('Previous decks', { exact: true })).toHaveCount(0)
@@ -83,19 +82,10 @@ test('deck library import, editing and selection retain their controls at laptop
   expect(new URL(page.url()).pathname).toBe(`/decks/${deckId}`)
   await page.reload()
   await expect(page.getByRole('heading', { name: 'Forest library', exact: true })).toBeVisible()
-  const reportUrl = new URL(
-    (await page.getByRole('link', { name: 'Feedback', exact: true }).getAttribute('href'))!,
+  await expect(page.getByRole('link', { name: 'Feedback', exact: true })).toHaveAttribute(
+    'href',
+    '/about#contact-title',
   )
-  expect(reportUrl.origin).toBe('https://tally.so')
-  expect(reportUrl.pathname).toBe('/r/pbGADP')
-  expect(reportUrl.searchParams.get('report_id')).toMatch(
-    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
-  )
-  expect(reportUrl.searchParams.get('account_id')).toBe(accountId)
-  expect(reportUrl.searchParams.get('deck_id')).toBe(deckId)
-  expect(reportUrl.searchParams.get('release')).toMatch(/^[0-9a-f]{7}$/)
-  expect(reportUrl.searchParams.get('source')).toBe('header')
-  expect(reportUrl.searchParams.get('traffic')).toBe('production')
   await page.getByRole('button', { name: 'Edit', exact: true }).click()
   await page.getByRole('textbox', { name: 'Search cards', exact: true }).fill('  Llanowar Elves  ')
   await expect(page.getByRole('button', { name: /Llanowar Elves/ }).first()).toBeVisible({
@@ -136,7 +126,7 @@ test('deck library import, editing and selection retain their controls at laptop
   await page.getByRole('button', { name: 'Delete', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Confirm Delete', exact: true })).toBeInViewport()
   await page.getByRole('button', { name: 'Cancel', exact: true }).click()
-  await page.goto('/play/game')
+  await page.goto('/play/game', { waitUntil: 'domcontentloaded' })
   await page.getByRole('button', { name: 'Constructed', exact: true }).click()
   await page.getByRole('combobox', { name: 'AI opponent' }).selectOption('pick')
   await page.getByRole('button', { name: 'Choose opponent deck', exact: true }).click()

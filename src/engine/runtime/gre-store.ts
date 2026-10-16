@@ -12,6 +12,7 @@ import {
   asNumber,
   isRecord,
   matchesLegalAction,
+  selectManaAction,
   objectIsPhasedOut,
   passAction,
   phaseLabel,
@@ -1071,14 +1072,15 @@ export class GreStore {
     if (objectIsPhasedOut(view.instanceId, this.state.tables)) {
       return
     }
-    const action = this.state.actions.find((candidate) =>
+    const actions = this.state.actions.filter((candidate) =>
       matchesLegalAction(candidate, view, this.state.tables),
     )
-    if (!action) {
+    const selected = actions.length === 1 && selectManaAction(actions[0]!, view.manaColor)
+    if (!selected) {
       this.log(`No action for ${view.label}`)
       throw new Error(`Action is no longer legal: ${view.label}`)
     }
-    await this.sendPerformAction(action, view.label, this.sourceGeneration)
+    await this.sendPerformAction(selected, view.label, this.sourceGeneration)
   }
 
   private async sendPerformAction(
@@ -1104,7 +1106,10 @@ export class GreStore {
         respId,
         performActionResp: { actions: [action] },
       })
-      if (this.sourceGeneration !== expectedGeneration) {
+      if (
+        this.sourceGeneration !== expectedGeneration ||
+        this.state.pendingActionsMsgId !== respId
+      ) {
         this.releaseSubmittingAction(owner)
         return
       }
