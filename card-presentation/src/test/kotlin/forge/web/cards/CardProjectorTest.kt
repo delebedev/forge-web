@@ -42,6 +42,59 @@ class CardProjectorTest {
     }
 
     @Test
+    fun `printed mana costs preserve every symbol in order`() {
+        val costs =
+            mapOf(
+                "Jinnie Fay, Jetmir's Second" to "{R/G}{G}{G/W}",
+                "Dismember" to "{1}{B/P}{B/P}",
+                "Spectral Procession" to "{2/W}{2/W}{2/W}",
+                "Fireball" to "{X}{R}",
+                "Ornithopter" to "{0}",
+                "Forest" to null,
+                "Ancestral Vision" to null,
+                "Insectile Aberration" to null,
+            )
+        for ((name, expected) in costs) {
+            val id = assertNotNull(cards.findGrpIdByNameAnyFace(name), name)
+            assertEquals(expected, cards.cardPresentation(id).manaCost, name)
+        }
+    }
+
+    @Test
+    fun `type lines retain supertypes without changing core types or subtypes`() {
+        val types =
+            mapOf(
+                "Gorma, the Gullet" to "Legendary Creature",
+                "Forest" to "Basic Land",
+                "Snow-Covered Forest" to "Basic Snow Land",
+                "Goblin Trailblazer" to "Creature",
+                "Insectile Aberration" to "Creature",
+            )
+        for ((name, expected) in types) {
+            val id = assertNotNull(cards.findGrpIdByNameAnyFace(name), name)
+            assertEquals(expected, cards.cardPresentation(id).types, name)
+        }
+        val gorma = cards.cardPresentation(assertNotNull(cards.findGrpIdByName("Gorma, the Gullet")))
+        assertEquals("Pest Frog", gorma.subtypes)
+        val maritLage = cards.cardPresentation(assertNotNull(cards.findTokenGrpIdByScript("marit_lage")))
+        assertTrue(maritLage.isToken)
+        assertEquals("Legendary Creature", maritLage.types)
+        assertEquals("Avatar", maritLage.subtypes)
+    }
+
+    @Test
+    fun `type lines support enum fallback and deduplicate named supertypes`() {
+        val memory = InMemoryCardRepository()
+        val base = assertNotNull(cards.findByGrpId(assertNotNull(cards.findGrpIdByName("Gorma, the Gullet"))))
+        memory.registerData(base.copy(grpId = 1, typeNames = emptyList()), "Enum fallback")
+        memory.registerData(base.copy(grpId = 2, typeNames = listOf("Legendary", "Creature")), "Named types")
+        memory.registerData(base.copy(grpId = 3, typeNames = listOf("")), "Blank names")
+        assertEquals("Legendary Creature", memory.cardPresentation(1).types)
+        assertEquals("Legendary Creature", memory.cardPresentation(2).types)
+        assertEquals("Legendary Creature", memory.cardPresentation(3).types)
+    }
+
+    @Test
     fun `inspected linked face retains its own rules and layout`() {
         val front = cards.cardPresentation(assertNotNull(cards.findGrpIdByName("Delver of Secrets")))
         val back = cards.cardPresentation(assertNotNull(cards.findGrpIdByNameAnyFace("Insectile Aberration")))
@@ -95,6 +148,7 @@ class CardProjectorTest {
             ),
         )
         val card = memory.cardPresentation(1, true)
+        assertEquals("{R}", card.manaCost)
         assertEquals("{2}{U}", card.abilities.getValue(2).manaCost)
         assertEquals("A Card {2}{U}: Add {W}{U} and {S}.", card.abilities.getValue(2).text)
         assertTrue(memory.cardPresentation(1).abilities.isEmpty())
