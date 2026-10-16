@@ -1,8 +1,8 @@
 import { authenticateShell, expect } from './gre-test'
 import { test, readyForVideo } from './demo-test'
 import { startScenario } from './gre-scenario'
-import { runGreAcceptanceSteps } from './gre-acceptance'
-import { activateAbility, castSpell, resolveTo } from './gre-actions'
+import { activate, cast, runGreAcceptanceSteps } from './gre-acceptance'
+import { castSpell, resolveTo } from './gre-actions'
 
 test('browser mixed protection preserves artifact and color choices with separate payments', async ({
   page,
@@ -41,9 +41,9 @@ test('browser mixed protection preserves artifact and color choices with separat
     if (quality === 'Artifact') {
       const state = await page.evaluate(() => window.__greState()!)
       expect(state.board.you.filter((card) => card.tapped)).toHaveLength(1)
-      await activateAbility(page, { card: 'Aeolipile', until: { prompt: 'SelectTargetsReq' } })
+      await activate(page, { card: 'Aeolipile' })
     } else {
-      await castSpell(page, { card: 'Shock', until: { prompt: 'SelectTargetsReq' } })
+      await cast(page, { type: 'cast', card: 'Shock' })
     }
     const targets = page.locator('[data-prompt="targets"]')
     await expect(targets.getByRole('button', { name: /Grizzly Bears/ })).toHaveCount(0)
