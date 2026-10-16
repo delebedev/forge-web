@@ -254,7 +254,11 @@ jobs:
           mkdir -p browser-smoke-output
           for stat in memory.max memory.peak memory.events cpu.max; do
             printf '\n%s\n' "$stat"
-            cat "/sys/fs/cgroup/$stat"
+            if test -r "/sys/fs/cgroup/$stat"; then
+              cat "/sys/fs/cgroup/$stat"
+            else
+              echo unavailable
+            fi
           done | tee browser-smoke-output/cgroup.txt
           {
             echo '### Browser Local runner resources'
