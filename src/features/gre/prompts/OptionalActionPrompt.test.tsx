@@ -37,3 +37,22 @@ test('optionalAction renderer sends bound choice values and disables waiting and
     }
   }
 })
+
+test('payment intent labels bind pay and refusal to their existing response values', () => {
+  const calls: boolean[] = []
+  const tree = OptionalActionPrompt({
+    view: { ...view, paymentCost: '{2}' },
+    controls: {
+      respond: async (accept) => {
+        calls.push(accept)
+        return true
+      },
+    },
+  })
+  const options = buttons(tree)
+  expect(options.map((button) => button.props.children)).toEqual(['Pay', 'Don’t pay'])
+  for (const button of options) {
+    button.props.onClick()
+  }
+  expect(calls).toEqual([true, false])
+})

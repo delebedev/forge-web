@@ -345,3 +345,19 @@ test('optional costs prefer typed Forge text while retaining catalog and type fa
     )?.label,
   ).toBe('Cast without an additional cost')
 })
+
+test('typed payment cost replaces optional-effect wording without inferring intent from source text', () => {
+  const payment = (type: number, stringValue: string) =>
+    optionalActionPresentation(
+      {
+        optionalActionMessage: { sourceId: 100 },
+        prompt: { parameters: [{ parameterName: 'Cost', type, stringValue }] },
+      },
+      tables,
+      cardMeta,
+    )
+  expect(payment(1, '{2}')).toMatchObject({ title: 'Pay {2}?', paymentCost: '{2}' })
+  expect(payment(1, '{X}')).toMatchObject({ title: 'Pay {X}?', paymentCost: '{X}' })
+  expect(payment(2, '{2}').title).toBe('Optional action')
+  expect(payment(1, '').title).toBe('Optional action')
+})

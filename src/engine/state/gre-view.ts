@@ -20,6 +20,7 @@ import {
 export type OptionalActionPresentation = {
   title: string
   detail: string
+  paymentCost?: string
 }
 
 const CARD_MECHANIC_ZONE_TRANSFER = 22
@@ -49,6 +50,15 @@ export function optionalActionPresentation(
     .map((id) => objectLabel(id, tables, cardMeta, 'Card'))[0]
   const subject = optionalActionSubject(recipientName || sourceName)
   const actionTypes = asArray(request['optionalActionTypes']).map(asNumber)
+
+  const paymentCost = nonLocalizedCostText(message)
+  if (paymentCost) {
+    return {
+      title: `Pay ${paymentCost}?`,
+      detail: 'Choose whether to pay this mana cost.',
+      paymentCost,
+    }
+  }
 
   return {
     title: sourceName ? `Optional action for ${sourceName}` : 'Optional action',
@@ -189,6 +199,10 @@ function optionalCostText(value: ProtoObject, optionType: number): string {
   if (![3, 5, 6].includes(optionType)) {
     return ''
   }
+  return nonLocalizedCostText(value)
+}
+
+function nonLocalizedCostText(value: ProtoObject): string {
   const prompt = value['prompt']
   const parameter = isRecord(prompt)
     ? asArray(prompt['parameters']).find(
