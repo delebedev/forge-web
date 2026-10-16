@@ -48,7 +48,7 @@ fun CardRepository.cardPresentation(
         setCode = printing?.edition,
         rarity = printing?.rarity?.name,
         titleId = data?.titleId,
-        manaCost = data?.manaCost?.toDisplayManaCost(),
+        manaCost = if (face != null) face.manaCost.takeUnless { it.isNoCost }?.toString() else data?.manaCost?.toDisplayManaCost(),
         power = data?.power?.takeIf { it.isNotBlank() },
         toughness = data?.toughness?.takeIf { it.isNotBlank() },
         loyalty = face?.initialLoyalty?.takeIf { it.isNotBlank() },

@@ -42,6 +42,25 @@ class CardProjectorTest {
     }
 
     @Test
+    fun `printed mana costs preserve every symbol in order`() {
+        val costs =
+            mapOf(
+                "Jinnie Fay, Jetmir's Second" to "{R/G}{G}{G/W}",
+                "Dismember" to "{1}{B/P}{B/P}",
+                "Spectral Procession" to "{2/W}{2/W}{2/W}",
+                "Fireball" to "{X}{R}",
+                "Ornithopter" to "{0}",
+                "Forest" to null,
+                "Ancestral Vision" to null,
+                "Insectile Aberration" to null,
+            )
+        for ((name, expected) in costs) {
+            val id = assertNotNull(cards.findGrpIdByNameAnyFace(name), name)
+            assertEquals(expected, cards.cardPresentation(id).manaCost, name)
+        }
+    }
+
+    @Test
     fun `inspected linked face retains its own rules and layout`() {
         val front = cards.cardPresentation(assertNotNull(cards.findGrpIdByName("Delver of Secrets")))
         val back = cards.cardPresentation(assertNotNull(cards.findGrpIdByNameAnyFace("Insectile Aberration")))
@@ -95,6 +114,7 @@ class CardProjectorTest {
             ),
         )
         val card = memory.cardPresentation(1, true)
+        assertEquals("{R}", card.manaCost)
         assertEquals("{2}{U}", card.abilities.getValue(2).manaCost)
         assertEquals("A Card {2}{U}: Add {W}{U} and {S}.", card.abilities.getValue(2).text)
         assertTrue(memory.cardPresentation(1).abilities.isEmpty())
