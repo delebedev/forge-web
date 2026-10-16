@@ -64,14 +64,10 @@ test('guest can sign in from the roadmap', async ({ page }, testInfo) => {
   expect(guest.ok()).toBe(true)
 
   await page.goto('/roadmap')
-  const feedbackUrl = new URL(
-    (await page.getByRole('link', { name: 'Share feedback' }).getAttribute('href')) ?? '',
+  await expect(page.getByRole('link', { name: 'Share feedback' })).toHaveAttribute(
+    'href',
+    '/about#contact-title',
   )
-  expect(feedbackUrl.origin + feedbackUrl.pathname).toBe('https://tally.so/r/pbGADP')
-  expect(feedbackUrl.searchParams.get('source')).toBe('roadmap')
-  expect(feedbackUrl.searchParams.get('report_id')).toBeTruthy()
-  expect(feedbackUrl.searchParams.get('release')).toBeTruthy()
-  expect(feedbackUrl.searchParams.get('traffic')).toBeTruthy()
   await page.getByRole('link', { name: 'Sign in to vote' }).click()
   await expect(page).toHaveURL(/\/login\?returnTo=\/roadmap$/)
   await expect(page.getByRole('heading', { name: 'Sign in to vote.' })).toBeVisible()
