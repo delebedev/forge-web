@@ -1,6 +1,5 @@
 import type { Page } from '@playwright/test'
 import type { components } from '../src/shared/api/types'
-import { execSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { expect, test } from './gre-test'
 import { dailyBrowserChallengePath } from '../src/features/challenges/browser-challenges'
@@ -13,20 +12,6 @@ async function signIn(page: Page): Promise<string> {
   const playerId = ((await response.json()) as { playerId: string }).playerId
   return playerId
 }
-
-function resolveExpectedRelease(): string {
-  const configured = process.env['GIT_SHA']?.trim()
-  if (configured) {
-    return configured.slice(0, 7)
-  }
-  try {
-    return execSync('git rev-parse HEAD', { encoding: 'utf8' }).trim().slice(0, 7)
-  } catch {
-    return 'dev'
-  }
-}
-
-const expectedRelease = resolveExpectedRelease()
 
 function serverStart(page: Page) {
   return page.getByRole('button', { name: /^(Play on server|Start server game)$/ })
@@ -158,10 +143,10 @@ test('public navigation preserves the live table through login, About and expans
   expect(await table!.evaluate((node) => node.isConnected)).toBe(true)
   await page.getByRole('link', { name: 'About', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'A seat at the table. Any time.' })).toBeVisible()
-  await expect(page.getByTitle('Contact Forge Web')).toBeVisible()
-  await expect(page.getByRole('link', { name: 'Open form separately' })).toHaveAttribute(
+  await expect(page.getByTitle('Contact Forge Web')).toHaveCount(0)
+  await expect(page.getByRole('link', { name: 'Forge Web’s contact page' })).toHaveAttribute(
     'href',
-    'https://tally.so/r/obMXDX',
+    'https://forgeweb.app/about',
   )
   expect(await table!.evaluate((node) => node.isConnected)).toBe(true)
   await page.getByRole('link', { name: 'Back to table', exact: true }).click()
@@ -343,7 +328,7 @@ test('all Commander starters have playable saved deck contents', async ({ page }
 
 test('Commander selection waits for detail before launching the saved deck', async ({ page }) => {
   const name = commanderFixtures[0]!
-  const accountId = await signIn(page)
+  await signIn(page)
   const saved = await (await page.request.get('/api/decks')).json()
   const deck = saved.find((deck: { name: string }) => deck.name === name)
   expect(deck).toBeTruthy()
@@ -384,7 +369,7 @@ test('Commander selection waits for detail before launching the saved deck', asy
     .poll(async () => page.evaluate(() => window.__greState()?.hand.length ?? 0))
     .toBeGreaterThan(0)
   const reportLink = page.getByRole('link', { name: 'Report a bug ↗' })
-  const reportUrl = new URL((await reportLink.getAttribute('href'))!)
+  await expect(reportLink).toHaveAttribute('href', '/about#contact-title')
   const matchContext = await page.evaluate(
     () =>
       JSON.parse(sessionStorage.getItem('forge:gre:lastMatchConfig') ?? '{}') as {
@@ -392,19 +377,6 @@ test('Commander selection waits for detail before launching the saved deck', asy
         deckId?: string
       },
   )
-  expect(reportUrl.origin).toBe('https://tally.so')
-  expect(reportUrl.pathname).toBe('/r/pbGADP')
-  expect(Object.fromEntries(reportUrl.searchParams)).toEqual({
-    report_id: expect.stringMatching(
-      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
-    ),
-    release: expectedRelease,
-    source: 'board',
-    traffic: 'production',
-    account_id: accountId,
-    match_id: matchContext.matchId,
-    deck_id: deck.id,
-  })
   expect(matchContext.deckId).toBe(deck.id)
   await reportLink.click({ trial: true })
 })
