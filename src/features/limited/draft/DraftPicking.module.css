@@ -1,0 +1,15 @@
+.draftLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 250px;
+  gap: 24px;
+  height: 100%;
+  min-height: 0;
+  padding: 24px 4%;
+  position: relative;
+}
+
+@media (max-width: 900px) {
+  .draftLayout {
+    grid-template-columns: 1fr;
+  }
+}

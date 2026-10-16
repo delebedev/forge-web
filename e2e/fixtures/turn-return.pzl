@@ -1,0 +1,23 @@
+# Design Narrative
+# Mechanic: Play one land, pass the opponent turn and receive a fresh own-turn decision.
+# Forcing: The starting position offers the named interaction without drawing or building a board.
+# AI behavior: An empty hand and battlefield leave no competing actions.
+# Failure modes: Wrong targets, missing actions or incorrect results fail the browser assertions.
+# Card roles: Hand and battlefield cards supply only the tested action and its mana. Library lands prevent decking.
+# Protocol path: Real legal actions, player responses and authoritative game-state updates.
+[metadata]
+Name:Turn return
+Goal:Win
+Turns:3
+Difficulty:Tutorial
+Description:Play one land, pass the opponent turn and receive a fresh own-turn decision.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanhand=Plains;Plains;Plains;Plains;Plains;Plains;Plains
+humanbattlefield=Plains
+humanlibrary=Plains;Plains;Plains;Plains;Plains
+ailibrary=Plains;Plains;Plains;Plains;Plains

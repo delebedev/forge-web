@@ -1,0 +1,588 @@
+/* Width comes from `--board-card-w` on an ancestor, so a board scales its cards. */
+.card {
+  --card-w: var(--board-card-w, var(--card-face-width-thumbnail));
+  --card-h: calc(var(--card-w) * 88 / 63);
+  position: relative;
+  width: var(--card-w);
+  height: var(--card-h);
+  min-height: var(--card-h);
+  border: 0;
+  border-radius: 5px;
+  padding: 0;
+  background: transparent;
+  color: #f0ece2;
+  text-align: left;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.46);
+  transition: transform 260ms cubic-bezier(.2,.7,.2,1), box-shadow 200ms, filter 200ms;
+  overflow: hidden;
+  flex-shrink: 0;
+  font-family: var(--public-body, sans-serif);
+
+  filter: none;
+}
+
+/* GRE presentation hints give arrivals a readable moment. The store holds the
+   semantic step; these effects only explain that step on the existing card. */
+.motionZone,
+.motionCast,
+.motionResolve,
+.motionDamage,
+.motionCounter {
+  will-change: transform, filter;
+}
+.motionZone { animation: card-arrive 300ms cubic-bezier(.16, 1, .3, 1); }
+.motionCast { animation: spell-arrive 420ms cubic-bezier(.16, 1, .3, 1); }
+.motionResolve { animation: resolve-arrive 460ms cubic-bezier(.16, 1, .3, 1); }
+.motionDamage { animation: damage-impact 340ms cubic-bezier(.2, .8, .2, 1); }
+.motionCounter { animation: counter-pulse 260ms ease-out; }
+.motionTap .frame { animation: tap-pulse 300ms ease-out; }
+.card:hover:not([aria-disabled='true']) {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.58), 0 0 0 transparent;
+}
+.card.playable {
+  box-shadow: 0 0 0 1px var(--accent), 0 6px 16px #0005;
+}
+.card.handCard.playable {
+  box-shadow: 0 0 0 2px var(--hand-playable-border), 0 6px 16px #0005;
+}
+/* Board selection affordances for click-to-target / declare combat. */
+.card.selectable {
+  outline: 2px dashed var(--accent); outline-offset: 3px; box-shadow: 0 6px 16px #0005;
+  cursor: pointer;
+}
+.card.selected {
+  outline: 2px solid var(--public-text); outline-offset: 3px; box-shadow: 0 6px 16px #0005;
+}
+.frame {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid #efeee82b;
+  border-radius: inherit;
+  background:
+    radial-gradient(120% 90% at 50% 0%, #242936, #11151c 72%),
+    linear-gradient(180deg, color-mix(in srgb, var(--card-color) 18%, transparent), transparent);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.03);
+}
+.cardHead {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  padding: 5px 7px 4px;
+  background: linear-gradient(180deg, rgba(8, 10, 14, 0.78), rgba(8, 10, 14, 0.18));
+  border-bottom: 0;
+}
+.name {
+  min-width: 0;
+  overflow: hidden;
+  color: #f0ece2;
+  font-family: var(--public-body, sans-serif);
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.05;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+  white-space: nowrap;
+}
+.pips {
+  display: flex;
+  flex: none;
+  gap: 2px;
+  font-size: 11px;
+  line-height: 1;
+}
+.artBox {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 3px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--card-color) 15%, #242623);
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.28), inset 0 12px 24px rgba(0,0,0,0.2);
+}
+.cardArt {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.card.withArt .artBox::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(0,0,0,0.08), transparent 45%, rgba(0,0,0,0.42));
+}
+.artLabel {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: rgba(255,255,255,0.35);
+  font-family: var(--public-body, sans-serif);
+  font-size: 0.45rem;
+  letter-spacing: 0.18em;
+}
+.card.withArt .artLabel { display: none; }
+.typeLine, .rulesText {
+  display: none;
+  overflow: hidden;
+  padding: 4px 7px 0;
+  color: #aeb4be;
+  font-size: 0.56rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rulesText {
+  margin: 4px 7px 7px;
+  padding: 5px 6px;
+  border-radius: 3px;
+  background: rgba(10,12,16,0.55);
+  color: #cfd3da;
+  font-family: var(--public-body, sans-serif);
+  font-size: 0.55rem;
+  font-weight: 400;
+  line-height: 1.2;
+  white-space: normal;
+}
+.preview .typeLine,
+.preview .rulesText {
+  display: block;
+}
+.pt {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  z-index: 2;
+  border: 1px solid #efeee82b;
+  border-radius: 5px;
+  padding: 1px 6px;
+  background: linear-gradient(180deg, rgba(20,22,28,.92), rgba(8,9,12,.95));
+  color: #f3efe6;
+  font-family: var(--public-body, sans-serif);
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.1;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+}
+.activateBadge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  border-radius: 50%;
+  background: rgba(10, 12, 16, 0.86);
+  color: var(--accent);
+  font-size: 12px;
+  line-height: 1;
+  box-shadow: none;
+}
+.roomDoors {
+  position: absolute;
+  inset: auto 4px 4px;
+  z-index: 3;
+  display: flex;
+  gap: 3px;
+  font-size: 0.5rem;
+}
+.roomDoors span {
+  min-width: 0;
+  overflow: hidden;
+  border-radius: 3px;
+  padding: 2px 3px;
+  background: rgba(10, 12, 16, 0.82);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Readable to a screen reader and to `hasText`, invisible on the board. */
+.mutedBadges {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.tap { transform: rotate(90deg); filter: saturate(0.78) brightness(0.88); }
+.tap .frame { border-color: rgba(125, 167, 224, 0.32); }
+.attacking { transform: translateY(-16px) rotate(-2deg); box-shadow: 0 0 0 2px #d2553f, 0 8px 24px rgba(210,85,63,0.55); }
+.attacking::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  border-radius: inherit;
+  border: 2px solid rgba(210,85,63,0.86);
+  box-shadow: inset 0 0 22px rgba(210,85,63,0.16);
+  pointer-events: none;
+}
+
+@keyframes card-arrive {
+  from { opacity: 0.35; transform: translateY(-10px) scale(1.035); filter: drop-shadow(0 12px 18px rgba(201, 173, 112, 0.45)); }
+  to { opacity: 1; transform: translateY(0) scale(1); filter: none; }
+}
+@keyframes spell-arrive {
+  0% { opacity: 0.4; transform: translateY(-12px) scale(1.05); filter: saturate(1.3); }
+  70% { opacity: 1; transform: translateY(2px) scale(1.01); filter: saturate(1.05); }
+  100% { transform: translateY(0) scale(1); filter: none; }
+}
+@keyframes resolve-arrive {
+  from { opacity: 0.5; transform: translateY(8px) scale(0.97); filter: none; }
+  to { opacity: 1; transform: translateY(0) scale(1); filter: none; }
+}
+@keyframes damage-impact {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5px) rotate(-1deg); filter: saturate(1.25) brightness(1.12); }
+  55% { transform: translateX(5px) rotate(1deg); filter: saturate(1.35) brightness(1.18); }
+}
+@keyframes counter-pulse {
+  from { transform: scale(0.94); filter: brightness(1.25); }
+  60% { transform: scale(1.035); filter: brightness(1.12); }
+  to { transform: scale(1); filter: none; }
+}
+@keyframes tap-pulse {
+  from { box-shadow: inset 0 0 0 0 rgba(125, 167, 224, 0.0); }
+  50% { box-shadow: inset 0 0 0 2px #efeee860; }
+  to { box-shadow: inset 0 0 0 0 rgba(125, 167, 224, 0.0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .motionZone,
+  .motionCast,
+  .motionResolve,
+  .motionDamage,
+  .motionCounter,
+  .motionTap .frame { animation: none; }
+}
+.cardSearchText {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+.handCard {
+  --card-w: var(--board-hand-card-w, var(--card-face-width-hand));
+  flex: 0 0 auto;
+  margin-left: calc(var(--card-w) * var(--hand-overlap, var(--board-hand-overlap, .28)) * -1);
+  /* The arc is the vertical offset, not the rotation: rotation alone reads as a
+     ramp, because occlusion only exposes one edge of each card. The `--spread`
+     term cancels the skew the remaining tilt introduces. */
+  transform:
+    translateY(calc(var(--lift) * var(--lift) * 1.8px))
+    rotate(calc(var(--spread) * 1.4deg));
+  transform-origin: 50% 140%;
+}
+/* Every hand card overlaps the previous one except the first. */
+.handCard:first-child { margin-left: 0; }
+/* Descending, so each card tucks under its left neighbour. */
+.handCard { z-index: calc(40 - var(--index, 0)); }
+.handCard:hover, .handCard:focus-visible { transform: translateY(-42px) rotate(0deg) scale(1.08); z-index: 180; }
+/* --- Battlefield tile: landscape art crop, name, power/toughness --- */
+
+.tile {
+  --card-w: var(--board-card-w, 132px);
+  /* The art crop's own ratio (626x457). */
+  --tile-aspect: 1.28;
+  width: var(--card-w);
+  height: calc(var(--card-w) / var(--tile-aspect));
+  min-height: 0;
+  border-radius: 5px;
+  overflow: hidden;
+  transition: transform 120ms ease;
+}
+.tile:hover,
+.tile:focus-visible {
+  z-index: 60;
+  overflow: visible;
+  transform: scale(1.16);
+}
+.tile:hover .tileFrame,
+.tile:focus-visible .tileFrame {
+  box-shadow: 0 18px 34px rgba(0, 0, 0, 0.66);
+}
+.tileFrame {
+  position: absolute;
+  inset: 0;
+  display: block;
+  border-radius: inherit;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--card-color) 22%, #10141c), #0c0f15);
+}
+.tileArt {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+.tileArt .cardArt {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 42%;
+}
+/* Name plate: a dark band so the label survives any artwork under it. */
+.tileName {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 2;
+  /* Right padding clears the power/toughness badge, which overlays this band. */
+  padding: 12px calc(var(--card-w) * 0.28) 5px 6px;
+  overflow: hidden;
+  background: linear-gradient(180deg, transparent, rgba(4, 6, 10, 0.88) 46%);
+  color: #eae7df;
+  font-size: clamp(10px, calc(var(--card-w) * 0.078), 13px);
+  letter-spacing: 0.01em;
+  line-height: 1.1;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Art identifies the card; the band is the fallback when there is none. */
+.tile.withArt .tileName { display: block; }
+.tilePt {
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  z-index: 3;
+  min-width: calc(var(--card-w) * 0.24);
+  padding: 1px 4px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 5px;
+  background: rgba(6, 8, 12, 0.92);
+  color: #fff;
+  font-size: clamp(9px, calc(var(--card-w) * 0.1), 14px);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  line-height: 1.25;
+  text-align: center;
+}
+/*
+ * Tapped. The card stays upright and carries a rotation glyph, so the state has
+ * a shape of its own rather than living in a brightness difference — and a lane
+ * sized to its cards keeps its geometry.
+ */
+/* A lean rather than the game's quarter turn: a landscape tile turned upright
+   paints taller than its lane and would have to shrink to fit. */
+.tile.tap {
+  --tap-lean: 11deg;
+  transform: rotate(var(--tap-lean));
+  filter: brightness(.86) saturate(.84);
+}
+/* Without this the untapped hover rule wins on source order and snaps it straight. */
+.tile.tap:hover,
+.tile.tap:focus-visible {
+  transform: rotate(var(--tap-lean)) scale(1.16);
+}
+.tile.tap .tileFrame::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+  background: rgba(4, 6, 10, 0.12);
+}
+.tapGlyph {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 2;
+  transform: translate(-50%, -50%);
+  color: rgba(255, 255, 255, 0.92);
+  font-size: calc(var(--card-w) * 0.20);
+  line-height: 1;
+  filter: drop-shadow(0 2px 10px rgba(0, 0, 0, 0.85));
+}
+
+/* How many identical permanents this card stands for. */
+.pileCount {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  z-index: 3;
+  padding: 1px 5px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 5px;
+  background: rgba(6, 8, 12, 0.9);
+  color: #fff;
+  font-size: clamp(9px, calc(var(--card-w) * 0.095), 13px);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  line-height: 1.25;
+}
+.tile.attacking { box-shadow: 0 0 0 2px var(--accent), 0 6px 16px #0005; }
+
+.mini { --card-w: var(--card-face-width-mini); border-radius: 8px; }
+.preview { --card-w: var(--preview-card-w, var(--card-face-width-inspection)); }
+
+.card.compact {
+  --card-w: 82px;
+  width: var(--card-w);
+  height: var(--card-h);
+  min-height: var(--card-h);
+  border-radius: 5px;
+}
+/* Restated because `.card.compact` is two classes and would otherwise outrank
+   the variant widths above, pinning every non-tile card to one size. */
+.handCard.compact { --card-w: var(--board-hand-card-w, var(--card-face-width-hand)); }
+.preview.compact { --card-w: var(--preview-card-w, var(--card-face-width-inspection)); }
+.mini.compact { --card-w: var(--card-face-width-mini); }
+
+.mini .typeLine,
+.mini .rulesText,
+.compact .rulesText { display: none; }
+
+.mini .cardHead { padding: 3px 4px; }
+.mini .name { font-size: 0.48rem; }
+.mini .pips { display: none; }
+.mini .artBox { margin: 4px 4px 0; }
+.mini .pt { font-size: 0.52rem; right: 4px; bottom: 4px; padding: 0 4px; }
+
+@media (max-width: 760px) {
+  .card { --card-w: 88px; }
+  .handCard { --card-w: 104px; }
+}
+
+@media (max-width: 760px) {
+  .card.compact {
+    --card-w: 76px;
+    width: var(--card-w);
+    height: var(--card-h);
+    min-height: var(--card-h);
+    border-width: 1px;
+    border-radius: 8px;
+  }
+
+  .handCard.compact {
+    --card-w: 92px;
+  }
+
+  .card.compact .name {
+    font-size: 0.68rem;
+    line-height: 1.05;
+  }
+
+  .card.compact .typeLine {
+    display: none;
+  }
+
+  .card.compact .pt {
+    right: 5px;
+    bottom: 28px;
+    min-width: 24px;
+    padding: 1px 5px;
+    font-size: 0.62rem;
+  }
+
+  .handCard.playable,
+  .handCard:hover:not([aria-disabled='true']) {
+    transform: translateY(-5px);
+  }
+}
+
+.keywordMarks {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 3px 2px;
+  border-radius: 7px;
+  background: rgba(6, 8, 12, 0.62);
+  color: #e7e3d8;
+  font-size: clamp(12px, calc(var(--card-w) * 0.093), 20px);
+  line-height: 1;
+}
+/* The pile count owns the top-left corner when a pile has one. */
+.tile:has(.pileCount) .keywordMarks { top: 26px; }
+
+.counterMarks {
+  position: absolute;
+  right: 3px;
+  bottom: 27px;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  max-width: calc(100% - 28px);
+  pointer-events: none;
+}
+.counterBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  padding: 2px 4px;
+  border-radius: 4px;
+  background: #20211fed;
+  color: #efe8d9;
+  font-size: clamp(10px, calc(var(--card-w) * 0.09), 14px);
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+.counterBadge > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tile.attachment .tileName {
+  display: block;
+  top: 0;
+  bottom: auto;
+  padding: 5px 6px;
+  background: #20211fed;
+  text-align: left;
+}
+
+.card:focus-visible { z-index: 180; }
+.card.preview.withArt .cardHead, .card.preview.withArt .rulesText, .card.preview.withArt .pt { display: none; }
+.card.preview.withArt .artBox, .card.handCard.withArt .artBox { inset: 0; margin: 0; border-radius: inherit; }
+.card.preview.withArt .artBox::after, .card.handCard.withArt .artBox::after { display: none; }
+.card.preview.withArt .cardArt, .card.handCard.withArt .cardArt { object-fit: contain; }
+.card.selected::before { content: '✓'; position: absolute; top: 5px; left: 5px; z-index: 6; display: grid; place-items: center; width: 20px; height: 20px; background: var(--public-text); color: var(--public-bg); border-radius: 50%; font: 600 13px var(--public-body); }
+@media (prefers-reduced-motion: reduce) { .card { transition: none; } }
+
+.card.handCard:not(.withArt) .cardHead { align-items: start; flex-direction: column; gap: 8px; padding: 10px; }
+.card.handCard:not(.withArt) .name { white-space: normal; line-height: 1.25; font-size: 12px; }
+
+.card.phasedOut {
+  outline: 1px dashed var(--public-muted, #b0ada7);
+  outline-offset: -1px;
+  box-shadow: none;
+  cursor: default;
+}
+.card.phasedOut:focus-visible { outline: 2px solid var(--public-text); outline-offset: 4px; }
+.phasedOut .frame {
+  filter: grayscale(1);
+  opacity: .55;
+}
+.phasedOutBadge {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  z-index: 4;
+  padding: 2px 4px;
+  background: var(--public-surface, #292725);
+  color: var(--public-text, #efeee8);
+  font-size: 10px;
+  line-height: 1.2;
+}
+
+.phasedOut .keywordMarks { top: 24px; }
+.phasedOut:has(.pileCount) .phasedOutBadge { left: 30px; }

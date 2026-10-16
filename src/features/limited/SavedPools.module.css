@@ -1,0 +1,163 @@
+.savedPools {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.savedHeader {
+  color: var(--public-text);
+  font-size: 15px;
+  font-weight: 600;
+  padding: 0 0.25rem;
+}
+
+.savedList {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.savedRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--public-line);
+  background: transparent;
+  transition: background 0.12s;
+}
+
+.savedRow:hover {
+  background: var(--public-field);
+}
+
+.savedInfo {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.savedEvent {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.02em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  width: 100%;
+  max-width: 100%;
+}
+
+.savedRecord {
+  font-size: 0.68rem;
+  color: var(--muted);
+}
+
+.savedPool {
+  font-size: 0.68rem;
+  color: var(--muted);
+}
+
+.savedActions {
+  display: flex;
+  gap: 0.35rem;
+  flex-shrink: 0;
+  align-items: center;
+}
+
+.playBtn {
+  min-height: 36px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: var(--public-radius);
+  background: var(--public-accent);
+  color: var(--public-bg);
+  font-size: 0.7rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.playBtn:hover:not(:disabled) {
+  background: var(--public-accent-hover);
+}
+
+.playBtn:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+.editBtn {
+  min-height: 36px;
+  padding: 8px 10px;
+  border-radius: var(--public-radius);
+  border: 1px solid var(--public-line);
+  background: transparent;
+  color: var(--public-muted);
+  font-size: 0.7rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.editBtn:hover:not(:disabled) {
+  border-color: var(--public-text);
+  color: var(--public-text);
+}
+
+.editBtn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.deleteBtn {
+  width: 1.4rem;
+  height: 1.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-family: inherit;
+  cursor: pointer;
+  opacity: 0.4;
+  transition: opacity 0.12s, color 0.12s, background 0.12s;
+  padding: 0;
+  line-height: 1;
+}
+
+.deleteBtn:hover:not(:disabled) {
+  opacity: 1;
+  color: #ff9aa0;
+  background: rgba(255, 100, 120, 0.1);
+  border-color: rgba(255, 100, 120, 0.2);
+}
+
+.deleteBtn:disabled {
+  opacity: 0.2;
+  cursor: default;
+}
+
+.savedLoading, .savedError {
+  text-align: center;
+  font-size: 0.76rem;
+  color: var(--muted);
+  padding: 0.5rem;
+}
+
+.savedError {
+  color: #ff9aa0;
+}

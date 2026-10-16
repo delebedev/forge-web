@@ -1,0 +1,175 @@
+.connPopup {
+  max-height: min(68vh, 560px);
+  overflow: auto;
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.connHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.statusPill {
+  font-size: 0.7rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  background: rgb(201 173 112 / .12);
+  color: var(--public-accent);
+}
+
+.statusPill.connected {
+  background: rgba(98, 210, 162, 0.2);
+  color: var(--public-muted);
+}
+
+.errorCount {
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.connRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  color: var(--public-muted);
+  font-size: 0.78rem;
+}
+
+.connRow strong {
+  color: var(--public-text);
+  font-weight: 600;
+  text-align: right;
+  max-width: 220px;
+  word-break: break-all;
+}
+
+.connRow strong.mono {
+  font-family: 'JetBrains Mono', 'SF Mono', monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.02em;
+}
+
+.connGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+  padding: 0.5rem;
+  border-radius: 4px;
+  background: var(--public-field);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.connSub {
+  font-size: 0.7rem;
+  text-transform: none;
+  letter-spacing: normal;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.connValue {
+  color: var(--public-text);
+  font-size: 0.78rem;
+}
+
+.connBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  color: var(--public-muted);
+  min-width: 0;
+}
+
+.connLabel {
+  font-size: 0.72rem;
+  text-transform: none;
+  letter-spacing: normal;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.connFeed {
+  margin: 0;
+  padding: 0.5rem 0.6rem;
+  border-radius: 4px;
+  background: var(--public-field);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  color: var(--public-text);
+  font-size: 0.68rem;
+  max-height: 140px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.connFeedEmpty {
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.connFeedRow {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.connFeedTime {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.connFeedDir {
+  color: var(--public-muted);
+  text-transform: none;
+}
+
+.connFeedDir.out {
+  color: var(--public-accent);
+}
+
+.connFeedRow code {
+  color: var(--public-text);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.connLast {
+  margin-top: 0.3rem;
+  font-size: 0.68rem;
+  color: var(--public-muted);
+}
+
+.connLast summary {
+  cursor: pointer;
+  user-select: none;
+}
+
+.connLast pre {
+  margin: 0.35rem 0 0;
+  padding: 0.5rem 0.6rem;
+  border-radius: 4px;
+  background: var(--public-field);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  color: var(--public-text);
+  font-size: 0.68rem;
+  max-height: 120px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.connLogRow {
+  display: flex;
+  gap: 0.4rem;
+  align-items: baseline;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.connLogMsg {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}

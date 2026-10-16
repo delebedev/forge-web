@@ -1,0 +1,12 @@
+{
+  "day": "2026-09-30",
+  "frontend": "e4829d7f3dac08250f7e92fd78094b93e4496d1d",
+  "backend": "e4829d7f3dac08250f7e92fd78094b93e4496d1d",
+  "run_id": 36729290448,
+  "bullets": [
+    "Play lands from your graveyard when a card such as Icetill Explorer allows it.",
+    "Using a Treasure while two Goldspan Dragons are in play no longer stalls the game.",
+    "Card previews stay the same size while spectating, even when they show mechanic explanations.",
+    "Share feedback from the roadmap without signing in."
+  ]
+}

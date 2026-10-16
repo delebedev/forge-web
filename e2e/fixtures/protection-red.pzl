@@ -1,0 +1,14 @@
+[metadata]
+Name:Protection choice
+Goal:Win
+Turns:3
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanhand=Gods Willing;Shock
+humanbattlefield=Plains;Mountain;Mountain;Grizzly Bears
+humanlibrary=Island;Island;Island
+aibattlefield=Centaur Courser
+ailibrary=Island;Island;Island

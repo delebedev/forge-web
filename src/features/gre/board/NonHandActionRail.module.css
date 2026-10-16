@@ -1,0 +1,125 @@
+.rail {
+  position: relative;
+  z-index: 80;
+  display: flex;
+  flex: 0 0 auto;
+  align-items: end;
+  gap: 7px;
+  max-width: min(250px, 24vw);
+  margin-right: 0;
+  padding: 0 4px 24px 0;
+}
+
+.railLabel {
+  padding-bottom: 24px;
+  color: var(--faint);
+  font-family: var(--public-body);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+}
+
+.cards {
+  display: flex;
+  gap: 4px;
+  align-items: end;
+  min-width: 0;
+  overflow-x: auto;
+  padding: 18px 0 5px;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+  scrollbar-width: thin;
+  touch-action: pan-x;
+  overscroll-behavior-x: contain;
+  mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 20px), transparent 100%);
+}
+
+.entry {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.entry:hover,
+.entry:focus-within { z-index: 3; }
+
+.zone {
+  position: absolute;
+  top: -15px;
+  left: 50%;
+  z-index: 4;
+  transform: translateX(-50%);
+  padding: 1px 5px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 3px;
+  background: rgba(8, 10, 15, 0.9);
+  color: #b7bdc8;
+  font-family: var(--public-body);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  line-height: 1.4;
+}
+
+.actionLabel {
+  display: block;
+  width: 64px;
+  margin-top: 3px;
+  overflow: hidden;
+  color: #d9dde5;
+  font-size: 10px;
+  line-height: 1.2;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.menu {
+  position: absolute;
+  right: 4px;
+  bottom: calc(100% + 8px);
+  z-index: 90;
+  display: grid;
+  gap: 4px;
+  width: max-content;
+  max-width: min(260px, 70vw);
+  padding: 6px;
+  border: 1px solid var(--panel-border);
+  border-radius: 4px;
+  background: #252623;
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.58);
+}
+
+.menu button {
+  min-height: 32px;
+  padding: 6px 10px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--ink);
+  font-size: 12px;
+  text-align: left;
+}
+
+.menu button:hover:not(:disabled),
+.menu button:focus-visible {
+  border-color: var(--accent-border);
+  color: var(--accent);
+}
+
+.menu button:disabled { opacity: 0.45; }
+
+@media (max-width: 1100px) {
+  .rail {
+    max-width: 150px;
+    margin-right: 64px;
+    padding-bottom: 16px;
+  }
+  .railLabel { display: none; }
+}
+
+@media (max-width: 760px) {
+  .rail {
+    max-width: 150px;
+    padding-bottom: 10px;
+  }
+}

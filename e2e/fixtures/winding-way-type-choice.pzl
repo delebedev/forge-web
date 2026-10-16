@@ -1,0 +1,13 @@
+[metadata]
+Name:Card type choice
+Goal:Win
+Turns:3
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanhand=Winding Way;Forest
+humanbattlefield=Forest;Forest
+humanlibrary=Grizzly Bears;Mountain;Walking Corpse;Island;Forest;Forest;Forest
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain

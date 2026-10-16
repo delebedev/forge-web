@@ -1,0 +1,23 @@
+.page { min-height: 100svh; background: var(--public-bg); }
+.main { display: grid; grid-template-columns: minmax(240px, .85fr) minmax(0, 2.7fr); gap: clamp(24px, 3vw, 56px); min-height: 560px; height: calc(100svh - var(--public-header-height)); padding: 0 2.5% 20px 3.5%; box-sizing: border-box; }
+.invitation { align-self: center; padding-bottom: 38px; }
+.invitation[hidden], .match[hidden] { display: none; }
+.invitation h1 { font: 500 clamp(36px, 3.4vw, 60px)/1.06 var(--public-display); letter-spacing: -1.5px; margin: 0 0 26px; }
+.description { color: var(--public-muted); font-size: 15px; line-height: 1.7; margin: 0 0 28px; max-width: 30ch; }
+.match { min-width: 0; min-height: 0; }
+.expand { border: 0; background: none; color: var(--public-text); font: 500 12px var(--public-body); padding: 9px 0; cursor: pointer; }
+.expand:hover { color: var(--public-accent); }
+.expanded { grid-template-columns: minmax(0, 1fr); }
+.about { display: block; height: calc(100svh - var(--public-header-height)); overflow-y: auto; }
+@media (max-width: 850px) {
+  .main { display: flex; flex-direction: column; height: auto; padding: 18px 6%; }
+  .invitation { align-self: stretch; padding-bottom: 10px; }
+  .invitation h1 { font-size: 54px; }
+  .match { height: 550px; flex-shrink: 0; }
+}
+
+.back { display: inline-block; margin-bottom: 24px; color: var(--public-muted); text-underline-offset: 4px; font-size: 14px; }
+.back:hover { color: var(--public-text); }
+
+
+.disclaimer { max-width: 34ch; margin: 32px 0 0; color: var(--public-muted); font-size: 11px; line-height: 1.5; }

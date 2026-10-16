@@ -1,0 +1,27 @@
+.poolStrip {
+  background: var(--panel);
+  border-left: 1px solid var(--panel-border);
+  border-right: 1px solid var(--panel-border);
+  padding: 0.4rem 0.5rem;
+  max-height: 280px;
+  overflow: hidden;
+}
+
+.columnsPoolColumns {
+  display: flex;
+  gap: 0.25rem;
+  flex: 1;
+  min-height: 0;
+  overflow-x: auto;
+  overflow-y: auto;
+  align-items: flex-start;
+  max-height: 260px;
+}
+
+.emptyHint {
+  color: var(--muted);
+  font-size: 0.68rem;
+  padding: 2rem 0.5rem;
+  text-align: center;
+  flex: 1;
+}

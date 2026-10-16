@@ -1,0 +1,76 @@
+[Commander]
+1 Y'shtola, Night's Blessed
+
+[Deck]
+1 Arcane Signet
+1 Black Mage's Rod
+1 Bleachbone Verge
+1 Circle of Power
+1 Exquisite Blood
+1 Command Tower
+1 Cornered by Black Mages
+1 Creeping Bloodsucker
+1 Cyclonic Rift
+1 Deadly Rollick
+1 Delney, Streetwise Lookout
+1 Didn't Say Please
+1 Disallow
+1 Dissipate
+1 Queza, Augur of Agonies
+1 Esper Sentinel
+1 Void Rend
+1 Raffine's Tower
+1 Archmage Emeritus
+1 Fierce Guardianship
+1 Floodfarm Verge
+1 Force of Negation
+1 Frantic Search
+1 Ghostly Prison
+1 Gloomlake Verge
+1 Godless Shrine
+1 Grand Abolisher
+1 Hallowed Fountain
+1 Indulging Patrician
+1 Kambal, Consul of Allocation
+1 Talion, the Kindly Lord
+1 Lunar Convocation
+1 Teferi's Protection
+1 The One Ring
+1 Opposition Agent
+1 Roaming Throne
+1 Path to Exile
+1 Black Market Connections
+1 Temporary Lockdown
+1 Dark Ritual
+1 Rewind
+1 Rhystic Study
+1 Rona, Sheoldred's Faithful
+1 Scrawling Crawler
+1 Sheoldred, the Apocalypse
+1 Smothering Tithe
+1 Snuff Out
+1 Sol Ring
+1 Damn
+1 Dovin's Veto
+1 Teferi, Hero of Dominaria
+1 Swords to Plowshares
+1 Ledger Shredder
+1 Exsanguinate
+1 Enlightened Tutor
+1 Talisman of Dominance
+1 Talisman of Hierarchy
+1 Talisman of Progress
+1 Teferi, Time Raveler
+1 Bolas's Citadel
+1 Shark Typhoon
+1 Sublime Epiphany
+1 Absorb
+1 Memory Deluge
+1 Demonic Tutor
+1 Supreme Verdict
+1 Vito, Thorn of the Dusk Rose
+1 Watery Grave
+1 Toxic Deluge
+10 Island
+10 Plains
+10 Swamp

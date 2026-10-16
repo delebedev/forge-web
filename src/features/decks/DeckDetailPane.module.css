@@ -1,0 +1,306 @@
+.detailPanel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  padding: 22px;
+  border-radius: 4px;
+  background: var(--public-surface);
+  border: 0;
+  position: relative;
+}
+
+.detailScroll {
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.detailHeader {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.detailTitleRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.detailTitleLeft {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.detailName {
+  margin: 0;
+  font: 34px/1.1 var(--public-display);
+  overflow-wrap: anywhere;
+  color: var(--public-text);
+}
+
+.detailMeta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.detailColors {
+  display: flex;
+  gap: 0.15rem;
+  font-size: 0.85rem;
+}
+
+.detailSetBadge {
+  padding: 0.12rem 0.45rem;
+  border-radius: 4px;
+  background: rgb(201 173 112 / 0.12);
+  border: 1px solid rgb(201 173 112 / 0.25);
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--public-accent);
+}
+
+.detailCardCount {
+  font-size: 13px;
+  color: var(--public-muted);
+}
+
+.detailDesc {
+  margin: 0.25rem 0 0;
+  font-size: 13px;
+  color: var(--public-muted);
+  line-height: 1.45;
+  max-width: 600px;
+}
+
+/* --- Stats --- */
+.statsBlock {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 28px;
+  padding: 16px 0;
+  border-radius: 4px;
+  background: transparent;
+  border-top: 1px solid var(--public-line);
+  border-bottom: 1px solid var(--public-line);
+}
+
+.statsRow {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.statLabel {
+  font-size: 13px;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--public-muted);
+}
+
+.statValue {
+  font: 28px/1.2 var(--public-display);
+  font-weight: 500;
+  color: var(--public-text);
+}
+
+.curveBlock {
+  flex: 1;
+  min-width: 140px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.curveLabel {
+  font-size: 13px;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--public-muted);
+}
+
+.curveBars {
+  display: flex;
+  gap: 0.35rem;
+  align-items: flex-end;
+  height: 100px;
+}
+
+.curveCol {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  flex: 1;
+}
+
+.curveCount {
+  font-size: 13px;
+  color: var(--public-muted);
+  min-height: 0.8rem;
+}
+
+.curveBar {
+  width: 100%;
+  max-width: 32px;
+  border-radius: 4px 4px 0 0;
+  background: var(--public-accent);
+}
+
+.curveCmc {
+  font-size: 13px;
+  color: var(--public-muted);
+  font-weight: 600;
+}
+
+/* --- Card groups --- */
+.cardGroups {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.cardGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.groupHeader {
+  display: flex;
+  gap: 0.35rem;
+  align-items: baseline;
+  padding-bottom: 0.2rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  margin-bottom: 0.1rem;
+}
+
+.groupName {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--public-muted);
+}
+
+.groupCount {
+  font-size: 13px;
+  color: var(--public-muted);
+}
+
+.cardRow {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 6px 4px;
+  border-radius: 4px;
+}
+
+.cardRow:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.cardQty {
+  font-size: 13px;
+  color: var(--public-accent);
+  font-weight: 600;
+  min-width: 1.6rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.cardName {
+  font-size: 13px;
+  color: var(--public-text);
+  flex: 1;
+}
+
+.cardMana {
+  display: flex;
+  gap: 0.1rem;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.cardPt {
+  font-size: 13px;
+  color: var(--public-muted);
+  font-weight: 600;
+  min-width: 2rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- Actions --- */
+.detailActions {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+/* --- Empty / loading --- */
+.detailEmpty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  height: 100%;
+  color: var(--public-muted);
+  font-size: 0.85rem;
+}
+
+.detailEmptyIcon {
+  font-size: 2rem;
+  opacity: 0.3;
+}
+
+.decksError {
+  position: absolute;
+  bottom: 0.75rem;
+  left: 0.75rem;
+  right: 0.75rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 4px;
+  background: rgba(255, 90, 90, 0.14);
+  border: 1px solid rgba(255, 90, 90, 0.35);
+  color: #ff9aa0;
+  font-size: 13px;
+  text-align: center;
+}
+
+.spinner {
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  border: 2px solid rgb(201 173 112 / 0.2);
+  border-top-color: var(--public-accent);
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.detailCover { width: 72px; height: 100px; object-fit: cover; border-radius: 4px; float: left; margin: 0 18px 12px 0; }
+.detailTitleRow { flex-wrap: wrap; }
+.detailTitleLeft { flex: 1; min-width: 180px; }
+.detailActions { align-self: flex-start; }
+@media (max-width: 1100px) { .statsBlock { flex-direction: column; align-items: stretch; } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }

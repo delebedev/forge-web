@@ -1,0 +1,16 @@
+# Five Forests pay the base cost and exactly two Multikicker payments.
+[metadata]
+Name:Repeatable keyword payments
+Goal:Survive
+Turns:5
+Difficulty:Easy
+Description:Choose how many times to kick Joraga Warcaller, then cast Ornithopter.
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanbattlefield=Forest;Forest;Forest;Forest;Forest;Llanowar Elves|Tapped
+humanhand=Joraga Warcaller;Ornithopter
+humanlibrary=Forest;Forest;Forest;Forest;Forest
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain

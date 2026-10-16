@@ -1,0 +1,9 @@
+:root {
+  --card-face-width-mini: 52px;
+  --card-face-width-thumbnail: 98px;
+  --card-face-width-hand: 132px;
+  --card-face-width-detail: 160px;
+  --card-face-width-inspection: 220px;
+  --card-face-width-inspection-min: 154px;
+  --card-face-width-inspection-max: 238px;
+}

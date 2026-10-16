@@ -1,0 +1,32 @@
+.arrowLayer {
+  --target-spec-arrow: #dddcca;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 145;
+  overflow: visible;
+}
+.combat,
+.targetSpec {
+  fill: none;
+  stroke-width: 3;
+  stroke-linecap: round;
+  opacity: 0.92;
+}
+.combat {
+  stroke: var(--accent);
+}
+.combatDot { fill: var(--accent); }
+.targetSpec {
+  stroke: var(--target-spec-arrow);
+  stroke-dasharray: 7 5;
+}
+.targetSpecDot { fill: var(--target-spec-arrow); }
+
+.targetSpec { animation: target-trace 360ms ease-out both; }
+.combat { animation: combat-emphasis 240ms ease-out both; }
+@keyframes target-trace { from { opacity: .3; stroke-dashoffset: 18; } to { opacity: .92; stroke-dashoffset: 0; } }
+@keyframes combat-emphasis { from { opacity: .3; stroke-width: 5; } to { opacity: .92; stroke-width: 3; } }
+@media (prefers-reduced-motion: reduce) { .targetSpec, .combat { animation: none; } }

@@ -1,0 +1,213 @@
+name: Publish Forge Web
+
+on:
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: forge-web-production
+  cancel-in-progress: false
+
+jobs:
+  verify-ci:
+    name: Require green main CI
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const { waitForMainCi } = await import(`${process.env.GITHUB_WORKSPACE}/scripts/ci-proof.mjs`)
+            await waitForMainCi(github, context, core)
+
+  publish:
+    needs: verify-ci
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production-release
+    env:
+      DEPLOY_HOST: ${{ secrets.FORGE_WEB_DEPLOY_HOST }}
+      DEPLOY_USER: ${{ secrets.FORGE_WEB_DEPLOY_USER }}
+    timeout-minutes: 90
+    steps:
+      - name: Verify deployment configuration
+        run: test -n "$DEPLOY_HOST" && test -n "$DEPLOY_USER"
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: |
+            17
+            21
+          cache: ''
+
+      - uses: stCarolas/setup-maven@v5
+        with:
+          maven-version: 3.9.9
+
+      - uses: extractions/setup-just@v2
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Bootstrap Leyline runtime
+        run: bun run leyline:check
+
+      - name: Classify release against production
+        id: scope
+        env:
+          PUBLISH_KEY: ${{ secrets.FORGE_WEB_STATIC_SSH_KEY }}
+          PUBLISH_KNOWN_HOST: ${{ secrets.FORGE_WEB_KNOWN_HOST }}
+        run: |
+          deploy_dir=$(realpath "$(mktemp -d /tmp/forge-web-static.XXXXXX)")
+          key="$deploy_dir/key"
+          known_hosts="$deploy_dir/known_hosts"
+          trap 'rm -f "$key" "$known_hosts"; rmdir "$deploy_dir"' EXIT
+          printf '%s\n' "$PUBLISH_KEY" > "$key"
+          printf '%s\n' "$PUBLISH_KNOWN_HOST" > "$known_hosts"
+          chmod 600 "$key" "$known_hosts"
+          ssh_options=(-i "$key" -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$known_hosts")
+          ssh "${ssh_options[@]}" "$DEPLOY_USER@$DEPLOY_HOST" status > "$RUNNER_TEMP/forge-web-live.json"
+          python3 - "$RUNNER_TEMP/forge-web-live.json" "$GITHUB_OUTPUT" <<'PY'
+          import json, pathlib, sys
+          live = json.loads(pathlib.Path(sys.argv[1]).read_text())
+          with pathlib.Path(sys.argv[2]).open('a') as output:
+              output.write(f"base={live['base']}\nbackend={live['backend']}\n")
+          PY
+          backend=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["backend"])' "$RUNNER_TEMP/forge-web-live.json")
+          kind=$(python3 scripts/frontend-release-scope.py --classify . "$backend")
+          printf 'kind=%s\n' "$kind" >> "$GITHUB_OUTPUT"
+          printf 'Release class: %s\n' "$kind" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Build production web
+        env:
+          LEYLINE_WEBDOOR_WS_URL: wss://forgeweb.app
+          GIT_SHA: ${{ github.sha }}
+          VITE_SENTRY_RELEASE: ${{ github.sha }}
+          VITE_SENTRY_ENVIRONMENT: production
+          VITE_SENTRY_DSN: ${{ secrets.FORGE_WEB_BROWSER_SENTRY_DSN }}
+          FORGE_WEB_PRIVATE_SOURCEMAPS: 'true'
+        run: |
+          test -n "$VITE_SENTRY_DSN"
+          bun run browser-alpha:build
+
+      - name: Upload private source maps
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.FORGE_WEB_SOURCEMAP_TOKEN }}
+          SENTRY_URL: ${{ vars.FORGE_WEB_SENTRY_URL }}
+          SENTRY_ORG: ${{ vars.FORGE_WEB_SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.FORGE_WEB_SENTRY_PROJECT }}
+        run: |
+          test -n "$SENTRY_AUTH_TOKEN" && test -n "$SENTRY_URL" && test -n "$SENTRY_ORG" && test -n "$SENTRY_PROJECT"
+          bunx @sentry/cli@3.8.0 sourcemaps inject dist/assets
+          bunx @sentry/cli@3.8.0 releases new "$GITHUB_SHA"
+          bunx @sentry/cli@3.8.0 sourcemaps upload --release "$GITHUB_SHA" dist
+
+      - name: Publish static files
+        if: steps.scope.outputs.kind == 'web'
+        env:
+          PUBLISH_KEY: ${{ secrets.FORGE_WEB_STATIC_SSH_KEY }}
+          PUBLISH_KNOWN_HOST: ${{ secrets.FORGE_WEB_KNOWN_HOST }}
+          BASE_RELEASE: ${{ steps.scope.outputs.base }}
+        run: |
+          deploy_dir=$(realpath "$(mktemp -d /tmp/forge-web-static.XXXXXX)")
+          key="$deploy_dir/key"
+          known_hosts="$deploy_dir/known_hosts"
+          trap 'rm -f "$key" "$known_hosts"; rmdir "$deploy_dir"' EXIT
+          printf '%s\n' "$PUBLISH_KEY" > "$key"
+          printf '%s\n' "$PUBLISH_KNOWN_HOST" > "$known_hosts"
+          chmod 600 "$key" "$known_hosts"
+          tar -czf "$RUNNER_TEMP/forge-web-static.tar.gz" --exclude='*.map' -C dist .
+          ssh -i "$key" -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="$known_hosts" "$DEPLOY_USER@$DEPLOY_HOST" \
+            "publish $GITHUB_SHA $BASE_RELEASE" < "$RUNNER_TEMP/forge-web-static.tar.gz"
+
+      - name: Validate and package server distribution
+        if: steps.scope.outputs.kind == 'full'
+        run: |
+          bun run runtime:check
+          bash scripts/build-full-release.sh "$RUNNER_TEMP/forge-web-full"
+
+      - name: Publish full release
+        if: steps.scope.outputs.kind == 'full'
+        env:
+          PUBLISH_KEY: ${{ secrets.FORGE_WEB_FULL_SSH_KEY }}
+          PUBLISH_KNOWN_HOST: ${{ secrets.FORGE_WEB_KNOWN_HOST }}
+          BASE_RELEASE: ${{ steps.scope.outputs.base }}
+        run: |
+          deploy_dir=$(realpath "$(mktemp -d /tmp/forge-web-full.XXXXXX)")
+          key="$deploy_dir/key"
+          known_hosts="$deploy_dir/known_hosts"
+          trap 'rm -f "$key" "$known_hosts"; rmdir "$deploy_dir"' EXIT
+          printf '%s\n' "$PUBLISH_KEY" > "$key"
+          printf '%s\n' "$PUBLISH_KNOWN_HOST" > "$known_hosts"
+          chmod 600 "$key" "$known_hosts"
+          leyline=$(git -C leyline rev-parse HEAD)
+          forge=$(git -C leyline/forge rev-parse HEAD)
+          ssh -i "$key" -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="$known_hosts" "$DEPLOY_USER@$DEPLOY_HOST" \
+            "publish $GITHUB_SHA $BASE_RELEASE $leyline $forge" < "$RUNNER_TEMP/forge-web-full/full.tar.gz"
+
+      - name: Verify production release
+        env:
+          PUBLISH_KEY: ${{ secrets.FORGE_WEB_STATIC_SSH_KEY }}
+          PUBLISH_KNOWN_HOST: ${{ secrets.FORGE_WEB_KNOWN_HOST }}
+          KIND: ${{ steps.scope.outputs.kind }}
+          BACKEND_BEFORE: ${{ steps.scope.outputs.backend }}
+        run: |
+          deploy_dir=$(realpath "$(mktemp -d /tmp/forge-web-verify.XXXXXX)")
+          key="$deploy_dir/key"
+          known_hosts="$deploy_dir/known_hosts"
+          trap 'rm -f "$key" "$known_hosts"; rmdir "$deploy_dir"' EXIT
+          printf '%s\n' "$PUBLISH_KEY" > "$key"
+          printf '%s\n' "$PUBLISH_KNOWN_HOST" > "$known_hosts"
+          chmod 600 "$key" "$known_hosts"
+          ssh -i "$key" -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="$known_hosts" "$DEPLOY_USER@$DEPLOY_HOST" status > "$RUNNER_TEMP/forge-web-published.json"
+          python3 - "$RUNNER_TEMP/forge-web-published.json" <<'PY'
+          import json, os, pathlib, sys
+          live = json.loads(pathlib.Path(sys.argv[1]).read_text())
+          assert live['frontend'] == os.environ['GITHUB_SHA']
+          assert live['backend'] == (os.environ['GITHUB_SHA'] if os.environ['KIND'] == 'full' else os.environ['BACKEND_BEFORE'])
+          print(f"Published {os.environ['KIND']} release {live['frontend']}")
+          PY
+          curl --fail --silent --show-error --resolve "forgeweb.app:443:$DEPLOY_HOST" https://forgeweb.app/api/health
+
+      - name: Record deployed revisions
+        env:
+          KIND: ${{ steps.scope.outputs.kind }}
+        run: |
+          python3 - <<'PYTHON'
+          from datetime import datetime, timezone
+          import json, os, pathlib
+          live = json.loads((pathlib.Path(os.environ['RUNNER_TEMP']) / 'forge-web-published.json').read_text())
+          deployment = {key: live[key] for key in ('frontend', 'backend')}
+          deployment.update(run_id=int(os.environ['GITHUB_RUN_ID']), kind=os.environ['KIND'],
+                            deployed_at=datetime.now(timezone.utc).isoformat())
+          (pathlib.Path(os.environ['RUNNER_TEMP']) / 'deployment.json').write_text(json.dumps(deployment))
+          PYTHON
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: deployed-release
+          path: ${{ runner.temp }}/deployment.json
+          retention-days: 90

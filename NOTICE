@@ -1,0 +1,60 @@
+Forge Web
+Copyright 2026 Denis Lebedev and contributors
+
+Except where otherwise noted, original Forge Web source is licensed under the
+GNU General Public License, version 3 only (SPDX-License-Identifier:
+GPL-3.0-only). See LICENSE. Third-party works retain their own copyright,
+license grants, and notices. This grant does not relicense them.
+
+Game runtime
+------------
+Leyline: https://github.com/delebedev/leyline
+  GPL version 3. See leyline/LICENSE and leyline/NOTICE.
+Forge: https://github.com/Card-Forge/forge
+  GPL version 3, with version 3 or later grants in individual source files.
+  See leyline/forge/LICENSE and the original file headers and credits.
+
+Protocol definitions
+--------------------
+MtgaProto: https://github.com/riQQ/MtgaProto
+  Protocol field definitions and numeric identifiers. Upstream does not specify
+  a license. These interoperability definitions are not included in the grant
+  for original Forge Web source above.
+
+Fonts and symbols
+-----------------
+Keyrune: https://github.com/andrewgioia/keyrune
+  Copyright Andrew Gioia. Icons and code: GPL version 3. Prepared fonts:
+  SIL Open Font License 1.1. See the dependency's LICENSE.md.
+Mana: https://github.com/andrewgioia/mana
+  Font: SIL Open Font License 1.1. CSS, LESS, and Sass: MIT. See the dependency's
+  README.md. Mana, tap, and card type symbols are copyright Wizards of the Coast.
+Libre Baskerville: SIL Open Font License 1.1.
+  Full notice: src/shared/cards/fonts/LibreBaskerville-OFL.txt.
+Roboto Condensed: SIL Open Font License 1.1.
+  Full notice: src/shared/cards/fonts/RobotoCondensed-OFL.txt.
+
+Sounds
+------
+Kenney Casino Audio 1.1 and Interface Sounds 1.0: CC0.
+  Copyright Kenney Vleugels. Original notices:
+  public/sounds/kenney/casino-license.txt
+  public/sounds/kenney/interface-license.txt
+  Cue mapping: docs/board-sounds.md.
+
+Other dependencies and hosted runtime
+-------------------------------------
+React, React DOM, Base UI, Sentry, and Zod: MIT.
+protobufjs: BSD 3-Clause.
+  Preserve the installed packages' license and copyright notices when
+  redistributing their code. The package lockfile selects dependency versions;
+  this notice is not a complete license manifest for compiled distributions.
+CheerpJ: https://cheerpj.com/docs/licensing
+  Loaded from the vendor's hosted runtime under its terms and credited in the
+  browser launcher. The Forge Web source license grants no rights to
+  redistribute the CheerpJ runtime.
+
+Magic: The Gathering names, card text, artwork, and symbols remain subject to
+Wizards of the Coast's rights. Software licenses here grant no trademark
+rights or license to third-party game content. Forge Web is unofficial and
+is not affiliated with or endorsed by Wizards of the Coast.

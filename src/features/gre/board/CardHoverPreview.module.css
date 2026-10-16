@@ -1,0 +1,12 @@
+.hoverPreview {
+  position: fixed;
+  z-index: 100;
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+@media (max-width: 900px) {
+  .hoverPreview {
+    display: none;
+  }
+}

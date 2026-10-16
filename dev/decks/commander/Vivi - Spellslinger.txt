@@ -1,0 +1,78 @@
+[Commander]
+1 Vivi Ornitier
+
+[Deck]
+1 Otawara, Soaring City
+1 Archmage of Runes
+1 Baral, Chief of Compliance
+1 Beacon Bolt
+1 Blasphemous Act
+1 Blood Moon
+1 Crackle with Power
+1 Bribery
+1 Steam Vents
+1 Brotherhood's End
+1 Champion's Helm
+1 Chandra, Dressed to Kill
+1 Chandra, Hope's Beacon
+1 Command Tower
+1 Negate
+1 Counterspell
+1 Darksteel Citadel
+1 Arcane Signet
+1 Deflecting Swat
+1 Disallow
+1 Electrolyze
+1 Electrostatic Field
+1 Cyclonic Rift
+1 Archmage Emeritus
+1 Stormcarved Coast
+1 Fierce Guardianship
+1 Fiery Inscription
+1 Firemind's Research
+1 Niv-Mizzet, Parun
+1 Force Spike
+1 Force of Will
+1 Thermo-Alchemist
+1 Opt
+1 Gitaxian Probe
+1 Glamdring
+1 Grab the Prize
+1 Solve the Equation
+1 Storm-Kiln Artist
+1 Lightning Bolt
+1 Shore Up
+1 Expressive Iteration
+1 Curiosity
+1 Mithril Coat
+1 Birgi, God of Storytelling
+1 Swan Song
+1 Mystical Tutor
+1 Narset, Parter of Veils
+1 Niv-Mizzet, Visionary
+1 Sol Ring
+1 Consider
+1 Treasure Cruise
+1 Ponder
+1 Primal Amulet
+1 Aetherflux Reservoir
+1 Spark Double
+1 Memory Deluge
+1 Abrade
+1 Prismari Command
+1 Reliquary Tower
+1 Rhystic Study
+1 Rowan, Scholar of Sparks
+1 Brainstorm
+1 Sorcerer Class
+1 Swiftfoot Boots
+1 The Emperor of Palamecia
+1 Thousand-Year Storm
+1 Triskaidekaphile
+1 Spell Pierce
+1 Underworld Breach
+1 Urabrask
+1 Weaver of Lightning
+1 You See a Guard Approach
+11 Mountain
+16 Island

@@ -1,0 +1,16 @@
+[metadata]
+Name:Zodiark zero sacrifice
+Goal:Survive
+Turns:5
+Difficulty:Easy
+Description:Zodiark enters with one eligible creature, so no creature is sacrificed.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanbattlefield=Swamp;Swamp;Swamp;Swamp;Swamp;Bonecaller Cleric
+humanhand=Zodiark, Umbral God
+humanlibrary=Swamp;Swamp;Swamp;Swamp;Swamp
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain

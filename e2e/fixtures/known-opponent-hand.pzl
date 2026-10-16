@@ -1,0 +1,19 @@
+# Telepathy makes two opponent cards inspectable; Naturalize removes that ongoing permission.
+# The opponent has no mana sources, keeping both cards in hand throughout the proof.
+# Human Forests pay Naturalize; Plains demonstrates another legal action after withdrawal.
+[metadata]
+Name:Known opponent hand
+Goal:Survive
+Turns:5
+Difficulty:Easy
+Description:Inspect the revealed hand, remove Telepathy, then continue play.
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanbattlefield=Forest;Forest;Telepathy
+humanhand=Naturalize;Plains
+humanlibrary=Forest;Forest;Forest;Forest;Forest
+aihand=Grizzly Bears;Lightning Bolt
+ailibrary=Forest;Forest;Forest;Forest;Forest

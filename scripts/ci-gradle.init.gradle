@@ -1,0 +1,11 @@
+// Leyline applies child plugins from its root script, so set paths beforehand.
+gradle.beforeProject { project ->
+    def target = gradle.startParameter.projectProperties.get('runtimeJavaVersion') ?: '21'
+    if (project == project.rootProject && project.name == 'leyline') {
+        project.allprojects { module ->
+            module.layout.buildDirectory.set(module.layout.projectDirectory.dir("build/jvm-${target}"))
+        }
+    } else if (project.name == 'card-presentation') {
+        project.layout.buildDirectory.set(project.layout.projectDirectory.dir("build/jvm-${target}"))
+    }
+}

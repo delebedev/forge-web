@@ -1,0 +1,151 @@
+/* Each game owns its available space; the table has no viewport-wide overlay. */
+.arenaBoard {
+  position: relative; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr);
+  container-type: size; height: 100%; min-height: min(680px, 100dvh); overflow: clip; user-select: none;
+  --creature-ideal-w: clamp(84px, calc(100cqh * .24 * var(--board-card-scale, .7)), 208px);
+  --board-card-w: var(--creature-ideal-w);
+  --board-support-card-w: clamp(68px, calc(100cqh * .17 * var(--board-card-scale, .7)), 158px);
+  --board-card-h: calc(var(--board-card-w) / 1.28);
+  --hand-ideal-w: clamp(96px, calc(100cqh * .20 * var(--board-hand-scale, .85)), 178px);
+  --board-hand-card-w: var(--hand-ideal-w);
+  --board-opp-hand-h: 48px;
+  --decision-space: 0px;
+  font-family: var(--public-body); color: var(--ink);
+  background: radial-gradient(ellipse at 48% 42%, #33312e 0, #292725 52%, #211f1e 100%);
+  box-shadow: inset 0 1px #efeee80e;
+}
+.arenaBoard[data-decision]:not([data-decision='mulligan']), .arenaBoard[data-has-stack='true'] { --decision-space: 320px; }
+.arenaBoard.embedded { flex: 1 1 auto; min-height: 0; }
+.statusCluster { position: absolute; top: 18px; right: 22px; z-index: 170; display: flex; align-items: center; gap: 12px; max-width: 46%; }
+.connectionChip { color: var(--public-error); font-size: 11px; white-space: nowrap; }
+.leaveMatch { min-height: 34px; padding: 6px 10px; border: 0; border-radius: 3px; background: #efeee808; color: var(--muted); font: 500 12px var(--public-body); cursor: pointer; }
+.leaveMatch:hover { color: var(--ink); background: #efeee812; }
+.reportBug { color: var(--accent); font: 12px var(--public-body); text-decoration: none; padding: 9px 4px; }
+.reportBug:hover { color: var(--accent-hover); text-decoration: underline; text-underline-offset: 3px; }
+.matchState { position: absolute; top: 65px; right: 28px; display: flex; flex-wrap: wrap; column-gap: 8px; max-width: 420px; justify-content: flex-end; color: var(--muted); font: 12px/1.5 var(--public-body); z-index: 20; }
+.matchState strong { color: var(--ink); font-weight: 500; }
+.matchState > span:last-child { color: var(--muted); }
+.matchContext { position: absolute; top: 18px; left: 250px; z-index: 40; display: flex; flex-direction: column; gap: 2px; max-width: min(440px, 38%); color: var(--muted); font: 12px/1.4 var(--public-body); }
+.matchContext strong { color: var(--ink); font-size: 13px; font-weight: 600; }
+.playerBox { scale: calc(var(--board-player-panel-scale, .75) / .75); transform-origin: top left; position: absolute; z-index: 30; display: flex; flex-direction: column; gap: 7px; width: 218px; font-family: var(--public-body); }
+.oppBox { top: 18px; left: 26px; }
+.selfBox { transform-origin: bottom left; bottom: 24px; left: 26px; }
+.emblemTiles { position: absolute; left: 0; display: flex; flex-direction: column; gap: 6px; width: 70px; max-height: 180px; overflow-y: auto; padding: 3px; }
+.oppBox .emblemTiles { top: calc(100% + 22px); }
+.selfBox .emblemTiles { bottom: calc(100% + 140px); }
+.emblemTile { position: relative; flex: 0 0 44px; width: 64px; padding: 0; overflow: hidden; border: 1px solid var(--accent); border-radius: 5px; background: var(--public-surface); color: var(--ink); font-family: var(--public-body); cursor: pointer; }
+.emblemTile:hover, .emblemTile:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.emblemImage { display: block; height: 100%; background: linear-gradient(135deg, #403c32, #252b28); }
+.emblemImage img { width: 100%; height: 100%; object-fit: cover; }
+.dungeonMark { display: grid; place-items: center; height: 100%; color: var(--ink); font: 500 24px var(--public-body); }
+.emblemTile strong { position: absolute; bottom: 0; left: 0; right: 0; padding: 2px 0; background: #161816a8; color: #efdfbc; font-size: 9px; font-weight: 500; }
+@container (min-width: 900px) { .arenaBoard:has(.emblemTiles) .centerBoard { width: min(calc(100% - var(--decision-space) - 168px), 1052px); margin-left: 112px; } }
+.playerIdentity { display: flex; align-items: center; gap: 12px; min-height: 40px; }
+.playerCounters { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; }
+.playerCounters strong { color: var(--ink); font-variant-numeric: tabular-nums; }
+.avatar { color: var(--muted); font-size: 13px; min-width: 51px; }
+.lifeTotal { display: block; color: var(--ink); font: 500 38px/1 var(--public-body); letter-spacing: -.04em; font-variant-numeric: tabular-nums; animation: life-change 300ms ease-out; }
+.playerStatus { color: var(--accent); font-size: 11px; }
+.dungeonProgress { display: flex; flex-direction: column; gap: 2px; color: var(--ink); font: 11px/1.3 var(--public-body); }
+.playerBox[data-active='true'] .avatar { color: var(--ink); }
+.zones { display: flex; gap: 12px; }
+.zone { display: flex; align-items: baseline; gap: 4px; min-height: 30px; padding: 4px 0; border: 0; background: transparent; color: var(--ink); font: 13px var(--public-body); cursor: pointer; }
+.zone small { color: var(--muted); font-size: 10px; }
+.zone span { font-variant-numeric: tabular-nums; }
+span.zone { cursor: default; }
+button.zone:hover small { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+.lifeTarget { padding: 3px 8px; margin: -3px -8px; background: transparent; border: 1px dashed var(--accent); border-radius: 3px; color: var(--ink); cursor: pointer; }
+.lifeTarget.targetSelected { background: var(--accent); border-style: solid; }
+.lifeTarget.targetSelected .lifeTotal { color: var(--public-bg); }
+.resourceNote { color: var(--muted); font-size: 11px; }
+.priorityStatus { position: absolute; right: 24px; bottom: 130px; width: 210px; text-align: right; color: var(--muted); font-size: 12px; }
+.arenaBoard[data-has-priority='true'] .priorityStatus { color: var(--accent); }
+.centerBoard { position: relative; display: flex; flex-direction: column; justify-content: center; justify-self: center; gap: 16px; width: min(calc(100% - var(--decision-space) - 56px), 1180px); min-width: 0; min-height: 0; margin: 92px 0 calc(var(--hand-ideal-w) * 1.23 + 55px); transform: translateX(calc(var(--decision-space) * -.5)); }
+.centerBoard.dragging { background: #efeee808; outline: 1px dashed var(--accent); outline-offset: 8px; }
+.centerBoard.dragging::after { content: 'Drop to play'; position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); color: var(--ink); font-size: 14px; pointer-events: none; }
+.lane { position: relative; display: flex; flex: 0 0 auto; justify-content: center; align-items: center; gap: 12px; min-height: var(--board-card-h); min-width: 0; container-type: inline-size; }
+.lane:not(.landLane) { --board-card-w: min(var(--creature-ideal-w), calc((100cqw - (var(--lane-count, 1) - 1) * 12px) / var(--lane-count, 1))); }
+.landLane { min-height: calc(var(--board-support-card-w) / 1.37); justify-content: space-between; }
+.landGroup, .permanentGroup { --board-card-w: var(--board-support-card-w); display: flex; align-items: center; gap: 10px; max-width: 49%; }
+.supportCompact { --board-card-w: min(var(--board-support-card-w), var(--support-card-max)); display: grid; grid-auto-flow: column; grid-auto-columns: var(--board-card-w); grid-template-rows: repeat(2, calc(var(--board-card-w) / 1.28)); gap: 6px; }
+.permanentGroup { margin-left: auto; }
+.opponentLands, .opponentCreatures { opacity: 1; }
+.phaseDivider { display: flex; align-items: center; flex: 0 0 auto; height: 24px; }
+.dividerLine { flex: 1; height: 1px; background: #efeee81c; }
+.phaseOrb { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.oppHandShelf { position: absolute; top: -15px; left: 260px; right: 260px; z-index: 25; display: flex; justify-content: center; pointer-events: none; }
+.handShelf { position: absolute; right: 240px; bottom: -14px; left: 240px; display: flex; justify-content: center; pointer-events: none; }
+.handShelf > * { pointer-events: auto; }
+.handGroup { display: flex; align-items: end; justify-content: center; width: min(100%, 980px); min-width: 0; }
+.dragGhost { position: fixed; z-index: 999; transform: translate(-50%, -55%) rotate(-4deg); pointer-events: none; filter: drop-shadow(0 16px 24px #0007); }
+.attachmentGroup { position: relative; flex: 0 0 auto; width: var(--board-card-w); }
+.attachmentSlot { position: relative; height: clamp(22px, calc(var(--board-card-w) * .19), 36px); }
+.attachmentSlot:hover, .attachmentSlot:focus-within { z-index: 61; }
+.attachmentHost { position: relative; }
+.automationSurface, .actionMirror { position: absolute; top: 8px; left: 8px; opacity: 0; pointer-events: none; }
+.automationSurface small { display: inline-block; min-width: 1px; min-height: 1px; }
+.actionMirror button { width: 1px; height: 1px; padding: 0; overflow: hidden; border: 0; }
+.actionChooser { width: min(430px, calc(100vw - 32px)); border: 0; border-radius: 4px; padding: 24px; background: var(--public-surface); color: var(--ink); box-shadow: 0 24px 60px #0006; }
+.actionChooser::backdrop { background: #11120fc0; }
+.actionChooser h2 { margin: 0 0 20px; font: 500 20px/1.3 var(--public-body); }
+.actionChooser div { display: grid; gap: 8px; }
+.actionChooser div button { min-height: 44px; border: 1px solid var(--public-line); border-radius: 3px; padding: 10px 12px; background: transparent; color: inherit; font: 500 14px/1.5 var(--public-body); text-align: left; cursor: pointer; }
+.actionChooser div button:hover { border-color: var(--accent); }
+.actionChooserCancel { margin-top: 18px; min-height: 36px; border: 0; padding: 6px 0; background: transparent; color: var(--muted); cursor: pointer; }
+.outcomeScrim { position: absolute; inset: 0; z-index: 200; display: grid; place-items: center; animation: outcome-in 240ms ease; }
+.outcomeBanner { margin: auto; border: 0; width: min(460px, calc(100% - 40px)); max-height: calc(100dvh - 40px); overflow-y: auto; padding: 40px; border-radius: 4px; text-align: center; background: var(--public-surface); color: var(--ink); font-family: var(--public-body); box-shadow: 0 24px 70px #0008; }
+.outcomeBanner::backdrop { background: #11120fbe; }
+.outcomeBanner h2, .outcomeBanner p { margin: 0; }
+.outcomeBanner h2 { font: 500 clamp(32px, 4vw, 48px)/1.1 var(--public-body); letter-spacing: -.04em; text-wrap: balance; }
+.outcomeBanner p { margin-top: 16px; color: var(--muted); font-size: 15px; line-height: 1.6; }
+.outcomeActions { display: flex; justify-content: center; gap: 12px; margin-top: 28px; }
+.outcomeActions button, .outcomeActions a { box-sizing: border-box; min-width: 142px; min-height: 44px; padding: 11px 18px; border: 1px solid var(--public-line); border-radius: 3px; font: 500 14px/1.4 var(--public-body); cursor: pointer; text-decoration: none; }
+.outcomeActions .outcomePrimary { border-color: transparent; background: var(--accent); color: var(--public-bg); }
+.outcomePrimary:hover { background: var(--accent-hover); }
+.outcomeSecondary { background: transparent; color: var(--ink); }
+.outcomeSecondary:hover { border-color: var(--ink); }
+.motionLayer { position: absolute; z-index: 160; inset: 0; overflow: hidden; pointer-events: none; }
+.motionSprite { position: absolute; top: var(--motion-top); left: var(--motion-left); width: var(--motion-width); height: var(--motion-height); animation: zone-travel var(--motion-duration) cubic-bezier(.16, 1, .3, 1) both; }
+.motionSprite > * { width: 100%; height: 100%; }
+.motionSprite { --board-hand-card-w: var(--motion-width); }
+.motionBack { width: 100%; height: 100%; border: 1px solid #777b6c; border-radius: 5px; background: #33372f; box-shadow: inset 0 0 0 5px #20221e, 0 8px 18px #0006; }
+@keyframes zone-travel { from { opacity: .9; transform: translate3d(0, 0, 0) scale(.94); } 80% { opacity: 1; } to { opacity: 0; transform: translate3d(var(--motion-dx), var(--motion-dy), 0) scale(.96); } }
+@keyframes life-change { from { opacity: .65; translate: 0 -3px; } to { opacity: 1; translate: 0 0; } }
+@keyframes outcome-in { from { opacity: 0; } to { opacity: 1; } }
+@container (max-height: 760px) { .centerBoard { gap: 10px; margin-top: 112px; } .phaseDivider { height: 14px; } }
+@container (max-width: 1000px) { .playerBox { width: 200px; } .handShelf { left: 160px; right: 160px; } .statusCluster { gap: 8px; }  }
+@media (prefers-reduced-motion: reduce) { .centerBoard { transition: none; } .motionSprite { animation: none; transform: translate3d(var(--motion-dx), var(--motion-dy), 0); } .lifeTotal, .outcomeScrim { animation: none; } }
+
+.decisionColumn { position: absolute; top: 94px; right: 24px; bottom: 170px; z-index: 150; width: 292px; display: flex; flex-direction: column; gap: 18px; pointer-events: none; }
+.decisionColumn:has([data-prompt='mulligan']) { display: contents; }
+.decisionColumn > * { min-height: 0; pointer-events: auto; }
+.decisionColumn:has([data-prompt]) > [data-zone='stack'] { flex: 1 1 auto; }
+.decisionColumn:has([data-zone='stack']) > [data-prompt] { flex-shrink: 0; max-height: 72%; }
+
+.lifeReading { position: relative; display: block; }
+.lifeDelta { position: absolute; left: calc(100% + 7px); top: -7px; color: var(--ink); font: 600 15px var(--public-body); pointer-events: none; animation: life-delta 1600ms ease-out both; }
+@keyframes life-delta { 0% { opacity: 0; translate: 0 8px; } 15%, 60% { opacity: 1; translate: 0 0; } 100% { opacity: 0; translate: 0 -9px; } }
+.arenaBoard[data-presentation-motion='turn'] .matchState { animation: turn-arrive 380ms ease-out; }
+@keyframes turn-arrive { from { opacity: .4; translate: 0 -5px; } to { opacity: 1; translate: 0 0; } }
+@media (prefers-reduced-motion: reduce) { .motionLayer, .lifeDelta { display: none; } .arenaBoard[data-presentation-motion='turn'] .matchState { animation: none; } }
+
+.arenaBoard[data-decision] .decisionColumn { bottom: 24px; }
+
+.arenaBoard:has(.supportCompact) { --creature-ideal-w: clamp(72px, 12cqh, 142px); --board-support-card-w: clamp(52px, 9cqh, 110px); }
+
+@media (max-width: 600px) {
+  .arenaBoard[data-challenge='true'] { --hand-ideal-w: 92px; --board-card-w: 76px; --board-support-card-w: 62px; }
+  .arenaBoard[data-challenge='true'] .oppBox { top: 8px; left: 10px; }
+  .arenaBoard[data-challenge='true'] .selfBox { bottom: 8px; left: 10px; }
+  .arenaBoard[data-challenge='true'] .statusCluster { top: 102px; right: 10px; max-width: 65%; }
+  .arenaBoard[data-challenge='true'] .matchContext { top: 8px; left: 52%; max-width: 46%; }
+  .arenaBoard[data-challenge='true'] .matchState { top: 154px; right: 10px; max-width: 70%; }
+  .arenaBoard[data-challenge='true'] .centerBoard { margin: 190px 12px 205px; gap: 6px; }
+  .arenaBoard[data-challenge='true'] .handShelf { bottom: 85px; left: 8px; right: 8px; }
+  .arenaBoard[data-challenge='true'] .decisionColumn { top: 190px; right: 8px; bottom: 205px; width: min(292px, calc(100% - 16px)); }
+  .arenaBoard[data-challenge='true'] .priorityStatus { display: none; }
+  .arenaBoard[data-challenge='true'] :global([aria-label='Turn phases']) { display: none; }
+  .arenaBoard[data-challenge='true'] .outcomeActions { flex-wrap: wrap; }
+  .arenaBoard[data-challenge='true'] .outcomeActions button,
+  .arenaBoard[data-challenge='true'] .outcomeActions a { min-width: 0; }
+}

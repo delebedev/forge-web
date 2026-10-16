@@ -1,0 +1,13 @@
+[metadata]
+Name:Effect card choice
+Goal:Win
+Turns:3
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanhand=Dragon's Disciple;Shivan Dragon;Volcanic Dragon
+humanbattlefield=Plains;Plains
+humanlibrary=Island;Island;Island
+ailibrary=Island;Island;Island

@@ -1,0 +1,21 @@
+.phaseRail {
+  position: absolute; bottom: calc(var(--hand-ideal-w) * 1.12 + 30px); left: 50%;
+  transform: translateX(-50%); z-index: 160; display: flex; align-items: center; gap: 3px;
+  max-width: calc(100% - 440px); white-space: nowrap; font: 11px var(--public-body);
+}
+.phase { position: relative; }
+.phase summary, .readOnly { position: relative; display: block; padding: 9px 10px; border-bottom: 1px solid transparent; color: var(--muted); }
+.phase summary { cursor: pointer; list-style: none; }
+.phase summary::-webkit-details-marker { display: none; }
+.phase summary:hover, .phase[open] summary { color: var(--ink); background: #efeee808; }
+.phaseRail .active { color: var(--ink); border-bottom-color: var(--accent); }
+.stop::after { content: ''; position: absolute; bottom: 3px; left: calc(50% - 2px); width: 4px; height: 4px; border-radius: 50%; background: var(--accent); }
+.stopMenu { position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); width: 300px; padding: 16px; border: 1px solid #efeee830; border-radius: 6px; background: var(--public-bg); box-shadow: 0 8px 30px #0008; color: var(--ink); }
+.stopMenu strong { font-size: 13px; }
+.hint { display: block; margin: 6px 0 14px; color: var(--muted); }
+.stopGrid { display: grid; grid-template-columns: 1fr 60px 60px; gap: 6px; align-items: center; }
+.stopGrid > span { color: var(--muted); font-size: 10px; text-align: center; }
+.stopRow { display: contents; }
+.stopRow button { min-height: 30px; border: 1px solid #efeee820; border-radius: 3px; background: transparent; color: var(--muted); font: inherit; cursor: pointer; }
+.stopRow button[aria-pressed=true] { color: var(--accent); border-color: var(--accent); background: #efeee808; }
+.stopRow button:hover { color: var(--ink); }

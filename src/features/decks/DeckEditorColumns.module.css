@@ -1,0 +1,129 @@
+.deckContents {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  overflow-y: auto;
+  padding: 18px;
+  border-radius: 4px;
+  background: var(--public-surface);
+  border: 1px solid var(--public-line);
+}
+
+.cmcColumns {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.cmcCol {
+  min-width: 180px;
+  flex: 1;
+}
+
+.colLabel {
+  display: flex;
+  justify-content: space-between;
+  padding-bottom: 0.25rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  margin-bottom: 0.25rem;
+}
+
+.colLabelText {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--public-muted);
+}
+
+.colLabelCount {
+  font-size: 13px;
+  color: var(--public-muted);
+}
+
+.cardStack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.cardEntry {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 7px 6px;
+  border-radius: 4px;
+  border: none;
+  background: transparent;
+  color: var(--public-text);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  text-align: left;
+  width: 100%;
+}
+
+.cardEntry:hover { background: rgba(255, 90, 90, 0.1); }
+
+.entryName { flex: 1; }
+
+.entryMana {
+  display: flex;
+  gap: 0.08rem;
+  font-size: 0.6rem;
+  flex-shrink: 0;
+}
+
+.entryQty {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--public-accent);
+  min-width: 30px;
+  text-align: right;
+}
+
+.entryQty.warn, .cardEntry.warn .entryQty { color: #ff6b6b; }
+
+.landControls {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  padding-top: 0.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.landPill {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.4rem;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.landPill.empty { background: transparent; }
+.landPip { font-size: 13px; }
+.landX { font-size: 13px; font-weight: 600; min-width: 1rem; text-align: center; color: var(--public-text); }
+
+.landAdj {
+  width: 30px;
+  height: 30px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--public-text);
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  font-family: inherit;
+}
+
+.landAdj:hover:not(:disabled) { background: rgba(255, 255, 255, 0.12); }
+.landAdj:disabled { opacity: 0.3; cursor: not-allowed; }
+
+.landControls { position: sticky; bottom: -18px; background: var(--public-surface); padding: 14px 0; margin-top: auto; }
+.cardEntry:focus-visible { outline: 2px solid var(--public-accent); outline-offset: -2px; }

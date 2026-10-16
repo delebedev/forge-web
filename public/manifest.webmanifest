@@ -1,0 +1,39 @@
+{
+  "name": "Forge Web",
+  "short_name": "Forge Web",
+  "description": "Watch live AI games, import a supported deck and play Magic: The Gathering against AI in your browser. Desktop is the best experience.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0c10",
+  "theme_color": "#0a0c10",
+  "orientation": "any",
+  "lang": "en",
+  "dir": "ltr",
+  "icons": [
+    {
+      "src": "/icon-512.png?v=cardroom",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [],
+  "categories": ["games", "entertainment"],
+  "display_override": ["window-controls-overlay", "standalone"],
+  "shortcuts": [
+    {
+      "name": "Watch AI Duels",
+      "short_name": "Watch",
+      "url": "/",
+      "description": "Watch live AI vs AI Magic: The Gathering matches"
+    },
+    {
+      "name": "About",
+      "short_name": "About",
+      "url": "/about",
+      "description": "Learn about Forge Web"
+    }
+  ],
+  "scope": "/",
+  "id": "/"
+}

@@ -1,0 +1,12 @@
+.navigation { display: flex; gap: 30px; align-self: stretch; }
+.navigation a { display: grid; align-items: center; border-bottom: 2px solid transparent; text-decoration: none; color: var(--public-muted); font-size: 14px; padding-top: 2px; }
+.navigation a[aria-current=page] { border-color: var(--public-accent); color: var(--public-text); }
+.utilities { margin-left: auto; display: flex; align-items: center; gap: 26px; font-size: 13px; }
+.utilities a { color: var(--public-accent); text-decoration: none; }
+.newsLink { border: 0; padding: 0; background: none; color: var(--public-accent); font: inherit; cursor: pointer; }
+.newsLink:hover { color: var(--public-accent-hover); }
+.utilities summary { cursor: pointer; color: var(--public-muted); }
+.utilities details { position: relative; }
+.menu { position: absolute; top: 36px; right: 0; z-index: 80; width: 190px; display: grid; gap: 15px; padding: 20px; background: var(--public-surface); border: 1px solid var(--public-line); border-radius: 4px; }
+.menu button { text-align: left; padding: 0; color: var(--public-text); font: inherit; background: none; border: 0; cursor: pointer; }
+@media(max-width:700px) { .navigation { order: 2; width: 100%; justify-content: space-between; gap: 10px; min-height: 38px; } .draftBadge { display: none; } .utilities { order: 1; gap: 12px; } }

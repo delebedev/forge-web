@@ -1,0 +1,19 @@
+[metadata]
+Name:Lead from the Front
+Goal:Win
+Turns:1
+Difficulty:Hard
+Description:Pump the creature whose attack trigger multiplies its power across the team.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=13
+humanlandsplayed=1
+
+humanbattlefield=Wild Beastmaster;Eager Cadet;Mons's Goblin Raiders;Forest
+humanhand=Scale Up
+humanlibrary=Forest
+aibattlefield=Grizzly Bears|Counters:P1P1=3
+ailibrary=Forest

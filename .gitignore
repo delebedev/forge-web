@@ -1,0 +1,77 @@
+# Secrets
+.env
+.env.*
+!.env.example
+.sentryclirc
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Build
+.m2-local/
+*.jar
+target/
+build/
+bin/
+.gradle/
+buildSrc/build/
+.kotlin/
+dist/
+public/browser-engine/
+dist-browser/
+dist-ssr/
+*.local
+*storybook.log
+storybook-static/
+.gitlog
+test-results/
+.local/
+
+# Upstream stamp
+.upstream-installed
+
+# IDE
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.iml
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS
+.DS_Store
+__pycache__/
+
+# Playwright
+.playwright-screenshots/
+# Regenerate with `bun run screenshots:desktop` / `screenshots:ipad`; the
+# images are build output, not source.
+screenshots/
+
+# Node
+node_modules/
+.wrangler/
+
+# Portable agent assets may live under .claude; keep only machine state local.
+!.claude/
+.claude/CLAUDE.md
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
+.claude/worktrees/
+.superpowers/
+
+# Generated design review evidence
+.impeccable/review/
+
+# Chromatic diagnostics
+chromatic-diagnostics.json
+chromatic-build-*.xml

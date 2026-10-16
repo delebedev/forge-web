@@ -1,0 +1,11 @@
+.card-size-example {
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+.card-size-example figcaption {
+  max-width: 160px;
+  margin-bottom: 16px;
+  color: #efeee8;
+  font: 500 13px / 1.4 var(--public-body, sans-serif);
+}

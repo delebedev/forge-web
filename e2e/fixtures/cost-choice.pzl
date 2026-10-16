@@ -1,0 +1,23 @@
+# Design Narrative
+# Mechanic: Demand Answers alternate artifact-sacrifice or discard cost choice.
+# Forcing: One artifact and one other hand card make both branches payable.
+# AI behavior: Empty opposing board and hand provide no competing decisions.
+# Failure modes: Missing labels, rejected branch, incorrect payment, or missing draws fail the observed flow.
+# Card roles: Demand Answers opens the chooser; Ornithopter pays sacrifice; Grizzly Bears pays discard; Mountains pay mana; Islands count draws.
+# Protocol path: Cast, CastingTimeOptionsReq, PayCostsReq or SelectNReq, and resolution zone transfers.
+[metadata]
+Name:Additional cost choices
+Goal:Survive
+Turns:4
+Difficulty:Easy
+Description:Choose either additional cost and draw two cards.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanhand=Demand Answers;Grizzly Bears
+humanbattlefield=Mountain;Mountain;Ornithopter
+humanlibrary=Island;Island;Island;Island
+ailibrary=Island;Island;Island

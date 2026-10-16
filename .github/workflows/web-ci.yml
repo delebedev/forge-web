@@ -1,0 +1,470 @@
+name: Web CI
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: null
+  pull_request:
+concurrency:
+  group: web-ci-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  actions: read
+  contents: read
+jobs:
+  changes:
+    name: Classify changes
+    runs-on: ubuntu-latest
+    outputs:
+      kind: ${{ steps.scope.outputs.kind }}
+      breadth: ${{ steps.scope.outputs.breadth }}
+      run-tests: ${{ steps.reuse.outputs.run-tests }}
+      source-run: ${{ steps.candidate.outputs.result }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Check CI and release selection
+        run: |-
+          node --test scripts/ci-proof.test.mjs scripts/runtime-artifact.test.mjs
+          python3 -m unittest discover -s scripts -p "test_*.py"
+      - name: Find successful merged PR run
+        id: candidate
+        if: github.event_name == 'push'
+        continue-on-error: true
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { findPrRun } = await import(`${process.env.GITHUB_WORKSPACE}/scripts/ci-proof.mjs`)
+            return await findPrRun(github, context)
+      - name: Download tested tree proof
+        id: download
+        if: steps.candidate.outputs.result && steps.candidate.outputs.result != 'null'
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: ci-proof
+          path: ${{ runner.temp }}/ci-proof
+          run-id: ${{ steps.candidate.outputs.result }}
+          github-token: ${{ github.token }}
+      - name: Decide whether to reuse PR proof
+        id: reuse
+        env:
+          SOURCE_RUN: ${{ steps.candidate.outputs.result }}
+          DOWNLOAD: ${{ steps.download.outcome }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { readFileSync } = await import('node:fs')
+            const { execFileSync } = await import('node:child_process')
+            const { reusableProof } = await import(`${process.env.GITHUB_WORKSPACE}/scripts/ci-proof.mjs`)
+            let reuse = false
+            if (context.eventName === 'push' && process.env.DOWNLOAD === 'success') {
+              try {
+                const proof = JSON.parse(readFileSync(`${process.env.RUNNER_TEMP}/ci-proof/ci-proof.json`, 'utf8'))
+                const tree = execFileSync('git', ['rev-parse', 'HEAD^{tree}'], { encoding: 'utf8' }).trim()
+                reuse = reusableProof(proof, tree, process.env.SOURCE_RUN)
+              } catch (error) {
+                core.warning(`Cannot reuse PR proof: ${error.message}`)
+              }
+            }
+            core.setOutput('run-tests', String(!reuse))
+            core.info(reuse ? `Reusing full proof from run ${process.env.SOURCE_RUN}` : 'Run CI checks')
+      - name: Classify paths
+        id: scope
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == 'pull_request' ]]; then
+            kind=$(python3 scripts/ci_scope.py . "$BASE_SHA")
+            breadth=$(python3 scripts/ci_scope.py . "$BASE_SHA" --breadth)
+          else
+            kind=full
+            breadth=full
+          fi
+          printf 'kind=%s\n' "$kind" >> "$GITHUB_OUTPUT"
+          printf 'breadth=%s\n' "$breadth" >> "$GITHUB_OUTPUT"
+          printf 'CI scope: %s, browser proof: %s\n' "$kind" "$breadth" >> "$GITHUB_STEP_SUMMARY"
+  ui:
+    name: UI (TypeScript)
+    needs: changes
+    if: needs.changes.outputs.run-tests == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.11
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Check
+        run: python3 scripts/ci-measure.py ui-check bash -eo pipefail -c 'bun run check && node --test scripts/ci-browser-selection.test.mjs scripts/ci-workflow.test.mjs'
+      - name: Build
+        run: python3 scripts/ci-measure.py ui-build bash -eo pipefail -c 'bun run build:ci'
+      - name: Install browser
+        run: bun x --bun playwright install --with-deps chromium
+      - name: Check browser driver
+        run: python3 scripts/ci-measure.py ui-driver bash -eo pipefail -c 'node --test --experimental-strip-types tools/browser-driver/executor.browser.test.ts && bun x tsc -p tools/browser-driver/tsconfig.json'
+      - name: Check public SEO
+        run: python3 scripts/ci-measure.py ui-seo bash -eo pipefail -c 'bun run seo:check'
+      - name: Check authored transport without an engine
+        run: python3 scripts/ci-measure.py ui-transport bash -eo pipefail -c 'bun run e2e transport --workers=1 --output=test-results/transport'
+      - name: Seal frontend
+        run: |-
+          node scripts/runtime-artifact.mjs seal frontend dist
+          tar -czf frontend.tgz dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend.tgz
+          if-no-files-found: error
+          retention-days: 1
+          overwrite: true
+      - name: Upload test results
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-ui
+          path: |-
+            test-results/
+            /tmp/forge-web-transport-web.log
+          if-no-files-found: ignore
+          retention-days: 1
+          overwrite: true
+    env:
+      FORGE_CI_REPORT_DIR: test-results/ci
+  server:
+    name: Build and validate runtimes (Java 21 + 17)
+    needs: changes
+    if: needs.changes.outputs.run-tests == 'true' && needs.changes.outputs.kind == 'full'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: |
+            17
+            21
+          cache: ''
+      - uses: stCarolas/setup-maven@v5
+        with:
+          maven-version: 3.9.9
+      - uses: extractions/setup-just@v2
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.11
+      - name: Install build dependencies
+        run: bun install --frozen-lockfile
+      - name: Prepare pinned Forge dependencies
+        run: python3 scripts/ci-measure.py prepare bash -eo pipefail -c 'node scripts/bootstrap.mjs --prepare-only'
+      - name: Build and validate Java 21 server
+        run: python3 scripts/ci-measure.py server-21 bash -eo pipefail -c './leyline/gradlew :server:check :server:installDist :server:generateOpenApi --init-script scripts/ci-gradle.init.gradle --project-cache-dir .gradle/ci-jvm-21 -Pkotlin.compiler.execution.strategy=in-process && scripts/check-server-distribution.sh --no-build && node scripts/generate-web-openapi.mjs --check server/build/generated/openapi/openapi.json && bun scripts/check-web-contract.ts'
+      - name: Build and validate Java 17 browser runtime
+        run: python3 scripts/ci-measure.py browser-17 bash -eo pipefail -c 'bun run challenge:manifest && python3 scripts/build-browser-catalog.py && ./leyline/gradlew :browser-engine:test :browser-engine:browserDistribution :browser-engine:catalogIndex -PruntimeJavaVersion=17 -PbrowserPrune=true --init-script scripts/ci-gradle.init.gradle --project-cache-dir .gradle/ci-jvm-17 -Pkotlin.compiler.execution.strategy=in-process && node scripts/build-browser-release.mjs'
+      - name: Seal runtime artifacts
+        run: |-
+          node scripts/runtime-artifact.mjs seal server-21 server/build/install/server
+          node scripts/runtime-artifact.mjs seal browser-17 public/browser-engine
+          mkdir -p runtime-artifacts
+          tar -czf runtime-artifacts/server-21.tgz -C server/build/install server
+          tar -czf runtime-artifacts/browser-17.tgz -C public browser-engine
+      - uses: actions/upload-artifact@v4
+        with:
+          name: runtime-distributions
+          path: runtime-artifacts/
+          if-no-files-found: error
+          retention-days: 1
+          overwrite: true
+      - name: Stop build JVMs
+        if: always()
+        timeout-minutes: 1
+        run: ./leyline/gradlew --stop
+      - name: Upload test results
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-server
+          path: |-
+            server/build/test-results/
+            card-presentation/build/**/test-results/
+            browser-engine/build/test-results/
+            test-results/ci/
+          if-no-files-found: ignore
+          retention-days: 1
+          overwrite: true
+    env:
+      FORGE_CI_REPORT_DIR: test-results/ci
+    timeout-minutes: 30
+  browser-local:
+    name: Browser Local (Chromium)
+    needs:
+      - changes
+      - ui
+      - server
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.11
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - uses: actions/download-artifact@v4
+        with:
+          name: runtime-distributions
+          path: runtime-artifacts
+      - uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+      - name: Verify and assemble tested browser distribution
+        run: |-
+          tar -xzf frontend.tgz
+          mkdir -p ci-runtime
+          tar -xzf runtime-artifacts/browser-17.tgz -C ci-runtime
+          node scripts/runtime-artifact.mjs verify frontend dist
+          node scripts/runtime-artifact.mjs verify browser-17 ci-runtime/browser-engine
+          cp -a ci-runtime/browser-engine dist/browser-engine
+      - name: Install browser
+        run: bun x --bun playwright install --with-deps chromium
+      - name: Run Browser Local smoke
+        run: python3 scripts/ci-measure.py browser-local bash -eo pipefail -c 'set -o pipefail; mkdir -p browser-smoke-output; timeout 8m bun run challenge:generated:check 2>&1 | tee browser-smoke-output/smoke.log; timeout 4m bun run challenge:browser:check --smoke 2>&1 | tee browser-smoke-output/curated.log'
+      - name: Collect runner memory
+        if: ${{ !cancelled() }}
+        run: |
+          set -o pipefail
+          mkdir -p browser-smoke-output
+          for stat in memory.max memory.peak memory.events cpu.max; do
+            printf '\n%s\n' "$stat"
+            cat "/sys/fs/cgroup/$stat"
+          done | tee browser-smoke-output/cgroup.txt
+          {
+            echo '### Browser Local runner resources'
+            echo '```text'
+            cat browser-smoke-output/cgroup.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload Browser Local output
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-local-smoke
+          path: |-
+            browser-smoke-output/
+            test-results/ci/
+          if-no-files-found: error
+          retention-days: 1
+          overwrite: true
+    env:
+      FORGE_CI_REPORT_DIR: test-results/ci
+  runtime:
+    name: Runtime (${{ matrix.lane }})
+    needs:
+      - changes
+      - ui
+      - server
+    if: needs.changes.outputs.run-tests == 'true' && needs.changes.outputs.kind == 'full'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        lane:
+          - product
+          - gameplay
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: ''
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.11
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - uses: actions/download-artifact@v4
+        with:
+          name: runtime-distributions
+          path: runtime-artifacts
+      - uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+      - name: Verify tested distributions
+        run: |-
+          mkdir -p ci-runtime
+          tar -xzf runtime-artifacts/server-21.tgz -C ci-runtime
+          tar -xzf frontend.tgz
+          node scripts/runtime-artifact.mjs verify server-21 ci-runtime/server
+          node scripts/runtime-artifact.mjs verify frontend dist
+          tar -xzf runtime-artifacts/browser-17.tgz -C ci-runtime
+          node scripts/runtime-artifact.mjs verify browser-17 ci-runtime/browser-engine
+          cp -a ci-runtime/browser-engine public/browser-engine
+      - name: Install browser
+        run: bun x --bun playwright install --with-deps chromium
+      - name: Run product journeys
+        if: matrix.lane == 'product'
+        run: python3 scripts/ci-measure.py product bash -eo pipefail -c 'node scripts/ci-browser-selection.mjs product "$PROOF_BREADTH" "$BASE_SHA" --workers=1 --output=test-results/product && node scripts/ci-browser-selection.mjs drain "$PROOF_BREADTH" "$BASE_SHA" --workers=1 --output=test-results/release-drain && node scripts/ci-browser-selection.mjs gre "$PROOF_BREADTH" "$BASE_SHA" --ci-partition=product --workers=1 --output=test-results/gre'
+      - name: Run gameplay journeys
+        if: matrix.lane == 'gameplay'
+        run: python3 scripts/ci-measure.py gameplay bash -eo pipefail -c 'node scripts/ci-browser-selection.mjs catalog "$PROOF_BREADTH" "$BASE_SHA" --workers=1 --output=test-results/forge-catalog && node scripts/ci-browser-selection.mjs gre "$PROOF_BREADTH" "$BASE_SHA" --ci-partition=gameplay --workers=1 --output=test-results/gre'
+      - name: Upload Playwright output
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-runtime-${{ matrix.lane }}
+          path: |-
+            test-results/**
+            playwright-report/**
+            screenshots/**
+
+            /tmp/forge-web-*-web.log
+          if-no-files-found: ignore
+          retention-days: 1
+          overwrite: true
+    env:
+      FORGE_CI_REPORT_DIR: test-results/ci
+      PROOF_BREADTH: ${{ needs.changes.outputs.breadth }}
+      BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+      FORGE_WEB_SERVER_DIST: ci-runtime/server
+      FORGE_WEB_FRONTEND_DIST: dist
+  report:
+    permissions:
+      actions: read
+      contents: read
+      checks: write
+      pull-requests: write
+    name: Test report
+    needs:
+      - changes
+      - ui
+      - server
+      - runtime
+      - browser-local
+      - gate
+    if: ${{ !cancelled() && needs.changes.result == 'success' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: test-results-*
+          path: ci-results
+      - uses: actions/download-artifact@v4
+        if: needs.browser-local.result != 'skipped'
+        continue-on-error: true
+        with:
+          name: browser-local-smoke
+          path: ci-results/browser-local-smoke
+      - name: Collect job timing and validation scope
+        env:
+          SCOPE: ${{ needs.changes.outputs.kind }}
+          BREADTH: ${{ needs.changes.outputs.breadth }}
+          SOURCE_RUN: ${{ needs.changes.outputs.run-tests == 'false' && needs.changes.outputs.source-run || '' }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { writeFileSync } = await import('node:fs')
+            const { execFileSync } = await import('node:child_process')
+            const { data: run } = await github.rest.actions.getWorkflowRun({
+              ...context.repo, run_id: context.runId,
+            })
+            const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRun, {
+              ...context.repo, run_id: context.runId, filter: 'latest', per_page: 100,
+            })
+            const metadata = {
+              run: { head_sha: run.head_sha, created_at: run.created_at, run_attempt: run.run_attempt },
+              jobs: jobs.map(({ name, status, conclusion, created_at, started_at, completed_at, runner_name, html_url }) =>
+                ({ name, status, conclusion, created_at, started_at, completed_at, runner_name, html_url })),
+              scope: process.env.SCOPE,
+              breadth: process.env.BREADTH,
+              sourceRun: process.env.SOURCE_RUN || null,
+              checkout: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
+              leyline: execFileSync('git', ['rev-parse', 'HEAD:leyline'], { encoding: 'utf8' }).trim(),
+            }
+            writeFileSync(`${process.env.RUNNER_TEMP}/ci-metadata.json`, JSON.stringify(metadata))
+      - name: Summarise validation and resources
+        run: python3 scripts/ci_report.py ci-results "$RUNNER_TEMP/ci-metadata.json" >> "$GITHUB_STEP_SUMMARY"
+      - name: Publish test results
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        if: ${{ !cancelled() && needs.changes.outputs.run-tests == 'true' }}
+        with:
+          files: |
+            ci-results/**/TEST-*.xml
+            ci-results/**/junit.xml
+          check_name: Web Test Results
+          comment_title: Web Test Results
+          deduplicate_classes_by_file_name: true
+  gate:
+    name: CI gate
+    needs:
+      - changes
+      - ui
+      - server
+      - runtime
+      - browser-local
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - name: Verify required jobs and record tested tree
+        env:
+          JOBS: ${{ toJSON(needs) }}
+          RUN_TESTS: ${{ needs.changes.outputs.run-tests }}
+          SCOPE: ${{ needs.changes.outputs.kind }}
+          BREADTH: ${{ needs.changes.outputs.breadth }}
+          SOURCE_RUN: ${{ needs.changes.outputs.source-run }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { writeFileSync } = await import('node:fs')
+            const { execFileSync } = await import('node:child_process')
+            const { assertGate } = await import(`${process.env.GITHUB_WORKSPACE}/scripts/ci-proof.mjs`)
+            const reused = process.env.RUN_TESTS === 'false'
+            assertGate(JSON.parse(process.env.JOBS), reused, process.env.SCOPE, process.env.BREADTH)
+            const proof = {
+              schema: 3,
+              tree: execFileSync('git', ['rev-parse', 'HEAD^{tree}'], { encoding: 'utf8' }).trim(),
+              sha: context.sha,
+              scope: process.env.SCOPE,
+              breadth: process.env.BREADTH,
+              runId: context.runId,
+              sourceRunId: reused ? Number(process.env.SOURCE_RUN) : null,
+            }
+            writeFileSync(`${process.env.RUNNER_TEMP}/ci-proof.json`, JSON.stringify(proof))
+            await core.summary.addHeading('CI proof').addCodeBlock(JSON.stringify(proof, null, 2), 'json').write()
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ci-proof
+          path: ${{ runner.temp }}/ci-proof.json
+          overwrite: true
+          retention-days: 30

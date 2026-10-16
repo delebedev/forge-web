@@ -1,0 +1,173 @@
+.setPicker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+  max-width: 100%;
+}
+
+.selection {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 16px 0;
+}
+
+.selectionName {
+  color: var(--public-text);
+  font-size: 22px;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.selectionDesc {
+  margin: 0;
+  color: var(--public-muted);
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.selection .setCards {
+  margin-left: 0;
+}
+
+.setPicker > button {
+  align-self: flex-start;
+}
+
+.popupContent {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 0;
+  padding: 20px 24px;
+}
+
+.searchInput {
+  flex-shrink: 0;
+}
+
+.setList {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.setRow {
+  display: flex;
+  flex-shrink: 0;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 14px;
+  border: 1px solid transparent;
+  border-bottom-color: var(--public-line);
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink);
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.setRow:hover {
+  background: var(--public-field);
+}
+
+.setRow.selected {
+  border-color: var(--public-text);
+  background: var(--selected-bg);
+}
+
+.setMain {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.setTopLine {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.setCode {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--public-muted);
+  letter-spacing: 0.04em;
+  min-width: 2.5rem;
+}
+
+.setName {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.setCards {
+  font-size: 0.68rem;
+  color: var(--muted);
+  margin-left: auto;
+}
+
+.setDate {
+  font-size: 0.68rem;
+  color: var(--muted);
+  opacity: 0.7;
+}
+
+.setDesc {
+  font-size: 0.72rem;
+  color: var(--muted);
+  line-height: 1.35;
+  padding-left: 3rem;
+}
+
+.archetypePills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  padding-left: 3rem;
+}
+
+.archPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.pip {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.3);
+  flex-shrink: 0;
+}
+
+.archName {
+  font-size: 0.62rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.noResults {
+  padding: 1rem;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.pickerLoading {
+  padding: 1rem;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.78rem;
+}

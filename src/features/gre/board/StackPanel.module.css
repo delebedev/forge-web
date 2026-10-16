@@ -1,0 +1,25 @@
+.stackPanel { position: relative; z-index: 140; width: 100%; max-height: 100%; flex: 0 1 auto; overflow-y: auto; pointer-events: auto; padding: 0 4px 14px; color: var(--ink); animation: stack-in 180ms ease-out; }
+.stackLabel { display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid var(--public-line); font: 13px var(--public-body); }
+.stackLabel strong { font-weight: 500; }
+.stackLabel span { color: var(--muted); font-variant-numeric: tabular-nums; }
+.stackCards { list-style: none; margin: 0; padding: 12px 0 0; display: grid; gap: 8px; }
+.stackSlot { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 10px; }
+.order { color: var(--muted); font: 12px var(--public-body); padding-top: 5px; text-align: center; font-variant-numeric: tabular-nums; }
+.entry { min-width: 0; padding: 6px 0 10px; border-bottom: 1px solid var(--public-line); }
+.entryHead { display: flex; flex-wrap: wrap; gap: 4px 10px; font: 11px var(--public-body); margin-bottom: 5px; }
+.nextTag { color: var(--accent); }
+.ownerTag { color: var(--muted); }
+.entryTitle { display: flex; gap: 8px; align-items: center; }
+.entryTitle strong { font: 500 14px/1.35 var(--public-body); overflow-wrap: anywhere; }
+.entryTitle img { width: 44px; height: 32px; border-radius: 2px; object-fit: cover; }
+.topCard { --preview-card-w: min(var(--card-face-width-detail), 23cqh); width: max-content; margin-top: 12px; }
+.ability { color: var(--muted); font-size: 12px; }
+.resolvesNext .entry { border-bottom-color: var(--accent-border); }
+.compact { color: inherit; }
+:global([data-board][data-decision]) .topCard { display: none; }
+:global([data-board][data-decision]) .sourceCard { display: block; }
+@keyframes stack-in { from { opacity: .4; translate: 8px 0; } to { opacity: 1; translate: 0 0; } }
+@media (prefers-reduced-motion: reduce) { .stackPanel { animation: none; } }
+
+.resolvesNext .entryTitle img { display: none; }
+:global([data-board][data-decision]) .resolvesNext .entryTitle img { display: block; }

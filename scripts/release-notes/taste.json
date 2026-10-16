@@ -1,0 +1,27 @@
+[
+  {
+    "kind": "like",
+    "text": "Using a Treasure while two Goldspan Dragons are in play no longer stalls the game.",
+    "reason": "Concrete player action and observed symptom; scoped to the verified interaction."
+  },
+  {
+    "kind": "bs",
+    "text": "More reliable Browser Local games thanks to improved diagnostics.",
+    "reason": "Diagnostics report failures. They do not change gameplay or prevent failures."
+  },
+  {
+    "kind": "dislike",
+    "text": "Implemented receive-phase lifecycle diagnostics and mana ability identity preservation.",
+    "reason": "Describe what a player can do. Keep technical details in the coverage inventory."
+  },
+  {
+    "kind": "like",
+    "text": "Consistent card previews and roadmap feedback",
+    "reason": "Concise, concrete player topics. Keep the four distinct outcomes without repeated bullets."
+  },
+  {
+    "kind": "dislike",
+    "text": "Keyword icons stay retired and modal choices repeat",
+    "reason": "This draft omitted shipped Siege mechanics even though a Forge Web browser acceptance journey proves defeat and transformed casting through the updated Leyline runtime. Audit both trees together and include major mechanics before narrow fixes."
+  }
+]

@@ -1,0 +1,46 @@
+# Git
+.git
+.gitignore
+
+# Build artifacts
+**/target/
+**/node_modules/
+**/dist/
+.m2-local/
+build/
+.gradle/
+buildSrc/build/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS
+.DS_Store
+
+# Docs (not needed in image)
+docs/
+
+# Leyline-pinned Forge checkout: modules not needed for forge-web (keep pom.xml, exclude src/)
+leyline/forge/forge-gui-desktop/src/
+leyline/forge/forge-gui-mobile/src/
+leyline/forge/forge-gui-mobile-dev/src/
+leyline/forge/forge-gui-android/src/
+leyline/forge/forge-gui-ios/src/
+leyline/forge/forge-installer/src/
+leyline/forge/forge-lda/src/
+leyline/forge/adventure-editor/src/
+
+# Large resource dirs not needed at runtime (~240 MB saved)
+leyline/forge/forge-gui/res/adventure/
+leyline/forge/forge-gui/res/skins/
+leyline/forge/forge-gui/res/music/
+leyline/forge/forge-gui/res/imgs/
+leyline/forge/forge-gui/res/pic/
+leyline/forge/forge-gui/res/sound/
+leyline/forge/forge-gui/res/token_images/
+leyline/forge/forge-gui/res/achievement/
+leyline/forge/forge-gui/res/quest/
+leyline/forge/forge-gui/res/conquest/
+leyline/forge/forge-gui/res/geneticaidecks/

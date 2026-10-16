@@ -1,0 +1,151 @@
+.grePage {
+  min-height: 100vh;
+  padding: 18px;
+  overflow-x: hidden;
+  color: var(--ink);
+  background: transparent;
+  font-family: inherit;
+}
+
+.tabletopShell {
+  max-width: 1440px;
+  margin: 0 auto 18px;
+  border: 1px solid var(--panel-border);
+  border-radius: 14px;
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    var(--canvas);
+  background-size: 44px 44px;
+  box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.3), 0 24px 80px rgba(0, 0, 0, 0.28);
+  overflow: hidden;
+}
+
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  align-items: center;
+  padding: 18px 22px;
+  background: rgba(14, 16, 21, 0.92);
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.topbar h1 { margin: 0; font-size: clamp(1.6rem, 3vw, 3.5rem); line-height: 0.9; }
+
+.eyebrow {
+  margin: 0 0 8px;
+  color: var(--accent);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-size: 0.78rem;
+}
+
+.actions { display: flex; gap: 10px; }
+.actions button {
+  border: 1px solid var(--accent-border);
+  border-radius: 10px;
+  padding: 11px 18px;
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-weight: 700;
+  cursor: pointer;
+}
+.actions button:disabled { opacity: 0.45; cursor: default; }
+.ghost { background: rgba(18, 21, 27, 0.8); color: var(--ink); }
+.danger {
+  background: rgba(255, 132, 142, 0.16);
+  color: #ffb7bd;
+  border-color: rgba(255, 132, 142, 0.35);
+}
+
+.deckConfig {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  padding: 14px 22px;
+  background: var(--bg-inset);
+  border-bottom: 1px solid var(--panel-border);
+}
+.deckConfig label, .deckConfig span { display: block; }
+.deckConfig span { color: var(--accent); margin-bottom: 8px; }
+.puzzleChip {
+  grid-column: 1 / -1;
+  border: 1px solid var(--selected-border);
+  border-radius: 999px;
+  padding: 8px 12px;
+  background: var(--selected-bg);
+  color: var(--accent-2);
+  font-weight: 700;
+}
+.deckConfig textarea {
+  width: 100%;
+  min-height: 90px;
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  padding: 10px;
+  background: rgba(10, 12, 16, 0.8);
+  color: var(--ink);
+  font: 0.9rem ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.launchError {
+  position: absolute;
+  z-index: 20;
+  top: 50%;
+  left: 50%;
+  width: min(420px, calc(100% - 32px));
+  padding: 24px;
+  transform: translate(-50%, -50%);
+  border: 1px solid var(--public-line);
+  border-radius: 6px;
+  background: var(--public-bg);
+  color: var(--public-text);
+  font-family: var(--public-body);
+  text-align: center;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
+}
+.launchError strong { font: 400 32px/1.2 var(--public-display); }
+.launchError p { color: var(--public-muted); line-height: 1.6; }
+.launchError div { display: flex; justify-content: center; flex-wrap: wrap; gap: 10px; }
+.launchError button, .launchError a { min-height: 44px; padding: 10px 18px; border: 1px solid var(--public-line); border-radius: var(--public-radius); background: transparent; color: var(--public-text); font: 500 14px/1.4 var(--public-body); cursor: pointer; }
+.launchError a { display: inline-flex; align-items: center; text-decoration: none; }
+.launchError button:first-child { background: var(--public-accent); color: var(--public-bg); border-color: var(--public-accent); }
+.launchError button:hover, .launchError a:hover { border-color: var(--public-accent); }
+.launchError button:first-child:hover { background: var(--public-accent-hover); }
+.launchError button:disabled { opacity: 0.5; cursor: default; }
+
+.grePage.embedded {
+  height: 100%;
+  min-height: 0;
+  padding: 0;
+}
+.embedded .tabletopShell {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+  max-width: none;
+  margin: 0;
+  border-radius: 0;
+  border: 0;
+}
+.embedded .topbar {
+  padding: 12px 18px;
+}
+.embedded h1 {
+  font-size: clamp(1.4rem, 2.2vw, 2.4rem);
+}
+
+.headerless {
+  /* No dedicated styling upstream either — kept for DOM/state parity with
+     the `showHeader` prop. */
+}
+
+@media (max-width: 760px) {
+  .grePage { padding: 8px; }
+  .topbar { display: block; }
+  .actions { margin-top: 18px; flex-wrap: wrap; }
+  .deckConfig { grid-template-columns: minmax(0, 1fr); }
+  .tabletopShell { border-radius: 18px; }
+}

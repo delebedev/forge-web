@@ -1,0 +1,231 @@
+.deckBuilder {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  gap: 0;
+}
+
+/* --- Toolbar --- */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 12px;
+  background: var(--public-surface);
+  border: 1px solid var(--public-line);
+  border-radius: var(--public-radius) var(--public-radius) 0 0;
+}
+
+.poolToggle {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-height: 36px;
+  padding: 8px 10px;
+  border-radius: var(--public-radius);
+  border: 1px solid var(--public-line);
+  background: transparent;
+  color: var(--ink);
+  font-size: 0.72rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.poolToggle:hover {
+  border-color: var(--public-text);
+}
+
+.toggleArrow {
+  font-size: 0.6rem;
+  color: var(--muted);
+}
+
+.toggleLabel {
+  color: var(--public-text);
+}
+
+.toggleCount {
+  color: var(--muted);
+  font-weight: 400;
+  font-size: 0.65rem;
+}
+
+.searchInput {
+  min-height: 36px;
+  background: var(--public-field);
+  color: var(--ink);
+  border: 1px solid var(--public-line);
+  border-radius: var(--public-radius);
+  padding: 8px 10px;
+  font-size: 0.72rem;
+  font-family: inherit;
+  outline: none;
+  min-width: 0;
+  flex: 1;
+  max-width: 200px;
+}
+
+.searchInput:focus {
+  border-color: var(--public-text);
+}
+
+.searchInput::placeholder {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.colorFilters {
+  display: flex;
+  gap: 0.2rem;
+}
+
+.colorChip {
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(12, 14, 18, 0.8);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  opacity: 0.5;
+  transition: opacity 0.15s, border-color 0.15s;
+}
+
+.colorChip:hover { opacity: 0.8; }
+
+.colorChip.active {
+  opacity: 1;
+  border-color: var(--public-text);
+  background: var(--selected-bg);
+}
+
+.deckError {
+  color: var(--error, #ff9aa0);
+  font-size: 0.72rem;
+  padding: 0.3rem 0.6rem;
+  border-radius: 6px;
+  background: var(--error-bg, rgba(255, 100, 120, 0.1));
+  border: 1px solid var(--error-border, rgba(255, 100, 120, 0.2));
+}
+
+/* --- Deck header --- */
+.deckHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.4rem 0.6rem;
+  background: var(--panel);
+  border-left: 1px solid var(--panel-border);
+  border-right: 1px solid var(--panel-border);
+  border-top: 1px solid var(--panel-border);
+}
+
+.deckHeaderLeft {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+.deckLabel {
+  font-weight: 600;
+  font-size: 0.78rem;
+  color: var(--public-text);
+}
+
+.deckCount {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.deckCount.warning { color: var(--error, #ff9aa0); }
+
+.deckTarget {
+  font-weight: 400;
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+
+.bulkBtn {
+  padding: 0.12rem 0.35rem;
+  border-radius: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted);
+  font-size: 0.58rem;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.bulkBtn:hover {
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+/* --- Mini mana curve --- */
+.miniCurve {
+  display: flex;
+  gap: 0.2rem;
+  align-items: flex-end;
+  height: 36px;
+  flex: 1;
+  justify-content: center;
+}
+
+.miniCurveCol {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  width: 14px;
+}
+
+.miniCurveBar {
+  width: 10px;
+  border-radius: 2px 2px 0 0;
+  background: var(--public-accent);
+  transition: height 0.2s ease;
+}
+
+.miniCurveLabel {
+  font-size: 0.48rem;
+  color: rgba(255, 255, 255, 0.35);
+  font-weight: 600;
+}
+
+.deckHeaderRight {
+  display: flex;
+  gap: 0.35rem;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.submitBtn {
+  min-height: 36px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: var(--public-radius);
+  background: var(--public-accent);
+  color: var(--public-bg);
+  font-size: 0.68rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.submitBtn:hover:not(:disabled) { background: var(--public-accent-hover); }
+.submitBtn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* --- Responsive --- */
+@media (max-width: 900px) {
+  .toolbar { flex-wrap: wrap; }
+  .searchInput { max-width: none; }
+  .deckHeader { flex-wrap: wrap; }
+  .miniCurve { order: 3; width: 100%; }
+}

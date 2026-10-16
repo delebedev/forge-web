@@ -1,0 +1,23 @@
+# Design Narrative
+# Mechanic: increase a creature's power before combat damage.
+# Forcing: the opponent has five life; the unmodified Bear deals only two.
+# AI behavior: the opponent has no blockers or spell decisions.
+# Failure modes: WIN means the pumped attack connected; LOSE means the one-turn goal expired; TIMEOUT means play stopped.
+# Card roles: Grizzly Bears attacks; Giant Growth supplies the missing three power; Forest pays for it; library lands prevent an empty draw.
+# Protocol path: cast action, creature target, stack resolution, declare attackers, combat damage, terminal win.
+[metadata]
+Name:Grow for Lethal
+Goal:Win
+Turns:1
+Difficulty:Easy
+Description:The Bear needs three more power to finish this turn.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=5
+humanhand=Giant Growth
+humanbattlefield=Forest;Grizzly Bears
+humanlibrary=Forest
+ailibrary=Mountain

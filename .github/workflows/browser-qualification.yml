@@ -1,0 +1,110 @@
+name: Extended gameplay qualification
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '30 3 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    name: Browser gameplay and recovery
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: |
+            17
+            21
+
+      - uses: stCarolas/setup-maven@v5
+        with:
+          maven-version: 3.9.9
+
+      - uses: extractions/setup-just@v2
+
+      - uses: oven-sh/setup-bun@v2
+
+      - run: bun install --frozen-lockfile
+      - run: bun run leyline:check
+
+      - run: bun run browser-alpha:build
+
+      - run: bun x --bun playwright install --with-deps chromium chrome
+
+      - name: Check every bundled challenge, daily completion, retry and load recovery
+        run: bun run challenge:browser:check
+
+      - name: Check browser play, recovery and card presentation
+        if: '!cancelled()'
+        run: bun run e2e browser-alpha e2e/browser-alpha.spec.ts e2e/browser-alpha-diagnostics.spec.ts e2e/browser-alpha-commander.spec.ts --workers=1 --output=test-results/browser-core
+
+      - name: Upload browser evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-qualification
+          path: |
+            test-results/**
+            /tmp/forge-web-browser-alpha-*-web.log
+          if-no-files-found: ignore
+          retention-days: 1
+
+  mechanics:
+    name: Mechanic fixtures and server capacity
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: stCarolas/setup-maven@v5
+        with:
+          maven-version: 3.9.9
+
+      - uses: extractions/setup-just@v2
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun run leyline:check
+      - run: bun x --bun playwright install --with-deps chromium
+
+      - name: Run concurrent server games through two capacity waves
+        run: bun run e2e capacity --workers=1 --output=test-results/capacity
+
+      - name: Run imported mechanic fixtures
+        if: '!cancelled()'
+        run: bun run gre --grep '@mechanic|@qualification' --workers=1 --output=test-results/mechanics
+
+      - name: Upload server qualification evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-qualification
+          path: |
+            test-results/**
+            /tmp/forge-web-gre-*-web.log
+            /tmp/forge-web-capacity-*-web.log
+          if-no-files-found: ignore
+          retention-days: 1

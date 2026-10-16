@@ -1,0 +1,201 @@
+.packArea {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 0;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.packHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 48px;
+  padding: 0 0 14px;
+  border-bottom: 1px solid var(--public-line);
+}
+
+.roundInfo {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.roundBadge,
+.pickBadge {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--public-text);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.directionBadge {
+  padding-left: 12px;
+  border-left: 1px solid var(--public-line);
+  color: var(--public-muted);
+  font-size: 12px;
+}
+
+.directionBadge.right {
+  color: var(--public-muted);
+}
+
+.packActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.packCount {
+  font-size: 0.74rem;
+  color: var(--muted);
+}
+
+.sortToggle {
+  min-height: 36px;
+  padding: 8px 10px;
+  border: 1px solid var(--public-line);
+  border-radius: var(--public-radius);
+  background: transparent;
+  color: var(--public-muted);
+  font-size: 0.68rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    color 0.15s;
+}
+
+.sortToggle:hover {
+  border-color: var(--public-text);
+  color: var(--public-text);
+}
+
+.sortToggle.active {
+  border-color: var(--public-text);
+  background: var(--selected-bg);
+  color: var(--public-text);
+}
+
+.devBtn {
+  min-height: 36px;
+  padding: 8px 10px;
+  border: 1px dashed var(--public-line);
+  border-radius: var(--public-radius);
+  background: transparent;
+  color: var(--public-muted);
+  font-size: 0.68rem;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.devBtn:hover:not(:disabled) {
+  border-color: var(--public-text);
+  color: var(--public-text);
+}
+
+.devBtn:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.packGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 12px;
+  align-content: start;
+  overflow-y: auto;
+  overflow-x: clip;
+  padding: 4px 0 16px;
+  min-height: 0;
+  flex: 1;
+}
+
+.packGrid.disabled {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.packCard {
+  position: relative;
+  border-radius: 5px;
+  aspect-ratio: 63 / 88;
+}
+
+.packCard > [data-card] {
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  aspect-ratio: 63 / 88;
+}
+
+.scorePill {
+  position: absolute;
+  bottom: 0.4rem;
+  right: 0.4rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 6px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  z-index: 5;
+  background: rgba(0, 0, 0, 0.75);
+  color: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(4px);
+  pointer-events: none;
+}
+
+.scorePill.scoreHigh {
+  background: var(--public-text);
+  color: var(--public-bg);
+}
+
+.scorePill.scoreMid {
+  background: var(--public-accent);
+  color: var(--public-bg);
+}
+
+.scorePill.scoreLow {
+  background: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.packCard.rarityMythic > [data-card] {
+  outline: 1px solid color-mix(in srgb, #ff7832 50%, var(--public-line));
+}
+.packCard.rarityMythic:hover > [data-card] {
+  outline-color: #ff7832;
+  box-shadow: 0 8px 24px rgba(255, 120, 50, 0.35);
+}
+
+.packCard.rarityRare > [data-card] {
+  outline: 1px solid color-mix(in srgb, #ffd700 40%, var(--public-line));
+}
+.packCard.rarityRare:hover > [data-card] {
+  outline-color: #ffd700;
+  box-shadow: 0 8px 24px rgba(255, 215, 0, 0.25);
+}
+
+.packCard.rarityUncommon > [data-card] {
+  outline: 1px solid rgba(180, 200, 220, 0.25);
+}
+
+.draftError {
+  padding: 0.35rem 0.75rem;
+  border-radius: var(--public-radius);
+  background: rgba(255, 90, 90, 0.14);
+  border: 1px solid rgba(255, 90, 90, 0.35);
+  color: #ff9aa0;
+  font-size: 0.76rem;
+  text-align: center;
+}
+
+@media (max-width: 900px) {
+  .packArea {
+    /* draft-layout collapses to a single column at this breakpoint; see DraftPicking.module.css */
+  }
+}

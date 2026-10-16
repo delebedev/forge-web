@@ -1,0 +1,79 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Libre+Caslon+Display&display=swap');
+
+.entry-study { --paper: #efe8d9; --muted: #a6aaa3; --accent: #c9ad70; --ground: #171d1c; color: var(--paper); font: 15px/1.5 'DM Sans', sans-serif; background: var(--ground); min-height: 100svh; padding-bottom: 64px; }
+.entry-study * { box-sizing: border-box; }
+.entry-study a { color: inherit; text-decoration: none; }
+.entry-study a:focus-visible, .entry-study button:focus-visible { outline: 2px solid var(--accent); outline-offset: 5px; }
+.entry-world { position: relative; min-height: calc(100svh - 64px); max-width: 1920px; margin: auto; overflow: hidden; background: radial-gradient(ellipse at 80% 45%, #33413b88, transparent 60%); }
+.entry-header { height: 112px; margin: 0 6%; display: flex; align-items: center; justify-content: space-between; position: relative; z-index: 2; }
+.entry-brand { display: inline-flex; align-items: center; gap: 12px; font-size: 26px; letter-spacing: -.8px; font-weight: 600; }
+.entry-brand svg { width: 27px; height: 34px; color: var(--accent); }
+.entry-brand-web { font-weight: 400; color: var(--muted); }
+.entry-header nav { display: flex; gap: 32px; font-size: 14px; }
+.entry-header nav a { padding: 10px 0; }
+.entry-header nav a:hover, .entry-footer a:hover { color: var(--accent); }
+.entry-stage { min-height: 550px; height: calc(100svh - 244px); max-height: 950px; display: grid; grid-template-columns: 1fr 1fr; align-items: center; padding: 24px 6% 44px; position: relative; }
+.entry-copy { z-index: 1; position: relative; }
+.entry-intro { color: var(--accent); font-size: 14px; margin: 0 0 26px; }
+.entry-copy h1 { font-family: 'Libre Caslon Display', Georgia, serif; font-size: clamp(62px, 6.3vw, 112px); line-height: .99; letter-spacing: -2.4px; font-weight: 400; margin: 0 0 30px; }
+.entry-description { font-size: 17px; line-height: 1.7; color: #bcc1b9; margin: 0 0 32px; max-width: 410px; }
+.entry-play { display: inline-flex; min-height: 56px; padding: 0 23px; gap: 34px; align-items: center; background: var(--accent); color: #1b211c !important; border: 1px solid #e4cb93; border-radius: 4px; font-weight: 600; box-shadow: 0 3px 0 #0002; transition: background .16s, transform .16s; }
+.entry-play svg { width: 20px; height: 20px; }
+.entry-play:hover { background: #e0c68f; transform: translateY(-2px); }
+.entry-reassurance { font-size: 12px; color: var(--muted); margin: 15px 0 0; }
+.entry-art { position: relative; height: 100%; min-height: 480px; isolation: isolate; }
+.entry-table-ring { position: absolute; width: 105%; aspect-ratio: 1; border: 1px solid #c9ad7024; border-radius: 50%; top: 50%; left: 50%; transform: translate(-50%, -50%) rotateX(45deg); box-shadow: 0 0 0 28px #c9ad7005, 0 0 0 29px #c9ad7010; }
+.entry-card-fan { position: absolute; inset: 0; perspective: 1200px; }
+.entry-card { position: absolute; width: 43%; max-width: 295px; border-radius: 4.7%; top: 48%; left: 50%; box-shadow: 0 30px 45px #0008, 0 1px 0 1px #ffffff38; }
+.entry-card-left { transform: translate(-100%, -43%) rotate(-19deg); filter: brightness(.74); }
+.entry-card-right { transform: translate(0%, -43%) rotate(18deg); filter: brightness(.8); }
+.entry-card-center { transform: translate(-50%, -55%) rotate(-3deg); }
+.entry-art-caption { position: absolute; bottom: 5%; left: 0; width: 100%; text-align: center; color: var(--muted); font-size: 12px; }
+.entry-footer { display: flex; justify-content: space-between; align-items: center; margin: 0 6%; min-height: 68px; border-top: 1px solid #ffffff12; color: var(--muted); font-size: 12px; }
+.entry-review { position: fixed; bottom: 0; left: 0; right: 0; min-height: 64px; padding: 10px 24px; display: flex; align-items: center; justify-content: center; gap: 10px; background: #f2f1ed; color: #343b40; z-index: 20; box-shadow: 0 -1px 0 #fff2; font-size: 12px; }
+.entry-review > span { margin-right: 16px; color: #687078; }
+.entry-review a { padding: 8px 14px; border-radius: 6px; }
+.entry-review-screen { border-left: 1px solid #c8ccce; border-radius: 0 !important; margin-left: 10px; }
+
+
+.entry-signing .entry-copy h1 { font-size: clamp(48px, 4.5vw, 72px); margin-bottom: 18px; }
+.entry-signing .entry-description { font-size: 15px; margin-bottom: 22px; }
+.entry-signing { min-height: 650px; height: auto; }
+.entry-auth { max-width: 370px; }
+.entry-auth form { margin-top: 0; gap: 16px; }
+.entry-auth label { font-size: 13px; font-weight: 500; }
+.entry-auth input { border-radius: 4px; min-height: 52px; background: #ffffff06; border-color: #ffffff30; font-size: 16px; padding: 13px 15px; }
+.entry-auth input:focus { outline-color: var(--accent); }
+.entry-auth button[type=submit] { min-height: 52px; border-radius: 4px; background: var(--accent); color: #17201e; font: 600 14px 'DM Sans', sans-serif; }
+.entry-auth small, .entry-auth form p { font-size: 13px; }
+.entry-auth form p { margin: 0; }
+
+@media (min-width: 1600px) { .entry-stage { padding-left: 9%; padding-right: 9%; } }
+@media (max-width: 760px) {
+  .entry-header { height: 84px; margin: 0 7%; }
+  .entry-brand { font-size: 22px; gap: 8px; }
+  .entry-brand svg { width: 23px; }
+  .entry-header nav { gap: 18px; font-size: 12px; }
+  .entry-header nav a:first-child { display: none; }
+  .entry-stage { height: auto; max-height: none; min-height: 0; display: flex; flex-direction: column; align-items: stretch; padding: 24px 7% 0; }
+  .entry-intro { font-size: 12px; margin-bottom: 21px; }
+  .entry-copy h1 { font-size: clamp(54px, 13.8vw, 82px); letter-spacing: -1.3px; margin-bottom: 22px; }
+  .entry-description { font-size: 15px; line-height: 1.65; margin-bottom: 25px; }
+  .entry-desktop-break { display: none; }
+  .entry-play { width: 100%; justify-content: space-between; }
+  .entry-reassurance { text-align: center; }
+  .entry-art { min-height: 325px; height: 325px; margin-top: 24px; }
+  .entry-card { width: 40%; max-width: 200px; }
+  .entry-table-ring { width: 90%; }
+  .entry-art-caption { bottom: 0; font-size: 11px; }
+  .entry-footer { font-size: 10px; margin: 18px 7% 0; gap: 20px; min-height: 64px; }
+  .entry-review { padding: 10px 8px; gap: 2px; font-size: 11px; }
+  .entry-review > span { display: none; }
+  .entry-review a { padding: 8px 10px; }
+  .entry-review-screen { margin-left: 5px; }
+  .entry-signing .entry-copy h1 { font-size: 52px; }
+  .entry-signing .entry-art { display: none; }
+  .entry-signing { padding-bottom: 38px; min-height: calc(100svh - 250px); }
+  .entry-auth { max-width: none; }
+}
+@media (prefers-reduced-motion: reduce) { .entry-play { transition: none; } }

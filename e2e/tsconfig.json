@@ -1,0 +1,7 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "types": ["node", "bun", "vite/client", "react", "react-dom"]
+  },
+  "include": [".", "../src/env.d.ts"]
+}

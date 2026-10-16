@@ -1,0 +1,27 @@
+# Forge Web
+
+> Free browser-based Magic: The Gathering playtesting against AI.
+
+Forge Web provides a browser interface over the Card-Forge rules engine.
+Watch live AI games without signing in. Sign in with an email code to import,
+edit and save decks, then play against AI. Standard and Commander are the
+current constructed-play focus. Imports resolve card names against the pinned
+Forge catalog. Catalog availability does not guarantee browser gameplay support.
+
+## Public pages
+
+- [Live table](https://forgeweb.app/): Watch AI games and start playing.
+- [About](https://forgeweb.app/about): Project background and contact form.
+- [More information](https://forgeweb.app/llms-full.txt): Current scope and account requirements.
+
+## Current limits
+
+- Draft, sealed and the general puzzle browser are parked.
+- Desktop is the best experience. Mobile layouts and board interaction need refinement.
+- Play is against AI; human multiplayer is not currently offered.
+- The browser displays the game. A server runs the rules engine.
+- Forge Web is not affiliated with or endorsed by Wizards of the Coast.
+
+## Engine
+
+- [Card-Forge](https://github.com/Card-Forge/forge): The upstream rules engine, not the Forge Web application repository.

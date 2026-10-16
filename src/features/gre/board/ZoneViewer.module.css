@@ -1,0 +1,8 @@
+.zoneViewer { position: absolute; top: 80px; right: 24px; bottom: 155px; z-index: 300; width: min(570px, 54%); display: flex; flex-direction: column; background: #242623; color: var(--ink); border-radius: 4px; box-shadow: 0 16px 48px #0008; }
+.zoneHead { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 20px; border-bottom: 1px solid var(--public-line); }
+.zoneHead h2 { font: 500 20px/1.2 var(--public-body); margin: 0 0 4px; }
+.zoneHead span { color: var(--muted); font-size: 12px; }
+.zoneHead button { min-height: 36px; padding: 6px 10px; border: 1px solid var(--public-line); border-radius: 3px; background: transparent; color: var(--ink); font: 13px var(--public-body); cursor: pointer; }
+.zonePanel { flex: 1; min-height: 0; overflow-y: auto; padding: 20px; }
+.zoneGrid { --preview-card-w: var(--card-face-width-detail); display: flex; flex-wrap: wrap; gap: 18px; justify-content: center; align-content: flex-start; }
+.empty { margin: 40px 0; color: var(--muted); text-align: center; font-size: 14px; }

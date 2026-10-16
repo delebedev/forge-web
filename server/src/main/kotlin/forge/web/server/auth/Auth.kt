@@ -1,0 +1,352 @@
+package forge.web.server.auth
+
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.serializer
+import java.net.URI
+import java.net.http.HttpClient
+import java.net.http.HttpRequest
+import java.net.http.HttpResponse
+import java.security.SecureRandom
+import java.time.Instant
+import java.util.Base64
+import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
+import javax.crypto.Mac
+import javax.crypto.spec.SecretKeySpec
+
+private val SIX_DIGIT_CODE = Regex("^[0-9]{6}$")
+
+internal const val WEB_SESSION_COOKIE = "web_session"
+internal const val WEB_SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60
+internal const val DEV_WEB_AUTH_SECRET = "dev-web-auth-secret"
+internal const val GUEST_EMAIL_DOMAIN = "guest.local"
+internal const val MAX_AUTH_ATTEMPTS = 5
+internal const val SESSION_IDLE_SECONDS = 30L * 24 * 60 * 60
+
+private const val LOGIN_CODE_MINUTES = 10
+private const val RESEND_COOLDOWN_SECONDS = 30L
+private const val SESSION_ABSOLUTE_SECONDS = 90L * 24 * 60 * 60
+
+internal fun isGuestEmail(email: String): Boolean = email.endsWith("@$GUEST_EMAIL_DOMAIN")
+
+internal data class LoginCodeEmail(
+    val to: String,
+    val code: String,
+    val expiresInMinutes: Int,
+    val idempotencyKey: String,
+)
+
+internal interface EmailSender {
+    suspend fun sendLoginCode(input: LoginCodeEmail)
+}
+
+internal class DevEmailSender : EmailSender {
+    private val sent = ConcurrentHashMap<String, LoginCodeEmail>()
+
+    override suspend fun sendLoginCode(input: LoginCodeEmail) {
+        sent[normalizeEmail(input.to)] = input
+    }
+
+    fun latestCode(email: String): String? = sent[normalizeEmail(email)]?.code
+}
+
+internal class ResendEmailSender(
+    private val apiKey: String,
+    private val from: String,
+    private val http: HttpClient = HttpClient.newHttpClient(),
+) : EmailSender {
+    @Serializable
+    private data class Payload(
+        val from: String,
+        val to: List<String>,
+        val subject: String,
+        val text: String,
+    )
+
+    override suspend fun sendLoginCode(input: LoginCodeEmail) {
+        val body =
+            Json.encodeToString(
+                serializer<Payload>(),
+                Payload(
+                    from = from,
+                    to = listOf(input.to),
+                    subject = "Your Leyline login code",
+                    text = "Your login code is ${input.code}. It expires in ${input.expiresInMinutes} minutes.",
+                ),
+            )
+        val request =
+            HttpRequest
+                .newBuilder(URI.create("https://api.resend.com/emails"))
+                .header("Authorization", "Bearer $apiKey")
+                .header("Content-Type", "application/json")
+                .header("Idempotency-Key", input.idempotencyKey)
+                .POST(HttpRequest.BodyPublishers.ofString(body))
+                .build()
+        val response = http.send(request, HttpResponse.BodyHandlers.discarding())
+        if (response.statusCode() !in 200..299) error("Resend returned HTTP ${response.statusCode()}")
+    }
+}
+
+internal data class AuthRateLimitConfig(
+    val enabled: Boolean = true,
+    val loginLimit: Int = 10,
+    val loginWindowMs: Long = 60_000,
+) {
+    companion object {
+        fun disabled(): AuthRateLimitConfig = AuthRateLimitConfig(enabled = false)
+    }
+}
+
+internal interface RequestRateLimiter {
+    fun check(
+        key: String,
+        limit: Int,
+        windowMs: Long,
+    ): Boolean
+}
+
+internal class InMemoryRateLimiter : RequestRateLimiter {
+    private val windows = ConcurrentHashMap<String, MutableList<Long>>()
+
+    override fun check(
+        key: String,
+        limit: Int,
+        windowMs: Long,
+    ): Boolean {
+        val now = System.currentTimeMillis()
+        val timestamps = windows.computeIfAbsent(key) { mutableListOf() }
+        synchronized(timestamps) {
+            timestamps.removeAll { it < now - windowMs }
+            if (timestamps.size >= limit) return false
+            timestamps.add(now)
+        }
+        return true
+    }
+}
+
+data class WebPlayer(
+    val playerId: String,
+    val email: String,
+)
+
+internal interface WebAuthStore {
+    fun startChallenge(
+        challenge: WebLoginChallenge,
+        resendCooldownSeconds: Long,
+        now: Instant,
+    ): ChallengeStartResult
+
+    fun consumeChallenge(
+        email: String,
+        codeHash: String,
+        now: Instant,
+    ): ChallengeConsumeResult
+
+    fun findOrCreatePlayer(
+        email: String,
+        onCreate: (WebPlayer) -> Unit = {},
+    ): WebPlayer
+
+    fun findPlayer(playerId: String): WebPlayer?
+
+    fun saveSession(session: WebSession)
+
+    fun findSession(
+        tokenHash: String,
+        now: Instant,
+    ): WebPlayer?
+
+    fun revokeSession(
+        tokenHash: String,
+        now: Instant,
+    )
+}
+
+internal data class WebLoginChallenge(
+    val id: String,
+    val email: String,
+    val codeHash: String,
+    val expiresAt: Instant,
+    val createdAt: Instant,
+    val requestIpHash: String?,
+    val userAgent: String?,
+)
+
+internal data class WebSession(
+    val id: String,
+    val playerId: String,
+    val tokenHash: String,
+    val createdAt: Instant,
+    val lastSeenAt: Instant,
+    val idleExpiresAt: Instant,
+    val absoluteExpiresAt: Instant,
+    val ipHash: String?,
+    val userAgent: String?,
+)
+
+internal sealed class ChallengeStartResult {
+    data object Sent : ChallengeStartResult()
+
+    data object Cooldown : ChallengeStartResult()
+}
+
+internal sealed class ChallengeConsumeResult {
+    data object Accepted : ChallengeConsumeResult()
+
+    data object InvalidOrExpired : ChallengeConsumeResult()
+
+    data object TooManyAttempts : ChallengeConsumeResult()
+}
+
+sealed class StartLoginResult {
+    data object Sent : StartLoginResult()
+
+    data object Cooldown : StartLoginResult()
+
+    data object RateLimited : StartLoginResult()
+
+    data object EmailSendFailed : StartLoginResult()
+}
+
+sealed class VerifyLoginResult {
+    data class Success(
+        val token: String,
+        val player: WebPlayer,
+    ) : VerifyLoginResult()
+
+    data object InvalidOrExpired : VerifyLoginResult()
+
+    data object TooManyAttempts : VerifyLoginResult()
+
+    data object RateLimited : VerifyLoginResult()
+}
+
+class WebAuthService internal constructor(
+    private val store: WebAuthStore,
+    private val emailSender: EmailSender,
+    private val secret: String,
+    private val rateLimiter: RequestRateLimiter = InMemoryRateLimiter(),
+    private val rateLimitConfig: AuthRateLimitConfig = AuthRateLimitConfig.disabled(),
+    private val fixedLoginCode: String? = null,
+    private val onPlayerCreated: (WebPlayer) -> Unit = {},
+) {
+    private val random = SecureRandom()
+
+    suspend fun requestCode(
+        email: String,
+        ip: String? = null,
+        userAgent: String? = null,
+    ): StartLoginResult {
+        if (!allow("login:${normalizeEmail(email)}:${ip.orEmpty()}")) return StartLoginResult.RateLimited
+        val normalized = normalizeEmail(email)
+        val code = fixedLoginCode?.takeIf(SIX_DIGIT_CODE::matches) ?: (random.nextInt(900_000) + 100_000).toString()
+        val now = Instant.now()
+        val id = UUID.randomUUID().toString()
+        val challenge =
+            WebLoginChallenge(
+                id = id,
+                email = normalized,
+                codeHash = hashLoginCode(normalized, code),
+                expiresAt = now.plusSeconds(LOGIN_CODE_MINUTES * 60L),
+                createdAt = now,
+                requestIpHash = ip?.let(::hashOpaque),
+                userAgent = userAgent,
+            )
+        when (store.startChallenge(challenge, RESEND_COOLDOWN_SECONDS, now)) {
+            ChallengeStartResult.Cooldown -> return StartLoginResult.Cooldown
+            ChallengeStartResult.Sent -> Unit
+        }
+        return try {
+            emailSender.sendLoginCode(LoginCodeEmail(normalized, code, LOGIN_CODE_MINUTES, "web-login/$id"))
+            StartLoginResult.Sent
+        } catch (_: Exception) {
+            store.consumeChallenge(normalized, hashLoginCode(normalized, code), Instant.now())
+            StartLoginResult.EmailSendFailed
+        }
+    }
+
+    fun verify(
+        email: String,
+        code: String,
+        ip: String? = null,
+        userAgent: String? = null,
+    ): VerifyLoginResult {
+        if (!allow("verify:${normalizeEmail(email)}:${ip.orEmpty()}")) return VerifyLoginResult.RateLimited
+        val normalized = normalizeEmail(email)
+        if (!SIX_DIGIT_CODE.matches(code.trim())) return VerifyLoginResult.InvalidOrExpired
+        when (store.consumeChallenge(normalized, hashLoginCode(normalized, code.trim()), Instant.now())) {
+            ChallengeConsumeResult.Accepted -> Unit
+            ChallengeConsumeResult.InvalidOrExpired -> return VerifyLoginResult.InvalidOrExpired
+            ChallengeConsumeResult.TooManyAttempts -> return VerifyLoginResult.TooManyAttempts
+        }
+        return createSession(store.findOrCreatePlayer(normalized, onPlayerCreated), ip, userAgent)
+    }
+
+    fun guestSession(
+        ip: String? = null,
+        userAgent: String? = null,
+    ): VerifyLoginResult.Success? {
+        if (!allow("guest:${ip.orEmpty()}")) return null
+        val player = store.findOrCreatePlayer("guest-${UUID.randomUUID()}@$GUEST_EMAIL_DOMAIN")
+        return createSession(player, ip, userAgent)
+    }
+
+    fun validate(token: String?): WebPlayer? =
+        token?.takeIf { it.isNotBlank() }?.let { store.findSession(hashSessionToken(it), Instant.now()) }
+
+    fun findPlayer(playerId: String): WebPlayer? = store.findPlayer(playerId)
+
+    fun logout(token: String) {
+        token.takeIf { it.isNotBlank() }?.let { store.revokeSession(hashSessionToken(it), Instant.now()) }
+    }
+
+    private fun createSession(
+        player: WebPlayer,
+        ip: String?,
+        userAgent: String?,
+    ): VerifyLoginResult.Success {
+        val token = generateToken()
+        val now = Instant.now()
+        store.saveSession(
+            WebSession(
+                id = UUID.randomUUID().toString(),
+                playerId = player.playerId,
+                tokenHash = hashSessionToken(token),
+                createdAt = now,
+                lastSeenAt = now,
+                idleExpiresAt = now.plusSeconds(SESSION_IDLE_SECONDS),
+                absoluteExpiresAt = now.plusSeconds(SESSION_ABSOLUTE_SECONDS),
+                ipHash = ip?.let(::hashOpaque),
+                userAgent = userAgent,
+            ),
+        )
+        return VerifyLoginResult.Success(token, player)
+    }
+
+    private fun allow(key: String): Boolean =
+        !rateLimitConfig.enabled || rateLimiter.check(key, rateLimitConfig.loginLimit, rateLimitConfig.loginWindowMs)
+
+    private fun generateToken(): String {
+        val bytes = ByteArray(32)
+        random.nextBytes(bytes)
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
+    }
+
+    private fun hashLoginCode(
+        email: String,
+        code: String,
+    ): String = hmacSha256("$email:$code")
+
+    private fun hashSessionToken(token: String): String = hmacSha256("session:$token")
+
+    private fun hashOpaque(value: String): String = hmacSha256("opaque:$value")
+
+    private fun hmacSha256(value: String): String {
+        val mac = Mac.getInstance("HmacSHA256")
+        mac.init(SecretKeySpec(secret.toByteArray(), "HmacSHA256"))
+        return mac.doFinal(value.toByteArray()).joinToString("") { "%02x".format(it) }
+    }
+}
+
+internal fun normalizeEmail(value: String): String = value.trim().lowercase()

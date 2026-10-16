@@ -1,0 +1,50 @@
+[
+  {
+    "name": "Atraxa - Counter Growth",
+    "source": "https://edhrec.com/articles/a-statistical-look-at-almost-a-year-in-commander-2025",
+    "sourceDate": "2025-11-26",
+    "origin": "Locally curated Arena-compatible 2025 archetype; not a copy of an external list.",
+    "commander": "Atraxa, Praetors' Voice",
+    "sha256": "88c732bd8048c369219a4684a6bf7d8bda1a6d9ac50f1e0d0c945daf34fe15d0",
+    "importedAt": "2026-09-05"
+  },
+  {
+    "name": "Krenko - Goblin Swarm",
+    "commander": "Krenko, Mob Boss",
+    "source": "https://archidekt.com/decks/11364130",
+    "sourceTitle": "Goblin test",
+    "sourceUpdatedAt": "2025-11-03T23:42:59.740839Z",
+    "importedAt": "2026-09-05",
+    "sha256": "5114702b1792c8cf04e50b73e4b120218ea3b194bd068361de4ecb41c110782d",
+    "origin": "Arena-compatible adaptation of the linked 2025 list. See adaptations.json for substitutions."
+  },
+  {
+    "name": "Teval - Graveyard Lands",
+    "source": "https://edhrec.com/articles/a-statistical-look-at-almost-a-year-in-commander-2025",
+    "sourceDate": "2025-11-26",
+    "origin": "Locally curated Arena-compatible 2025 archetype; not a copy of an external list.",
+    "commander": "Teval, the Balanced Scale",
+    "sha256": "d59c2480b1f65054433f55b2be6946c5d2ae9d8aab4310778ce80a464cbcc90c",
+    "importedAt": "2026-09-05"
+  },
+  {
+    "name": "Vivi - Spellslinger",
+    "commander": "Vivi Ornitier",
+    "source": "https://archidekt.com/decks/15762882",
+    "sourceTitle": "Vivi izzit bracket 4",
+    "sourceUpdatedAt": "2025-10-04T22:37:22.495968Z",
+    "importedAt": "2026-09-05",
+    "sha256": "ac32d8721f603efe2f7f40db89103ba533de745a4906ed21aa5e7d8f484c196b",
+    "origin": "Arena-compatible adaptation of the linked 2025 list. See adaptations.json for substitutions."
+  },
+  {
+    "name": "Y'shtola - Spell Control",
+    "commander": "Y'shtola, Night's Blessed",
+    "source": "https://archidekt.com/decks/18242597",
+    "sourceTitle": "Y'shtola, Night's Blessed - Control",
+    "sourceUpdatedAt": "2025-12-18T02:13:06.362824Z",
+    "importedAt": "2026-09-05",
+    "sha256": "ae9e9164757d80e0fdc5f3364d7db0c53b191401c5b83aae8134d94270ad667f",
+    "origin": "Arena-compatible adaptation of the linked 2025 list. See adaptations.json for substitutions."
+  }
+]

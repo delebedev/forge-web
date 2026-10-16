@@ -1,0 +1,8 @@
+[run]
+bun = true
+
+[test]
+root = "./src"
+
+[test.reporter]
+junit = "test-results/junit.xml"

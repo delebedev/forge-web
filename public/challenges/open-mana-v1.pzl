@@ -1,0 +1,35 @@
+# Design Narrative
+# Mechanic: Cast a setup spell that protects a lethal follow-up whether the known counterspell answers the setup or waits.
+# Forcing: Two colorless floating mana pays for Defense Grid and preserves the Mountain for Bolt; the opponent has only two Islands.
+# AI behavior: Counterspell is the opponent's only response; the objective names it before the player commits.
+# Failure modes:
+#   WIN = Counterspell is spent on Grid or becomes five mana against Bolt, which then deals exact lethal.
+#   LOSE = Bolt is cast first and Counterspell stops the only lethal spell.
+#   TIMEOUT = opponent priority, cost modification, stack targeting, or resolution cannot progress.
+# Card roles:
+#   Defense Grid - forces the opponent to counter it or lose the ability to counter Bolt.
+#   Counterspell - the single known opposing response.
+#   Lightning Bolt - exact lethal after the fork.
+# Protocol path: opponent priority, stack targeting, static cost increase, and exact lethal.
+
+[metadata]
+Name:Open Mana
+Goal:Win
+Turns:1
+Difficulty:Hard
+Description:Force a known Counterspell into a fork that protects Lightning Bolt either way.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=3
+humanlandsplayed=1
+humanmanapool=C C
+
+humanbattlefield=Mountain
+humanhand=Defense Grid;Lightning Bolt
+humanlibrary=Mountain
+aibattlefield=Island;Island
+aihand=Counterspell
+ailibrary=Island

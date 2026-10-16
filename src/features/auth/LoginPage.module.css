@@ -1,0 +1,10 @@
+.loginFormShell { width: 100%; max-width: 370px; }
+.loginForm { display: grid; gap: 16px; margin: 0; }
+.field { display: grid; gap: 8px; color: var(--public-text, #efe8d9); font-size: 13px; font-weight: 500; }
+.field input { min-height: 52px; padding: 13px 14px; font-size: 16px; }
+.fieldHelp, .hint { color: var(--public-muted, #adb5ad); font-size: 12px; line-height: 1.6; }
+.hint { margin: 0; }
+.secondaryActions { display: flex; justify-content: space-between; gap: 14px; }
+.secondaryActions button { background: none; border: 0; color: var(--public-muted, #adb5ad); font: 12px var(--public-body, sans-serif); padding: 8px 0; text-decoration: underline; cursor: pointer; }
+.secondaryActions button:disabled { opacity: .5; cursor: not-allowed; }
+.error { color: var(--public-error, #ffb4a6); font-size: 13px; margin: 0; }

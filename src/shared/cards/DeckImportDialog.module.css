@@ -1,0 +1,85 @@
+.importDialog {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  box-sizing: border-box;
+  padding: 22px 24px 24px;
+  overflow-y: auto;
+  width: 100%;
+}
+
+
+
+.importTextarea {
+  height: 190px;
+  min-height: 150px;
+  max-height: 40vh;
+}
+
+.importErrors {
+  padding: 0.5rem 0.65rem;
+  border-radius: 4px;
+  background: rgba(255, 90, 90, 0.1);
+  border: 1px solid rgba(255, 90, 90, 0.25);
+}
+
+.errorLine {
+  font-size: 13px;
+  color: #ff9aa0;
+  padding: 0.1rem 0;
+}
+
+.parsedList {
+  max-height: 300px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* Unstyled grouping wrapper — mainboard/sideboard divs stack via normal block flow. */
+.parsedSection {
+}
+
+.sectionHeader {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--public-muted);
+  padding-bottom: 0.2rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.parsedCard {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.15rem 0.3rem;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.cardQty {
+  color: var(--public-accent);
+  font-weight: 600;
+  min-width: 1.6rem;
+  text-align: right;
+}
+
+.cardName { color: var(--public-text); flex: 1; }
+.cardMana { display: flex; gap: 0.08rem; font-size: 0.6rem; }
+
+.importActions {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.importDialog p { margin: 0; font-size: 14px; color: var(--public-muted); }
+.importDialog label { display: grid; gap: 8px; font-size: 13px; color: var(--public-text); }
+.importActions { justify-content: flex-end; }
+
+.catalogNote strong { color: var(--public-accent); font-weight: 500; }
+.formatHelp { color: var(--public-muted); font-size: 12px; }
+.formatHelp summary { color: var(--public-accent); cursor: pointer; }
+.formatHelp pre { margin: 8px 0 0; white-space: pre-wrap; font: 12px/1.5 var(--public-body); }

@@ -1,0 +1,117 @@
+name: Daily release notes
+
+on:
+  workflow_run:
+    workflows: [Publish Forge Web]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      mode:
+        type: choice
+        options: [publish, verify]
+        default: publish
+      run_id:
+        description: Successful deployment run (for publish)
+        type: string
+
+permissions:
+  contents: write
+  actions: read
+  pull-requests: read
+
+concurrency:
+  group: forge-web-release-notes
+  cancel-in-progress: false
+
+jobs:
+  notes:
+    if: >-
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') ||
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    environment: production-release
+    timeout-minutes: 15
+    env:
+      DEPLOY_HOST: ${{ secrets.FORGE_WEB_DEPLOY_HOST }}
+      DEPLOY_USER: ${{ secrets.FORGE_WEB_DEPLOY_USER }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: delebedev/forge-web
+      NOTES_MODE: ${{ inputs.mode || 'publish' }}
+      NOTES_RUN: ${{ inputs.run_id || github.event.workflow_run.id }}
+      NOTES_TAG: ${{ format('deploy-{0}', inputs.run_id || github.event.workflow_run.id) }}
+    steps:
+      - name: Verify deployment configuration
+        run: test -n "$DEPLOY_HOST" && test -n "$DEPLOY_USER"
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          submodules: true
+          persist-credentials: false
+
+      - name: Check release-note logic
+        run: python3 -m unittest scripts/test_release_notes.py
+
+      - name: Prepare release-note draft
+        if: env.NOTES_MODE == 'publish'
+        env:
+          OPEN_ROUTER_API_KEY: ${{ secrets.OPEN_ROUTER_API_KEY }}
+        run: |
+          [[ "$NOTES_RUN" =~ ^[0-9]+$ ]]
+          if ! gh run download "$NOTES_RUN" --name deployed-release --dir "$RUNNER_TEMP/deployment"; then
+            gh release download "deploy-$NOTES_RUN" --pattern manifest.json --dir "$RUNNER_TEMP/deployment"
+            python3 - "$RUNNER_TEMP/deployment" <<'PYTHON'
+          import json, pathlib, sys
+          directory = pathlib.Path(sys.argv[1])
+          manifest = json.loads((directory / 'manifest.json').read_text())
+          deployment = {key: manifest[key] for key in ('frontend', 'backend', 'run_id', 'deployed_at', 'kind')}
+          (directory / 'deployment.json').write_text(json.dumps(deployment))
+          PYTHON
+          fi
+          python3 scripts/release_notes.py draft --reuse-existing --deployment "$RUNNER_TEMP/deployment/deployment.json" --output "$RUNNER_TEMP/notes"
+          cat "$RUNNER_TEMP/notes/draft.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Prepare daily feed
+        id: feed
+        if: env.NOTES_MODE == 'publish'
+        run: |
+          python3 scripts/release_notes.py feed --tag "$NOTES_TAG" --output "$RUNNER_TEMP/notes"
+          if test -f "$RUNNER_TEMP/notes/whats-new.md"; then
+            echo 'publish=true' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Prepare unchanged feed for publisher verification
+        if: env.NOTES_MODE == 'verify'
+        run: |
+          mkdir -p "$RUNNER_TEMP/notes"
+
+      - name: Publish or verify feed
+        if: env.NOTES_MODE == 'verify' || steps.feed.outputs.publish == 'true'
+        env:
+          PUBLISH_KEY: ${{ secrets.FORGE_WEB_STATIC_SSH_KEY }}
+          PUBLISH_KNOWN_HOST: ${{ secrets.FORGE_WEB_KNOWN_HOST }}
+        run: |
+          deploy_dir=$(realpath "$(mktemp -d /tmp/forge-web-notes.XXXXXX)")
+          key="$deploy_dir/key"
+          known_hosts="$deploy_dir/known_hosts"
+          trap 'rm -f "$key" "$known_hosts"; rmdir "$deploy_dir"' EXIT
+          printf '%s\n' "$PUBLISH_KEY" > "$key"
+          printf '%s\n' "$PUBLISH_KNOWN_HOST" > "$known_hosts"
+          chmod 600 "$key" "$known_hosts"
+          curl --fail --silent --show-error -A forge-web-release/1 -H 'Cache-Control: no-cache' \
+            https://forgeweb.app/whats-new.md > "$RUNNER_TEMP/current-notes.md"
+          if test "$NOTES_MODE" = verify; then
+            cp "$RUNNER_TEMP/current-notes.md" "$RUNNER_TEMP/notes/whats-new.md"
+          fi
+          old=$(sha256sum "$RUNNER_TEMP/current-notes.md" | cut -d' ' -f1)
+          new=$(sha256sum "$RUNNER_TEMP/notes/whats-new.md" | cut -d' ' -f1)
+          ssh -i "$key" -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="$known_hosts" "$DEPLOY_USER@$DEPLOY_HOST" "notes $old $new" < "$RUNNER_TEMP/notes/whats-new.md"
+          curl --fail --silent --show-error -A forge-web-release/1 \
+            "https://forgeweb.app/whats-new.md?v=$new" > "$RUNNER_TEMP/verified-notes.md"
+          test "$(sha256sum "$RUNNER_TEMP/verified-notes.md" | cut -d' ' -f1)" = "$new"
+          if test "$NOTES_MODE" != verify; then
+            gh release edit "$NOTES_TAG" --notes-file "$RUNNER_TEMP/notes/selected.md" --draft=false --latest=false
+          fi
+          printf 'Completed %s, checksum %s\n' "$NOTES_TAG" "$new" >> "$GITHUB_STEP_SUMMARY"

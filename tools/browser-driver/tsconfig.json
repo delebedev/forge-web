@@ -1,0 +1,21 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": "../.."
+  },
+  "files": [
+    "./cli.ts",
+    "./config.ts",
+    "./config.test.ts",
+    "./executor.ts",
+    "./executor.browser.test.ts",
+    "./generate.ts",
+    "./generate.test.ts",
+    "./run.ts",
+    "./runner.ts",
+    "./types.ts",
+    "./window.d.ts"
+  ],
+  "include": []
+}

@@ -1,0 +1,50 @@
+[
+  {
+    "id": "bolt-at-three-v1",
+    "name": "Bolt at Three",
+    "objective": "One red mana. Three life. Find the finish.",
+    "turns": 1
+  },
+  {
+    "id": "clear-the-way-v1",
+    "name": "Clear the Way",
+    "objective": "Both Coursers must connect. Deal with the Wall before combat.",
+    "turns": 1
+  },
+  {
+    "id": "grow-for-lethal-v1",
+    "name": "Grow for Lethal",
+    "objective": "The Bear needs three more power to finish this turn.",
+    "turns": 1
+  },
+  {
+    "id": "growth-curve-v1",
+    "name": "Growth Curve",
+    "objective": "Grow Cloudfin Raptor through two increasingly large creatures before attacking.",
+    "turns": 1
+  },
+  {
+    "id": "lead-from-the-front-v1",
+    "name": "Lead from the Front",
+    "objective": "Pump the creature whose attack trigger multiplies its power across the team.",
+    "turns": 1
+  },
+  {
+    "id": "one-more-turn-v1",
+    "name": "One More Turn",
+    "objective": "Prepare for a revealed burn spell and trampling attack, then survive the opponent's turn.",
+    "turns": 2
+  },
+  {
+    "id": "open-mana-v1",
+    "name": "Open Mana",
+    "objective": "Force a known Counterspell into a fork that protects Lightning Bolt either way.",
+    "turns": 1
+  },
+  {
+    "id": "the-last-page-v1",
+    "name": "The Last Page",
+    "objective": "Order the two draw spells so the opponent draws from an empty library.",
+    "turns": 1
+  }
+]

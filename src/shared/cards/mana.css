@@ -1,0 +1,9 @@
+@import 'mana-font/css/mana.min.css';
+
+/* Prefer the bundled compressed font over the package stylesheet's legacy sources. */
+@font-face {
+  font-family: 'Mana';
+  src: url('mana-font/fonts/mana.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+}

@@ -1,0 +1,294 @@
+# forge-web Feature Catalog
+#
+# What works when a player uses the web client.
+# Organized by what a player would ask about, not code internals.
+#
+# Status values:
+#   works     — end-to-end functional, tested, player can use it
+#   wired     — plumbing exists, happy path works, edge cases or UX rough
+#   partial   — some sub-cases work, others don't or are missing
+#   broken    — code exists but doesn't function correctly
+#   missing   — not implemented
+#   n/a       — not applicable
+#
+# Ground truth: docs/architecture.md, docs/frontend-routes.md, the code under
+# src/, and the e2e suites. GRE (Game Rules Engine) is the active match runtime;
+# the pre-GRE lobby/room-code backend (LobbyHandler, RoomId, GameActionBridge,
+# PlayableActionDto) is gone — forge-web is browser UX in front of the pinned
+# product server's HTTP + WebSocket surface over the pinned Leyline runtime.
+#
+# Updated: 2026-10-03
+
+# ─── Public Roadmap ────────────────────────────────────────────────
+
+roadmap:
+  public-board:
+    status: works
+    notes: >
+      Public /roadmap lists curated ideas by product state and vote count.
+      Signed-in accounts can add or remove one durable vote per unshipped item.
+
+# ─── Account & Identity ───────────────────────────────────────────
+
+account:
+  login-signup:
+    status: works
+    notes: >
+      Email-code (passwordless) auth owned by the product server. authStore
+      (src/shared/auth/auth.ts) probes /api/auth/me on startup;
+      LoginPage handles the code flow. Session is a cookie set server-side.
+
+  profile:
+    status: partial
+    notes: "Player identity available via authStore; no profile edit UI."
+
+# ─── Deck Management ──────────────────────────────────────────────
+
+decks:
+  precon-and-saved-decks:
+    status: works
+    notes: >
+      decksStore (src/features/decks/decks-store.ts) lists precons + user-owned
+      decks. DecksView (src/features/decks/) shows list + detail pane;
+      DeckEditor.tsx builds/edits constructed decks (card search, land
+      controls, stats bar); DeckImportDialog.tsx parses Arena/MTGO/.dck
+      text via /api/cards/parse-decklist.
+
+  draft-sealed-pools:
+    status: works
+    notes: >
+      SavedPools.tsx (src/features/limited/) shows saved draft/sealed
+      pools for re-opening in the limited deck builder.
+
+
+# ─── Game Modes ───────────────────────────────────────────────────
+
+game-modes:
+  constructed:
+    status: works
+    notes: >
+      GameSetup.tsx (src/shell/) picks deck/format/
+      opponent, launches GRE via POST /api/gre/start. Commander/Brawl/
+      Oathbreaker share this setup flow.
+
+  browser-local-execution:
+    status: works
+    notes: >
+      Constructed and Commander run in the browser when the secure context,
+      Worker, WebAssembly, decompression, and cryptography capabilities are
+      available. Browser identity and device class do not decide eligibility.
+      A concrete pre-game startup failure visibly falls back once to a server
+      game; cancellation and failures after gameplay starts do not replace the
+      active match.
+
+  puzzle:
+    status: partial
+    notes: >
+      PUZZLES_ENABLED (src/shared/flags.ts) is off: the product ships
+      login/constructed/draft first, so the puzzle browse/paste/generate UI
+      was deleted rather than ported and /play/puzzle carries no route.
+      Puzzle matches themselves still run — the GRE play route accepts a
+      puzzle param, /dev/puzzle/:id (DevLoader) auto-boots one, and the
+      acceptance suites drive it. A development-only curated launcher is
+      available at /challenges when both frontend development mode and the
+      server's explicit development-tools flag are enabled.
+
+  public-challenges:
+    status: partial
+    notes: >
+      Daily puzzle navigation rotates among three stable singular
+      /challenge/<versioned-id> links. Static .pzl fixtures run locally in the
+      browser without auth or a server match. The same three repeat every
+      three UTC days. No browse/catalog, saved
+      progress, or public puzzle creation.
+      The older plural /challenges launcher is development-only and uses the
+      server-backed /match/puzzle route.
+
+  booster-draft:
+    status: works
+    notes: >
+      Draft is available from the signed-in navigation. Players draft three
+      packs over REST, build and submit a 40-card deck, then enter a GRE match
+      against an opponent deck from the same pod. The product browser suite
+      covers a manual pick, the full draft, deck submission, mulligan, and a
+      live game action.
+
+  sealed:
+    status: partial
+    notes: >
+      sealedStore (src/features/limited/sealed-store.ts) opens a pool via REST
+      (/api/sealed/start returns the course with its cardPool directly) into
+      LimitedDeckBuilder.tsx, submits via /api/sealed/deck, launches via
+      /api/sealed/play the same way draft does. Refresh-resume reads
+      GET /api/courses instead of a session WS. MatchMatrixTest proves
+      the play route reaches an initial GRE state. SEALED_ENABLED
+      (src/shared/flags.ts) remains off, so the browser path is gated behind the flag.
+
+  public-spectator:
+    status: works
+    notes: >
+      LandingPage.tsx shows a durable public AI-vs-AI match sourced from
+      POST /api/public/spectator/start. Refresh joins the active match
+      instead of resetting it; game-over rotates to the next match; relay
+      fan-out supports multiple connected spectators on one match stream.
+
+
+# ─── GRE Match Runtime ────────────────────────────────────────────
+
+gre-runtime:
+  match-lifecycle:
+    status: works
+    notes: >
+      Landing → setup → mulligan → live match → terminal outcome, including
+      puzzle and spectator/watch modes, tab-scoped refresh-resume via
+      sessionStorage (forge:gre:lastMatchConfig), durable public spectator
+      reuse, and concede. Victory and defeat lock game actions; Back to Play
+      and Play Again retire the old match before navigation or relaunch.
+      Refresh after gameplay rebuilds the returning viewer from the current
+      Full state, preserves any current action horizon with fresh response
+      identities, and leaves other viewer feeds untouched. Encoded responses
+      are bound to one match-source generation, so delayed work cannot cross
+      into or clear prompts from a replacement match.
+      Owned by runtime/gre-store.ts (WebSocket lifecycle, state projection, message
+      decode/encode), gre-session.ts (retirement), and gre-launch.ts (start
+      payloads).
+
+  board-presentation:
+    status: works
+    notes: >
+      GrePlay.tsx + src/features/gre/board/* (Card, StackPanel,
+      SideRail, PhaseRail, HandFan, OppHandFan, ArrowLayer, CardPreview,
+      ActionButton). Lands-left battlefield, inline life totals, opponent
+      hand fan, hidden-zone chips, hover/focus card inspection with adjacent
+      Forge-authored mechanic descriptions, art-forward tiles, and visual
+      tapped/attacking states. Development challenges use this same
+      presentation and prompt surface.
+
+  emblems:
+    status: works
+    notes: >
+      Both players have persistent creator-image emblem tiles in the left margin. Inspection
+      shows creator identity and the emblem effect without creature stats or
+      cast actions. Later triggers identify the emblem on the stack and in
+      targeting after the creator leaves. Server and Browser Local share
+      this projection; Sephiroth persistence and lethal drain are verified.
+      Ring progression and a complete emblem-card inventory are outside this slice.
+
+  combat-and-targeting:
+    status: works
+    notes: >
+      Click creature → click target, with an arrow overlay (ArrowLayer.tsx,
+      no drag); declare attackers/blockers, assign combat damage.
+
+  stack-zone:
+    status: works
+    notes: >
+      StackPanel.tsx renders the literal pile with a "Resolves next" tag
+      and per-item ownership tags (Yours / Opponent's). The action dock flips
+      Pass → Resolve → Respond by context for normal and puzzle matches.
+
+  target-arrows-from-stack:
+    status: works
+    notes: >
+      Persistent TargetSpec annotations project one dashed blue stack→target
+      arrow per affected id. The projection survives a Full frame only while
+      its affector remains stack-resident; explicit deletion or stack exit
+      removes it. Player targets use player-table identity; absent target DOM
+      nodes are ignored without changing game visibility.
+
+  prompts:
+    status: works
+    notes: >
+      PromptDock.tsx (src/features/gre/prompts/) renders targets,
+      fixed-total distribution, attackers, blockers, assign-damage, group (scry/surveil),
+      order (click-to-order), selectN, search, casting options, optional
+      actions, grouped search, replacement order, and mulligan. Headings and instructions are player-facing;
+      casting modes use localized ability text, costs, availability, and
+      bounded-selection rules while protocol identity stays data-only.
+
+  non-hand-actions:
+    status: works
+    notes: >
+      Exact legal graveyard, exile, command-zone and library-top actions render in a visible rail beside
+      the hand. Flashback and other alternate casts keep their source zone and
+      action identity, and cards with sibling actions open a semantic choice.
+
+  priority-interaction:
+    status: works
+    notes: >
+      The runtime owns automatic priority, action eligibility and control
+      lifetimes. The client adopts acknowledged settings and submits Full Control,
+      scoped transient stops, Pass turn and Resolve all without local pass loops.
+      Five phase groups expose exact steps with own-turn and opponent-turn columns.
+      Reconnect restores current controls. Commands remain bound to their match
+      source generation. Space passes priority and E passes the turn.
+
+  mulligan:
+    status: works
+    notes: "London mulligan via PromptDock's mulligan prompt."
+
+  replay:
+    status: n/a
+    notes: >
+      ReplayView.tsx is a development-only local transcript viewer with
+      seek/play/pause. REPLAY_ENABLED follows Vite's shared development flag,
+      so production returns not-found and has no replay navigation item.
+
+
+# ─── UX & Diagnostics ─────────────────────────────────────────────
+
+ux:
+  keyboard-shortcuts:
+    status: works
+    notes: "Space = pass/resolve, E = pass turn, plus prompt/mana shortcuts wired in GrePlay."
+
+  sound-cues:
+    status: works
+    notes: "Kenney tabletop cues follow displayed board events and selections. Board options owns mute, volume and Test sound; shell mute stays synchronized."
+
+  whats-new:
+    status: works
+    notes: >
+      The shared What's new modal reads the independently published production
+      feed. Authenticated Play and Decks visits present new publication days
+      once per account; landing and lobby header entries open it manually.
+
+  diagnostics:
+    status: partial
+    notes: >
+      GreDiagnostics (src/engine/runtime/gre-diagnostics.ts), owned by runtime/gre-store.ts:
+      message log, traffic stats, message type histogram. No dedicated
+      dev-mode panel component renders it; it is surfaced today through
+      window.__greState() (src/shared/debug/gre-debug-bridge.ts) for agent/debug
+      tooling rather than an in-app view.
+
+
+# ─── Testing ───────────────────────────────────────────────────────
+
+testing:
+  unit-and-typecheck:
+    status: works
+    notes: "bun run check (tsc --noEmit + bun test)."
+
+  gre-e2e:
+    status: partial
+    notes: >
+      e2e/gre-play.spec.ts through the gre project in playwright.config.ts. A handful of
+      scenarios are skipped pending fixture/engine support; skip reasons live
+      beside the affected tests and acceptance-suite metadata.
+
+  product-smoke:
+    status: works
+    notes: >
+      e2e/product-smoke.spec.ts (product mode in playwright.config.ts) covers
+      the live public spectator landing, constructed setup, anonymous challenges,
+      a real GRE start, and dialog focus behavior. Draft and sealed play routes
+      reach initial GRE state in MatchMatrixTest.
+
+  auth-smoke:
+    status: works
+    notes: "e2e/auth-passwordless.spec.ts (auth mode in playwright.config.ts)."
+
+  visual-screenshots:
+    status: works
+    notes: "e2e/screenshots.spec.ts (playwright.config.ts default + ipad projects)."

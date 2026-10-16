@@ -1,0 +1,6 @@
+leyline/
+src/engine/generated/
+src/shared/api/types.ts
+**/*.module.css.d.ts
+
+card-presentation/build/

@@ -1,0 +1,21 @@
+# Design Narrative
+# Mechanic: Removing Glarb withdraws its permission to cast the library top.
+# Forcing: Baloth begins on top and Unsummon can return Glarb to hand.
+# AI behavior: An empty hand and battlefield provide no response decisions.
+# Failure modes: A remaining library cast action after Glarb leaves disproves withdrawal.
+# Card roles: Glarb grants permission; Baloth is eligible; Unsummon removes the source.
+[metadata]
+Name:Glarb Library Permission Withdrawal
+Goal:Win
+Turns:4
+Difficulty:Easy
+Description:Return Glarb to hand and verify the library cast permission disappears.
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanhand=Unsummon
+humanbattlefield=Glarb, Calamity's Augur;Forest;Forest;Island;Swamp
+humanlibrary=Rumbling Baloth;Mountain;Island;Forest;Swamp
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain

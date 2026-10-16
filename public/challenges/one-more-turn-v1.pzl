@@ -1,0 +1,35 @@
+# Design Narrative
+# Mechanic: Gain life before passing, then survive a known burn spell and a trampling attack with the correct blocker.
+# Forcing: Missionary raises life from five to nine; Wall of Omens absorbs four of Dreadmaw's six combat damage.
+# AI behavior: The opponent has one castable spell and one attacker; the objective names the hidden spell.
+# Failure modes:
+#   WIN = Missionary gains four and Wall blocks enough trample damage to survive at two.
+#   LOSE = Swords removes Dreadmaw but leaves the player at five, so Lava Axe wins.
+#   TIMEOUT = the opponent does not cast Lava Axe, attack, or reach the blocking prompt.
+# Card roles:
+#   Lone Missionary - the unique strategic play, gaining four life.
+#   Wall of Omens - absorbs four combat damage from Dreadmaw.
+#   Swords to Plowshares - attractive removal that does not answer Lava Axe.
+#   Lava Axe and Colossal Dreadmaw - the fully known opponent turn.
+# Protocol path: ETB life gain, turn transition, opponent spell, blocking, trample assignment, and survival.
+
+[metadata]
+Name:One More Turn
+Goal:Survive
+Turns:2
+Difficulty:Hard
+Description:Prepare for a revealed burn spell and trampling attack, then survive the opponent's turn.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=5
+AILife=20
+humanlandsplayed=1
+
+humanbattlefield=Wall of Omens|NoETBTrigs;Plains;Plains
+humanhand=Lone Missionary;Swords to Plowshares
+humanlibrary=Plains;Plains
+aibattlefield=Colossal Dreadmaw;Mountain;Mountain;Mountain;Mountain;Mountain
+aihand=Lava Axe
+ailibrary=Mountain;Mountain

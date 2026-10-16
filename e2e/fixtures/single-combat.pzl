@@ -1,0 +1,14 @@
+[metadata]
+Name:Effect card choice
+Goal:Win
+Turns:3
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanhand=Single Combat
+humanbattlefield=Plains;Plains;Plains;Plains;Plains;Grizzly Bears;Centaur Courser
+humanlibrary=Island;Island;Island
+aibattlefield=Walking Corpse
+ailibrary=Island;Island;Island

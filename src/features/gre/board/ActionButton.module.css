@@ -1,0 +1,12 @@
+.actionDock { position: absolute; right: 24px; bottom: 24px; z-index: 150; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; width: 210px; pointer-events: auto; }
+.actionDock button { border-radius: 3px; border: 0; font: 500 13px var(--public-body); cursor: pointer; transition: background 120ms; }
+.actionDock button:disabled { opacity: .35; cursor: default; }
+.primary { grid-column: 1 / -1; min-height: 48px; padding: 0 20px; background: var(--accent); color: var(--public-bg); }
+.primary:not(:disabled):hover { background: var(--accent-hover); }
+.skip { min-height: 34px; padding: 0 8px; background: transparent; color: var(--muted); }
+.skip:not(:disabled):hover { background: #efeee80c; color: var(--ink); }
+.control { grid-column: 1 / -1; padding: 8px; background: transparent; color: var(--muted); font-size: 11px !important; }
+.control[aria-pressed=true] { color: var(--accent); background: #efeee808; }
+@media (max-width: 600px) {
+  :global([data-challenge='true']) .actionDock { right: 8px; bottom: 8px; width: 150px; }
+}

@@ -1,0 +1,19 @@
+[metadata]
+Name:Growth Curve
+Goal:Win
+Turns:1
+Difficulty:Medium
+Description:Grow Cloudfin Raptor through two increasingly large creatures before attacking.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=2
+humanlandsplayed=1
+
+humanbattlefield=Cloudfin Raptor;Forest;Forest
+humanhand=Memnite;Runeclaw Bear
+humanlibrary=Island
+aibattlefield=Vastwood Gorger
+ailibrary=Forest

@@ -1,0 +1,17 @@
+[metadata]
+Name:Arena mana payment
+Goal:Survive
+Turns:5
+Difficulty:Easy
+Description:Let the AI cast Phyrexian Arena with two Swamps and Cabal Stronghold, then resolve its upkeep trigger.
+[state]
+ActivePlayer=AI
+ActivePhase=Main2
+HumanLife=40
+AILife=40
+humanbattlefield=Island
+humanhand=Opt
+humanlibrary=Island;Island;Island;Island;Island
+aibattlefield=Swamp;Cabal Stronghold;Swamp
+aihand=Phyrexian Arena
+ailibrary=Swamp;Swamp;Swamp;Swamp;Swamp

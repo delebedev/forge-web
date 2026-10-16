@@ -1,0 +1,20 @@
+.pickerBody {
+  height: min(75vh, 700px);
+  padding: 20px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.decksLayout {
+  display: grid;
+  grid-template-columns: 270px minmax(0, 1fr);
+  gap: 20px;
+  height: 100%;
+  min-height: 0;
+}
+
+@media (max-width: 900px) {
+  .decksLayout {
+    grid-template-columns: 1fr;
+  }
+}

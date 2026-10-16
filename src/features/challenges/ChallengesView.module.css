@@ -1,0 +1,13 @@
+.launcher { width: min(760px, calc(100% - 48px)); margin: 0 auto; padding: 52px 0 72px; }
+.header { margin-bottom: 28px; }
+.header h1 { margin: 0; color: var(--public-text); font: 500 32px/1.15 var(--public-body); letter-spacing: -.035em; }
+.header > p:last-child { margin: 10px 0 0; color: var(--public-muted); }
+.eyebrow { margin: 0 0 8px; color: var(--public-accent); font-size: 11px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; }
+.list { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; border-block: 1px solid var(--public-line); }
+.list a { display: grid; grid-template-columns: minmax(180px, 1fr) 2fr; gap: 24px; min-height: 64px; align-items: center; padding: 12px 4px; color: var(--public-text); text-decoration: none; border-bottom: 1px solid var(--public-line); }
+.list li:last-child a { border-bottom: 0; }
+.list a:hover, .list a:focus-visible { color: var(--public-accent-hover); }
+.list strong { font-size: 14px; font-weight: 600; }
+.list span { color: var(--public-muted); font-size: 13px; line-height: 1.45; }
+.message { display: grid; min-height: 360px; place-items: center; margin: 0; color: var(--public-muted); }
+.message button { min-height: 44px; padding: 10px 16px; border: 1px solid var(--public-line); border-radius: 3px; background: transparent; color: var(--public-text); }

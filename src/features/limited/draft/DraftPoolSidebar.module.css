@@ -1,0 +1,95 @@
+.poolSidebar {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  overflow: hidden;
+  padding: 16px;
+  border: 1px solid var(--public-line);
+  border-radius: var(--public-radius);
+  background: var(--public-surface);
+}
+
+.poolHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.poolTitle {
+  color: var(--public-text);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.poolCount {
+  color: var(--public-muted);
+  font-size: 12px;
+}
+
+.poolGroups {
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+}
+
+.poolGroup {
+  display: flex;
+  flex-direction: column;
+}
+
+.poolGroupHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 0.15rem;
+  border-bottom: 1px solid var(--public-line);
+}
+
+.poolColorLabel {
+  font-size: 0.7rem;
+  color: var(--public-muted);
+}
+
+.poolGroupCount {
+  font-size: 0.68rem;
+  color: var(--public-muted);
+}
+
+.poolCard {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.15rem 0.25rem;
+  border-radius: 3px;
+  cursor: default;
+}
+
+.poolCard:hover {
+  background: var(--public-field);
+}
+
+.poolCardMana {
+  display: flex;
+  gap: 0.1rem;
+  font-size: 0.62rem;
+  flex-shrink: 0;
+}
+
+.poolCardName {
+  font-size: 0.72rem;
+  color: var(--public-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 900px) {
+  .poolSidebar {
+    max-height: 200px;
+  }
+}

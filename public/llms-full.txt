@@ -1,0 +1,59 @@
+# Forge Web
+
+Forge Web (https://forgeweb.app) is a free browser interface for Magic: The
+Gathering playtesting against AI, powered by the open-source Card-Forge rules
+engine. No game download is required.
+
+## What you can do
+
+### Watch games
+
+The homepage at https://forgeweb.app/ shows AI-versus-AI games. Watching does
+not require an account. A new game follows each result.
+
+### Import a deck and play
+
+Sign in with an email code to import, edit and save decks in your account
+library and play against AI. Standard and Commander are the current focus.
+Deck imports resolve card names from the pinned Forge catalog. Catalog
+availability does not guarantee that every interaction works in browser play.
+
+## Current limitations
+
+- Draft, sealed and the general puzzle browser are parked.
+- Match replay is a development tool, not a public product feature.
+- Play is against AI. Human multiplayer is not currently offered.
+- Desktop is the best experience. Mobile layout and board interaction are still being refined.
+- Availability of a card does not imply every interaction has been verified in browser play.
+
+## Technology
+
+The interface uses React, TypeScript and Vite. A Kotlin product server runs
+the rules engine and handles accounts, saved decks and game sessions. The
+browser uses HTTP APIs and a WebSocket game connection. The engine does not
+run entirely in the browser. Card artwork is served through Scryfall.
+
+## Questions
+
+Is it free? Yes, watching and playing are free.
+
+Do I need an account? Watching does not require an account. Saving decks and playing require email sign-in.
+
+Do I need to install anything? No game installation is required to use the
+website. A web app manifest is supplied for browsers that support adding the
+site to a home screen. Gameplay requires an internet connection.
+
+How do I contact the project? Use the contact form linked from
+https://forgeweb.app/about.
+
+## Links and attribution
+
+- Website: https://forgeweb.app/
+- About and contact: https://forgeweb.app/about
+- Upstream Card-Forge rules engine: https://github.com/Card-Forge/forge
+
+The upstream engine link is not the Forge Web application repository.
+Forge Web is not affiliated with, endorsed, sponsored or approved by Wizards
+of the Coast LLC. Magic: The Gathering, MTG and card names are trademarks of
+Wizards of the Coast LLC. Card images and mana symbols belong to their
+respective rights holders.

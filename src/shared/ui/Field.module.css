@@ -1,0 +1,15 @@
+.control {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--public-line);
+  border-radius: var(--public-radius);
+  background: var(--public-field);
+  color: var(--public-text);
+  font: 14px/1.5 var(--public-body);
+}
+
+.control::placeholder { color: var(--public-muted); opacity: 1; }
+.control:disabled { opacity: .55; cursor: not-allowed; }
+.textarea { resize: vertical; }

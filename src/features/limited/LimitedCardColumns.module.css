@@ -1,0 +1,86 @@
+.cmcCol {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 56px;
+  max-width: 110px;
+  min-height: 0;
+}
+
+.colLabel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 0.1rem;
+}
+
+.colLabelText {
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 0.58rem;
+  font-weight: 600;
+}
+
+.colLabelCount {
+  color: rgba(255, 255, 255, 0.28);
+  font-size: 0.54rem;
+}
+
+.cardStack {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.cardStack::-webkit-scrollbar {
+  display: none;
+}
+
+.cardThumb {
+  position: relative;
+  display: block;
+  flex-shrink: 0;
+  height: 26px;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 5px;
+  background: none;
+  cursor: pointer;
+  transition:
+    transform 0.12s,
+    box-shadow 0.12s;
+}
+
+.cardThumb:last-child {
+  height: auto;
+}
+
+.cardThumb:hover {
+  z-index: 20;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.55);
+  transform: translateY(-1px);
+}
+
+.thumbImg {
+  display: block;
+  width: 100%;
+  border-radius: 5px;
+}
+
+.countBadge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  padding: 0.05rem 0.25rem;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.75);
+  color: var(--accent);
+  font-size: 0.58rem;
+  font-weight: 700;
+  pointer-events: none;
+}

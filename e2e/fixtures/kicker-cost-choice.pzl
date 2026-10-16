@@ -1,0 +1,24 @@
+# Design Narrative
+# Mechanic: Optional kicker costs expose their Forge description before payment.
+# Forcing: Centaur Courser survives two damage but dies to the kicked four damage.
+# AI behavior: Empty opposing hand leaves targeting and resolution uncontested.
+# Protocol path: Cast, optional kicker or Done, targeting, mana payment and resolution.
+# Failure modes: Generic cost label, wrong branch payment, wrong damage or stalled continuation.
+# Card roles: Shivan Fire offers kicker; five Mountains fund either cast; Centaur Courser distinguishes outcomes; Ornithopter checks targeting; Island retains post-resolution priority.
+[metadata]
+Name:Kicker cost choices
+Goal:Survive
+Turns:4
+Difficulty:Easy
+Description:Choose whether to kick Shivan Fire and damage Centaur Courser.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanhand=Shivan Fire;Island
+humanbattlefield=Mountain;Mountain;Mountain;Mountain;Mountain
+humanlibrary=Island;Island;Island
+aibattlefield=Centaur Courser;Ornithopter
+ailibrary=Island;Island;Island

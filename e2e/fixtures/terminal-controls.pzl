@@ -1,0 +1,23 @@
+# Design Narrative
+# Mechanic: Cast Lightning Bolt for lethal and verify remaining cards and controls retire.
+# Forcing: The starting position offers the named interaction without drawing or building a board.
+# AI behavior: An empty hand and battlefield leave no competing actions.
+# Failure modes: Wrong targets, missing actions or incorrect results fail the browser assertions.
+# Card roles: Hand and battlefield cards supply only the tested action and its mana. Library lands prevent decking.
+# Protocol path: Real legal actions, player responses and authoritative game-state updates.
+[metadata]
+Name:Terminal controls
+Goal:Win
+Turns:3
+Difficulty:Tutorial
+Description:Cast Lightning Bolt for lethal and verify remaining cards and controls retire.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=3
+humanhand=Lightning Bolt;Shock
+humanbattlefield=Mountain
+humanlibrary=Plains;Plains;Plains;Plains;Plains
+ailibrary=Plains;Plains;Plains;Plains;Plains

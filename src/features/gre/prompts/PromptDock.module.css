@@ -1,0 +1,70 @@
+.promptPanel {
+  position: relative; z-index: 160; width: 100%; max-height: 100%; min-height: 0;
+  display: flex; flex-direction: column; gap: 18px; overflow: hidden;
+  padding: 18px 0 0; border: 0; border-top: 2px solid var(--accent); border-radius: 0;
+  color: var(--ink); background: transparent;
+  animation: decision-in 180ms ease-out;
+}
+.promptBody { min-height: 0; overflow-y: auto; padding: 0 4px 4px 0; }
+.promptHead h2 { margin: 0; font: 500 24px/1.15 var(--public-body); letter-spacing: -.035em; color: var(--ink); outline: none; }
+.promptHead p { margin: 8px 0 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.targetProgress { margin-bottom: 16px; display: flex; flex-wrap: wrap; gap: 8px; font-size: 13px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.targetList, .modalChoiceGroup { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+.selectionHint, .orderHint { color: var(--muted); font-size: 12px; line-height: 1.5; }
+.blockerList { align-items: stretch; }
+.blockerGroup, .damageAssigner { display: grid; gap: 8px; padding-block: 10px; border-bottom: 1px solid var(--panel-border); }
+.blockerGroup > strong, .damageAssigner > strong { font-size: 14px; font-weight: 600; }
+.damageList, .groupList { display: grid; gap: 14px; width: 100%; }
+.damageRow { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 13px; }
+.damageControls { display: flex; align-items: center; gap: 6px; }
+.damageControls .target { padding: 6px 10px; }
+.damageControls strong { min-width: 2ch; text-align: center; font-variant-numeric: tabular-nums; }
+.numericChoice { display: grid; grid-template-columns: 44px minmax(72px, 1fr) 44px; align-items: center; gap: 8px; }
+.numericChoice .target { padding: 6px 10px; text-align: center; }
+.numericChoice strong { text-align: center; font-size: 24px; font-variant-numeric: tabular-nums; }
+.groupSpecs { display: flex; flex-wrap: wrap; gap: 12px; }
+.groupSpec, .groupCard { padding-block: 10px; border-bottom: 1px solid var(--panel-border); font-size: 14px; }
+.groupCard { display: grid; gap: 10px; }
+.groupCard small, .groupSpec small { display: block; }
+.groupControls { display: flex; flex-wrap: wrap; gap: 6px; }
+.target {
+  position: relative; min-height: 44px; padding: 12px; border: 1px solid transparent; border-bottom-color: var(--public-line); border-radius: 3px;
+  background: transparent; color: var(--ink); font: 500 13px/1.4 var(--public-body); text-align: left; cursor: pointer;
+  transition: background 120ms, border-color 120ms;
+}
+.target:hover:not(:disabled) { background: #efeee80c; border-color: var(--public-muted); }
+.target:disabled { opacity: .45; cursor: default; }
+.target.selected { background: var(--selected-bg); border-color: var(--selected-border); padding-right: 34px; }
+.target.unavailable { color: var(--muted); }
+.target.done { margin-top: 10px; background: var(--accent); color: var(--public-bg); border-color: transparent; text-align: center; font-weight: 600; }
+.target.done:hover:not(:disabled) { background: var(--accent-hover); }
+.target span { display: block; }
+.target .modeCost { margin-top: 6px; color: var(--muted); font-size: 12px; }
+.choiceState { display: inline-block; margin-top: 3px; color: currentColor; font-size: 11px; }
+.searchList { max-height: 42cqh; overflow-y: auto; }
+.searchGroup { display: grid; gap: 8px; padding-bottom: 10px; border-bottom: 1px solid var(--panel-border); }
+.searchGroup:last-child { padding-bottom: 0; border-bottom: 0; }
+.orderBadge { display: inline-grid; place-items: center; min-width: 22px; height: 22px; margin-right: 6px; border: 1px solid var(--public-text); color: var(--ink); font-size: 12px; }
+.promptPanel small { color: var(--muted); }
+.promptPanel[data-prompt='mulligan'] { position: absolute; padding: 24px; border: 0; border-radius: 4px; background: var(--public-surface); right: auto; left: 50%; bottom: calc(var(--hand-ideal-w) * 1.4 + 60px); transform: translateX(-50%); width: 360px; text-align: center; }
+.promptPanel[data-prompt='mulligan'] .targetList { flex-direction: row; }
+.promptPanel[data-prompt='mulligan'] .target { flex: 1; text-align: center; }
+@keyframes decision-in { from { opacity: .3; translate: 8px 0; } to { opacity: 1; translate: 0 0; } }
+@media (prefers-reduced-motion: reduce) { .promptPanel { animation: none; } }
+
+.orderList { align-items: stretch; }
+
+.choiceArt { float: left; width: 42px; height: 34px; object-fit: cover; border-radius: 2px; margin: 0 10px 0 0; }
+:global([data-card-art='off']) .choiceArt { visibility: hidden; }
+.target:has(.choiceArt) { min-height: 58px; }
+.selected .choiceState[aria-hidden] { position: absolute; right: 12px; top: 14px; color: var(--ink); font-size: 16px; }
+.target, .choiceState { transition: background 140ms, border-color 140ms; }
+
+.promptHead h2:focus-visible { outline: none; }
+
+.promptHead { flex: 0 0 auto; }
+.promptFooter { display: flex; flex: 0 0 auto; gap: 8px; padding-top: 12px; border-top: 1px solid var(--public-line); }
+.promptFooter > *, .promptFooter > div > button { flex: 1; min-width: 0; width: 100%; }
+.promptFooter .done { margin: 0; }
+.promptFooter .target:not(.done) { flex: 0 0 auto; width: auto; text-align: center; }
+.promptPanel:has(.promptBody:empty) { gap: 10px; }

@@ -1,0 +1,16 @@
+[metadata]
+Name:Outpost Siege mode choice
+Goal:Survive
+Turns:5
+Difficulty:Easy
+Description:Choose a mode as Outpost Siege enters, then continue the match.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanbattlefield=Mountain;Mountain;Mountain;Mountain
+humanhand=Outpost Siege
+humanlibrary=Forest;Forest;Forest;Forest;Forest
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain

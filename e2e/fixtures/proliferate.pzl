@@ -1,0 +1,15 @@
+[metadata]
+Name:Proliferate counters
+Goal:Win
+Turns:10
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main2
+HumanLife=20
+AILife=20
+humanbattlefield=Atraxa, Praetors' Voice;Bloated Contaminator|Counters:P1P1=1
+humanlibrary=Forest;Forest;Forest
+ailibrary=Mountain;Mountain;Mountain
+humancounters=POISON=1
+aicounters=POISON=1

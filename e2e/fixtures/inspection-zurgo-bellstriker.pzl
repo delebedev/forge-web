@@ -1,0 +1,23 @@
+# Design Narrative
+# Mechanic: Inspect Zurgo Bellstriker through hover and keyboard focus.
+# Forcing: The starting position offers the named interaction without drawing or building a board.
+# AI behavior: An empty hand and battlefield leave no competing actions.
+# Failure modes: Wrong targets, missing actions or incorrect results fail the browser assertions.
+# Card roles: Hand and battlefield cards supply only the tested action and its mana. Library lands prevent decking.
+# Protocol path: Real legal actions, player responses and authoritative game-state updates.
+[metadata]
+Name:Inspect Zurgo Bellstriker
+Goal:Win
+Turns:3
+Difficulty:Tutorial
+Description:Inspect Zurgo Bellstriker through hover and keyboard focus.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanhand=Zurgo Bellstriker
+humanbattlefield=Mountain;Mountain
+humanlibrary=Plains;Plains;Plains;Plains;Plains
+ailibrary=Plains;Plains;Plains;Plains;Plains

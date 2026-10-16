@@ -1,0 +1,54 @@
+.lobby { display: flex; flex-direction: column; min-height: 100%; box-sizing: border-box; max-width: 1440px; margin: 0 auto; padding: 18px 4% 20px; }
+.heading { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-bottom: 20px; }
+.heading h1 { font: 400 clamp(34px, 3vw, 44px)/1.1 var(--public-display); margin: 0 0 8px; letter-spacing: -.025em; }
+.heading p, .caption { color: var(--public-muted); font-size: 13px; margin: 0; }
+.formats { display: flex; border: 1px solid var(--public-line); border-radius: 4px; padding: 4px; }
+.formats button { padding: 10px 17px; border: 0; border-radius: 2px; background: transparent; color: var(--public-muted); cursor: pointer; font: inherit; font-size: 14px; }
+.formats button[aria-pressed=true] { background: var(--public-accent); color: var(--public-bg); }
+.layout { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 48px; align-items: stretch; }
+.collection { min-width: 0; align-self: start; }
+.deckGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 0; }
+.deckTile { display: flex; flex-direction: column; position: relative; padding: 0; overflow: hidden; text-align: left; border: 1px solid var(--public-line); border-radius: 5px; background: var(--public-surface); color: var(--public-text); font: inherit; cursor: pointer; }
+.deckTile > img { width: 100%; height: clamp(80px, 10vh, 120px); object-fit: cover; display: block; }
+.deckTile > div { padding: 12px; }
+.deckTile span { display: block; font-size: 12px; color: var(--public-muted); }
+.deckTile .deckName { font: 400 24px/1.15 var(--public-display); color: var(--public-text); margin-bottom: 7px; }
+.deckTile > i { position: absolute; top: calc(clamp(80px, 10vh, 120px) - 20px); right: 14px; font-size: 24px; }
+.deckTile[aria-pressed=true] { border-color: var(--public-accent); box-shadow: 0 0 0 1px var(--public-accent); }
+.deckTile:hover { border-color: var(--public-accent); }
+.matchup { display: flex; flex-direction: column; background: var(--public-surface); padding: 20px; border-radius: 5px; }
+.matchup h2 { font: 400 29px/1.2 var(--public-display); margin: 0 0 16px; }
+.selectedDeck { display: flex; gap: 18px; align-items: center; margin-bottom: 18px; }
+.selectedDeck > img, .emptyCard { width: 76px; height: 106px; object-fit: cover; border-radius: 5px; flex-shrink: 0; transform: rotate(-5deg); }
+.emptyCard { display: grid; place-items: center; background: var(--public-bg); border: 1px solid var(--public-line); font: 48px var(--public-display); color: var(--public-accent); }
+.selectedDeck h3 { font: 400 26px/1.1 var(--public-display); margin: 6px 0 8px; overflow-wrap: anywhere; }
+.selectedDeck p { font-size: 12px; color: var(--public-muted); margin: 0; }
+.opponent, .import label { display: grid; gap: 9px; font-size: 13px; }
+.opponent select { box-sizing: border-box; width: 100%; background: var(--public-bg); color: var(--public-text); border: 1px solid var(--public-line); border-radius: 4px; padding: 12px; font: 14px/1.5 var(--public-body); }
+.opponent select { font-size: 12px; }
+.rules { font-size: 12px; color: var(--public-muted); padding: 16px 0; border-top: 1px solid var(--public-line); margin: auto 0 0; }
+.matchup > button { width: 100%; }
+.serverStart { margin-top: 10px; min-height: 44px; border: 1px solid var(--public-line); border-radius: 4px; background: transparent; color: var(--public-text); font: 500 14px/1.4 var(--public-body); cursor: pointer; }
+.serverStart:hover:not(:disabled), .serverStart:focus-visible { border-color: var(--public-accent); color: var(--public-accent); }
+.serverStart:disabled { opacity: .45; cursor: not-allowed; }
+.browserAvailability { margin: 9px 0 0; color: var(--public-muted); font-size: 11px; line-height: 1.45; }
+.matchup > .caption { text-align: center; margin-top: 14px; font-size: 11px; }
+.pickOpponent { margin-top: 12px; padding: 10px; background: none; border: 1px solid var(--public-accent); color: var(--public-accent); cursor: pointer; }
+.pickOpponent + .deckList { margin-top: 12px; }
+.library { display: grid; gap: 8px; }
+.error { color: var(--public-error); font-size: 13px; }
+.notice { color: var(--public-accent); font-size: 13px; }
+@media(max-width: 950px) { .layout { gap: 24px; grid-template-columns: minmax(0,1fr) 290px; } }
+@media(max-width: 700px) { .heading { align-items: start; flex-direction: column; } .layout { grid-template-columns: 1fr; } .matchup { position: static; } }
+
+@media(max-width: 1050px) { .deckGrid { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+
+.deckList { margin: -4px 0 18px; font-size: 12px; }
+.deckList summary { color: var(--public-accent); cursor: pointer; }
+.deckList pre { white-space: pre-wrap; max-height: 230px; overflow: auto; font: 12px/1.7 var(--public-body); color: var(--public-muted); }
+
+.importTile { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; min-height: 150px; border: 1px dashed var(--public-line); border-radius: 5px; background: transparent; color: var(--public-accent); font: 14px var(--public-body); cursor: pointer; }
+.importTile span { font-size: 36px; font-weight: 300; }
+.importTile:hover { border-color: var(--public-accent); background: #ffffff04; }
+
+.catalogNote strong { color: var(--public-accent); font-weight: 500; }

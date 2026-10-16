@@ -1,0 +1,4 @@
+.hand { flex: 1 1 auto; min-width: 0; container-type: inline-size; padding: 0 8px; }
+.cards { display: flex; flex-wrap: nowrap; gap: 0; justify-content: center; align-items: end; padding: 20px 6px 0; }
+.handCards { --hand-overlap: max(var(--board-hand-overlap, .28), clamp(.28, calc((var(--hand-count) - 7) * .045 + .28), .72)); --board-hand-card-w: min(var(--hand-ideal-w, var(--card-face-width-hand)), calc((100cqw - 16px) / (1 + (var(--hand-count) - 1) * (1 - var(--hand-overlap))))); min-height: calc(var(--hand-ideal-w, var(--card-face-width-hand)) * 1.4); overflow: visible; }
+.compact { min-width: 0; }

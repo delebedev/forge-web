@@ -1,0 +1,312 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-09T00:11:00.955965+00:00",
+  "title": "Design System: Forge Web",
+  "extensions": {
+    "colorMeta": {
+      "primary": {
+        "role": "primary",
+        "displayName": "Clay action",
+        "tonalRamp": [
+          "oklch(15.0% 0.1113 36.2)",
+          "oklch(26.4% 0.1113 36.2)",
+          "oklch(37.9% 0.1113 36.2)",
+          "oklch(49.3% 0.1113 36.2)",
+          "oklch(60.7% 0.1113 36.2)",
+          "oklch(72.1% 0.1113 36.2)",
+          "oklch(83.6% 0.1113 36.2)",
+          "oklch(95.0% 0.1113 36.2)"
+        ]
+      },
+      "primary-hover": {
+        "role": "primary",
+        "displayName": "Clay hover",
+        "tonalRamp": [
+          "oklch(15.0% 0.0911 38.5)",
+          "oklch(26.4% 0.0911 38.5)",
+          "oklch(37.9% 0.0911 38.5)",
+          "oklch(49.3% 0.0911 38.5)",
+          "oklch(60.7% 0.0911 38.5)",
+          "oklch(72.1% 0.0911 38.5)",
+          "oklch(83.6% 0.0911 38.5)",
+          "oklch(95.0% 0.0911 38.5)"
+        ]
+      },
+      "neutral-bg": {
+        "role": "neutral",
+        "displayName": "Charcoal canvas",
+        "tonalRamp": [
+          "oklch(15.0% 0.0025 67.7)",
+          "oklch(26.4% 0.0025 67.7)",
+          "oklch(37.9% 0.0025 67.7)",
+          "oklch(49.3% 0.0025 67.7)",
+          "oklch(60.7% 0.0025 67.7)",
+          "oklch(72.1% 0.0025 67.7)",
+          "oklch(83.6% 0.0025 67.7)",
+          "oklch(95.0% 0.0025 67.7)"
+        ]
+      },
+      "neutral-surface": {
+        "role": "neutral",
+        "displayName": "Raised charcoal",
+        "tonalRamp": [
+          "oklch(15.0% 0.0047 67.6)",
+          "oklch(26.4% 0.0047 67.6)",
+          "oklch(37.9% 0.0047 67.6)",
+          "oklch(49.3% 0.0047 67.6)",
+          "oklch(60.7% 0.0047 67.6)",
+          "oklch(72.1% 0.0047 67.6)",
+          "oklch(83.6% 0.0047 67.6)",
+          "oklch(95.0% 0.0047 67.6)"
+        ]
+      },
+      "neutral-text": {
+        "role": "neutral",
+        "displayName": "Off-white text",
+        "tonalRamp": [
+          "oklch(15.0% 0.0081 98.9)",
+          "oklch(26.4% 0.0081 98.9)",
+          "oklch(37.9% 0.0081 98.9)",
+          "oklch(49.3% 0.0081 98.9)",
+          "oklch(60.7% 0.0081 98.9)",
+          "oklch(72.1% 0.0081 98.9)",
+          "oklch(83.6% 0.0081 98.9)",
+          "oklch(95.0% 0.0081 98.9)"
+        ]
+      },
+      "neutral-muted": {
+        "role": "neutral",
+        "displayName": "Warm gray text",
+        "tonalRamp": [
+          "oklch(15.0% 0.0091 84.6)",
+          "oklch(26.4% 0.0091 84.6)",
+          "oklch(37.9% 0.0091 84.6)",
+          "oklch(49.3% 0.0091 84.6)",
+          "oklch(60.7% 0.0091 84.6)",
+          "oklch(72.1% 0.0091 84.6)",
+          "oklch(83.6% 0.0091 84.6)",
+          "oklch(95.0% 0.0091 84.6)"
+        ]
+      },
+      "neutral-line": {
+        "role": "neutral",
+        "displayName": "Fine neutral boundary",
+        "tonalRamp": [
+          "oklch(15.0% 0.0081 98.9)",
+          "oklch(26.4% 0.0081 98.9)",
+          "oklch(37.9% 0.0081 98.9)",
+          "oklch(49.3% 0.0081 98.9)",
+          "oklch(60.7% 0.0081 98.9)",
+          "oklch(72.1% 0.0081 98.9)",
+          "oklch(83.6% 0.0081 98.9)",
+          "oklch(95.0% 0.0081 98.9)"
+        ]
+      },
+      "neutral-field": {
+        "role": "neutral",
+        "displayName": "Neutral field tint",
+        "tonalRamp": [
+          "oklch(15.0% 0.0081 98.9)",
+          "oklch(26.4% 0.0081 98.9)",
+          "oklch(37.9% 0.0081 98.9)",
+          "oklch(49.3% 0.0081 98.9)",
+          "oklch(60.7% 0.0081 98.9)",
+          "oklch(72.1% 0.0081 98.9)",
+          "oklch(83.6% 0.0081 98.9)",
+          "oklch(95.0% 0.0081 98.9)"
+        ]
+      },
+      "error": {
+        "role": "error",
+        "displayName": "Error coral",
+        "tonalRamp": [
+          "oklch(15.0% 0.0904 30.8)",
+          "oklch(26.4% 0.0904 30.8)",
+          "oklch(37.9% 0.0904 30.8)",
+          "oklch(49.3% 0.0904 30.8)",
+          "oklch(60.7% 0.0904 30.8)",
+          "oklch(72.1% 0.0904 30.8)",
+          "oklch(83.6% 0.0904 30.8)",
+          "oklch(95.0% 0.0904 30.8)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "body": {
+        "displayName": "Interface body",
+        "purpose": "Shared page text."
+      },
+      "title": {
+        "displayName": "Decision title",
+        "purpose": "Current required choice."
+      },
+      "life": {
+        "displayName": "Life total",
+        "purpose": "Seat life with tabular numerals."
+      },
+      "action": {
+        "displayName": "Public action",
+        "purpose": "Shared primary commitment."
+      }
+    },
+    "shadows": [
+      {
+        "name": "card",
+        "value": "0 6px 16px #0005",
+        "purpose": "Card state and separation."
+      },
+      {
+        "name": "preview",
+        "value": "0 16px 36px #0008",
+        "purpose": "Expanded card inspection."
+      },
+      {
+        "name": "zone-drawer",
+        "value": "0 16px 48px #0008",
+        "purpose": "Public-zone inspection above the table."
+      },
+      {
+        "name": "dialog",
+        "value": "0 24px 60px #0006",
+        "purpose": "Ambiguous legal-action chooser."
+      }
+    ],
+    "motion": [
+      {
+        "name": "zone-travel-ease",
+        "value": "cubic-bezier(.16, 1, .3, 1)",
+        "purpose": "Measured movement between visible positions or zone anchors."
+      },
+      {
+        "name": "draw",
+        "value": "320ms",
+        "purpose": "Presentation draw travel."
+      },
+      {
+        "name": "cast",
+        "value": "420ms",
+        "purpose": "Presentation cast travel."
+      },
+      {
+        "name": "resolve",
+        "value": "460ms",
+        "purpose": "Presentation resolution travel."
+      },
+      {
+        "name": "generic-zone",
+        "value": "360ms",
+        "purpose": "Fallback zone-travel duration."
+      },
+      {
+        "name": "decision-enter",
+        "value": "180ms ease-out",
+        "purpose": "Prompt/stack entrance; no presentation hold for a pending decision."
+      },
+      {
+        "name": "life-delta",
+        "value": "1600ms ease-out",
+        "purpose": "Brief signed life change."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "compact-board-height-container",
+        "value": "760px"
+      },
+      {
+        "name": "compact-board-width-container",
+        "value": "1000px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary action",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Shared public commitment with hover, focus and disabled feedback.",
+      "html": "<button class=\"ds-primary\">Play</button>",
+      "css": ".ds-primary{display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:12px 22px;border:0;border-radius:var(--public-radius);background:var(--public-accent);color:var(--public-bg);font:600 14px/1.4 var(--public-body);cursor:pointer}.ds-primary:hover:not(:disabled){background:var(--public-accent-hover)}.ds-primary:focus-visible{outline:2px solid var(--public-text);outline-offset:4px;}.ds-primary:disabled{opacity:.55;cursor:not-allowed}"
+    },
+    {
+      "name": "Decision choice",
+      "kind": "button",
+      "refersTo": "choice",
+      "description": "An exact server-supplied candidate. Selection uses a boundary and explicit text.",
+      "html": "<button class=\"ds-choice\" aria-pressed=\"false\">Opponent</button>",
+      "css": ".ds-choice{min-height:44px;padding:12px;border:1px solid transparent;border-bottom-color:var(--public-line);border-radius:3px;background:transparent;color:var(--public-text);font:500 13px/1.4 var(--public-body);text-align:left;cursor:pointer;transition:background 140ms,border-color 140ms}.ds-choice:hover:not(:disabled){background:#efeee80c;border-color:var(--public-muted)}.ds-choice[aria-pressed=true]{background:var(--selected-bg);border-color:var(--selected-border)}.ds-choice:focus-visible{outline:2px solid var(--public-text);outline-offset:4px;}.ds-choice:disabled{opacity:.45;cursor:default}"
+    },
+    {
+      "name": "Email field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Visible label and full-width public form input.",
+      "html": "<label class=\"ds-field\">Email<input type=\"email\" autocomplete=\"email\" placeholder=\"you@example.com\" /></label>",
+      "css": ".ds-field{display:grid;gap:8px;color:var(--public-text);font:500 13px var(--public-body)}.ds-field input{width:100%;min-height:52px;border:1px solid var(--public-line);border-radius:var(--public-radius);padding:13px 14px;background:var(--public-field);color:var(--public-text);font:16px var(--public-body);caret-color:var(--public-accent)}.ds-field input:focus-visible{outline:2px solid var(--public-text);outline-offset:4px;}"
+    },
+    {
+      "name": "Public navigation",
+      "kind": "nav",
+      "description": "Quiet text links in the shared compact header.",
+      "html": "<nav class=\"ds-nav\" aria-label=\"Public\"><a href=\"#about\">About</a><a class=\"ds-contact\" href=\"#contact\">Contact</a></nav>",
+      "css": ".ds-nav{display:flex;align-items:center;gap:30px}.ds-nav a{padding:10px 0;border:0;background:none;color:var(--public-text);font:14px var(--public-body);text-decoration:none}.ds-nav a:hover,.ds-nav .ds-contact{color:var(--public-accent)}.ds-nav a:focus-visible{outline:2px solid var(--public-text);outline-offset:4px;}"
+    },
+    {
+      "name": "Battlefield card identity",
+      "kind": "card",
+      "description": "Art-tile silhouette and persistent identity band. Artwork and game-state badges are supplied by the card.",
+      "html": "<div class=\"ds-card\" tabindex=\"0\" aria-label=\"Raging Goblin, 1/1\"><span class=\"ds-name\">Raging Goblin</span><span class=\"ds-pt\">1/1</span></div>",
+      "css": ".ds-card{--card-w:132px;position:relative;width:var(--card-w);height:calc(var(--card-w)/1.28);border-radius:5px;background:var(--public-surface);font-family:var(--public-body);transition:transform 120ms ease;box-shadow:0 6px 16px #0005}.ds-name{position:absolute;right:0;bottom:0;left:0;padding:12px calc(var(--card-w)*.28) 5px 6px;background:linear-gradient(180deg,transparent,rgba(4,6,10,.88) 46%);color:#eae7df;font-size:clamp(10px,calc(var(--card-w)*.078),13px);line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ds-pt{position:absolute;right:3px;bottom:3px;min-width:calc(var(--card-w)*.24);padding:1px 4px;border:1px solid #ffffff38;border-radius:5px;background:rgba(6,8,12,.92);color:#fff;font-size:clamp(9px,calc(var(--card-w)*.1),14px);font-weight:700;line-height:1.25;text-align:center}.ds-card:hover,.ds-card:focus-visible{transform:scale(1.16)}.ds-card:focus-visible{outline:2px solid var(--public-text);outline-offset:4px;}@media(prefers-reduced-motion:reduce){.ds-card{transition:none}}"
+    },
+    {
+      "name": "Stack entry",
+      "kind": "custom",
+      "description": "Resolution order, ownership and object identity stay readable without a large spell face.",
+      "html": "<div class=\"ds-stack\"><span class=\"ds-order\">1</span><div class=\"ds-entry\" tabindex=\"0\"><div class=\"ds-entry-head\"><span class=\"ds-next\">Resolves next</span><span>Yours</span></div><strong>Shock</strong></div></div>",
+      "css": ".ds-stack{display:grid;grid-template-columns:18px minmax(0,1fr);gap:10px;color:var(--public-text);font-family:var(--public-body)}.ds-order{padding-top:5px;color:var(--public-muted);font-size:12px;text-align:center}.ds-entry{padding:6px 0 10px;border-bottom:1px solid var(--accent-border)}.ds-entry-head{display:flex;flex-wrap:wrap;gap:4px 10px;margin-bottom:5px;color:var(--public-muted);font-size:11px}.ds-next{color:var(--public-accent)}.ds-entry strong{font:500 14px/1.35 var(--public-body)}.ds-entry:focus-visible{outline:2px solid var(--public-text);outline-offset:4px;}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The spatial tabletop",
+    "overview": "A spatial tabletop in warm charcoal. Card art supplies most of the color; off-white text and clay actions organize attention. The interface uses DM Sans throughout, open battlefield space and compact controls. Shared shell colors follow the same theme.\n\nThis records the implemented desktop system. PRODUCT.md owns product truth; .impeccable/gameplay.md owns the gameplay brief. The former green-and-gold, serif card-room direction is superseded.",
+    "keyCharacteristics": [
+      "Facing creature rows with supporting permanents behind them.",
+      "An adaptive hand at the lower edge and a shared stack/decision column on the right.",
+      "Visible state and exact choices, with hover and keyboard focus for deeper inspection."
+    ],
+    "rules": [
+      {
+        "name": "The Action Accent Rule",
+        "body": "Use clay for commitments, priority, combat and legal-action cues. Use off-white boundaries and explicit selection marks to distinguish selection from availability.",
+        "section": "colors"
+      },
+      {
+        "name": "The Card Art Rule",
+        "body": "Let card art carry richness. Use compact interface text for identity and state; inspect the full face for rules text.",
+        "section": "typography"
+      },
+      {
+        "name": "The Visible Commitment Rule",
+        "body": "Scroll decision choices inside their body. Keep the decision heading and commitment footer outside that scrolling area.",
+        "section": "layout"
+      },
+      {
+        "name": "The Server Authority Rule",
+        "body": "Bind gestures and buttons to the exact supplied legal action or prompt candidate. Never infer legality from artwork, card names, visual state or a mana estimate.",
+        "section": "components"
+      }
+    ],
+    "dos": [
+      "Do keep both life totals, current turn/phase and required decisions visible at the supported desktop sizes.",
+      "Do preserve the board/list relationship for exact targets and use keyboard focus as an inspection path.",
+      "Do keep component geometry in its owning CSS Module and shared color/type tokens in public-theme.css.",
+      "Do retain useful text and known metadata when artwork is missing."
+    ],
+    "donts": [
+      "Don't reintroduce green-and-gold felt, heritage display serifs, glass or decorative glow as the interface theme.",
+      "Don't label tapped lands as floating mana or infer a true mana pool.",
+      "Don't expose hidden card faces or make replay/spectator inspection perform game actions.",
+      "Don't describe mobile, portrait or unbounded card counts as verified by this desktop pass."
+    ]
+  }
+}

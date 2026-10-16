@@ -1,0 +1,57 @@
+.canvas {
+  position: relative;
+  width: 100%;
+  height: 100dvh;
+  overflow: clip;
+  background: var(--public-bg);
+}
+
+.frame {
+  height: 100%;
+  margin-inline: auto;
+  overflow: clip;
+}
+
+.fixtureControls {
+  position: absolute;
+  z-index: 500;
+  top: 50%;
+  left: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px;
+  border: 1px solid var(--public-line);
+  border-radius: var(--public-radius);
+  background: var(--public-surface);
+  transform: translateY(-50%);
+}
+
+.fixtureControls button {
+  min-height: 36px;
+  padding: 6px 12px;
+  border: 1px solid var(--public-line);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--public-text);
+  font: 600 13px/1.4 var(--public-body);
+  cursor: pointer;
+}
+
+.fixtureControls button:hover:not(:disabled) {
+  border-color: var(--public-accent);
+  color: var(--public-accent-hover);
+}
+
+.fixtureControls button:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+
+.stageLabel {
+  min-width: 76px;
+  color: var(--public-muted);
+  font: 13px/1.4 var(--public-body);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}

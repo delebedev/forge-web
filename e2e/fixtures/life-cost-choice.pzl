@@ -1,0 +1,24 @@
+# Design Narrative
+# Mechanic: Fixed life payment or discard as an alternate additional cost.
+# Forcing: Both payments are available, with one target and a second creature as a targeting control.
+# AI behavior: Empty opposing hand leaves targeting and resolution uncontested.
+# Protocol path: Cast, ChooseOrCost, targeting, life payment or discard, and resolution.
+# Failure modes: Missing labels, wrong payment, incorrect target, or stalled continuation.
+# Card roles: Island retains a legal post-resolution land action so automatic passing cannot advance the fixture. Bitter Triumph opens the choice; Grizzly Bears pays discard; Swamps pay mana; Centaur Courser is the target; Ornithopter is the control.
+[metadata]
+Name:Life cost choices
+Goal:Survive
+Turns:4
+Difficulty:Easy
+Description:Choose life or discard and destroy the target creature.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanhand=Bitter Triumph;Grizzly Bears;Island
+humanbattlefield=Swamp;Swamp
+humanlibrary=Island;Island;Island
+aibattlefield=Centaur Courser;Ornithopter
+ailibrary=Island;Island;Island

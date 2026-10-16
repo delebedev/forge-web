@@ -1,0 +1,6 @@
+# Page-level noindex keeps account and utility pages out of search.
+# Crawlers must be able to fetch those pages to read that directive.
+User-agent: *
+Allow: /
+
+Sitemap: https://forgeweb.app/sitemap.xml
