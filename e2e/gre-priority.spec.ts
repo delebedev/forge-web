@@ -87,7 +87,7 @@ test('Chalice offers its current face action before and after transformation', a
   await runGreAcceptanceSteps(page, { steps: scenario.steps.slice(4) })
 })
 
-test('Menace rejects one completed blocker and accepts two before continued play', async ({
+test('Menace explains insufficient blockers and accepts two before continued play', async ({
   page,
 }, info) => {
   test.setTimeout(120_000)
@@ -109,18 +109,29 @@ test('Menace rejects one completed blocker and accepts two before continued play
     await page.waitForTimeout(1500)
   }
   await page.screenshot({ path: info.outputPath('menace-one-draft.png') })
-  const before = (await page.evaluate(() => window.__greState()!)).horizon!.promptKey
+  const blockers = page.locator('[data-prompt="blockers"]')
+  await expect(blockers).toContainText('Phyrexian Fleshgorger needs more blockers')
+  await expect(page.getByRole('button', { name: 'Submit blockers', exact: true })).toBeDisabled()
+  const firstBlocker = page
+    .getByRole('group', { name: 'Walking Corpse blocking choices', exact: true })
+    .getByRole('button', { name: 'Block Phyrexian Fleshgorger', exact: true })
+  await firstBlocker.click()
+  await expect(blockers).not.toContainText('needs more blockers')
+  await expect(page.getByRole('button', { name: 'Submit blockers', exact: true })).toBeEnabled()
+  await page.screenshot({ path: info.outputPath('menace-zero-ready.png') })
+  await firstBlocker.click()
+  await expect(blockers).toContainText('Phyrexian Fleshgorger needs more blockers')
+  await expect(page.getByRole('button', { name: 'Submit blockers', exact: true })).toBeDisabled()
+  await page
+    .getByRole('group', { name: 'Grizzly Bears blocking choices', exact: true })
+    .getByRole('button', { name: 'Block Phyrexian Fleshgorger', exact: true })
+    .click()
+  await expect(blockers).not.toContainText('needs more blockers')
+  await expect(page.getByRole('button', { name: 'Submit blockers', exact: true })).toBeEnabled()
+  await page.screenshot({ path: info.outputPath('menace-two-ready.png') })
   await page.getByRole('button', { name: 'Submit blockers', exact: true }).click()
-  await expect
-    .poll(async () => (await page.evaluate(() => window.__greState()!)).horizon?.promptKey)
-    .not.toBe(before)
-  if (recordDemos) {
-    await page.waitForTimeout(1500)
-  }
-  await page.screenshot({ path: info.outputPath('menace-one-submitted.png') })
-  await expect(page.getByRole('button', { name: 'Submit blockers', exact: true })).toBeVisible()
   const suite = loadAcceptanceSuite('menace-block-declaration')
-  await runGreAcceptanceSteps(page, { steps: suite.scenarios[0]!.steps.slice(4) })
+  await runGreAcceptanceSteps(page, { steps: suite.scenarios[0]!.steps.slice(5) })
   if (recordDemos) {
     await page.waitForTimeout(1500)
   }
