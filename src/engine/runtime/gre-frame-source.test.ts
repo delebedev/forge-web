@@ -2129,3 +2129,86 @@ function choiceControls<K extends 'replacement' | 'optionalAction' | 'payCosts'>
       ? PaymentControls
       : OptionalActionControls
 }
+
+test('mana choice narrows the exact offered option and rejects a retired color', async () => {
+  const store = await freshStore()
+  const source = new FakeSource()
+  source.canSend = true
+  store.attachSource(source)
+  const mana = {
+    actionType: 4,
+    instanceId: 100,
+    abilityGrpId: 401,
+    manaPaymentOptions: [
+      {
+        optionIndex: 3,
+        mana: [{ color: 1, count: 2, srcInstanceId: 100, manaId: 7, specs: [{ type: 1 }] }],
+      },
+      {
+        optionIndex: 4,
+        mana: [{ color: 2, count: 2, srcInstanceId: 100, manaId: 8, specs: [{ type: 1 }] }],
+      },
+    ],
+    manaSelections: [
+      {
+        instanceId: 100,
+        abilityGrpId: 401,
+        selectionCount: 1,
+        options: [{ selectedColor: 1 }, { selectedColor: 2 }],
+      },
+    ],
+  }
+  source.sink!.onBatch({ byteLength: 0, messages: [availableActions(1, 7, [mana])] })
+  const blue = store.legalActions.find((view) => view.label.endsWith('(Blue)'))
+  expect(blue).toBeDefined()
+  await store.performLegalAction(blue!)
+  const outer = await decodeMessage('ClientToMatchServiceMessage', source.sent[0]!)
+  const response = await decodeMessage('ClientToGREMessage', outer['payload'] as Uint8Array)
+  expect(response['performActionResp']).toMatchObject({
+    actions: [
+      {
+        ...mana,
+        manaPaymentOptions: [mana.manaPaymentOptions[1]],
+        manaSelections: [{ ...mana.manaSelections[0], options: [{ selectedColor: 2 }] }],
+      },
+    ],
+  })
+  source.sink!.onBatch({
+    byteLength: 0,
+    messages: [
+      availableActions(1, 8, [
+        {
+          ...mana,
+          manaPaymentOptions: [mana.manaPaymentOptions[0]],
+          manaSelections: [{ ...mana.manaSelections[0], options: [{ selectedColor: 1 }] }],
+        },
+      ]),
+    ],
+  })
+  expect(store.performLegalAction(blue!)).rejects.toThrow('Action is no longer legal')
+  expect(source.sent).toHaveLength(1)
+})
+
+test('replacing a mana offer during encoding prevents the old color response', async () => {
+  const store = await freshStore()
+  const source = new FakeSource()
+  source.canSend = true
+  store.attachSource(source)
+  const mana = {
+    actionType: 4,
+    instanceId: 100,
+    manaPaymentOptions: [{ mana: [{ color: 1 }] }, { mana: [{ color: 2 }] }],
+    manaSelections: [{ selectionCount: 1, options: [{ selectedColor: 1 }, { selectedColor: 2 }] }],
+  }
+  source.sink!.onBatch({ byteLength: 0, messages: [availableActions(1, 7, [mana])] })
+  const blue = store.legalActions.find((view) => view.label.endsWith('(Blue)'))!
+  const pending = store.performLegalAction(blue)
+  source.sink!.onBatch({ byteLength: 0, messages: [availableActions(1, 8, [mana])] })
+  await pending
+  expect(source.sent).toHaveLength(0)
+  await store.performLegalAction(store.legalActions.find((view) => view.label.endsWith('(Blue)'))!)
+  expect(source.sent).toHaveLength(1)
+  source.sink!.onBatch({ byteLength: 0, messages: [availableActions(1, 9, [mana, { ...mana }])] })
+  expect(store.performLegalAction(blue)).rejects.toThrow('Action is no longer legal')
+  expect(source.sent).toHaveLength(1)
+})
