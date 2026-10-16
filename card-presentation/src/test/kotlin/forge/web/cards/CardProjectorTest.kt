@@ -61,6 +61,40 @@ class CardProjectorTest {
     }
 
     @Test
+    fun `type lines retain supertypes without changing core types or subtypes`() {
+        val types =
+            mapOf(
+                "Gorma, the Gullet" to "Legendary Creature",
+                "Forest" to "Basic Land",
+                "Snow-Covered Forest" to "Basic Snow Land",
+                "Goblin Trailblazer" to "Creature",
+                "Insectile Aberration" to "Creature",
+            )
+        for ((name, expected) in types) {
+            val id = assertNotNull(cards.findGrpIdByNameAnyFace(name), name)
+            assertEquals(expected, cards.cardPresentation(id).types, name)
+        }
+        val gorma = cards.cardPresentation(assertNotNull(cards.findGrpIdByName("Gorma, the Gullet")))
+        assertEquals("Pest Frog", gorma.subtypes)
+        val maritLage = cards.cardPresentation(assertNotNull(cards.findTokenGrpIdByScript("marit_lage")))
+        assertTrue(maritLage.isToken)
+        assertEquals("Legendary Creature", maritLage.types)
+        assertEquals("Avatar", maritLage.subtypes)
+    }
+
+    @Test
+    fun `type lines support enum fallback and deduplicate named supertypes`() {
+        val memory = InMemoryCardRepository()
+        val base = assertNotNull(cards.findByGrpId(assertNotNull(cards.findGrpIdByName("Gorma, the Gullet"))))
+        memory.registerData(base.copy(grpId = 1, typeNames = emptyList()), "Enum fallback")
+        memory.registerData(base.copy(grpId = 2, typeNames = listOf("Legendary", "Creature")), "Named types")
+        memory.registerData(base.copy(grpId = 3, typeNames = listOf("")), "Blank names")
+        assertEquals("Legendary Creature", memory.cardPresentation(1).types)
+        assertEquals("Legendary Creature", memory.cardPresentation(2).types)
+        assertEquals("Legendary Creature", memory.cardPresentation(3).types)
+    }
+
+    @Test
     fun `inspected linked face retains its own rules and layout`() {
         val front = cards.cardPresentation(assertNotNull(cards.findGrpIdByName("Delver of Secrets")))
         val back = cards.cardPresentation(assertNotNull(cards.findGrpIdByNameAnyFace("Insectile Aberration")))
