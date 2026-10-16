@@ -25,6 +25,7 @@ export function optionalActionPrompt(message: ProtoObject): PromptFamily | null 
         interactionKey,
         message: presentation.title,
         result: presentation.detail,
+        ...(presentation.paymentCost ? { paymentCost: presentation.paymentCost } : {}),
         canSubmit: true,
       }
       return {

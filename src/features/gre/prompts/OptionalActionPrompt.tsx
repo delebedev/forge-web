@@ -17,14 +17,14 @@ export function OptionalActionPrompt({
         onClick={() => void controls?.respond(true)}
         disabled={!controls || view.waiting}
       >
-        Accept
+        {view.paymentCost ? 'Pay' : 'Accept'}
       </button>
       <button
         className={styles.target}
         onClick={() => void controls?.respond(false)}
         disabled={!controls || view.waiting}
       >
-        Decline
+        {view.paymentCost ? 'Don’t pay' : 'Decline'}
       </button>
     </div>
   )

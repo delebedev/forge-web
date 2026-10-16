@@ -479,6 +479,7 @@ export type ReplacementPromptView = PromptPresentation & {
 export type OptionalActionPromptView = PromptPresentation & {
   kind: 'optionalAction'
   result: string
+  paymentCost?: string
 }
 export type PromptView =
   | DamagePromptView
