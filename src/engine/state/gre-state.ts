@@ -1,5 +1,6 @@
 import { enumName } from '@engine/wire/gre-proto'
 import { emblemCardView } from './emblem-projection'
+import { manaColorLabel } from './gre-labels'
 
 export type ObjectId = number
 
@@ -218,6 +219,7 @@ export type LegalAction = {
   cardName: string
   shouldStop: boolean
   manaCost?: string
+  manaColor?: number
 }
 
 type LegalActionIdentity = Pick<
@@ -240,7 +242,8 @@ type LegalActionIdentity = Pick<
  * becoming a different action underneath.
  */
 export function legalActionKey(action: LegalAction): string {
-  return `${legalActionIdentityKey(action)}:${action.zoneType}`
+  const key = `${legalActionIdentityKey(action)}:${action.zoneType}`
+  return action.manaColor === undefined ? key : `${key}:mana:${action.manaColor}`
 }
 
 export type PlayerView = {
@@ -308,6 +311,8 @@ export type Action = {
   alternativeSourceZcid?: number
   shouldStop?: boolean
   manaCost?: unknown[]
+  manaPaymentOptions?: unknown[]
+  manaSelections?: unknown[]
 }
 
 export type CardMeta = {
@@ -479,6 +484,7 @@ export type ReplacementPromptView = PromptPresentation & {
 export type OptionalActionPromptView = PromptPresentation & {
   kind: 'optionalAction'
   result: string
+  paymentCost?: string
 }
 export type PromptView =
   | DamagePromptView
@@ -559,6 +565,7 @@ const VISIBILITY_PRIVATE = 2
 export const ACTION_CAST = 1
 export const ACTION_ACTIVATE = 2
 export const ACTION_PLAY = 3
+export const ACTION_ACTIVATE_MANA = 4
 export const ACTION_PASS = 5
 export const ACTION_CAST_LEFT = 10
 export const ACTION_CAST_RIGHT = 11
@@ -1002,7 +1009,7 @@ export function deriveLegalActions(
   const availableActions = actions.filter(
     (action) => !objectIsPhasedOut(action.instanceId ?? 0, tables),
   )
-  return availableActions.map((action) => {
+  return availableActions.flatMap((action) => {
     const identity = legalActionIdentity(action, tables)
     const { actionType, instanceId, grpId, abilityGrpId, alternativeGrpId } = identity
     const zoneType = objectZoneType(instanceId, tables)
@@ -1016,7 +1023,7 @@ export function deriveLegalActions(
     const meta = cardMeta.get(roomFaceGrpId ?? grpId)
     const cardName = meta?.name ?? (instanceId > 0 ? objectLabel(instanceId, tables, cardMeta) : '')
     const manaCost = manaRequirementsText(action.manaCost)
-    return {
+    const view: LegalAction = {
       ...identity,
       zoneType,
       hasAlternativeCost:
@@ -1036,7 +1043,77 @@ export function deriveLegalActions(
           ]?.text,
       ),
     }
+    const colors = manaActionColors(action)
+    return colors.length > 1
+      ? colors.map((manaColor) => ({
+          ...view,
+          manaColor,
+          label: `${view.label} (${manaColorLabel(manaColor)})`,
+        }))
+      : [view]
   })
+}
+
+function manaOptionColor(option: unknown, instanceId: number): number | null {
+  const mana = asArray(isRecord(option) ? option['mana'] : null)
+  const colors = mana.map((entry) =>
+    isRecord(entry) &&
+    (!asNumber(entry['srcInstanceId']) || asNumber(entry['srcInstanceId']) === instanceId)
+      ? asNumber(entry['color'])
+      : 0,
+  )
+  return colors.length > 0 && colors[0]! > 0 && colors.every((color) => color === colors[0])
+    ? colors[0]!
+    : null
+}
+
+function manaActionColors(action: Action): number[] {
+  if (action.actionType !== ACTION_ACTIVATE_MANA) {
+    return []
+  }
+  const selections = asArray(action.manaSelections).filter(isRecord)
+  if (selections.length !== 1 || asNumber(selections[0]!['selectionCount']) !== 1) {
+    return []
+  }
+  const selectedColors = asArray(selections[0]!['options'])
+    .filter(isRecord)
+    .map((option) => asNumber(option['selectedColor']))
+  // Preserve simultaneous outputs instead of turning their components into alternatives.
+  const colors: number[] = []
+  for (const option of asArray(action.manaPaymentOptions)) {
+    const color = manaOptionColor(option, action.instanceId ?? 0)
+    if (color === null || !selectedColors.includes(color)) {
+      return []
+    }
+    if (!colors.includes(color)) {
+      colors.push(color)
+    }
+  }
+  return colors
+}
+
+export function selectManaAction(action: Action, manaColor?: number): Action | null {
+  const colors = manaActionColors(action)
+  if (manaColor === undefined) {
+    return colors.length > 1 ? null : action
+  }
+  if (!colors.includes(manaColor)) {
+    return null
+  }
+  return {
+    ...action,
+    manaPaymentOptions: asArray(action.manaPaymentOptions).filter(
+      (option) => manaOptionColor(option, action.instanceId ?? 0) === manaColor,
+    ),
+    manaSelections: asArray(action.manaSelections)
+      .filter(isRecord)
+      .map((selection) => ({
+        ...selection,
+        options: asArray(selection['options']).filter(
+          (option) => isRecord(option) && asNumber(option['selectedColor']) === manaColor,
+        ),
+      })),
+  }
 }
 
 export function legalActionIdentity(action: Action, tables: GreTables): LegalActionIdentity {
@@ -1701,6 +1778,12 @@ function actionLabel(
       return abilityText
         ? `${cardName} — ${abilityText}${suffix}${zoneSuffix}`
         : `${cardName ? `Activate ${cardName}` : 'Activate'}${suffix}${zoneSuffix}`
+    case ACTION_ACTIVATE_MANA:
+      return abilityText
+        ? `${cardName} — ${abilityText}${suffix}${zoneSuffix}`
+        : cardName
+          ? `Use ${cardName}${zoneSuffix}`
+          : 'Continue'
     case ACTION_PLAY:
       return `${cardName ? `Play ${cardName}` : 'Play'}${zoneSuffix}`
     case ACTION_CAST_LEFT:
