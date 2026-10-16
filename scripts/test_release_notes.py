@@ -128,15 +128,16 @@ class ReleaseNotesTest(unittest.TestCase):
     def test_inventory_uses_backend_pin_and_london_date(self):
         deployment = {'frontend': 'f'*40, 'backend': 'b'*40, 'run_id': 30,
                       'deployed_at': '2026-09-30T23:30:00Z', 'kind': 'web'}
+        baseline = {'day': '2026-09-29', 'frontend': 'a'*40, 'backend': 'c'*40}
         calls = []
         def changes(repo, before, after, label):
             calls.append((label, before, after))
             return [{'id': label + ':' + after}]
         with patch.object(notes, 'releases', return_value=[]), patch.object(notes, 'changes', side_effect=changes), patch.object(notes, 'pin', side_effect=lambda sha: sha):
-            manifest = notes.collect(deployment)
+            manifest = notes.collect(deployment, base=baseline)
         self.assertEqual(manifest['day'], '2026-10-01')
-        self.assertIn(('leyline', 'e4829d7f3dac08250f7e92fd78094b93e4496d1d', 'b'*40), calls)
-        self.assertIn(('leyline', 'e4829d7f3dac08250f7e92fd78094b93e4496d1d', 'f'*40), calls)
+        self.assertIn(('leyline', 'c'*40, 'b'*40), calls)
+        self.assertIn(('leyline', 'c'*40, 'f'*40), calls)
         self.assertEqual({label for label, _, _ in calls}, {'web', 'leyline'})
         self.assertEqual(len({item['id'] for item in manifest['changes']}), len(manifest['changes']))
 
