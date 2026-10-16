@@ -11,6 +11,7 @@ import leyline.game.data.ForgeCardRepository
 import wotc.mtgo.gre.external.messaging.Messages.CardType
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 import wotc.mtgo.gre.external.messaging.Messages.SubType
+import wotc.mtgo.gre.external.messaging.Messages.SuperType
 
 fun CardRepository.cardPresentation(
     grpId: Int,
@@ -48,13 +49,13 @@ fun CardRepository.cardPresentation(
         setCode = printing?.edition,
         rarity = printing?.rarity?.name,
         titleId = data?.titleId,
-        manaCost = data?.manaCost?.toDisplayManaCost(),
+        manaCost = if (face != null) face.manaCost.takeUnless { it.isNoCost }?.toString() else data?.manaCost?.toDisplayManaCost(),
         power = data?.power?.takeIf { it.isNotBlank() },
         toughness = data?.toughness?.takeIf { it.isNotBlank() },
         loyalty = face?.initialLoyalty?.takeIf { it.isNotBlank() },
         defense = face?.defense?.takeIf { it.isNotBlank() },
         faceLayout = rules?.splitType?.name?.takeUnless { it == "None" },
-        types = data?.typeNames?.joinToString(" ")?.takeIf { it.isNotBlank() } ?: data?.typeLine(),
+        types = data?.typeLine(),
         subtypes = data?.subtypeNames?.joinToString(" ")?.takeIf { it.isNotBlank() } ?: data?.subtypeLine(),
         rulesText = face?.oracleText?.replace("\\n", "\n")?.trim()?.takeIf { it.isNotBlank() },
         isToken = isToken,
@@ -149,10 +150,10 @@ private fun String.toDisplayAbilityText(
         .trim()
 
 private fun CardData.typeLine(): String? =
-    types
-        .mapNotNull { CardType.forNumber(it)?.displayName() }
-        .joinToString(" ")
-        .takeIf { it.isNotBlank() }
+    (
+        supertypes.mapNotNull { SuperType.forNumber(it)?.displayName() } +
+            typeNames.filter { it.isNotBlank() }.ifEmpty { types.mapNotNull { CardType.forNumber(it)?.displayName() } }
+    ).distinct().joinToString(" ").takeIf { it.isNotBlank() }
 
 private fun CardData.subtypeLine(): String? =
     subtypes
