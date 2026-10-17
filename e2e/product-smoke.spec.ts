@@ -1,6 +1,5 @@
 import type { Page } from '@playwright/test'
 import type { components } from '../src/shared/api/types'
-import { readFileSync } from 'node:fs'
 import { expect, test } from './gre-test'
 import { dailyBrowserChallengePath } from '../src/features/challenges/browser-challenges'
 
@@ -17,48 +16,27 @@ function serverStart(page: Page) {
   return page.getByRole('button', { name: /^(Play on server|Start server game)$/ })
 }
 
-test('landing page starts a committed public spectator match', async ({ page }) => {
-  const spectatorStart = page.waitForResponse(
-    (response) =>
-      response.request().method() === 'POST' &&
-      response.url().endsWith('/api/public/spectator/start'),
-  )
-  await page.goto('/')
-
-  const response = await spectatorStart
-  expect(response.ok()).toBe(true)
-  const spectator = (await response.json()) as { seat1: { name: string }; seat2: { name: string } }
-  const pool = readFileSync(new URL('../dev/spectator-decks/pool.txt', import.meta.url), 'utf8')
-    .split('\n')
-    .map((name) => name.trim())
-    .filter((name) => name && !name.startsWith('#'))
-  const first = pool.indexOf(spectator.seat1.name)
-  expect(first).toBeGreaterThanOrEqual(0)
-  expect(spectator.seat2.name).toBe(pool[(first + 1) % pool.length])
-  await expect(page).not.toHaveURL(/\/login/)
-  const hand = page.locator('section[data-zone="hand"][data-owner="self"]')
-  await expect(hand.getByRole('button').first()).toBeVisible({ timeout: 30_000 })
-  await expect(hand.getByRole('button').first()).toBeDisabled()
-  await expect(
-    page.locator('[data-zone="hand"][data-owner="opponent"][data-zone-count]'),
-  ).toBeVisible()
-
-  const decks = page.getByRole('region', { name: 'Current spectator decks' })
-  await expect(decks).toContainText(spectator.seat1.name)
-  await expect(decks).toContainText(spectator.seat2.name)
-  await expect(page.getByRole('region', { name: 'Battlefield', exact: true })).toBeVisible({
-    timeout: 30_000,
+test('landing shows a public replay without starting an engine', async ({ page }) => {
+  const gameplay: string[] = []
+  page.on('request', (request) => {
+    if (/\/api\/(?:gre|public\/spectator)\/|\/browser-engine\//.test(request.url())) {
+      gameplay.push(request.url())
+    }
   })
+  await page.goto('/')
+  await expect(page).not.toHaveURL(/\/login/)
+  await expect(page.getByRole('region', { name: 'Continuous gameplay' })).toBeVisible()
+  await expect(
+    page.locator('[data-zone="hand"][data-owner="self"] [data-card]').first(),
+  ).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: /^(Play|Pause|Step back|Step forward)$/ }),
+  ).toHaveCount(0)
+  const turn = await page.locator('[data-board]').getAttribute('data-turn')
   await expect
-    .poll(
-      async () =>
-        page.evaluate(() => {
-          const state = window.__greState()
-          return Boolean(state?.connected && state.gsId > 0)
-        }),
-      { timeout: 30_000 },
-    )
-    .toBe(true)
+    .poll(() => page.locator('[data-board]').getAttribute('data-turn'), { timeout: 30_000 })
+    .not.toBe(turn)
+  expect(gameplay).toEqual([])
 })
 
 test('constructed setup shell renders with authenticated web user', async ({ page }, testInfo) => {
@@ -127,7 +105,7 @@ test('real web GRE path reaches engine', async ({ page, gre }) => {
   expect(result.state?.connected && result.state.gsId > 0).toBe(true)
 })
 
-test('public navigation preserves the live table through login, About and expansion', async ({
+test('public navigation preserves the replay through login, About and expansion', async ({
   page,
 }) => {
   await page.goto('/')
@@ -150,26 +128,27 @@ test('public navigation preserves the live table through login, About and expans
   )
   expect(await table!.evaluate((node) => node.isConnected)).toBe(true)
   await page.getByRole('link', { name: 'Back to table', exact: true }).click()
-  await page.getByRole('button', { name: 'Expand match', exact: true }).click()
+  await page.getByRole('button', { name: 'Expand game', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Play your next game.' })).toBeHidden()
   expect(await table!.evaluate((node) => node.isConnected)).toBe(true)
   await page.getByRole('button', { name: 'Back to landing', exact: true }).click()
   await expect(page.getByRole('link', { name: 'Play against AI', exact: true })).toBeVisible()
 })
 
-test('spectator failure permits sign-in and can be retried', async ({ page }) => {
-  await page.route('**/api/public/spectator/start', (route) =>
+test('replay download failure permits sign-in and reload recovery', async ({ page }) => {
+  await page.route('**/replays/*.greplay.json', (route) =>
     route.fulfill({ status: 503, body: '{}' }),
   )
   await page.goto('/')
-  await expect(
-    page.getByText('The live match could not be loaded. You can still sign in to play.'),
-  ).toBeVisible()
+  await expect(page.getByRole('alert')).toContainText(/could not be loaded/)
   await page.getByRole('link', { name: 'Play against AI', exact: true }).click()
   await expect(page.getByTestId('auth-email')).toBeEnabled()
-  await page.unroute('**/api/public/spectator/start')
-  await page.getByRole('button', { name: 'Try again', exact: true }).click()
-  await expect(page.getByRole('region', { name: 'Battlefield', exact: true })).toBeVisible()
+  await page.unroute('**/replays/*.greplay.json')
+  await page.getByRole('link', { name: 'Back', exact: true }).click()
+  await page.reload()
+  await expect(
+    page.locator('[data-zone="hand"][data-owner="self"] [data-card]').first(),
+  ).toBeVisible()
 })
 
 test('lobby selects a ready-made deck and starts a mirrored game', async ({ page }) => {
@@ -453,9 +432,10 @@ test('return to game resumes a player match and stays hidden after leaving and w
   await page.getByRole('button', { name: '← End Match', exact: true }).click()
   await expect(page.getByRole('link', { name: 'Return to game' })).toHaveCount(0)
   await page.getByRole('link', { name: 'Forge Web home' }).click()
-  await expect
-    .poll(() => page.evaluate(() => window.__greState()?.connected), { timeout: 30_000 })
-    .toBe(true)
+  await expect(
+    page.locator('[data-zone="hand"][data-owner="self"] [data-card]').first(),
+  ).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Return to game' })).toHaveCount(0)
   await page.getByRole('link', { name: 'Play against AI', exact: true }).click()
   await expect(page.getByRole('link', { name: 'Return to game' })).toHaveCount(0)
 })
