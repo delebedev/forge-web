@@ -11,6 +11,7 @@ test('imported sideboard cards move, edit, save and reopen with their quantities
     (await page.request.post('/api/auth/verify', { data: { email, code: '123456' } })).ok(),
   ).toBe(true)
   await page.route('https://cards.scryfall.io/**', (route) => route.fulfill({ status: 204 }))
+  await page.route('**/api/public/cards/image?**', (route) => route.fulfill({ status: 204 }))
   await page.goto('/decks')
   await page.getByRole('button', { name: 'Import', exact: true }).click()
   await page
