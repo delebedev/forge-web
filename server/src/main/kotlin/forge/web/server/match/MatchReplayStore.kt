@@ -4,7 +4,6 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
@@ -12,16 +11,10 @@ import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
 import org.slf4j.LoggerFactory
 import java.io.File
-import java.io.FileInputStream
-import java.io.FileOutputStream
-import java.io.InputStream
+import java.io.IOException
 import java.nio.charset.StandardCharsets
-import java.nio.file.Files
-import java.nio.file.StandardCopyOption
 import java.security.MessageDigest
 import java.time.Clock
-import java.util.zip.GZIPInputStream
-import java.util.zip.GZIPOutputStream
 
 internal data class MatchReplayConfig(
     val root: File,
@@ -57,15 +50,23 @@ internal class MatchReplayStore(
     private val log = LoggerFactory.getLogger(MatchReplayStore::class.java)
 
     // Health observes the last committed measurement without entering the storage worker.
-    @Volatile private var lastMeasuredBytesUsed = 0L
+    @Volatile private var lastMeasuredBytesUsed = config.maxBytes
+    private var storageReady = false
 
     init {
         runCatching {
             require(config.root.isDirectory || config.root.mkdirs()) { "Could not create replay directory" }
         }.onFailure { log.error("Replay storage unavailable (directory={})", config.root.absolutePath, it) }
-        lastMeasuredBytesUsed = storageBudgetUsage()
-        worker.maintain { runCatching { cleanupFiles() }.onFailure { log.error("Replay cleanup failed", it) } }
+        runCatching { storageBudgetUsage() }.onFailure { log.error("Replay storage measurement failed", it) }
     }
+
+    fun startMaintenance() =
+        worker.maintain {
+            runCatching { cleanupFiles() }.getOrElse {
+                log.error("Replay cleanup failed", it)
+                false
+            }
+        }
 
     override fun close() = worker.close()
 
@@ -112,6 +113,8 @@ internal class MatchReplayStore(
         }
         val metadata = readBrowserMetadata(matchId)
         require(metadata?.string("accountId") in setOf(null, accountId)) { "Replay belongs to another account" }
+        val prior = readBrowserReplay(matchId)
+        require(prior?.context?.accountId in setOf(null, accountId)) { "Replay belongs to another account" }
         val artifacts = metadata?.get("artifacts") as? JsonArray
         if (artifacts?.any { (it as? JsonPrimitive)?.contentOrNull == artifactId } == true) return false
         val normalized = submitted.copy(context = context.copy(accountId = accountId))
@@ -123,7 +126,7 @@ internal class MatchReplayStore(
             encoded,
             buildJsonObject {
                 put("accountId", accountId)
-                put("createdAtMs", metadata?.long("createdAtMs") ?: clock.millis())
+                put("createdAtMs", metadata?.long("createdAtMs") ?: browserOriginalTime(matchId) ?: clock.millis())
                 put("artifacts", JsonArray(nextArtifacts.takeLast(8).map(::JsonPrimitive)))
             }.toString().toByteArray(StandardCharsets.UTF_8),
             normalized.status.reportId,
@@ -157,10 +160,9 @@ internal class MatchReplayStore(
         require(chunk.events.withIndex().all { (index, event) -> event.seq == afterSeq + index + 1 }) {
             "Replay chunk sequence is not contiguous"
         }
-        val file = browserReplayFile(matchId)
         val metadata = readBrowserMetadata(matchId)
         require(metadata?.string("accountId") in setOf(null, accountId)) { "Replay belongs to another account" }
-        val prior = file.takeIf(File::isFile)?.let { json.decodeFromString<ReplayBundle>(it.readText()) }
+        val prior = readBrowserReplay(matchId)
         require(prior?.context?.accountId in setOf(null, accountId)) { "Replay belongs to another account" }
         require(prior == null || prior.context?.attemptId == context.attemptId) { "Replay attempt identity mismatch" }
         val committedSeq = prior?.events?.lastOrNull()?.seq ?: 0L
@@ -199,7 +201,7 @@ internal class MatchReplayStore(
             if (metadata == null) {
                 buildJsonObject {
                     put("accountId", accountId)
-                    put("createdAtMs", clock.millis())
+                    put("createdAtMs", browserOriginalTime(matchId) ?: clock.millis())
                     put("artifacts", JsonArray(emptyList()))
                 }.toString().toByteArray(StandardCharsets.UTF_8)
             } else {
@@ -215,22 +217,47 @@ internal class MatchReplayStore(
         metadata: ByteArray?,
         reportId: String?,
     ) {
-        val writes = mutableMapOf(browserReplayFile(matchId) to replay)
+        check(storageReady) { "Replay storage usage is unavailable" }
+        val destination = compressedBrowserReplayFile(matchId)
+        val legacy = plainBrowserReplayFile(matchId)
+        val writes = mutableMapOf(destination to gzipReplay(replay))
         metadata?.let { writes[browserMetadataFile(matchId)] = it }
         reportId?.let { writes[pinFile(matchId)] = pinBytes(it) }
+        // The legacy copy occupies quota until its removal succeeds.
         val delta = writes.entries.sumOf { (file, bytes) -> bytes.size - file.length() }
         require(lastMeasuredBytesUsed + delta <= config.maxBytes) { "Replay storage quota is exhausted" }
-        writes.forEach { (file, bytes) -> writeAccounted(file, bytes) }
+        var committed = false
+        try {
+            writes.forEach { (file, bytes) ->
+                writeAccounted(file, bytes)
+                if (file == destination) committed = true
+            }
+        } finally {
+            if (committed) deleteAccounted(legacy)
+        }
     }
 
     private fun writeAccounted(
         file: File,
         bytes: ByteArray,
+        modifiedAtMs: Long? = null,
     ) {
         val replacing = file.length()
-        writeAtomic(file, bytes)
+        writeReplayAtomic(file, bytes, modifiedAtMs)
         lastMeasuredBytesUsed += bytes.size - replacing
     }
+
+    private fun deleteAccounted(file: File) {
+        if (!file.exists()) return
+        val bytes = file.length()
+        if (!file.delete()) throw IOException("Replay file removal failed: ${file.name}")
+        lastMeasuredBytesUsed -= bytes
+    }
+
+    private fun readBrowserReplay(matchId: String): ReplayBundle? =
+        browserReplayFile(matchId)?.let {
+            json.decodeFromString<ReplayBundle>(readReplaySnapshot(it, config.maxMatchBytes).toString(StandardCharsets.UTF_8))
+        }
 
     suspend fun export(matchId: String): ReplayBundle? = worker.submit { exportFile(matchId) }
 
@@ -238,9 +265,8 @@ internal class MatchReplayStore(
         requireValidMatchId(matchId)
         val retained = journalFile(matchId) ?: return null
         if (expired(retained, matchId, clock.millis())) return null
-        val browserFile = browserReplayFile(matchId)
-        if (browserFile.isFile) {
-            val replay = runCatching { json.decodeFromString<ReplayBundle>(browserFile.readText()) }.getOrNull() ?: return null
+        if (isBrowserReplay(retained)) {
+            val replay = runCatching { readBrowserReplay(matchId) }.getOrNull() ?: return null
             val pin = readPin(matchId)
             return replay.copy(
                 status =
@@ -250,60 +276,8 @@ internal class MatchReplayStore(
                     ),
             )
         }
-        val file = journalFile(matchId) ?: return null
-        val parsed = readRecords(file)
-        val header = parsed.records.firstOrNull { it.string("kind") == "header" }
-        val batches = parsed.records.filter { it.string("kind") == "outbound" }.mapNotNull { it["messages"] as? JsonArray }
-        if (header == null) return null
-        val cardMap =
-            parsed.records
-                .filter { it.string("kind") == "card" }
-                .mapNotNull { record -> record.string("grpId")?.toIntOrNull()?.let { it to record["metadata"] } }
-                .associate { (id, metadata) -> id.toString() to (metadata ?: JsonObject(emptyMap())) }
-        val responses = parsed.records.filter { it.string("kind") == "inbound" }.mapNotNull { it["message"] }
-        val terminal = parsed.records.lastOrNull { it.string("kind") == "status" }
-        val complete = terminal?.boolean("complete") == true && !parsed.truncated
-        val reason =
-            when {
-                parsed.truncated -> "journal_tail_truncated"
-                terminal == null -> "process_interrupted"
-                else -> terminal.string("reason") ?: if (complete) "completed" else "incomplete"
-            }
         val pin = readPin(matchId)
-        var batchIndex = -1
-        val events =
-            parsed.records.filter { it.string("kind") in setOf("outbound", "inbound") }.map { record ->
-                if (record.string("kind") == "outbound") batchIndex++
-                ReplayEvent(
-                    seq = record.long("seq") ?: 0,
-                    timeMs = record.long("timeMs") ?: 0,
-                    direction = record.string("kind") ?: "unknown",
-                    seatId = record.long("seatId")?.toInt() ?: 1,
-                    batchIndex = batchIndex.coerceAtLeast(0),
-                    messages = (record["messages"] as? JsonArray)?.toList().orEmpty(),
-                    message = record["message"],
-                )
-            }
-        return ReplayBundle(
-            version = 2,
-            label = "Match $matchId",
-            source = "forge-web",
-            viewerSeatId = header.long("viewerSeatId")?.toInt() ?: 1,
-            matchId = matchId,
-            release = header.string("release") ?: "unknown",
-            batches = batches.map(::ReplayBatch),
-            cards = cardMap,
-            responses = responses,
-            events = events,
-            status =
-                ReplayStatus(
-                    complete,
-                    reason,
-                    parsed.truncated || terminal?.boolean("truncated") == true,
-                    pin?.string("reportId"),
-                    pin?.long("pinnedUntilMs"),
-                ),
-        )
+        return readHistoricalReplay(retained, matchId, pin?.string("reportId"), pin?.long("pinnedUntilMs"))
     }
 
     suspend fun pin(
@@ -315,6 +289,7 @@ internal class MatchReplayStore(
         matchId: String,
         reportId: String,
     ): Boolean {
+        check(storageReady) { "Replay storage usage is unavailable" }
         requireValidMatchId(matchId)
         require(reportId.matches(REPORT_ID)) { "reportId must be 1-100 URL-safe characters" }
         if (journalFile(matchId) == null) return false
@@ -335,24 +310,41 @@ internal class MatchReplayStore(
         }.toString().toByteArray(StandardCharsets.UTF_8)
     }
 
-    internal suspend fun cleanup() = worker.submit { cleanupFiles() }
+    private var compactionCursor = ""
 
-    private fun cleanupFiles() {
+    internal suspend fun cleanup(): Boolean = worker.submit { cleanupFiles() }
+
+    private fun cleanupFiles(): Boolean {
         val now = clock.millis()
-        cleanupTemporaryFiles()
-        var compactions = 0
-        for (file in replayFiles()) {
-            val matchId = matchId(file) ?: continue
-            if (expired(file, matchId, now)) {
-                if (!file.delete()) log.warn("Replay expiry failed (file={})", file.name)
-                pinFile(matchId).delete()
-                browserMetadataFile(matchId).delete()
-            } else if (file.name.endsWith(".ndjson") && compactions < MAX_COMPACTIONS_PER_CLEANUP) {
-                compress(file, matchId)
-                compactions++
+        val candidates = mutableListOf<File>()
+        try {
+            cleanupTemporaryFiles()
+            for ((matchId, files) in replayFiles().groupBy { matchId(it) }) {
+                if (matchId == null) continue
+                runCatching {
+                    val retained = journalFile(matchId) ?: return@runCatching
+                    if (expired(retained, matchId, now)) {
+                        files.forEach(::deleteAccounted)
+                        // Preserve retention metadata when removing any replay copy fails.
+                        deleteAccounted(pinFile(matchId))
+                        deleteAccounted(browserMetadataFile(matchId))
+                    } else {
+                        candidates += files.filter { it.name.endsWith(".ndjson") || it.name.endsWith(".browser.json") }
+                    }
+                }.onFailure { log.error("Replay expiry failed (matchId={})", matchId, it) }
             }
+            val sorted = candidates.sortedBy(File::getName)
+            val ordered = sorted.filter { it.name > compactionCursor } + sorted.filter { it.name <= compactionCursor }
+            val batch = ordered.take(MAX_COMPACTIONS_PER_CLEANUP)
+            for (file in batch) {
+                runCatching { compress(file, requireNotNull(matchId(file))) }
+                    .onFailure { log.error("Replay compression failed (file={})", file.name, it) }
+                compactionCursor = file.name
+            }
+            return candidates.size > batch.size
+        } finally {
+            storageBudgetUsage()
         }
-        storageBudgetUsage()
     }
 
     private fun expired(
@@ -371,34 +363,52 @@ internal class MatchReplayStore(
                 (
                     file.name.endsWith(".ndjson") ||
                         file.name.endsWith(".ndjson.gz") ||
-                        file.name.endsWith(".browser.json")
+                        isBrowserReplay(file)
                 )
         }
             ?.toList()
             .orEmpty()
 
     private fun cleanupTemporaryFiles() {
-        config.root.listFiles { file -> file.isFile && file.name.endsWith(".replay-gzip.tmp") }?.forEach { file ->
-            if (!file.delete()) log.warn("Replay temporary cleanup failed (file={})", file.name)
+        config.root.listFiles { file ->
+            file.isFile && (file.name.endsWith(".replay-gzip.tmp") || (file.name.startsWith(".") && file.name.endsWith(".tmp")))
+        }?.forEach { file ->
+            runCatching { deleteAccounted(file) }
+                .onFailure { log.error("Replay temporary cleanup failed (file={})", file.name, it) }
         }
     }
 
-    private fun storageFiles(): List<File> = config.root.listFiles { file -> file.isFile }?.toList().orEmpty()
-
-    private fun storageBudgetUsage(): Long = storageFiles().sumOf(File::length).also { lastMeasuredBytesUsed = it }
+    private fun storageBudgetUsage(): Long {
+        val files = config.root.listFiles { file -> file.isFile }
+        storageReady = files != null
+        if (files == null) throw IOException("Replay directory cannot be measured")
+        return files.sumOf(File::length).also { lastMeasuredBytesUsed = it }
+    }
 
     private fun replayFile(matchId: String) = File(config.root, "$matchId.ndjson")
 
     private fun compressedReplayFile(matchId: String) = File(config.root, "$matchId.ndjson.gz")
 
-    private fun browserReplayFile(matchId: String) = File(config.root, "$matchId.browser.json")
+    private fun plainBrowserReplayFile(matchId: String) = File(config.root, "$matchId.browser.json")
+
+    private fun compressedBrowserReplayFile(matchId: String) = File(config.root, "$matchId.browser.json.gz")
+
+    private fun browserReplayFile(matchId: String): File? {
+        val plain = plainBrowserReplayFile(matchId).takeIf(File::isFile)
+        val compressed = compressedBrowserReplayFile(matchId).takeIf(File::isFile)
+        return if (plain != null && (compressed == null || plain.lastModified() > compressed.lastModified())) plain else compressed
+    }
+
+    private fun browserOriginalTime(matchId: String): Long? =
+        listOf(plainBrowserReplayFile(matchId), compressedBrowserReplayFile(matchId))
+            .filter(File::isFile).minOfOrNull(File::lastModified)
 
     private fun browserMetadataFile(matchId: String) = File(config.root, "$matchId.browser-meta.json")
 
     private fun journalFile(matchId: String): File? =
-        replayFile(matchId).takeIf(File::isFile)
+        browserReplayFile(matchId)
+            ?: replayFile(matchId).takeIf(File::isFile)
             ?: compressedReplayFile(matchId).takeIf(File::isFile)
-            ?: browserReplayFile(matchId).takeIf(File::isFile)
 
     private fun readBrowserMetadata(matchId: String): JsonObject? =
         browserMetadataFile(matchId).takeIf(File::isFile)?.let {
@@ -409,113 +419,77 @@ internal class MatchReplayStore(
 
     private fun readPin(matchId: String): JsonObject? =
         pinFile(matchId).takeIf(File::isFile)?.let {
-            runCatching { json.parseToJsonElement(it.readText()).jsonObject }
-                .onFailure { log.error("Replay pin read failed (matchId={})", matchId, it) }
-                .getOrNull()
+            json.parseToJsonElement(it.readText()).jsonObject.also { pin ->
+                require(pin.long("pinnedUntilMs") != null && pin.string("reportId") != null) { "Invalid replay pin" }
+            }
         }
 
     private fun readCreatedTime(file: File): Long? =
-        if (file.name.endsWith(".browser.json")) {
-            matchId(file)?.let(::readBrowserMetadata)?.long("createdAtMs") ?: file.lastModified()
+        if (isBrowserReplay(file)) {
+            matchId(file)?.let { readBrowserMetadata(it)?.long("createdAtMs") ?: browserOriginalTime(it) } ?: file.lastModified()
         } else {
             runCatching {
-                inputStream(file).bufferedReader().use { reader ->
+                replayInputStream(file).bufferedReader().use { reader ->
                     reader.readLine()?.let(json::parseToJsonElement)?.jsonObject?.long("timeMs")
                 }
             }.onFailure { log.error("Replay header read failed (file={})", file.name, it) }.getOrNull()
         }
 
-    private fun inputStream(file: File): InputStream {
-        val input = FileInputStream(file)
-        if (!file.name.endsWith(".gz")) return input
-        return try {
-            GZIPInputStream(input)
-        } catch (cause: Exception) {
-            runCatching { input.close() }
-            throw cause
-        }
-    }
-
     private fun compress(
         file: File,
         matchId: String,
     ) {
-        val destination = compressedReplayFile(matchId)
-        if (destination.isFile) {
-            if (!file.delete()) log.warn("Replay raw journal cleanup failed (file={})", file.name)
-            return
-        }
-        val temporary = File(config.root, ".$matchId.replay-gzip.tmp")
-        runCatching {
-            FileOutputStream(temporary).use { output ->
-                val gzip = GZIPOutputStream(output)
-                try {
-                    FileInputStream(file).use { input -> input.copyTo(gzip) }
-                    gzip.finish()
-                    gzip.flush()
-                    output.fd.sync()
-                } finally {
-                    gzip.close()
-                }
+        if (isBrowserReplay(file)) {
+            val destination = compressedBrowserReplayFile(matchId)
+            val authoritative = requireNotNull(browserReplayFile(matchId))
+            if (authoritative == destination) {
+                readReplaySnapshot(destination, config.maxMatchBytes)
+                restoreReplayAge(destination, requireNotNull(browserOriginalTime(matchId)))
+                deleteAccounted(file)
+            } else {
+                val bytes = readReplaySnapshot(authoritative, config.maxMatchBytes)
+                writeAccounted(destination, gzipReplay(bytes), requireNotNull(browserOriginalTime(matchId)))
+                removeAfterConversion(file, destination)
             }
-            Files.move(temporary.toPath(), destination.toPath(), StandardCopyOption.ATOMIC_MOVE)
-            if (!file.delete()) log.warn("Replay raw journal cleanup failed (file={})", file.name)
-        }.onFailure {
-            temporary.delete()
-            log.error("Replay journal compression failed (file={})", file.name, it)
+        } else {
+            val destination = compressedReplayFile(matchId)
+            val replacing = destination.length()
+            compressReplayJournal(file, destination)
+            lastMeasuredBytesUsed += destination.length() - replacing
+            removeAfterConversion(file, destination)
+        }
+    }
+
+    private fun removeAfterConversion(
+        source: File,
+        destination: File,
+    ) {
+        try {
+            deleteAccounted(source)
+        } catch (cause: IOException) {
+            // Source remains authoritative after failed conversion.
+            runCatching { deleteAccounted(destination) }.onFailure(cause::addSuppressed)
+            throw cause
         }
     }
 
     private fun requireValidMatchId(matchId: String) = require(MATCH_ID.matches(matchId)) { "Invalid matchId" }
-
-    private fun readRecords(file: File): ParsedRecords {
-        val records = mutableListOf<JsonObject>()
-        var truncated = false
-        inputStream(file).bufferedReader().useLines { lines ->
-            for (line in lines) {
-                try {
-                    records += json.parseToJsonElement(line).jsonObject
-                } catch (_: Exception) {
-                    truncated = true
-                    break
-                }
-            }
-        }
-        return ParsedRecords(records, truncated)
-    }
-
-    private data class ParsedRecords(val records: List<JsonObject>, val truncated: Boolean)
-}
-
-private fun writeAtomic(
-    file: File,
-    bytes: ByteArray,
-) {
-    val temporary = File(file.parentFile, ".${file.name}.${System.nanoTime()}.tmp")
-    try {
-        FileOutputStream(temporary).use { output ->
-            output.write(bytes)
-            output.fd.sync()
-        }
-        Files.move(temporary.toPath(), file.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
-    } finally {
-        temporary.delete()
-    }
 }
 
 private fun JsonObject.string(key: String) = (get(key) as? JsonPrimitive)?.contentOrNull
 
 private fun JsonObject.long(key: String) = (get(key) as? JsonPrimitive)?.longOrNull
 
-private fun JsonObject.boolean(key: String) = (get(key) as? JsonPrimitive)?.booleanOrNull
-
 private fun matchId(file: File): String? =
     when {
         file.name.endsWith(".ndjson.gz") -> file.name.removeSuffix(".ndjson.gz")
         file.name.endsWith(".ndjson") -> file.name.removeSuffix(".ndjson")
+        file.name.endsWith(".browser.json.gz") -> file.name.removeSuffix(".browser.json.gz")
         file.name.endsWith(".browser.json") -> file.name.removeSuffix(".browser.json")
         else -> null
     }
+
+private fun isBrowserReplay(file: File) = file.name.endsWith(".browser.json") || file.name.endsWith(".browser.json.gz")
 
 private val MATCH_ID = Regex("[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
 private val BROWSER_REPLAY_FORMATS = setOf("constructed", "commander", "draft", "sealed")

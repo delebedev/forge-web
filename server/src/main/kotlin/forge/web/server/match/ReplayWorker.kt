@@ -16,6 +16,7 @@ internal class ReplayStorageBusy : IllegalStateException("Replay storage is busy
 /** Owns all replay I/O, including maintenance. Callers suspend rather than occupy HTTP threads. */
 internal class ReplayWorker : AutoCloseable {
     private val closed = AtomicBoolean()
+    private val maintaining = AtomicBoolean()
     private val dispatcher =
         Executors.newSingleThreadExecutor { task -> Thread(task, "match-replay-storage").apply { isDaemon = true } }
             .asCoroutineDispatcher()
@@ -33,11 +34,12 @@ internal class ReplayWorker : AutoCloseable {
         }
     }
 
-    fun maintain(action: () -> Unit) {
+    fun maintain(action: () -> Boolean) {
+        if (!maintaining.compareAndSet(false, true)) return
         scope.launch {
             while (true) {
-                delay(60 * 60 * 1000L)
-                action()
+                val pending = action()
+                delay(if (pending) 1_000L else 60 * 60 * 1000L)
             }
         }
     }

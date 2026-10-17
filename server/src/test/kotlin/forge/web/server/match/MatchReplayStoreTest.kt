@@ -280,7 +280,7 @@ class MatchReplayStoreTest {
             val root = Files.createTempDirectory("historical-replay-quota").toFile()
             seedHistoricalReplay(root, "unpinned").appendText(paddingRecord())
             seedHistoricalReplay(root, "pinned").appendText(paddingRecord(seed = 17))
-            val store = MatchReplayStore(config(root, maxBytes = 128 * 1024, maxMatchBytes = 64 * 1024))
+            val store = MatchReplayStore(config(root, maxBytes = 112 * 1024, maxMatchBytes = 64 * 1024))
             store.cleanup()
             assertTrue(store.pin("pinned", "report-7"))
             val bundle = browserBundle("draft").copy(cards = mapOf("1" to JsonPrimitive(paddingRecord(bytes = 32_000))))

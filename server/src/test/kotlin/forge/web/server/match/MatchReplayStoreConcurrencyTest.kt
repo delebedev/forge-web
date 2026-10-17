@@ -19,6 +19,8 @@ import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.nio.file.Files
 import java.time.Duration
+import java.util.Base64
+import java.util.Random
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
@@ -49,7 +51,7 @@ class MatchReplayStoreConcurrencyTest {
             val replayBytes =
                 MatchReplayStore(MatchReplayConfig(reference, "token")).use { store ->
                     store.ingestBrowserChunk("account", MATCH_ID, 0, body)
-                    reference.resolve("$MATCH_ID.browser.json").length()
+                    reference.resolve("$MATCH_ID.browser.json.gz").length()
                 }
             for (full in listOf(false, true)) {
                 val root = ObservedDirectory()
@@ -221,7 +223,9 @@ class MatchReplayStoreConcurrencyTest {
         """
         {"version":2,"label":"Browser match","source":"forge-web-browser",
         "viewerSeatId":1,"matchId":"$MATCH_ID","release":"test",
-        "batches":[],"cards":{"1":"${"x".repeat(payloadBytes)}"},"responses":[],
+        "batches":[],"cards":{"1":"${Base64.getEncoder().encodeToString(
+            ByteArray(payloadBytes).also { Random(7).nextBytes(it) },
+        )}"},"responses":[],
         "events":[{"seq":$seq,"timeMs":0,"direction":"inbound","seatId":1,"batchIndex":0}],
         "status":{"complete":false,"reason":"streaming","truncated":false,"reportId":${reportId?.let { "\"$it\"" } ?: "null"}},
         "context":{"execution":"browser","attemptId":"44444444-4444-4444-8444-444444444444",

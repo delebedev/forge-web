@@ -96,6 +96,8 @@ class ServerTest {
                     MatchReplayConfig(root, "secret-token", maxBytes = 128 * 1024, maxMatchBytes = 64 * 1024),
                 )
             application { installServer(testServices(replayStore = replayStore)) }
+            startApplication()
+            replayStore.export("historical")
             val response = client.get("/api/health")
             val body = Json.parseToJsonElement(response.bodyAsText()).jsonObject
             val replay = checkNotNull(body["replay"]?.jsonObject)
