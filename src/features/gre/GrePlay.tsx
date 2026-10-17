@@ -90,6 +90,7 @@ export function GrePlay({
     interactive &&
     !showRecoveryNotice &&
     board.connected &&
+    !board.gameOver &&
     !board.connectionClose &&
     board.presentation?.lagging !== true
   const embedded = !showDeckConfig || board.connected
