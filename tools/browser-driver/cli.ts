@@ -14,14 +14,14 @@ Options:
   --browser NAME             chromium, chrome, edge, firefox, or webkit
   --headless                 Hide the browser; headed is the default
   --slow-mo-ms N             Pause after each browser action (default 0)
-  --skip-engine-check        Skip Try engine before playing a candidate
+  --skip-engine-check        Compatibility alias; candidates validate in the browser
   --format TYPE              Ordinary game format: constructed or commander
   --deck NAME                Exact visible ordinary-game deck name
   --opponent-deck NAME       Exact visible opponent deck name
   --seed N                   Fixed nonnegative game seed
-  --browser-local            Run the ordinary game in Browser (Local)
+  --browser-local            Compatibility alias; gameplay always runs in the browser
   --max-actions N            Decision budget (default 200)
-  --startup-timeout-ms N     Visible entry-flow budget (default 30000)
+  --startup-timeout-ms N     Visible entry-flow budget (default 240000)
   --timeout-ms N             Wall-clock budget per run (default 300000)
   --progress-timeout-ms N    Accepted-progress timeout (default 8000)
   --stall-limit N            Repeated unchanged horizons before stopping (default 2)

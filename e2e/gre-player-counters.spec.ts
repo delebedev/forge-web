@@ -4,7 +4,7 @@ import { test, readyForVideo } from './demo-test'
 import { authenticateShell, expect } from './gre-test'
 import { loadAcceptanceSuite, runGreAcceptanceSteps } from './gre-acceptance'
 
-for (const execution of ['server', 'browser'] as const) {
+for (const execution of ['browser'] as const) {
   test(`${execution} player counters stay near life and emblem inspection remains available`, async ({
     page,
   }, info) => {
@@ -22,31 +22,15 @@ for (const execution of ['server', 'browser'] as const) {
         .replace('humanhand=', 'humanhand=Leeches;')
         .replace('humanbattlefield=', 'humanbattlefield=Plains;Plains;Plains;') +
       '\nhumancounters=POISON=3\naicounters=POISON=5\n'
-    const text =
-      execution === 'browser'
-        ? base
-        : base
-            .replace('|NoETBTrigs', '')
-            .replace('humanhand=', 'humanhand=Prologue to Phyresis;')
-            .replace('humanbattlefield=', 'humanbattlefield=Island;Island;')
-            .replace('ActivePhase=Main1', 'ActivePhase=Main1\nhumanmanapool=U U')
-            .replace(/\nhumancounters=.*\naicounters=.*\n/, '\n')
+    const text = base
     await startCountersMatch(page, execution, text)
     readyForVideo.add(page)
     const yours = page.getByRole('group', { name: 'Your counters', exact: true })
     const theirs = page.getByRole('group', { name: "Opponent's counters", exact: true })
-    if (execution === 'server') {
-      await runGreAcceptanceSteps(page, {
-        steps: [
-          { cast: 'Prologue to Phyresis' },
-          { resolve_stack: {} },
-          { expect: { zone_contains: { side: 'ours', zone: 'hand', card: 'Swamp' } } },
-        ],
-      })
-    } else {
-      await expect(yours).toContainText('Poison 3')
-    }
-    const poison = execution === 'browser' ? 5 : 1
+
+    await expect(yours).toContainText('Poison 3')
+
+    const poison = 5
     await expect(theirs).toContainText(`Poison ${poison}`)
     await runGreAcceptanceSteps(page, { steps: scenario.steps.slice(0, emblemCreated) })
     const emblem = page.getByRole('button', {
@@ -78,35 +62,22 @@ for (const execution of ['server', 'browser'] as const) {
   })
 }
 
-async function startCountersMatch(page: Page, execution: 'server' | 'browser', text: string) {
-  let candidateId: string | undefined
-  if (execution === 'server') {
-    const response = await page.request.post('/api/dev/puzzle-candidates', { data: { text } })
-    expect(response.ok()).toBe(true)
-    const candidate = await response.json()
-    expect(candidate.validation).toMatchObject({ status: 'Loaded' })
-    candidateId = candidate.candidateId
-  }
+async function startCountersMatch(page: Page, execution: 'browser', text: string) {
   await page.goto('/play/game?traffic=smoke')
   await page.evaluate(
-    async ({ execution, candidateId, text }) => {
+    async ({ execution, text }) => {
       const path = '/src/engine/runtime/gre-session.ts'
       const { greSession } = await import(path)
       const config = {
         execution,
         gameType: 'puzzle',
         returnPath: '/play/game',
-        ...(execution === 'browser'
-          ? { challengeId: 'player-counters', puzzleText: text }
-          : { candidateId }),
+        challengeId: 'player-counters',
+        puzzleText: text,
       }
-      if (execution === 'browser') {
-        greSession.startBrowser(config)
-      } else {
-        greSession.start(config)
-      }
+      greSession.startBrowser(config)
     },
-    { execution, candidateId, text },
+    { execution, text },
   )
   await page.waitForURL(/\/match\/puzzle/)
   await expect
@@ -119,7 +90,7 @@ async function startCountersMatch(page: Page, execution: 'server' | 'browser', t
   })
 }
 
-for (const execution of ['server', 'browser'] as const) {
+for (const execution of ['browser'] as const) {
   test(`${execution} energy acquisition and payment update player totals`, async ({
     page,
   }, info) => {

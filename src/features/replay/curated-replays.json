@@ -1,0 +1,32 @@
+[
+  {
+    "id": "green-stompy-v-red-burn-v1",
+    "title": "Green Stompy vs Red Burn",
+    "description": "Creatures and direct damage, from opening hands to the final turn.",
+    "gameType": "constructed",
+    "seed": 42,
+    "seat1Deck": "4 Llanowar Elves\n4 Elvish Mystic\n4 Grizzly Bears\n4 Centaur Courser\n4 Giant Growth\n4 Snakeskin Veil\n4 Evolving Wilds\n32 Forest\n",
+    "seat2Deck": "4 Raging Goblin\n4 Goblin Instigator\n4 Ghitu Lavarunner\n4 Shock\n4 Lightning Strike\n4 Play with Fire\n4 Evolving Wilds\n32 Mountain\n",
+    "url": "/replays/green-stompy-v-red-burn-v1.greplay.json"
+  },
+  {
+    "id": "krenko-v-atraxa-v1",
+    "title": "Krenko vs Atraxa",
+    "description": "Two complete Commander decks play through a full game.",
+    "gameType": "commander",
+    "seed": 42,
+    "seat1Deck": "[Commander]\n1 Krenko, Mob Boss\n\n[Deck]\n1 Amonkhet Raceway\n1 Arcane Signet\n1 Battle Cry Goblin\n1 Jeska's Will\n1 Beetleback Chief\n1 Blood Moon\n1 Runaway Steam-Kin\n1 Purphoros, God of the Forge\n1 Burnout Bashtronaut\n1 Chaos Warp\n1 Command Tower\n1 Conspicuous Snoop\n1 Dark-Dweller Oracle\n1 Dragon Fodder\n1 Forgotten Cave\n1 Foundry Street Denizen\n1 Gempalm Incinerator\n1 Gleeful Demolition\n1 Goblin Bombardment\n1 Goblin Chieftain\n1 Fanatical Firebrand\n1 Goblin Cratermaker\n1 Goblin Grenade\n1 Goblin Instigator\n1 Hobgoblin Bandit Lord\n1 Legion Loyalist\n1 Goblin Matron\n1 Goblin Piledriver\n1 Rundvelt Hordemaster\n1 Goblin Ringleader\n1 Goblin Trashmaster\n1 Goblin Chainwhirler\n1 Goblin Warchief\n1 Goblin Rabblemaster\n1 Heraldic Banner\n1 Hordeling Outburst\n1 Howlsquad Heavy\n1 The One Ring\n1 Impact Tremors\n1 Krenko's Command\n1 Krenko, Tin Street Kingpin\n1 Light Up the Stage\n1 Lightning Bolt\n1 Lightning Greaves\n1 Marvin, Murderous Mimic\n1 Siege-Gang Commander\n1 Mind Stone\n1 Moria Marauder\n1 Muxus, Goblin Grandee\n1 Outnumber\n1 Patchwork Banner\n1 Pashalik Mons\n1 Rising of the Day\n1 Ruby Medallion\n1 Rummaging Goblin\n1 Shared Animosity\n1 Skirk Prospector\n1 Skullclamp\n1 Sol Ring\n1 Staff of Domination\n1 Sting, the Glinting Dagger\n1 Swiftfoot Boots\n1 Thousand-Year Elixir\n1 Torch Courier\n1 Squee, Dubious Monarch\n1 Abrade\n1 Volley Veteran\n1 Squee, the Immortal\n31 Mountain\n",
+    "seat2Deck": "[Commander]\n1 Atraxa, Praetors' Voice\n\n[Deck]\n1 Sol Ring\n1 Arcane Signet\n1 Llanowar Elves\n1 Elvish Mystic\n1 Gilded Goose\n1 Delighted Halfling\n1 Paradise Druid\n1 Incubation Druid\n1 Cultivate\n1 Farseek\n1 Hardened Scales\n1 Branching Evolution\n1 Doubling Season\n1 Vorinclex, Monstrous Raider\n1 Kami of Whispered Hopes\n1 Conclave Mentor\n1 Winding Constrictor\n1 Rishkar, Peema Renegade\n1 Forgotten Ancient\n1 Simic Ascendancy\n1 Hangarback Walker\n1 Vorinclex, Voice of Hunger\n1 The Ozolith\n1 Ozolith, the Shattered Spire\n1 Champion of Lambholt\n1 Shalai, Voice of Plenty\n1 Rishkar's Expertise\n1 Inspiring Call\n1 Hydroid Krasis\n1 Voracious Hydra\n1 Stonecoil Serpent\n1 Scavenging Ooze\n1 Evolution Sage\n1 Flux Channeler\n1 Contagion Clasp\n1 Tekuthal, Inquiry Dominus\n1 Inexorable Tide\n1 Thrummingbird\n1 Bloated Contaminator\n1 Vorinclex\n1 Rhystic Study\n1 The Great Henge\n1 Toski, Bearer of Secrets\n1 Beast Whisperer\n1 Esper Sentinel\n1 Tezzeret's Gambit\n1 Ajani, Sleeper Agent\n1 Nissa, Voice of Zendikar\n1 Tamiyo, Compleated Sage\n1 Swords to Plowshares\n1 Path to Exile\n1 Assassin's Trophy\n1 Tear Asunder\n1 Drown in the Loch\n1 Swan Song\n1 Counterspell\n1 Cyclonic Rift\n1 Heroic Intervention\n1 Teferi's Protection\n1 Farewell\n1 Smothering Tithe\n1 Tribute to the World Tree\n1 Command Tower\n1 Breeding Pool\n1 Temple Garden\n1 Overgrown Tomb\n1 Watery Grave\n1 Godless Shrine\n1 Hallowed Fountain\n1 Indatha Triome\n1 Zagoth Triome\n1 Spara's Headquarters\n1 Raffine's Tower\n1 Fabled Passage\n1 Evolving Wilds\n1 Terramorphic Expanse\n1 Boseiju, Who Endures\n1 Otawara, Soaring City\n1 Takenuma, Abandoned Mire\n1 Eiganjo, Seat of the Empire\n1 Karn's Bastion\n1 Yavimaya Coast\n1 Llanowar Wastes\n1 Brushland\n1 Adarkar Wastes\n1 Caves of Koilos\n1 Underground River\n1 Hinterland Harbor\n1 Woodland Cemetery\n1 Sunpetal Grove\n4 Forest\n2 Plains\n2 Island\n1 Swamp\n",
+    "url": "/replays/krenko-v-atraxa-v1.greplay.json"
+  },
+  {
+    "id": "lifegain-v-sacrifice-v1",
+    "title": "Lifegain vs Sacrifice",
+    "description": "A full game between White Lifegain and Black Sacrifice.",
+    "gameType": "constructed",
+    "seed": 42,
+    "seat1Deck": "4 Soul Warden\n4 Ajani's Pridemate\n4 Savannah Lions\n4 Revitalize\n4 Pacifism\n4 Evolving Wilds\n36 Plains\n",
+    "seat2Deck": "4 Shambling Ghast\n4 Nested Shambler\n4 Village Rites\n4 Deadly Dispute\n4 Duress\n4 Murder\n4 Evolving Wilds\n32 Swamp\n",
+    "url": "/replays/lifegain-v-sacrifice-v1.greplay.json"
+  }
+]

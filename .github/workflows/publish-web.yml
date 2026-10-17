@@ -100,7 +100,6 @@ jobs:
 
       - name: Build production web
         env:
-          LEYLINE_WEBDOOR_WS_URL: wss://forgeweb.app
           GIT_SHA: ${{ github.sha }}
           VITE_SENTRY_RELEASE: ${{ github.sha }}
           VITE_SENTRY_ENVIRONMENT: production

@@ -14,7 +14,7 @@ export interface GameStartConfig {
   gameType: GameTypeId
   seed?: number
   format?: string
-  mode: 'play' | 'watch'
+  mode: 'play'
   deckList?: string
   opponentMode?: AiMode
   opponentDeckList?: string
@@ -23,31 +23,35 @@ export interface GameStartConfig {
 }
 
 export function GameSetup({
+  initialGameType = 'commander',
+  initialAiMode = 'random',
+  onRetryBrowser,
   playerDeck,
   opponentDeck,
   onPickDeck,
   onChooseDeck,
   onStartDefault,
-  onStartServer,
   onGameTypeChange,
   deckError,
   starting = false,
   browserAvailability,
 }: {
+  initialGameType?: GameTypeId
+  initialAiMode?: AiMode
+  onRetryBrowser?: () => void
   playerDeck: DeckDetail | null
   opponentDeck: DeckDetail | null
   onPickDeck: (slot: 'player' | 'opponent') => void
   onChooseDeck: (deck: DeckDetail) => void
   onStartDefault: (config: GameStartConfig) => void
-  onStartServer: (config: GameStartConfig) => void
   onGameTypeChange?: (type: GameTypeId) => void
   deckError?: string | null
   starting?: boolean
-  browserAvailability: { status: 'available' } | { status: 'fallback'; message: string }
+  browserAvailability: { status: 'available' } | { status: 'unavailable'; message: string }
 }) {
-  const [gameType, setGameType] = useState<GameTypeId>('commander')
+  const [gameType, setGameType] = useState<GameTypeId>(initialGameType)
   const [importOpen, setImportOpen] = useState(false)
-  const [aiMode, setAiMode] = useState<AiMode>('random')
+  const [aiMode, setAiMode] = useState<AiMode>(initialAiMode)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const library = useDecksSnapshot()
@@ -307,10 +311,14 @@ export function GameSetup({
             type="button"
             className="public-primary"
             disabled={
-              !usable || starting || library.loadingDetail || (aiMode === 'pick' && !opponentDeck)
+              browserAvailability.status === 'unavailable' ||
+              !usable ||
+              starting ||
+              library.loadingDetail ||
+              (aiMode === 'pick' && !opponentDeck)
             }
             aria-describedby={
-              browserAvailability.status === 'fallback' ? 'browser-availability' : undefined
+              browserAvailability.status === 'unavailable' ? 'browser-availability' : undefined
             }
             onClick={() => {
               setError(null)
@@ -319,28 +327,18 @@ export function GameSetup({
           >
             {starting
               ? 'Preparing game…'
-              : browserAvailability.status === 'fallback'
-                ? 'Start server game'
+              : browserAvailability.status === 'unavailable'
+                ? 'Browser unavailable'
                 : 'Start game'}
           </button>
-          {browserAvailability.status !== 'fallback' && (
-            <button
-              type="button"
-              className={styles.serverStart}
-              disabled={
-                !usable || starting || library.loadingDetail || (aiMode === 'pick' && !opponentDeck)
-              }
-              onClick={() => {
-                setError(null)
-                onStartServer(startConfig())
-              }}
-            >
-              Play on server
-            </button>
-          )}
-          {browserAvailability.status === 'fallback' && (
+          {browserAvailability.status === 'unavailable' && (
             <p id="browser-availability" className={styles.browserAvailability} role="status">
               {browserAvailability.message}
+              {onRetryBrowser && (
+                <button type="button" onClick={onRetryBrowser}>
+                  Check browser again
+                </button>
+              )}
             </p>
           )}
         </aside>

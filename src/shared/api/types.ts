@@ -541,135 +541,6 @@ export interface paths {
     patch?: never
     trace?: never
   }
-  '/api/puzzles/capabilities': {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get: {
-      parameters: {
-        query?: never
-        header?: never
-        path?: never
-        cookie?: never
-      }
-      requestBody?: never
-      responses: {
-        /** @description OK */
-        200: {
-          headers: {
-            [name: string]: unknown
-          }
-          content: {
-            'application/json': components['schemas']['PuzzleCapabilities']
-          }
-        }
-        /** @description Bad Request */
-        400: {
-          headers: {
-            [name: string]: unknown
-          }
-          content: {
-            'text/plain': string
-          }
-        }
-        /** @description Internal Server Error */
-        500: {
-          headers: {
-            [name: string]: unknown
-          }
-          content: {
-            'text/plain': string
-          }
-        }
-      }
-    }
-    put?: never
-    post?: never
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  '/api/puzzles/generate': {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get?: never
-    put?: never
-    post: {
-      parameters: {
-        query?: never
-        header?: never
-        path?: never
-        cookie?: never
-      }
-      requestBody?: never
-      responses: {
-        /** @description Accepted */
-        202: {
-          headers: {
-            [name: string]: unknown
-          }
-          content: {
-            'application/json': components['schemas']['PuzzleRun']
-          }
-        }
-        /** @description Bad Request */
-        400: {
-          headers: {
-            [name: string]: unknown
-          }
-          content: {
-            'text/plain': string
-          }
-        }
-        /** @description Unauthorized */
-        401: {
-          headers: {
-            [name: string]: unknown
-          }
-          content?: never
-        }
-        /** @description Forbidden */
-        403: {
-          headers: {
-            [name: string]: unknown
-          }
-          content?: never
-        }
-        /** @description Conflict */
-        409: {
-          headers: {
-            [name: string]: unknown
-          }
-          content: {
-            'text/plain': string
-          }
-        }
-        /** @description Internal Server Error */
-        500: {
-          headers: {
-            [name: string]: unknown
-          }
-          content: {
-            'text/plain': string
-          }
-        }
-      }
-    }
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
   '/api/puzzles/runs/{runId}': {
     parameters: {
       query?: never
@@ -872,155 +743,6 @@ export interface paths {
     patch?: never
     trace?: never
   }
-  '/api/gre/start': {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get?: never
-    put?: never
-    post: {
-      parameters: {
-        query?: never
-        header?: never
-        path?: never
-        cookie?: never
-      }
-      requestBody: {
-        content: {
-          'application/json': components['schemas']['GreStartRequestInput']
-        }
-      }
-      responses: {
-        /** @description OK */
-        200: {
-          headers: {
-            [name: string]: unknown
-          }
-          content: {
-            'application/json': components['schemas']['DraftPlayResponse']
-          }
-        }
-        /** @description Bad Request */
-        400: {
-          headers: {
-            [name: string]: unknown
-          }
-          content: {
-            'text/plain': string
-          }
-        }
-        /** @description Unauthorized */
-        401: {
-          headers: {
-            [name: string]: unknown
-          }
-          content?: never
-        }
-        /** @description Forbidden */
-        403: {
-          headers: {
-            [name: string]: unknown
-          }
-          content?: never
-        }
-        /** @description Not Found */
-        404: {
-          headers: {
-            [name: string]: unknown
-          }
-          content?: never
-        }
-        /** @description Internal Server Error */
-        500: {
-          headers: {
-            [name: string]: unknown
-          }
-          content: {
-            'text/plain': string
-          }
-        }
-        /** @description Service Unavailable */
-        503: {
-          headers: {
-            [name: string]: unknown
-          }
-          content: {
-            'application/json': components['schemas']['MatchCapacityResponse']
-          }
-        }
-      }
-    }
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  '/api/gre/abandon': {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get?: never
-    put?: never
-    post: {
-      parameters: {
-        query?: never
-        header?: never
-        path?: never
-        cookie?: never
-      }
-      requestBody: {
-        content: {
-          'application/json': components['schemas']['GreAbandonRequestInput']
-        }
-      }
-      responses: {
-        /** @description No Content */
-        204: {
-          headers: {
-            [name: string]: unknown
-          }
-          content?: never
-        }
-        /** @description Bad Request */
-        400: {
-          headers: {
-            [name: string]: unknown
-          }
-          content: {
-            'text/plain': string
-          }
-        }
-        /** @description Unauthorized */
-        401: {
-          headers: {
-            [name: string]: unknown
-          }
-          content?: never
-        }
-        /** @description Internal Server Error */
-        500: {
-          headers: {
-            [name: string]: unknown
-          }
-          content: {
-            'text/plain': string
-          }
-        }
-      }
-    }
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
   '/api/public/cards/by-grpids': {
     parameters: {
       query?: never
@@ -1141,323 +863,6 @@ export interface paths {
     patch?: never
     trace?: never
   }
-  '/api/public/spectator/start': {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get?: never
-    put?: never
-    post: {
-      parameters: {
-        query?: never
-        header?: never
-        path?: never
-        cookie?: never
-      }
-      requestBody?: never
-      responses: {
-        /** @description OK */
-        200: {
-          headers: {
-            [name: string]: unknown
-          }
-          content: {
-            'application/json': components['schemas']['PublicSpectatorResponse']
-          }
-        }
-        /** @description Bad Request */
-        400: {
-          headers: {
-            [name: string]: unknown
-          }
-          content: {
-            'text/plain': string
-          }
-        }
-        /** @description Internal Server Error */
-        500: {
-          headers: {
-            [name: string]: unknown
-          }
-          content: {
-            'text/plain': string
-          }
-        }
-        /** @description Service Unavailable */
-        503: {
-          headers: {
-            [name: string]: unknown
-          }
-          content: {
-            'application/json': components['schemas']['MatchCapacityResponse']
-          }
-        }
-      }
-    }
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  '/api/public/spectate/viewers': {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get: {
-      parameters: {
-        query?: never
-        header?: never
-        path?: never
-        cookie?: never
-      }
-      requestBody?: never
-      responses: {
-        /** @description OK */
-        200: {
-          headers: {
-            [name: string]: unknown
-          }
-          content: {
-            'application/json': components['schemas']['ViewerCountView']
-          }
-        }
-        /** @description Bad Request */
-        400: {
-          headers: {
-            [name: string]: unknown
-          }
-          content: {
-            'text/plain': string
-          }
-        }
-        /** @description Internal Server Error */
-        500: {
-          headers: {
-            [name: string]: unknown
-          }
-          content: {
-            'text/plain': string
-          }
-        }
-      }
-    }
-    put?: never
-    post?: never
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  '/api/dev/matches/{matchId}/advice': {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get: {
-      parameters: {
-        query?: never
-        header?: never
-        path: {
-          matchId: string
-        }
-        cookie?: never
-      }
-      requestBody?: never
-      responses: {
-        /** @description OK */
-        200: {
-          headers: {
-            [name: string]: unknown
-          }
-          content: {
-            'application/json': components['schemas']['CopilotProposal']
-          }
-        }
-        /** @description Bad Request */
-        400: {
-          headers: {
-            [name: string]: unknown
-          }
-          content: {
-            'text/plain': string
-          }
-        }
-        /** @description Unauthorized */
-        401: {
-          headers: {
-            [name: string]: unknown
-          }
-          content?: never
-        }
-        /** @description Not Found */
-        404: {
-          headers: {
-            [name: string]: unknown
-          }
-          content?: never
-        }
-        /** @description Internal Server Error */
-        500: {
-          headers: {
-            [name: string]: unknown
-          }
-          content: {
-            'text/plain': string
-          }
-        }
-      }
-    }
-    put?: never
-    post?: never
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  '/api/dev/puzzle-candidates': {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get?: never
-    put?: never
-    post: {
-      parameters: {
-        query?: never
-        header?: never
-        path?: never
-        cookie?: never
-      }
-      requestBody: {
-        content: {
-          'application/json': components['schemas']['DevPuzzleCandidateRequestInput']
-        }
-      }
-      responses: {
-        /** @description OK */
-        200: {
-          headers: {
-            [name: string]: unknown
-          }
-          content: {
-            'application/json': components['schemas']['DevPuzzleCandidateValidationResponse']
-          }
-        }
-        /** @description Bad Request */
-        400: {
-          headers: {
-            [name: string]: unknown
-          }
-          content: {
-            'text/plain': string
-          }
-        }
-        /** @description Unauthorized */
-        401: {
-          headers: {
-            [name: string]: unknown
-          }
-          content?: never
-        }
-        /** @description Internal Server Error */
-        500: {
-          headers: {
-            [name: string]: unknown
-          }
-          content: {
-            'text/plain': string
-          }
-        }
-      }
-    }
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  '/api/dev/puzzle-candidates/{candidateId}/trial': {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get?: never
-    put?: never
-    post: {
-      parameters: {
-        query?: never
-        header?: never
-        path: {
-          candidateId: string
-        }
-        cookie?: never
-      }
-      requestBody?: never
-      responses: {
-        /** @description OK */
-        200: {
-          headers: {
-            [name: string]: unknown
-          }
-          content: {
-            'application/json': components['schemas']['PuzzleTrialResult']
-          }
-        }
-        /** @description Bad Request */
-        400: {
-          headers: {
-            [name: string]: unknown
-          }
-          content: {
-            'text/plain': string
-          }
-        }
-        /** @description Unauthorized */
-        401: {
-          headers: {
-            [name: string]: unknown
-          }
-          content?: never
-        }
-        /** @description Not Found */
-        404: {
-          headers: {
-            [name: string]: unknown
-          }
-          content?: never
-        }
-        /** @description Internal Server Error */
-        500: {
-          headers: {
-            [name: string]: unknown
-          }
-          content: {
-            'text/plain': string
-          }
-        }
-      }
-    }
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
   '/api/dev/challenges': {
     parameters: {
       query?: never
@@ -1535,7 +940,7 @@ export interface paths {
             [name: string]: unknown
           }
           content: {
-            'application/json': components['schemas']['ChallengeSummary']
+            'application/json': components['schemas']['DevelopmentPuzzle']
           }
         }
         /** @description Bad Request */
@@ -1929,6 +1334,77 @@ export interface paths {
     }
     put?: never
     post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/courses/result': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    post: {
+      parameters: {
+        query?: never
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['CourseResultRequestInput']
+        }
+      }
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['CourseView']
+          }
+        }
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'text/plain': string
+          }
+        }
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content?: never
+        }
+        /** @description Forbidden */
+        403: {
+          headers: {
+            [name: string]: unknown
+          }
+          content?: never
+        }
+        /** @description Internal Server Error */
+        500: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'text/plain': string
+          }
+        }
+      }
+    }
     delete?: never
     options?: never
     head?: never
@@ -2563,7 +2039,7 @@ export interface paths {
             [name: string]: unknown
           }
           content: {
-            'application/json': components['schemas']['DraftPlayResponse']
+            'application/json': components['schemas']['CoursePlayResponse']
           }
         }
         /** @description Bad Request */
@@ -2596,15 +2072,6 @@ export interface paths {
           }
           content: {
             'text/plain': string
-          }
-        }
-        /** @description Service Unavailable */
-        503: {
-          headers: {
-            [name: string]: unknown
-          }
-          content: {
-            'application/json': components['schemas']['MatchCapacityResponse']
           }
         }
       }
@@ -2906,7 +2373,7 @@ export interface paths {
             [name: string]: unknown
           }
           content: {
-            'application/json': components['schemas']['DraftPlayResponse']
+            'application/json': components['schemas']['CoursePlayResponse']
           }
         }
         /** @description Bad Request */
@@ -2939,15 +2406,6 @@ export interface paths {
           }
           content: {
             'text/plain': string
-          }
-        }
-        /** @description Service Unavailable */
-        503: {
-          headers: {
-            [name: string]: unknown
-          }
-          content: {
-            'application/json': components['schemas']['MatchCapacityResponse']
           }
         }
       }
@@ -3068,10 +2526,6 @@ export interface components {
       text: string
       createdAt: string
     }
-    /** PuzzleCapabilities */
-    PuzzleCapabilities: {
-      canGenerate: boolean
-    }
     /** PuzzleAttempt */
     PuzzleAttempt: {
       featuredCard: string
@@ -3103,36 +2557,6 @@ export interface components {
       comment?: string | null
       outcome: string
       actions?: string[]
-    }
-    /** GreStartRequestInput */
-    GreStartRequestInput: {
-      matchId?: string | null
-      wireMatchId?: string | null
-      seat1Deck?: string | null
-      seat2Deck?: string | null
-      gameVariant?: string | null
-      /** Format: int64 */
-      seed?: number | null
-      challengeId?: string | null
-      candidateId?: string | null
-      puzzle?: string | null
-      spectatorMode?: boolean | null
-    }
-    /** DraftPlayResponse */
-    DraftPlayResponse: {
-      matchId: string
-      wireMatchId: string
-    }
-    /** MatchCapacityResponse */
-    MatchCapacityResponse: {
-      code: string
-      message: string
-      /** Format: int32 */
-      retryAfterSeconds: number
-    }
-    /** GreAbandonRequestInput */
-    GreAbandonRequestInput: {
-      matchId: string
     }
     /** GreMechanicHelpDto */
     GreMechanicHelpDto: {
@@ -3173,199 +2597,17 @@ export interface components {
         [key: string]: components['schemas']['GreAbilityMetaDto']
       }
     }
-    /** PublicSeatView */
-    PublicSeatView: {
-      name: string
-    }
-    /** PublicSpectatorResponse */
-    PublicSpectatorResponse: {
-      matchId: string
-      wireMatchId: string
-      seat1: components['schemas']['PublicSeatView']
-      seat2: components['schemas']['PublicSeatView']
-    }
-    /** ViewerCountView */
-    ViewerCountView: {
-      /** Format: int32 */
-      count: number
-    }
-    /** EntityRefNullable */
-    EntityRefNullable: {
-      /** Format: int32 */
-      instanceId: number
-      kind: string
-      name: string | null
-      /** Format: int32 */
-      grpId: number | null
-      zone: string | null
-      /** Format: int32 */
-      ownerSeat: number | null
-    } | null
-    /** EntityRef */
-    EntityRef: {
-      /** Format: int32 */
-      instanceId: number
-      kind: string
-      name: string | null
-      /** Format: int32 */
-      grpId: number | null
-      zone: string | null
-      /** Format: int32 */
-      ownerSeat: number | null
-    }
-    /** GroupAssignment */
-    GroupAssignment: {
-      /** Format: int32 */
-      zoneType: number
-      /** Format: int32 */
-      subZoneType: number
-      instanceIds: number[]
-    }
-    /** CombatDamageRecipient */
-    CombatDamageRecipient: {
-      /** Format: int32 */
-      recipientId: number
-      /** Format: int32 */
-      amount: number
-    }
-    /** CombatDamageAssignment */
-    CombatDamageAssignment: {
-      /** Format: int32 */
-      assignerId: number
-      recipients: components['schemas']['CombatDamageRecipient'][]
-    }
-    /** BlockAssignment */
-    BlockAssignment: {
-      blocker: components['schemas']['EntityRef']
-      attacker: components['schemas']['EntityRef']
-    }
-    /** ManaTypeChoice */
-    ManaTypeChoice: {
-      /** Format: int32 */
-      ctoId: number
-      color: string
-    }
-    /** DistributionAmount */
-    DistributionAmount: {
-      /** Format: int32 */
-      instanceId: number
-      /** Format: int32 */
-      amount: number
-    }
-    /** CopilotProposal */
-    CopilotProposal: {
-      intent: string
-      promptType: string
-      /** Format: int32 */
-      seat: number
-      promptKey: string | null
-      /** Format: int32 */
-      gameStateId: number | null
-      /** Format: int32 */
-      respId: number | null
-      card: components['schemas']['EntityRefNullable']
-      /** Format: int32 */
-      abilityGrpId: number | null
-      /** Format: int32 */
-      alternativeGrpId: number | null
-      targets: components['schemas']['EntityRef'][]
-      targetGroups: {
-        [key: string]: number[]
-      }
-      groupAssignments: components['schemas']['GroupAssignment'][]
-      combatDamageAssignments: components['schemas']['CombatDamageAssignment'][]
-      blocks: components['schemas']['BlockAssignment'][]
-      modalGrpIds: number[]
-      manaTypes: components['schemas']['ManaTypeChoice'][]
-      /** Format: int32 */
-      numericValue: number | null
-      distribution: components['schemas']['DistributionAmount'][]
-      accept: boolean | null
-      /** Format: int32 */
-      ctoId: number | null
-      /** Format: int32 */
-      replacementEffectId: number | null
-      responseIds: number[]
-      responses: string[]
-      reason: string | null
-    }
-    /** DevPuzzleCandidateRequestInput */
-    DevPuzzleCandidateRequestInput: {
-      text: string
-    }
-    /** PuzzleValidationResult */
-    PuzzleValidationResult: {
-      /** @enum {string} */
-      status: 'Loaded' | 'Invalid' | 'Unsupported' | 'EngineFailure'
-      issues: string[]
-      name: string | null
-      goal: string | null
-      /** Format: int32 */
-      turns: number | null
-      /** Format: int32 */
-      inputCardCount: number
-    }
-    /** DevPuzzleCandidateValidationResponse */
-    DevPuzzleCandidateValidationResponse: {
-      candidateId: string | null
-      validation: components['schemas']['PuzzleValidationResult']
-    }
-    /** PuzzleTrialLimits */
-    PuzzleTrialLimits: {
-      /** Format: int32 */
-      maxDecisions: number
-      /** Format: int64 */
-      maxElapsedMillis: number
-    }
-    /** PuzzleTrialDecision */
-    PuzzleTrialDecision: {
-      /** Format: int32 */
-      index: number
-      intent: string
-      promptType: string
-      promptKey: string | null
-      /** Format: int32 */
-      gameStateId: number | null
-      /** Format: int32 */
-      respId: number | null
-    }
-    /** PuzzleTrialOutcomeNullable */
-    PuzzleTrialOutcomeNullable: {
-      /** Format: int32 */
-      playerSeatId: number
-      /** Format: int32 */
-      winningTeam: number
-      won: boolean
-    } | null
-    /** PuzzleTrialResult */
-    PuzzleTrialResult: {
-      /** @enum {string} */
-      status:
-        | 'Won'
-        | 'Lost'
-        | 'Unsupported'
-        | 'AdvisorUnavailable'
-        | 'Stalled'
-        | 'DecisionBudgetExceeded'
-        | 'TimeBudgetExceeded'
-        | 'Interrupted'
-        | 'EngineFailure'
-      definitionId: string
-      matchId: string | null
-      /** Format: int64 */
-      engineSeed: number | null
-      limits: components['schemas']['PuzzleTrialLimits']
-      /** Format: int64 */
-      elapsedMillis: number
-      decisions: components['schemas']['PuzzleTrialDecision'][]
-      outcome: components['schemas']['PuzzleTrialOutcomeNullable']
-      reason: string | null
-    }
     /** ChallengeSummary */
     ChallengeSummary: {
       challengeId: string
       name: string
       objective: string
+    }
+    /** DevelopmentPuzzle */
+    DevelopmentPuzzle: {
+      name: string
+      objective: string
+      text: string
     }
     /** CollectionView */
     CollectionView: {
@@ -3431,6 +2673,11 @@ export interface components {
       losses: number
       cardPool: number[]
       deckId: string | null
+    }
+    /** CourseResultRequestInput */
+    CourseResultRequestInput: {
+      coursePlayId: string
+      won: boolean
     }
     /** WebDeckCard */
     WebDeckCard: {
@@ -3501,6 +2748,12 @@ export interface components {
     PlayDraftRequestInput: {
       playerId: string
       eventName: string
+    }
+    /** CoursePlayResponse */
+    CoursePlayResponse: {
+      coursePlayId: string
+      seat1Deck: string
+      seat2Deck: string
     }
     /** LimitedSetArchetypeView */
     LimitedSetArchetypeView: {

@@ -34,17 +34,10 @@ test('unexpected HTTP failures report the static operation and release without c
   expect(JSON.stringify(report.mock.calls)).not.toContain('private')
 })
 
-test('expected HTTP outcomes and known admission pauses remain quiet', async () => {
+test('expected HTTP outcomes remain quiet', async () => {
   for (const status of [400, 401, 403, 404, 409, 422]) {
     request.mockResolvedValue(new Response('private validation body', { status }))
     expect((await apiFetch('/api/decks')).status).toBe(status)
-  }
-  for (const code of ['match_capacity', 'deployment_in_progress']) {
-    const body = { code, message: 'private response', retryAfterSeconds: 5 }
-    const response = Response.json(body, { status: 503 })
-    request.mockResolvedValue(response)
-    expect(await apiFetch('/api/gre/start', { method: 'POST' })).toBe(response)
-    expect(await response.json()).toEqual(body)
   }
   await new Promise((resolve) => setTimeout(resolve, 0))
   expect(report).not.toHaveBeenCalled()
@@ -52,7 +45,7 @@ test('expected HTTP outcomes and known admission pauses remain quiet', async () 
 
 test('unknown 503 and unknown routes report without leaking paths or response contents', async () => {
   request.mockResolvedValue(Response.json({ code: 'private-error' }, { status: 503 }))
-  await apiFetch('/api/gre/start', { method: 'POST' })
+  await apiFetch('/api/courses/result', { method: 'POST' })
   request.mockResolvedValue(new Response('private response', { status: 500 }))
   await apiFetch('/private/secret-id?token=private-query')
   await new Promise((resolve) => setTimeout(resolve, 0))
@@ -182,7 +175,7 @@ test('oversized or invalid admission responses remain observable without consumi
       headers: { 'Content-Type': 'application/json', 'X-Backend-Release': 'private-header' },
     })
     request.mockResolvedValue(response)
-    await apiFetch('/api/gre/start', { method: 'POST' })
+    await apiFetch('/api/courses/result', { method: 'POST' })
     expect(await response.text()).toBe(body)
   }
   await new Promise((resolve) => setTimeout(resolve, 0))
@@ -205,34 +198,6 @@ test('aborting response consumption remains quiet and retains the original rejec
     expect(report).not.toHaveBeenCalled()
   } finally {
     parse.mockRestore()
-  }
-})
-
-test('unfinished admission responses return immediately and their diagnostic read expires', async () => {
-  let close!: () => void
-  const body = new ReadableStream<Uint8Array>({
-    start(controller) {
-      controller.enqueue(new TextEncoder().encode('{"code":"match_capacity"}'))
-      close = () => controller.close()
-    },
-  })
-  const response = new Response(body, {
-    status: 503,
-    headers: { 'Content-Type': 'application/json' },
-  })
-  request.mockResolvedValue(response)
-  try {
-    const result = await Promise.race([
-      apiFetch('/api/gre/start', { method: 'POST' }),
-      new Promise<null>((resolve) => setTimeout(() => resolve(null), 50)),
-    ])
-    expect(result).toBe(response)
-    expect(report).not.toHaveBeenCalled()
-    await new Promise((resolve) => setTimeout(resolve, 300))
-    expect(report).toHaveBeenCalledTimes(1)
-    expect(report.mock.calls[0]?.[2]).toMatchObject({ failure_category: 'api-http' })
-  } finally {
-    close()
   }
 })
 

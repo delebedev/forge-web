@@ -1,4 +1,4 @@
-import { DraftPlayResponseSchema, CourseViewSchema } from '@shared/api/wire-schemas'
+import { CoursePlayResponseSchema, CourseViewSchema } from '@shared/api/wire-schemas'
 import { readJson } from '@shared/api/decoding'
 /**
  * AppShell-hosted `/play/limited` — owns the
@@ -53,8 +53,8 @@ async function handlePlaySavedLimited(
   if (!res.ok) {
     throw new Error(`Failed to start game (${res.status})`)
   }
-  const launch = await readJson(res, DraftPlayResponseSchema)
-  await handlePlayMatch(launch.matchId, launch.wireMatchId, mode)
+  const launch = await readJson(res, CoursePlayResponseSchema)
+  await handlePlayMatch(launch, mode)
 }
 
 function cardNamesToDeckText(names: string[]): string {
@@ -73,7 +73,7 @@ function startGreLimitedMatch(deckText: string, gameType: 'draft' | 'sealed'): v
   } else {
     sealedStore.reset()
   }
-  greSession.start(limitedDeckToGreStartConfig(deckText, gameType))
+  greSession.startBrowser(limitedDeckToGreStartConfig(deckText, gameType))
 }
 
 async function handlePlayBuiltLimited(
@@ -84,10 +84,9 @@ async function handlePlayBuiltLimited(
   startGreLimitedMatch(cardNamesToDeckText(mainboard), mode)
 }
 
-/** A freshly built draft/sealed deck already registered its match server-side (via /api/{draft,sealed}/play) — join it directly by matchId. */
+/** Launch both course decks locally and retain the result receipt. */
 async function handlePlayMatch(
-  matchId: string,
-  wireMatchId: string,
+  launch: { coursePlayId: string; seat1Deck: string; seat2Deck: string },
   mode: 'draft' | 'sealed',
 ): Promise<void> {
   if (mode === 'draft') {
@@ -95,7 +94,7 @@ async function handlePlayMatch(
   } else {
     sealedStore.reset()
   }
-  greSession.start({ matchId, wireMatchId, gameType: mode })
+  greSession.startBrowser({ ...launch, gameType: mode, returnPath: '/play/limited' })
 }
 
 /** The course's cardPool is the original opened pool; still valid to rebuild a deck from even after the course completes. */

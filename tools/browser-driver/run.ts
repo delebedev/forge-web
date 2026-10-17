@@ -11,14 +11,12 @@ import {
   type Page,
 } from '@playwright/test'
 import { DriverFailure, readGreState } from './executor.ts'
-import { driveMatch, requestAdvice, requestBrowserAdvice } from './runner.ts'
+import { driveMatch } from './runner.ts'
 import type { ParsedConfig } from './config.ts'
 import type { RunConfig, RunInput, RunReport, RunTerminal } from './types.ts'
 
 type BrowserSession = { browser?: Browser; context: BrowserContext }
 type CandidateEntryEvidence = Omit<NonNullable<RunReport['candidate']>, 'browser'>
-
-const CANDIDATE_TRIAL_UI_TIMEOUT_MS = 65_000
 
 function revision(directory = '.'): string {
   try {
@@ -171,7 +169,14 @@ export async function launchInput(
   input: RunInput,
   deadline: number,
 ): Promise<CandidateEntryEvidence | undefined> {
-  let startupDeadline = deadline
+  if (
+    input.kind === 'ordinary' &&
+    input.execution != null &&
+    String(input.execution) !== 'browser'
+  ) {
+    throw new DriverFailure('invalid_input', 'Ordinary games support browser execution only')
+  }
+  const startupDeadline = deadline
   boundStartup(page, startupDeadline)
   if (input.kind === 'url') {
     await page.goto(input.url)
@@ -202,52 +207,13 @@ export async function launchInput(
           { sourcePath: input.sourcePath },
         )
       }
-      let trialObserved: string | undefined
-      if (input.tryEngine) {
-        boundStartup(page, startupDeadline)
-        const trialStarted = Date.now()
-        await page.getByRole('button', { name: 'Try engine', exact: true }).click()
-        const trial = page.getByRole('region', { name: 'Engine trial result', exact: true })
-        page.setDefaultTimeout(CANDIDATE_TRIAL_UI_TIMEOUT_MS)
-        const trialFailure = page.getByRole('alert')
-        const result = await Promise.race([
-          trial.waitFor({ state: 'visible' }).then(() => 'trial' as const),
-          trialFailure.waitFor({ state: 'visible' }).then(() => 'failure' as const),
-        ]).catch((error: unknown) => {
-          throw new DriverFailure('environment', 'Engine trial did not return a visible result', {
-            sourcePath: input.sourcePath,
-            cause: String(error),
-          })
-        })
-        startupDeadline += Date.now() - trialStarted
-        if (result === 'failure') {
-          throw new DriverFailure(
-            'environment',
-            (await trialFailure.textContent())?.trim() || 'Engine trial request failed',
-            { sourcePath: input.sourcePath },
-          )
-        }
-        trialObserved = [
-          (await trial.locator('strong').textContent())?.trim(),
-          (await trial.locator('p').first().textContent())?.trim(),
-        ]
-          .filter(Boolean)
-          .join(' — ')
-          .slice(0, 500)
-      }
       boundStartup(page, startupDeadline)
       await page.getByRole('button', { name: 'Play candidate', exact: true }).click()
       boundStartup(page, startupDeadline)
       await page.waitForURL(/\/match\//)
       return {
         validation: { loaded: true, observed: validationObserved },
-        engineTrial: {
-          attempted: input.tryEngine,
-          solved: input.tryEngine
-            ? (trialObserved?.includes('Engine solution observed') ?? false)
-            : null,
-          ...(trialObserved ? { observed: trialObserved } : {}),
-        },
+        engineTrial: { attempted: false, solved: null },
       }
     } catch (error) {
       if (error instanceof DriverFailure) {
@@ -365,8 +331,8 @@ export async function launchInput(
       .waitFor({ state: 'hidden' })
   }
   const start = page.getByRole('button', {
-    name: input.execution === 'browser' ? 'Start game' : /^(?:Play on server|Start server game)$/,
-    exact: input.execution === 'browser',
+    name: 'Start game',
+    exact: true,
   })
   boundStartup(page, deadline)
   if (
@@ -387,10 +353,8 @@ export async function launchInput(
       cause: String(error),
     })
   })
-  if (input.execution === 'browser') {
-    boundStartup(page, deadline)
-    await page.waitForFunction(() => window.__greState?.()?.matchId.startsWith('browser-'))
-  }
+  boundStartup(page, deadline)
+  await page.waitForFunction(() => window.__greState?.()?.matchId.startsWith('browser-'))
   return undefined
 }
 
@@ -499,14 +463,6 @@ async function runOne(
       progressTimeoutMs: config.progressTimeoutMs,
       stallLimit: config.stallLimit,
       signal,
-      ...((input.kind === 'ordinary' && input.execution === 'browser') || input.kind === 'url'
-        ? {
-            getAdvice: (currentMatchId: string, timeoutMs: number) =>
-              currentMatchId.startsWith('browser-')
-                ? requestBrowserAdvice(page, timeoutMs)
-                : requestAdvice(page, currentMatchId, timeoutMs),
-          }
-        : {}),
     })
     matchId = result.matchId
     finalState = result.finalState

@@ -1,4 +1,4 @@
-import { DraftSessionViewSchema, DraftPlayResponseSchema } from '@shared/api/wire-schemas'
+import { DraftSessionViewSchema, CoursePlayResponseSchema } from '@shared/api/wire-schemas'
 import { readJson } from '@shared/api/decoding'
 import type { DraftCard } from '@shared/api/contracts'
 import { apiFetch } from '@shared/api/client'
@@ -9,8 +9,8 @@ export type DraftPhase = 'idle' | 'connecting' | 'drafting' | 'deck_build' | 'pl
 
 const DEFAULT_EVENT_NAME = 'QuickDraft_FDN_20260223'
 
-/** Match handed off to GreStartConfig once the course-linked game is registered server-side. */
-export type DraftMatchLaunch = { matchId: string; wireMatchId: string }
+/** Match handed off to GreStartConfig with an owner-scoped course result receipt. */
+export type DraftMatchLaunch = { coursePlayId: string; seat1Deck: string; seat2Deck: string }
 
 /** React reads this store through `snapshot()`/`subscribe()`. */
 export interface DraftSnapshot {
@@ -218,7 +218,7 @@ class DraftStore {
       if (!playRes.ok) {
         throw new Error(`draft_play_${playRes.status}`)
       }
-      const launch = await readJson(playRes, DraftPlayResponseSchema)
+      const launch = await readJson(playRes, CoursePlayResponseSchema)
       this.matchLaunch = launch
       this.phase = 'playing'
     } catch (err) {

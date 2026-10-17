@@ -18,7 +18,7 @@ import java.io.File
 import java.util.Base64
 import java.util.zip.ZipInputStream
 
-/** Browser host for the same serialized match lifecycle used by the product server. */
+/** Browser host for matches owned by the local JVM. */
 object BrowserRuntime {
     private val json = Json { encodeDefaults = true }
     private var cards: ForgeCardRepository? = null
@@ -96,14 +96,13 @@ object BrowserRuntime {
     }
 
     @JvmStatic
-    fun start(deck1: String, deck2: String, seed: Int, spectator: Boolean, matchId: String, gameType: String, puzzleId: String, puzzleText: String): String = guarded {
+    fun start(deck1: String, deck2: String, seed: Int, matchId: String, gameType: String, puzzleId: String, puzzleText: String): String = guarded {
         check(handle == null) { "A match is already running" }
         val variant = gameType.trim().lowercase()
         require(variant == "constructed" || variant == "commander" || variant == "puzzle") { "Unsupported browser game type: $gameType" }
         val commander = variant == "commander"
         if (variant == "puzzle") {
             require(puzzleId.matches(Regex("[a-z0-9]+(?:-[a-z0-9]+)*")) && puzzleText.isNotBlank()) { "Puzzle definition is required" }
-            require(!spectator) { "Puzzle play requires a human seat" }
         } else {
             require(puzzleId.isEmpty() && puzzleText.isEmpty()) { "Deck matches cannot include a puzzle" }
             BrowserDecks.validate(deck1, commander)
@@ -111,14 +110,14 @@ object BrowserRuntime {
         }
         val stableMatchId = matchId.trim().ifEmpty { "browser-$seed-${++matchSerial}" }
         val runtime = InProcessMatchRuntime(
-            EngineSettings(seed = seed.toLong(), aiSpeed = 0.0, spectatorMode = spectator,
+            EngineSettings(seed = seed.toLong(), aiSpeed = 0.0, spectatorMode = false,
                 promptFailsafeMs = null, dieRollWinner = 1,
                 costChoicePresentation = CostChoicePresentation.ForgeText),
             MatchCoordinator.NOOP,
             checkNotNull(cards) { "Initialize the catalog first" },
             File(root, "puzzles"),
         )
-        val config = runtimeConfig(stableMatchId, deck1, deck2, variant, spectator, puzzleId, puzzleText)
+        val config = runtimeConfig(stableMatchId, deck1, deck2, variant, puzzleId, puzzleText)
         val launched = runtime.launch(MatchRuntimeLaunch(config,
             onFrame = { frame ->
                 if (replaying) emit("replay-step", "")
@@ -135,14 +134,14 @@ object BrowserRuntime {
         json.encodeToString(launched.response)
     }
 
-    internal fun runtimeConfig(matchId: String, deck1: String, deck2: String, gameType: String, spectator: Boolean, puzzleId: String = "", puzzleText: String = "") =
+    internal fun runtimeConfig(matchId: String, deck1: String, deck2: String, gameType: String, puzzleId: String = "", puzzleText: String = "") =
         RuntimeMatchConfig(
             matchId = matchId,
             seat1 = deck1.takeIf { gameType != "puzzle" }?.let(DeckSource::ForgeText),
             seat2 = deck2.takeIf { gameType != "puzzle" }?.let(DeckSource::ForgeText),
             gameVariant = gameType.takeIf { it == "commander" },
             puzzleDefinition = puzzleId.takeIf { gameType == "puzzle" }?.let { PuzzleDefinition(it, puzzleText) },
-            spectatorMode = spectator,
+            spectatorMode = false,
         )
 
     @JvmStatic
@@ -165,6 +164,12 @@ object BrowserRuntime {
 
     @JvmStatic
     fun metadata(ids: String): String = guarded { checkNotNull(cards).metadata(ids) }
+
+    @JvmStatic
+    fun validatePuzzle(text: String): String = guarded {
+        check(handle == null) { "Close the current game before validating a puzzle" }
+        json.encodeToString(leyline.game.generator.PuzzleValidation(checkNotNull(cards)).validate(PuzzleDefinition("candidate", text)))
+    }
 
     @JvmStatic
     fun advice(): String = guarded { json.encodeToString(checkNotNull(handle).copilotProposal()) }

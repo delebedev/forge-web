@@ -39,7 +39,7 @@ export function parseArgs(
   let headed = true
   let slowMoMs = 0
   let maxActions = 200
-  let startupTimeoutMs = 30_000
+  let startupTimeoutMs = 240_000
   let timeoutMs = 300_000
   let progressTimeoutMs = 8_000
   let stallLimit = 2
@@ -51,7 +51,7 @@ export function parseArgs(
   let storageState: string | undefined
   const puzzles: string[] = []
   const candidates: string[] = []
-  let tryEngine = true
+  let skipEngineCheck = false
   let url: string | undefined
   let ordinary = false
   let browserLocal = false
@@ -82,7 +82,7 @@ export function parseArgs(
         candidates.push(resolve(next()))
         break
       case '--skip-engine-check':
-        tryEngine = false
+        skipEngineCheck = true
         break
       case '--url':
         url = next()
@@ -165,7 +165,7 @@ export function parseArgs(
   if (modes !== 1) {
     throw new Error('Choose exactly one entry mode: --puzzle, --candidate, --url, or --ordinary')
   }
-  if (!candidates.length && !tryEngine) {
+  if (!candidates.length && skipEngineCheck) {
     throw new Error('--skip-engine-check requires --candidate')
   }
   if (
@@ -191,7 +191,7 @@ export function parseArgs(
             kind: 'candidate',
             sourcePath,
             puzzleText: readCandidate(sourcePath),
-            tryEngine,
+            tryEngine: false,
           }))
         : url
           ? [{ kind: 'url', url }]
@@ -202,7 +202,7 @@ export function parseArgs(
                 ...(ordinaryDeck ? { deck: ordinaryDeck } : {}),
                 ...(ordinaryOpponentDeck ? { opponentDeck: ordinaryOpponentDeck } : {}),
                 ...(ordinarySeed == null ? {} : { seed: ordinarySeed }),
-                ...(browserLocal ? { execution: 'browser' as const } : {}),
+                execution: 'browser' as const,
               },
             ]
 

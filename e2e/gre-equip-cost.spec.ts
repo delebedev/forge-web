@@ -3,7 +3,7 @@ import { test, recordDemos, readyForVideo } from './demo-test'
 import { startScenario } from './gre-scenario'
 import { activateAbility, castSpell } from './gre-actions'
 
-for (const execution of ['server', 'browser'] as const) {
+for (const execution of ['browser'] as const) {
   test(`Strong Back permits a free equip and continued play (${execution})`, async ({
     page,
   }, info) => {

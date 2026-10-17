@@ -227,15 +227,4 @@ internal class PuzzleStore(
             }
         }
     }
-
-    fun recoverInterrupted() {
-        transaction(database) {
-            Runs.update({ Runs.status eq "running" }) {
-                it[status] = "failed"
-                it[stage] = "interrupted"
-                it[error] = "Server restarted before generation finished"
-                it[updatedAt] = clock().toString()
-            }
-        }
-    }
 }

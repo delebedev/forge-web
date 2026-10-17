@@ -9,7 +9,7 @@ import type { CopilotProposal, DecisionHorizon } from './types.ts'
 let browser: Browser
 
 before(async () => {
-  browser = await chromium.launch({ headless: true })
+  browser = await chromium.launch({ channel: 'chromium', headless: true })
 })
 after(async () => {
   await browser.close()
@@ -1058,7 +1058,7 @@ void test('decision loop reports a visible match-start failure instead of timing
   await page.close()
 })
 
-void test('candidate trial time does not consume the visible entry budget', async () => {
+void test('candidate validation launches local play without a separate trial', async () => {
   const page = await browser.newPage()
   await page.route('http://driver.test/challenges', (route) =>
     route.fulfill({
@@ -1066,12 +1066,11 @@ void test('candidate trial time does not consume the visible entry budget', asyn
       body: `
       <label for="candidate">Puzzle text</label><textarea id="candidate"></textarea>
       <button id="validate">Validate puzzle</button>
-      <button id="trial">Try engine</button>
       <button id="play">Play candidate</button>
       <div id="results"></div>
       <script>
         document.getElementById('validate').onclick = () => { document.getElementById('results').innerHTML = '<section aria-label="Engine validation"><strong>Position loaded by the engine</strong><p>Candidate · 1 cards. Ready.</p></section>' }
-        document.getElementById('trial').onclick = () => setTimeout(() => { document.getElementById('results').insertAdjacentHTML('beforeend', '<section aria-label="Engine trial result"><strong>Time budget reached</strong><p>0 decisions · 30.0 seconds.</p></section>') }, 1200)
+
         document.getElementById('play').onclick = () => history.pushState(null, '', '/match/candidate')
       </script>
     `,
@@ -1090,9 +1089,8 @@ void test('candidate trial time does not consume the visible entry budget', asyn
     Date.now() + 1000,
   )
 
-  assert.equal(result?.engineTrial.attempted, true)
-  assert.equal(result?.engineTrial.solved, false)
-  assert.match(result?.engineTrial.observed ?? '', /Time budget reached/)
+  assert.equal(result?.engineTrial.attempted, false)
+  assert.equal(result?.engineTrial.solved, null)
   assert.match(page.url(), /\/match\/candidate$/)
   await page.close()
 })
@@ -1152,5 +1150,60 @@ void test('match cleanup stops when no visible lifecycle control exists', async 
     (error: unknown) => error instanceof DriverFailure && error.classification === 'ui_missing',
   )
   assert.equal(new URL(page.url()).pathname, '/match/three')
+  await page.close()
+})
+
+void test('ordinary launch defaults to the browser control and rejects an explicit retired host', async () => {
+  const page = await browser.newPage()
+  await page.route('http://driver.test/play/game', (route) =>
+    route.fulfill({
+      contentType: 'text/html',
+      body: `
+    <button aria-pressed="true">Constructed</button><button id="start">Start game</button>
+    <script>document.getElementById('start').onclick = () => { history.pushState(null, '', '/match/constructed'); window.__greState = () => ({ matchId: 'browser-default' }) }</script>`,
+    }),
+  )
+  await launchInput(
+    page,
+    'http://driver.test',
+    { kind: 'ordinary', format: 'constructed' },
+    Date.now() + 2000,
+  )
+  assert.match(page.url(), /\/match\/constructed$/)
+  await assert.rejects(
+    launchInput(
+      page,
+      'http://driver.test',
+      { kind: 'ordinary', format: 'constructed', execution: 'server' } as never,
+      Date.now() + 2000,
+    ),
+    (error) => error instanceof DriverFailure && error.classification === 'invalid_input',
+  )
+  await page.close()
+})
+
+void test('decision loop obtains local browser advice by default', async () => {
+  const page = await fixture('<button id="pass">Pass</button>', actionHorizon)
+  await page.evaluate((value) => {
+    window.__greBrowserAdvice = async () => value
+    document.getElementById('pass')!.addEventListener('click', () => {
+      const runtime = (window as unknown as { fixtureRuntime: { horizon: DecisionHorizon } })
+        .fixtureRuntime
+      runtime.horizon = { kind: 'actions', promptKey: '9:12', gameStateId: 9, respId: 12 }
+    })
+  }, proposal({}))
+  const result = await driveMatch(page, {
+    maxActions: 1,
+    timeoutMs: 2000,
+    progressTimeoutMs: 1000,
+    stallLimit: 1,
+  })
+  assert.equal(result.decisions.length, 1)
+  assert.deepEqual(
+    await page.evaluate(
+      () => (window as unknown as { fixtureRuntime: { clicks: string[] } }).fixtureRuntime.clicks,
+    ),
+    ['pass'],
+  )
   await page.close()
 })

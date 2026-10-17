@@ -10,15 +10,17 @@ client-side.
 
 | Path | Component | Auth? | Purpose |
 |---|---|---|---|
-| `/` | `LandingPage` | no | Public homepage, AI-vs-AI spectator feed |
+| `/` | `LandingPage` | no | Public homepage with curated full-game replay |
 | `/about` | `AboutPage` | no | Marketing/info page |
 | `/roadmap` | `RoadmapPage` | no | Curated public feature board and account votes |
-| `/login` | `LoginPage` | no | Login/signup forms, spectator backdrop |
+| `/login` | `LoginPage` | no | Login/signup forms, replay backdrop |
 | `/play/game` | `GameSetupRoute` → `GameSetup` | yes | Constructed setup: deck, format, opponent |
 | `/play/limited` | `LimitedRoute` → `LimitedView` | yes | Draft/sealed mode picker, `?mode=draft\|sealed` |
 | `/challenges` | `ChallengesView` | dev | Curated puzzle browser; production returns 404 |
 | `/challenges/:id` | `ChallengesView` → `GrePlay` | dev | Launch a curated puzzle on the standard match route |
 | `/challenge/:challengeId` | `BrowserChallenge` → `GrePlay` | no | Daily bundled puzzle rotation and shared generated puzzle pool |
+| `/watch` | `CuratedWatch` | no | Curated full-game replays with automatic playback and card inspection |
+| `/watch/:replayId` | `CuratedWatch` | no | Allowlisted static replay; fresh-game deck handoff |
 | `/play/replay` | `ReplayView` | dev | Local operator transcript viewer with completeness and submitted-choice inspection; production returns 404 |
 | `/decks` | `DecksView` | yes | Deck browser: list + detail pane + filters |
 | `/decks/:deckId` | `DecksView` | yes | Auto-select a deck by its stable ID |
@@ -89,16 +91,15 @@ Single-writer pattern — one store owns each signal.
   → browser worker starts the match → GRE projection → hydrate
 ```
 
-Supported browsers use browser execution by default. Play on server, missing
-browser capabilities, or a failed browser startup select server execution through
-`POST /api/gre/start` and the GRE WebSocket.
+All games execute locally. Missing browser capabilities and startup failures show
+an explicit error and browser retry. There is no alternate server host.
 
 ### Development challenge
 ```
 /challenges/:id → authStore.ensureSession() → POST /api/auth/guest if needed
-  → resolve GET /api/dev/challenges → greSession.start()
-  → POST /api/gre/start → GRE WS connect
-  → router.navigate('/match/puzzle') → hydrate GrePlay
+  → resolve GET /api/dev/challenges + GET /api/dev/puzzles/{id}
+  → greSession.startBrowser({puzzleText}) → router.navigate('/match/puzzle')
+  → worker starts the puzzle → hydrate GrePlay
 ```
 
 The puzzle supplies its initial state and objective only. `greStore` remains the
@@ -107,10 +108,9 @@ match before launching the exact same puzzle. Return clears the match and opens
 the launcher. `/dev/puzzle/:id` resolves fixture metadata through
 `GET /api/dev/puzzles/{puzzleId}` and uses the same match path.
 
-Editable candidates use `POST /api/dev/puzzle-candidates` to validate and retain
-the exact draft. `POST /api/dev/puzzle-candidates/{candidateId}/trial` runs a
-bounded engine trial. Play starts the ordinary puzzle match with `candidateId`;
-it does not depend on a winning trial result.
+Editable candidates validate authored text in a dedicated browser worker. First
+validation explicitly initializes the local engine. Play launches that exact text.
+Generation and server engine trials have no product route.
 
 ### Draft
 ```
@@ -119,8 +119,9 @@ it does not depend on a winning trial result.
   → pick cards (3 rounds) → POST /api/draft/pick per pick
   → status: Completed → deck_build phase → LimitedDeckBuilder
   → confirm deck → submit → POST /api/draft/deck → {deckId}
-  → POST /api/draft/play → {matchId, wireMatchId}
-  → GRE joins by matchId (GreStore.resumeGame) → router.navigate('/match/draft')
+  → POST /api/draft/play → {coursePlayId, seat1Deck, seat2Deck}
+  → greSession.startBrowser({coursePlayId, seat1Deck, seat2Deck, gameType: 'draft'})
+  → terminal result → POST /api/courses/result → saved course progress
 ```
 
 ### Sealed
@@ -129,8 +130,9 @@ it does not depend on a winning trial result.
   → sealedStore.startSealed() → POST /api/sealed/start → {cardPool}
   → deck_build phase → LimitedDeckBuilder (pool pre-populated)
   → confirm deck → submit → POST /api/sealed/deck → {deckId}
-  → POST /api/sealed/play → {matchId, wireMatchId}
-  → GRE joins by matchId (GreStore.resumeGame) → router.navigate('/match/sealed')
+  → POST /api/sealed/play → {coursePlayId, seat1Deck, seat2Deck}
+  → greSession.startBrowser({coursePlayId, seat1Deck, seat2Deck, gameType: 'sealed'})
+  → terminal result → POST /api/courses/result → saved course progress
 
 Refresh mid-build: sealedStore.tryResume() → GET /api/courses → restore the
 course with a pool but no deckId yet (no session WebSocket to reconnect).
@@ -139,7 +141,7 @@ course with a pool but no deckId yet (no session WebSocket to reconnect).
 ### Play saved deck
 ```
 /decks → select saved draft/sealed deck → Play button
-  → GRE launch with saved deck ID → router.navigate('/match/draft')
+  → hydrate both complete decks → browser-local launch → router.navigate('/match/draft')
 ```
 
 ### Constructed deck builder
@@ -164,14 +166,11 @@ course with a pool but no deckId yet (no session WebSocket to reconnect).
 - `decks-store.ts` — account and selection correlation, metadata hydration, committed mutation results
 - `deck-value.ts` — complete deck values and presentation projections
 
-## WS transports
+## Gameplay boundary
 
-The only WebSocket in this app is the GRE match runtime — draft and sealed
-are REST-only (course API), no session WebSocket.
-
-| Endpoint | Owner | Auth | Recovery |
-|---|---|---|---|
-| `/gre?matchId={matchId}` | `greStore` | session cookie | GRE reconnect state (sessionStorage) |
+Gameplay frames stay between the browser worker and `greStore`.
+There is no product gameplay WebSocket. Draft/sealed generation and course
+progress use REST. Static watch streams use saved transcripts.
 
 ## Auth & persistence
 
@@ -187,7 +186,7 @@ are REST-only (course API), no session WebSocket.
 
 | Key | Purpose |
 |---|---|
-| `forge:gre:lastMatchConfig` | Current tab's GRE launch config for refresh resume; cleared when the match is retired |
+| `forge:gre:lastMatchConfig` | Current tab's local launch config; refresh ends the game and offers restart; cleared on retirement |
 
 Draft/sealed deck-building refresh-resume reads course state from
 `GET /api/courses` instead of a stored session ID.
@@ -236,3 +235,7 @@ The lobby filters library decks by presence of commandZone and sends that zone
 in the Commander launch list. Browser storage remembers a selection; the account
 database owns saved decks. Five starter lists based on 2025 archetypes
 are provisioned with the ordinary dev seed command.
+
+## Curated watch
+
+The landing table and `/watch` play allowlisted complete games from `public/replays/` through `TranscriptFrameSource` and the production board. They do not initialize the browser engine or start a server match. Each game starts from normal opening hands and plays through its terminal outcome. After a short result dwell, the next game starts automatically. Public viewing has no playback controls, timeline, picker or live-status claim. Card inspection stays available. Playback and pending rotation pause when the page or table is hidden, and stop on unmount. The current matchup's `Play these decks` link opens `/play/game?replay=<known-id>` for a fresh game using those complete decks. The operator file picker, arbitrary `?src` loading and full playback controls remain development-only at `/play/replay`. Exact deck inputs and provenance live in `dev/replays/README.md`.

@@ -5,7 +5,7 @@ import { loadAcceptanceSuite, runGreAcceptanceSteps } from './gre-acceptance'
 
 const suite = loadAcceptanceSuite('search-owner')
 
-for (const execution of ['server', 'browser'] as const) {
+for (const execution of ['browser'] as const) {
   test(`Bribery offers opponent creatures and continues after transfer (${execution})`, async ({
     page,
   }, info) => {

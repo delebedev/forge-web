@@ -38,16 +38,10 @@ export function createGameSetupStarter({
       if (config.mode === 'play' && !config.deckList?.trim() && isUnavailableDeck(playerDeck)) {
         return { ok: false, error: SELECTED_DECK_ERROR, clearPlayerDeck: true }
       }
-      const seatDecks =
-        config.mode === 'play'
-          ? ([
-              ['Your deck', startConfig.seat1Deck],
-              ['Opponent deck', startConfig.seat2Deck],
-            ] as const)
-          : ([
-              ['AI Player 1', startConfig.seat1Deck],
-              ['AI Player 2', startConfig.seat2Deck],
-            ] as const)
+      const seatDecks = [
+        ['Your deck', startConfig.seat1Deck],
+        ['Opponent deck', startConfig.seat2Deck],
+      ] as const
       for (const [label, text] of seatDecks) {
         if (!text?.trim()) {
           continue

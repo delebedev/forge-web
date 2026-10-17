@@ -1,9 +1,10 @@
 import { resolveTo, castSpell } from './gre-actions'
 import { startScenario } from './gre-scenario'
 import type { Page, TestInfo } from '@playwright/test'
+import type { CardView } from '../src/engine/state/gre-state'
 import { writeFileSync } from 'node:fs'
 import { test as demoTest, readyForVideo } from './demo-test'
-import { expect, test } from './gre-test'
+import { expect, test, startPuzzleGame } from './gre-test'
 import { runGreAcceptanceSteps, type RawScenario } from './gre-acceptance'
 
 const FORGE_CARD = 'Jungle Lion'
@@ -164,9 +165,9 @@ test('imports, saves, reloads, and searches the same catalog identity', async ({
   await page.goto('/play/game')
   await page.getByRole('button', { name: 'Constructed', exact: true }).click()
   await page.getByRole('button', { name: 'Forge catalog proof 60 cards', exact: true }).click()
-  await page.getByRole('button', { name: /^(Play on server|Start server game)$/ }).click()
+  await page.getByRole('button', { name: 'Start game', exact: true }).click()
   await expect
-    .poll(() => page.evaluate(() => window.__greState()?.connected), { timeout: 30_000 })
+    .poll(() => page.evaluate(() => window.__greState()?.connected), { timeout: 240_000 })
     .toBe(true)
   await attachState(testInfo, 'catalog-identities', {
     parsed: parsedCard,
@@ -267,13 +268,6 @@ test('renders a keyword-created Clue with a catalog identity and metadata', asyn
   const errors = collectBrowserErrors(page)
   await authenticate(page)
   await startPuzzle(page, 'forge-catalog-clue-token')
-  const clueMetadataResponse = page.waitForResponse(async (response) => {
-    if (!response.ok() || !response.url().includes('/api/public/cards/by-grpids?')) {
-      return false
-    }
-    const cards = (await response.json()) as Record<string, CardSearchResult>
-    return Object.values(cards).some((card) => card.name === 'Clue Token')
-  })
   await runSteps(page, [{ expect: { action: { type: 'cast', card: 'Thraben Inspector' } } }])
   await castSpell(page, {
     card: 'Thraben Inspector',
@@ -285,18 +279,31 @@ test('renders a keyword-created Clue with a catalog identity and metadata', asyn
     },
   })
 
-  const metadata = (await clueMetadataResponse.then((response) => response.json())) as Record<
-    string,
-    CardSearchResult & { types?: string | null }
-  >
-  const [clueGrpId, clue] =
-    Object.entries(metadata).find(([, card]) => card.name === 'Clue Token') ?? []
-  expect(Number(clueGrpId)).toBeGreaterThan(0)
-  expect(clue).toMatchObject({ name: 'Clue Token', types: 'Artifact' })
+  const runtimeClue = await page.evaluate(async () => {
+    const modulePath = '/src/engine/runtime/gre-store.ts'
+    const { greStore } = await import(modulePath)
+    return greStore
+      .snapshot()
+      .battlefield.find((card: CardView) => /^Clue(?: Token)?$/.test(card.name))
+  })
+  expect(runtimeClue?.grpId).toBeGreaterThan(0)
+  const clueGrpId = runtimeClue!.grpId
+  const clue = runtimeClue!
+  expect(clue.name).toBe('Clue Token')
+  expect(clue.typeLine).toContain('Artifact')
+  expect(clue.imageUrl).toBeTruthy()
   const state = await page.evaluate(() => window.__greState()!)
-  expect(state.board.you.find((card) => card.name === 'Clue Token')?.iid).toBeGreaterThan(0)
+  expect(state.board.you.find((card) => card.iid === runtimeClue!.instanceId)?.name).toBe(
+    runtimeClue!.name,
+  )
   const battlefield = page.locator('[data-zone="battlefield"][data-owner="self"]')
-  const clueImage = battlefield.getByRole('img', { name: 'Clue Token', exact: true }).first()
+  const clueCard = battlefield.locator(`[data-instance-id="${runtimeClue!.instanceId}"]`).first()
+  await expect(clueCard).toHaveAttribute('data-card', clue.name)
+  await clueCard.hover()
+  await expect(
+    page.getByRole('complementary', { name: 'Clue Token inspection', exact: true }),
+  ).toContainText('Artifact')
+  const clueImage = clueCard.getByRole('img', { name: clue.name, exact: true })
   await expect(clueImage).toBeVisible()
   await expect
     .poll(
@@ -789,8 +796,7 @@ async function authenticate(page: Page): Promise<void> {
 }
 
 async function startPuzzle(page: Page, puzzle: string): Promise<void> {
-  await page.goto(`/dev/puzzle/${encodeURIComponent(puzzle)}`)
-  await page.waitForURL(/\/match\/puzzle/, { timeout: 20_000 })
+  await startPuzzleGame(page, puzzle)
 }
 
 async function runSteps(page: Page, steps: RawScenario['steps']): Promise<void> {
@@ -840,7 +846,7 @@ async function attackWith(page: Page, name: string): Promise<void> {
       .poll(() => page.evaluate(() => window.__greState()!.gsId), { timeout: 20_000 })
       .not.toBe(stateBefore)
   }
-  await expect(prompt).toBeVisible({ timeout: 30_000 })
+  await expect(prompt).toBeVisible({ timeout: 240_000 })
   const lifeBefore = await opponentLife(page)
   const count = Math.min(lifeBefore, await attackers.count())
   expect(count).toBeGreaterThan(0)

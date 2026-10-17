@@ -1,5 +1,5 @@
 import { ANALYTICS_RELEASE, analyticsTraffic, trackBugReportOpened } from './analytics'
-import type { GreCloseCategory } from '@engine/runtime/gre-transport'
+import type { GreCloseCategory } from '@engine/runtime/gre-connection'
 
 const TALLY_FORM = 'https://tally.so/r/pbGADP'
 
@@ -15,7 +15,7 @@ export type BugReportContext = {
   closeCategory?: GreCloseCategory
   closeCode?: number
   connectionStatus?: 'connected' | 'disconnected'
-  execution?: 'server' | 'browser'
+  execution?: 'browser'
   attemptId?: string
   frontendBuild?: string
   engineBuild?: string

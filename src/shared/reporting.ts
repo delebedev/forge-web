@@ -18,7 +18,7 @@ let browserFailureReports = 0
 
 export interface ReportingMatchContext {
   match_id: string
-  execution: 'server' | 'browser'
+  execution: 'browser'
   frontend_build?: string
   engine_build?: string
   backend_release?: string
@@ -55,7 +55,7 @@ export function reportGreFailure(
   error: unknown,
   context: {
     phase: 'decode' | 'apply' | 'transport'
-    execution: 'server' | 'browser'
+    execution: 'browser'
     matchId: string
   },
 ): void {

@@ -74,12 +74,12 @@ require revisiting field-presence proof.
 ## Coverage and exclusions
 
 Auth, client configuration, cards, decks, collection, courses, draft, sealed,
-match launch/retirement, public spectator, roadmap, puzzles and development
-challenge/candidate/advice JSON routes are covered. Optional features are
+course play receipts/results, roadmap, saved puzzles and development
+challenge text reads are covered. Optional features are
 registered in the export fixture without enabling them in production.
 
-Operator identity, replay and release diagnostics are explicitly hidden. Health,
-the OpenAPI document itself, the GRE WebSocket and binary GRE replay uploads are
+Operator identity and replay diagnostics are explicitly hidden. Health,
+the OpenAPI document itself and binary GRE replay uploads are
 also excluded. Card-image redirects are covered as empty HTTP outcomes.
 Generated frontend validation covers JSON bodies; empty/text responses remain
 status/content-type declarations in OpenAPI.

@@ -13,7 +13,6 @@ for module in domain.jar engine.jar gre-proto.jar; do
   fi
 done
 
-runtime_owners=0
 while IFS= read -r archive; do
   name=${archive##*/}
   if [[ "$name" == leyline-*.jar || "$name" == native.jar || "$name" == native-* ]]; then
@@ -40,13 +39,11 @@ while IFS= read -r archive; do
     echo "Product distribution includes legacy Leyline web head: $name:$legacy" >&2
     exit 1
   fi
-  count=$(printf '%s\n' "$listing" | grep -c '^leyline/match/InProcessMatchRuntime\.class$' || true)
-  runtime_owners=$((runtime_owners + count))
+  gameplay=$(printf '%s\n' "$listing" | grep -E '^forge/web/server/(match/(MatchReplayWriter|BrowserGreTransport|BrowserMatchLauncher|MatchRoutesKt|SpectatorRoutesKt|DevPuzzleCandidates)|puzzles/(PuzzlePipeline|PuzzleTrialTrace)|persistence/(MatchOutcome|MatchStartRecord|SqliteMatchOutcomeStore|NoOpMatchOutcomeRecorder))' | head -1 || true)
+  if [[ -n "$gameplay" ]]; then
+    echo "Product distribution includes a removed gameplay entrypoint: $name:$gameplay" >&2
+    exit 1
+  fi
 done < <(find "$lib_dir" -type f -name '*.jar' -print)
 
-if [[ "$runtime_owners" -ne 1 ]]; then
-  echo "Expected one embedded Leyline match runtime, found $runtime_owners" >&2
-  exit 1
-fi
-
-echo 'Product distribution contains reusable Leyline modules and one match runtime only.'
+echo 'Product distribution contains reusable Leyline modules without Web gameplay entrypoints.'

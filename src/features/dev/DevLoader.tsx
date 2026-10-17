@@ -1,4 +1,4 @@
-import { ChallengeSummarySchema } from '@shared/api/wire-schemas'
+import { DevelopmentPuzzleSchema } from '@shared/api/wire-schemas'
 import { readJson } from '@shared/api/decoding'
 /**
  * Standalone dev-only bootstrap for `/dev/game` and `/dev/puzzle/:puzzleId`.
@@ -48,10 +48,16 @@ export function DevLoader({
         if (puzzleId) {
           setStatus(`Loading puzzle ${puzzleId}…`)
           const metadata = await loadPuzzleMetadata(puzzleId)
-          greSession.start(puzzleToGreStartConfig(puzzleId, metadata ?? undefined))
+          if (!metadata) {
+            throw new Error('Puzzle content is unavailable')
+          }
+          greSession.startBrowser({
+            ...puzzleToGreStartConfig(puzzleId, metadata),
+            puzzleText: metadata.text,
+          })
         } else {
           setStatus('Starting constructed game…')
-          greSession.start(devDefaultGreStartConfig(deckQuery))
+          greSession.startBrowser(devDefaultGreStartConfig(deckQuery))
         }
       } catch (e: unknown) {
         if (!cancelled) {
@@ -85,13 +91,13 @@ export function DevLoader({
 
 async function loadPuzzleMetadata(
   puzzleId: string,
-): Promise<{ name: string; objective: string } | null> {
+): Promise<{ name: string; objective: string; text: string } | null> {
   const response = await apiFetch(`/api/dev/puzzles/${encodeURIComponent(puzzleId)}`)
   if (!response.ok) {
     return null
   }
-  const body = await readJson(response, ChallengeSummarySchema)
+  const body = await readJson(response, DevelopmentPuzzleSchema)
   return typeof body.name === 'string' && typeof body.objective === 'string'
-    ? { name: body.name, objective: body.objective }
+    ? { name: body.name, objective: body.objective, text: body.text }
     : null
 }

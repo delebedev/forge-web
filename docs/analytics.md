@@ -48,22 +48,8 @@ truncated prefix leaves an incomplete replay; client-supplied events are not
 proof that the engine accepted a submitted action. Public browser challenges
 do not upload journals.
 
-The server also keeps one aggregate-safe lifecycle row per admitted match in
-`player.db.match_outcomes`. A row contains only the opaque match ID, UTC start
-and end times, backend release, bounded mode, public flag, bounded format, and
-bounded outcome. It contains no player ID, deck, card, or match payload. The
-transport writes the start after admission and records the first terminal
-outcome: `completed`, `explicit_abandon`, `expired`, `launch_failed`,
-`engine_failed`, `deployment_interrupted`, `server_shutdown`, or
-`server_cancelled`. Cleanup and duplicate terminal signals cannot replace that
-first outcome.
-
-On startup, an unfinished row becomes `interrupted_unknown`. Its `ended_at`
-stays null because restart time is not evidence of when the match ended.
-`deployment_interrupted` requires release drain to be active at graceful
-shutdown; an abrupt stop is never inferred to be a deployment or crash. The
-ledger is independent of replay journal retention. Ledger write failures are
-logged and do not interrupt admission, gameplay, or cleanup.
+Historical server lifecycle rows remain stored unchanged. The product no longer
+creates, completes or recovers server match outcomes during startup.
 
 The authenticated player UUID is the stable opaque account identifier. Session
 restore, login, guest creation, logout, and account replacement must update the
@@ -80,13 +66,12 @@ card names.
 | Event | Event-specific properties |
 |---|---|
 | `login` | `method`, `success`, optional bounded `reason` |
-| `game-start`, `spectator-start` | `mode`, `gameType`, `match_id`, optional `format`, `deck_id` |
-| `game-start-failed`, `spectator-start-failed` | start fields when known, bounded `reason`, optional HTTP `status` and bounded `category` (`capacity`, `deployment`, or `server`) |
-| `game-complete`, `spectator-complete` | start fields, `result`, `durationSec`, `turn`, `lossReason` |
-| `game-left` | start fields, `phase`, `turn`, bounded `abandon_result`, optional HTTP `status` |
+| `game-start` | `mode`, `gameType`, `match_id`, optional `format`, `deck_id` |
+| `game-start-failed` | start fields when known, bounded `reason` |
+| `game-complete` | start fields, `result`, `durationSec`, `turn`, `lossReason` |
+| `game-left` (historical) | start fields, `phase`, `turn`, bounded `abandon_result`, optional HTTP `status`. Current leave events use `browser-lifecycle` with `stage=left`. |
 | `game-first-action` | start fields, bounded numeric `actionType` |
 | `turn-milestone` | start fields, `turn` in `1`, `5`, `10`, `20` |
-| `game-execution-fallback` | `from=browser`, `to=server`, bounded `reason` (`insecure-context`, `missing-engine-apis`, `missing-required-apis`, or `local-startup-failed`) and optional bounded `detail` for the missing capability or startup subsystem |
 | `game-recovery` | `execution=browser`, opaque match/attempt IDs and browser context, bounded `outcome` (`started`, `succeeded`, `failed`, `cancelled`), terminal `duration_ms` |
 | `deck-paste` | `cardCount`, `inputLength`, `lineCount` |
 | `deck-search` | `queryLength`, bounded `outcome`, optional `resultCount`, `status` |
@@ -115,8 +100,8 @@ or `failed`), aggregate `warmup_bytes`, and `warmup_duration_ms`. Segment
 Play-to-first-engine-stage duration by warmup and engine build; do not interpret
 requested bytes as transferred bytes when browser HTTP-cache transfer sizes are
 unavailable. The attempt
-identity remains on a server fallback so its eventual game start can be joined
-to the browser attempt. Events never include a decklist, card name, GRE payload,
+identity joins the local game start to its browser attempt. Startup failures remain
+local and explicit. Events never include a decklist, card name, GRE payload,
 or browser error text.
 
 Same-tab recovery starts a fresh attempt with `retry` and `reason=recovery`,
@@ -151,17 +136,17 @@ zero count in the current release.
 | `deck-paste` | Keep | `DeckImportDialog` after a valid parse | Does pasted-deck import reach a usable deck? |
 | `format-select` | Remove | Format remains on `game-start` and `deck-saved` | Which formats produce saved decks and launched games? |
 | `game-start` | Keep | `GreStore.recordGameStart` after match creation | Which player matches launch? |
-| `game-start-failed` | Keep | `GreStore.recordGameStartFailed` | Why does match creation fail? |
+| `game-start-failed` | Remove | Browser failures use `browser-lifecycle` and diagnostic reports | Why does local startup fail? |
 | `game-complete` | Keep | `GreStore.recordGameComplete` on terminal state | Which player matches finish, and how? |
-| `game-concede` | Replace with `game-left` | `GreSession.leave` before clearing an ongoing player match | Where do players explicitly leave active matches? |
+| `game-concede`, `game-left` | Remove | Local lifecycle reports explicit leave | Where do players leave active matches? |
 | `prompt-response` | Replace with `game-first-action` | `GreStore.sendPerformAction` after the first sent non-pass action | Does a player progress from connection to actual play? |
 | `turn-milestone` | Keep, bounded | `GreStore.applyGsmPayload` at turns 1, 5, 10, and 20 | How deep do unfinished player matches progress? |
 | `login` | Keep | `LoginPage` after code verification | Does passwordless login succeed, and why does it fail? |
 | `challenge-opened` | Restore for browser links | `BrowserChallenge` on opening a curated link | Which challenge attempts open? |
 | `challenge-first-action` | Restore for browser links | `GreStore` after the first non-pass action | Which opened challenges reach interaction? |
 | `challenge-stack-opened` | Remove | The duplicate challenge action seam was removed | Which challenge attempts exercise the stack interaction? |
-| `spectator-start` | Keep | `GreStore.recordGameStart` after spectator resume begins | Which public spectator matches launch? |
-| `spectator-complete` | Keep | `GreStore.recordGameComplete` on terminal state | Which spectator matches reach an outcome? |
+| `spectator-start` | Remove | Public watch reads saved games | Historical live spectator launches |
+| `spectator-complete` | Remove | Public watch reads saved games | Historical live spectator outcomes |
 
 `game-first-action` excludes pass-priority actions, spectators, and puzzles.
 Turn milestones exclude spectators and puzzles, emit once per current match, and
@@ -177,40 +162,23 @@ mode/game type, and the opaque match ID when known. Results add `outcome`
 `duration_ms`. They contain no card names, input text, or GRE payloads.
 
 `action-response` observations remain browser-local and are not sent to Better
-Stack or Umami. Launch, reconnect, and disconnect observations remain in
-Umami because they are low volume and support the existing lifecycle views.
+Stack or Umami. Browser startup/readiness and recovery use `browser-lifecycle`
+and `game-recovery`. The former server launch/reconnect boundaries are retired.
 
-- `game-start`: launch intent through the first usable GRE request (or first
-  state for a spectator). Results include `http_ms` to HTTP response headers,
-  `server_ms` for the route-processing portion, and `backend_release` from the
-  server. These HTTP timings do not include subsequent engine initialization.
 - `action-response`: a sent player action or prompt answer through the next
   newer authoritative state/request. This measures observable progress, not
   causality of a particular frame or completion of the whole AI turn. Bootstrap,
   settings, and checkpoint messages are excluded. Illegal requests fail the
   pending measurement. There is no sampling; overlapping measurements cancel
   the older one as `superseded`.
-- `reconnect`: joining an existing match through a usable request/state. Retries
-  after a known disconnect carry its `disconnect_id` and a one-based
-  `reconnect_attempt`. This
-  also includes first attachment to a preallocated match; it is not evidence of
-  an earlier disconnect. A fresh-page join may have unknown backend release.
-- `journey-disconnected`: one event per unexpected socket-loss incident before
+- `journey-disconnected`: one event per unexpected frame-source loss incident before
   game over, including `disconnect_id`, match and release context, bounded
   `close_category`, numeric `close_code`, and `connection_status`. Retry closes
   remain part of the original incident. Intentional leave and explicit match
-  completion do not emit it. A match ended from another attached client is the
-  bounded `abandoned` category and also does not emit a disconnect incident.
-  Arbitrary WebSocket reason text is never sent.
+  completion do not emit it. Arbitrary frame-source error text is never sent.
 
 Report disconnect incidents by distinct `disconnect_id`, affected matches by
 distinct `match_id`, and reconnect attempts separately by `operation_id`.
-Capacity rejections are launch failures with `category=capacity`; count their
-affected accounts/sessions alongside attempts so repeated clicks do not imply
-more affected players. Keep engine termination, unavailable matches, temporary
-transport loss, and unmatched observations separate. Older events without these
-fields remain unclassified rather than being inferred as new incidents.
-
 Observation deadlines are 60 seconds for readiness and 30 seconds for action
 progress. They never abort a request, change priority, or otherwise control the
 match. Disconnects fail pending observations; explicit leave cancels them.
@@ -261,13 +229,12 @@ deduplication and the three-report page budget remain unchanged.
 Caught frame failures retain their original exception and distinguish transport,
 decoding and state application. Generic browser reports inherit the active
 match, execution and known build identities at capture time; leaving the match
-clears that scope. A native socket error without an exception remains a message
+clears that scope. A frame-source error without an exception remains a message
 rather than receiving a fabricated stack.
 
 Unexpected API failures include only a generated route template, method when
 known, status and validated backend release. Response decoding reports omit
-response values and validation messages. Expected authentication, validation,
-capacity and deployment responses remain routine. These additional diagnostic
+response values and validation messages. Expected authentication and validation responses remain routine. These additional diagnostic
 reports share a ten-report page budget and deduplicate owned exception objects.
 
 Browser replay delivery reports its first collection, HTTP or network failure

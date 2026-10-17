@@ -126,35 +126,6 @@ describe('recent constructed decks', () => {
     expect(starts).toEqual([])
   })
 
-  it('validates both pasted watch decks before starting', async () => {
-    const validated: string[] = []
-    const starts: GreStartConfig[] = []
-    const start = createGameSetupStarter({
-      validate: async (text) => {
-        validated.push(text)
-        return { ok: true }
-      },
-      start: (config) => starts.push(config),
-    })
-
-    const result = await start(
-      { gameType: 'constructed', mode: 'watch', deck1List: '60 Plains', deck2List: '60 Island' },
-      null,
-      null,
-    )
-
-    expect(result).toEqual({ ok: true })
-    expect(validated).toEqual(['60 Plains', '60 Island'])
-    expect(starts).toEqual([
-      {
-        seat1Deck: '60 Plains',
-        seat2Deck: '60 Island',
-        gameType: 'constructed',
-        spectatorMode: true,
-      },
-    ])
-  })
-
   it('rejects an invalid play opponent deck before starting', async () => {
     const starts: GreStartConfig[] = []
     const start = createGameSetupStarter({
@@ -175,29 +146,6 @@ describe('recent constructed decks', () => {
     )
 
     expect(result).toEqual({ ok: false, error: 'Opponent deck: Card not found: Bogus' })
-    expect(starts).toEqual([])
-  })
-
-  it('rejects an invalid watch seat 2 before starting', async () => {
-    const starts: GreStartConfig[] = []
-    const start = createGameSetupStarter({
-      validate: async (text) =>
-        text.includes('Bogus') ? { ok: false, errors: ['Card not found: Bogus'] } : { ok: true },
-      start: (config) => starts.push(config),
-    })
-
-    const result = await start(
-      {
-        gameType: 'constructed',
-        mode: 'watch',
-        deck1List: '60 Plains',
-        deck2List: '60 Bogus',
-      },
-      null,
-      null,
-    )
-
-    expect(result).toEqual({ ok: false, error: 'AI Player 2: Card not found: Bogus' })
     expect(starts).toEqual([])
   })
 
@@ -222,35 +170,6 @@ describe('recent constructed decks', () => {
     expect(validated).toEqual(['60 Plains', '60 Island'])
     expect(starts).toEqual([
       { seat1Deck: '60 Plains', seat2Deck: '60 Island', deckId: 'plains', gameType: 'constructed' },
-    ])
-  })
-
-  it('validates distinct selected watch seats in sent order', async () => {
-    const validated: string[] = []
-    const starts: GreStartConfig[] = []
-    const start = createGameSetupStarter({
-      validate: async (text) => {
-        validated.push(text)
-        return { ok: true }
-      },
-      start: (config) => starts.push(config),
-    })
-
-    expect(
-      await start(
-        { gameType: 'constructed', mode: 'watch' },
-        selectedDeck('Plains', 1),
-        selectedDeck('Island', 2),
-      ),
-    ).toEqual({ ok: true })
-    expect(validated).toEqual(['60 Plains', '60 Island'])
-    expect(starts).toEqual([
-      {
-        seat1Deck: '60 Plains',
-        seat2Deck: '60 Island',
-        gameType: 'constructed',
-        spectatorMode: true,
-      },
     ])
   })
 

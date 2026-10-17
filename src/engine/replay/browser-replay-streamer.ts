@@ -152,6 +152,7 @@ export class BrowserReplayStreamer {
       if (!response.ok) {
         return this.failed('http', response.status)
       }
+      await response.text()
       this.failure = null
       this.acknowledged = true
       this.afterSeq = chunk.events?.at(-1)?.seq ?? this.afterSeq

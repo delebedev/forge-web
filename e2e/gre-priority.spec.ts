@@ -365,15 +365,18 @@ test.describe('priority flow demos', () => {
     await openFlow(page, 'priority-flow-last-spell')
     await castBear(page)
     await expect
-      .poll(async () => {
-        const s = await page.evaluate(() => window.__greState()!)
-        return (
-          s.board.you.some((c) => c.name === 'Runeclaw Bear') &&
-          s.hand.some((c) => c.name === 'Forest') &&
-          s.activeSeat === s.viewerSeat &&
-          s.phase === 'Main1'
-        )
-      })
+      .poll(
+        async () => {
+          const s = await page.evaluate(() => window.__greState()!)
+          return (
+            s.board.you.some((c) => c.name === 'Runeclaw Bear') &&
+            s.hand.some((c) => c.name === 'Forest') &&
+            s.activeSeat === s.viewerSeat &&
+            s.phase === 'Main1'
+          )
+        },
+        { timeout: 20_000 },
+      )
       .toBe(true)
     await finishFrame(page, info)
   })
@@ -467,10 +470,15 @@ test.describe('priority flow demos', () => {
     await page.getByTitle('Set stops in Ending', { exact: true }).click()
     await castBear(page)
     await expect
-      .poll(async () => {
-        const s = await page.evaluate(() => window.__greState()!)
-        return s.activeSeat !== s.viewerSeat && s.step === 'End' && s.prioritySeat === s.viewerSeat
-      })
+      .poll(
+        async () => {
+          const s = await page.evaluate(() => window.__greState()!)
+          return (
+            s.activeSeat !== s.viewerSeat && s.step === 'End' && s.prioritySeat === s.viewerSeat
+          )
+        },
+        { timeout: 20_000 },
+      )
       .toBe(true)
     if (recordDemos) {
       await page.waitForTimeout(1_500)
@@ -506,10 +514,15 @@ test.describe('priority flow demos', () => {
     await openFlow(page, 'priority-flow-opponent-response')
     await page.getByRole('button', { name: 'Pass turn', exact: true }).click()
     await expect
-      .poll(async () => {
-        const s = await page.evaluate(() => window.__greState()!)
-        return s.stack.length === 1 && s.hand.some((c) => c.name === 'Cancel' && c.play === 'spell')
-      })
+      .poll(
+        async () => {
+          const s = await page.evaluate(() => window.__greState()!)
+          return (
+            s.stack.length === 1 && s.hand.some((c) => c.name === 'Cancel' && c.play === 'spell')
+          )
+        },
+        { timeout: 20_000 },
+      )
       .toBe(true)
     await expect(page.getByRole('button', { name: 'Cancel auto-pass' })).toHaveCount(0)
     if (recordDemos) {
@@ -933,16 +946,23 @@ test('required graveyard cost cancels and can be completed on retry', async ({ p
   await handZone(page).filter({ hasText: 'Cobbled Lancer' }).click()
   await selection.getByRole('button', { name: /^Grizzly Bears/ }).click()
   await selection.getByRole('button', { name: 'Submit selection', exact: true }).click()
-  await expect(page.getByRole('heading', { name: 'Victory', exact: true })).toBeVisible()
-  expect((await page.evaluate(() => window.__greState()!)).counts.you.exile).toBe(1)
-  expect((await page.evaluate(() => window.__greState()!)).diagnostics.errorCount).toBe(0)
+  const victory = page.getByRole('heading', { name: 'Victory', exact: true })
+  await expect(victory).toHaveCount(1)
+  await expect(victory).toBeVisible()
+  await expect(page.locator('[data-prompt]')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /^(Pass|Resolve)$/ })).toHaveCount(0)
+  const completed = await page.evaluate(() => window.__greState()!)
+  expect(completed.gameOver).toBe(true)
+  expect(completed.outcome?.title).toBe('Victory')
+  expect(completed.counts.you.exile).toBe(1)
+  expect(completed.diagnostics.errorCount).toBe(0)
   await page.screenshot({ path: info.outputPath('selection-paid.png') })
   if (recordDemos) {
     await page.waitForTimeout(1000)
   }
 })
 
-for (const execution of ['server', 'browser'] as const) {
+for (const execution of ['browser'] as const) {
   test(`game log explains a visible burn spell (${execution})`, async ({ page }, info) => {
     test.setTimeout(120_000)
     await authenticateShell(page, 'game-log-proof')
@@ -1077,7 +1097,7 @@ for (const choice of [
   })
 }
 
-for (const execution of ['server', 'browser'] as const) {
+for (const execution of ['browser'] as const) {
   test(`Citadel exposes the top-library cast beside the hand and pays life (${execution})`, async ({
     page,
   }, info) => {
@@ -1175,7 +1195,7 @@ test('independent draft sets preserve an active pool', async ({ page }, info) =>
   await page.waitForTimeout(1_000)
 })
 
-for (const execution of ['server', 'browser'] as const) {
+for (const execution of ['browser'] as const) {
   test(`mixed stack shows and resolves the first entry (${execution})`, async ({ page }, info) => {
     test.setTimeout(120_000)
     await authenticateShell(page, 'mixed-stack-proof')
@@ -1238,7 +1258,7 @@ for (const execution of ['server', 'browser'] as const) {
   })
 }
 
-for (const execution of ['server', 'browser'] as const) {
+for (const execution of ['browser'] as const) {
   test(`Red protection excludes its creature from red spell targets (${execution})`, async ({
     page,
   }, info) => {
@@ -1359,7 +1379,7 @@ for (const execution of ['server', 'browser'] as const) {
   })
 }
 
-for (const execution of ['server', 'browser'] as const) {
+for (const execution of ['browser'] as const) {
   test(`Single Combat keeps the selected second creature (${execution})`, async ({
     page,
   }, info) => {
@@ -1454,7 +1474,7 @@ for (const execution of ['server', 'browser'] as const) {
   })
 }
 
-for (const execution of ['server', 'browser'] as const) {
+for (const execution of ['browser'] as const) {
   for (const choice of [
     {
       label: 'Creature',

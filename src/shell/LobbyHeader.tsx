@@ -68,6 +68,9 @@ export function LobbyHeader() {
             {dailyComplete ? 'Done' : 'New'}
           </span>
         </a>
+        <a href="/watch" onClick={follow}>
+          Watch
+        </a>
         <a href="/roadmap" onClick={follow}>
           Roadmap
         </a>
@@ -82,15 +85,11 @@ export function LobbyHeader() {
         )}
       </nav>
       <div className={styles.utilities}>
-        {session.config?.matchId &&
-          !session.isSpectator &&
-          board.connected &&
-          !board.gameOver &&
-          router.lastMatchPath && (
-            <a href={router.lastMatchPath} onClick={follow}>
-              Return to game
-            </a>
-          )}
+        {session.config?.matchId && board.connected && !board.gameOver && router.lastMatchPath && (
+          <a href={router.lastMatchPath} onClick={follow}>
+            Return to game
+          </a>
+        )}
         <button className={styles.newsLink} type="button" onClick={() => openWhatsNew('header')}>
           What's new
         </button>

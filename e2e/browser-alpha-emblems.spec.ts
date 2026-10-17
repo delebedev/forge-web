@@ -1,10 +1,10 @@
 import { readFileSync, writeFileSync } from 'node:fs'
-import { authenticateShell, expect, startPuzzleGame, test } from './gre-test'
+import { authenticateShell, expect, test } from './gre-test'
 import { loadAcceptanceSuite, runGreAcceptanceSteps } from './gre-acceptance'
 
 const effect = 'Whenever a creature dies, target opponent loses 1 life and you gain 1 life.'
 
-for (const execution of ['server', 'browser'] as const) {
+for (const execution of ['browser'] as const) {
   test(`${execution} emblem persists, inspects and resolves after its creator dies`, async ({
     page,
   }, info) => {
@@ -13,20 +13,18 @@ for (const execution of ['server', 'browser'] as const) {
     })
     await authenticateShell(page)
     const scenario = loadAcceptanceSuite('emblems').scenarios[0]!
-    if (execution === 'server') {
-      await startPuzzleGame(page, scenario.puzzle)
-    } else {
-      const text = readFileSync(`leyline/data/puzzles/${scenario.puzzle}.pzl`, 'utf8')
-      await page.route('**/api/puzzles/emblem-persistence', (route) =>
-        route.fulfill({
-          json: { id: 'emblem-persistence', title: 'Persistent emblem', text, createdAt: '' },
-        }),
-      )
-      await page.goto('/challenge/emblem-persistence')
-      await expect(
-        page.locator('[data-zone="hand"][data-owner="self"] [data-card]').first(),
-      ).toBeVisible({ timeout: 240_000 })
-    }
+
+    const text = readFileSync(`leyline/data/puzzles/${scenario.puzzle}.pzl`, 'utf8')
+    await page.route('**/api/puzzles/emblem-persistence', (route) =>
+      route.fulfill({
+        json: { id: 'emblem-persistence', title: 'Persistent emblem', text, createdAt: '' },
+      }),
+    )
+    await page.goto('/challenge/emblem-persistence')
+    await expect(
+      page.locator('[data-zone="hand"][data-owner="self"] [data-card]').first(),
+    ).toBeVisible({ timeout: 240_000 })
+
     expect(await page.evaluate(() => window.__greState?.()?.matchId.startsWith('browser-'))).toBe(
       execution === 'browser',
     )

@@ -20,12 +20,11 @@ Copy `.env.example` to `.env.local` once for local fixed-login and state default
 Export that file in the server terminal and generate a fresh auth secret
 as shown below. Do not use these fixed-login settings on a reachable deployment.
 
-Browser execution is the default on supported browsers. Run `bun run browser:assets`
+Browser execution is the only gameplay host. Unsupported browsers show an error and retry. Run `bun run browser:assets`
 once per worktree, and again after changing the engine or catalog, to serve the
 browser release from Vite. The build requires Java 17 alongside Java 21.
 
-The backend embeds the pinned Leyline engine; no separate Leyline server is
-needed. Start these in durable terminals or a process supervisor:
+The backend serves product APIs and catalog data. It does not run games. Start these in durable terminals or a process supervisor:
 
 ```bash
 set -a
@@ -41,53 +40,9 @@ bun run dev:seed
 ```
 
 Keep the auth secret stable across backend restarts in the same session.
-Player matches default to no engine animation sleeps; the browser owns motion
-and catches up immediately when player priority arrives. Spectator matches keep
-the engine's normal pacing. An explicit `engine.ai_speed` configuration or
-`LEYLINE_ENGINE_AI_SPEED` overrides both defaults (zero disables sleeps).
-Additional-cost choices use Forge descriptions in GRE text parameters for both
-Server and Browser (Local). An explicit `engine.cost_choice_presentation` or
-`LEYLINE_ENGINE_COST_CHOICE_PRESENTATION` can override the Server default.
+The browser runs games without engine animation sleeps and owns presentation timing.
+Additional-cost choices use Forge descriptions in GRE text parameters.
 Native prompt ids remain a browser compatibility fallback.
-
-WebSockets ping every 15 seconds and allow 15 seconds for a reply, so inactive
-connections are checked even while the game is waiting for a player.
-Private matches also expire after five minutes without a gameplay frame in
-either direction. Ping, pong, and reconnect handshakes do not extend that limit.
-Backend defaults to port 8080. For another port set `LEYLINE_WEB_PORT` on the
-backend, `LEYLINE_WEBDOOR_URL` on Vite, and `FORGE_WEB_DEV_URL` on provisioning.
-Do not reuse another worktree's server or database silently.
-
-Match journaling is always enabled under `<state>/replays`. Set
-`LEYLINE_WEB_REPLAY_OPERATOR_TOKEN` to a private value of at least 32 characters
-when testing operator access. The bearer token permits replay export and player
-email lookup, so keep it restricted to trusted operators.
-`GET /api/operator/replays/{matchId}` accepts that token;
-`POST /api/operator/replays/{matchId}/pin` accepts
-`{"reportId":"..."}`. Open the exported file at `/play/replay` in a development
-build. Production builds keep the viewer unavailable.
-Authenticated Browser (Local) matches send best-effort GRE chunks to the same
-store while play continues. A failing replay route must not interrupt the game;
-an interrupted upload leaves the export marked incomplete.
-
-Generated card ids are scoped to the running Forge catalog. SQLite stores exact
-primary Forge names and resolves them to runtime ids at startup, so adding cards
-or changing generated ids does not rewrite saved state. A removed or renamed
-stored card fails startup instead of being reinterpreted. State that still uses
-numeric card ids requires an explicit migration. Browser card metadata requests
-revalidate with the backend, but page memory does not. Reload the page after
-changing the catalog or restarting the backend.
-
-Source card ability metadata also carries continuous keyword grant definitions.
-Both server and Browser (Local) metadata use the pinned catalog's generated
-identity, keyword name, and reminder text. Persistent AddAbility rows select
-these definitions for the recipient's Gained label and mechanic explanation.
-A new catalog-supported keyword uses this path without adding a Web keyword id.
-Dedicated board icons remain optional.
-
-Copied and granted activated choices use their published ability identity to
-find text in the loaded source-card metadata when the recipient has no printed
-entry for that ability.
 
 ## Coupled Leyline fixes
 
@@ -124,17 +79,16 @@ events first and retain up to 100 events for the current match. Hidden card
 identities remain unnamed. Reconnecting preserves history while a new match
 clears it.
 
-The authored burn scenario exercises the Server and Browser flows:
+The authored burn scenario exercises the Browser flow:
 `bun run gre -- -g 'game log explains'`.
 Set `PRIORITY_DEMO_VIDEO=1` to produce a desktop proof clip with card art hidden.
 
 ## Remote browser feedback
 
 A Tailscale proxy may keep the same URL between sessions. Its upstream must
-point to this session's frontend. GRE WebSockets currently connect directly to
-the backend, so expose a second tailnet HTTPS endpoint for it and set
-`LEYLINE_WEBDOOR_WS_URL=wss://<tailnet-host>:<backend-port>` on Vite. Add the
-exact hostname to `VITE_ALLOWED_HOSTS`. Use tailnet-only Serve, not Funnel.
+point to this session's frontend. Vite forwards product API requests to the backend.
+Gameplay stays in the browser worker. Add the exact hostname to `VITE_ALLOWED_HOSTS`.
+Use tailnet-only Serve, not Funnel.
 
 Before handing over, verify frontend, proxied API, and a live GRE interaction
 through the shared URL. Report the worktree, revision, URL, and dev login.
@@ -142,8 +96,7 @@ An HTTP 502 with working Tailscale usually means the local upstream stopped.
 
 ## Feedback loop
 
-- Frontend edits hot reload. Backend edits require a restart and end in-memory
-  games; tell the player before restarting during active feedback.
+- Frontend edits hot reload. Backend edits require a restart of product APIs. Browser games stay in their workers.
 - Sign in as the provisioned account. Refresh the deck library after seeding.
 - Reload the page after a catalog change or backend restart.
 - Board options → Hide card art uses the same artwork suppression as Storybook and persists per browser. It keeps card names, rules, mechanics and geometry visible for screenshots.
@@ -171,25 +124,6 @@ The fixture attaches an MP4 using the existing screenshot-frame recorder.
 
 There is no unified `dev up` / `dev down` command yet.
 
-## Match capacity workload
-
-Run the short local capacity check with a seeded fixed-login backend and Vite.
-Set `FORGE_WEB_MAX_MATCHES` on the backend to the same value passed as
-`FORGE_WEB_MATCH_COUNT`. Give the candidate limits matching the target deployment. The current sizing
-target is a 2 GiB JVM heap, 4 GiB container memory, and 3 CPUs. The default
-match limit is eight; `FORGE_WEB_MAX_MATCHES` overrides it.
-
-```bash
-FORGE_WEB_BASE_URL=http://127.0.0.1:5173 FORGE_WEB_MATCH_COUNT=8 FORGE_WEB_LOGIN_CODE=123456 node scripts/check-match-capacity.ts
-```
-
-Use Node, not Bun, for this standalone Playwright script. It runs two waves of
-mixed Vivi, Y'shtola, and constructed games, advances every match through turn
-three with a nonland spell cast, checks capacity rejection, and abandons every
-launched match before the next wave. Record readiness and action latency beside
-an external peak-memory sample. This is a bounded local stress check; run a
-longer soak on the VPS before using it to set production capacity.
-
 ## Board state fixes
 
 Run `bun run storybook` and open **Gameplay / Objects / Attachments** for attachments and
@@ -200,7 +134,7 @@ and static verification commands live in [storybook.md](storybook.md).
 
 Update the relevant story fixture when pinning another useful visual state.
 Verify the matching live interaction before treating a story as proof of game
-behavior. Keep actual power/toughness server-authoritative: counter badges
+behavior. Keep actual power/toughness engine-authoritative: counter badges
 explain the totals and must never add to them again.
 
 ## Commander casting
@@ -211,10 +145,10 @@ objects and Commander designations for visibility, and exact legal actions for
 casting. It follows the new object identity after a commander returns.
 
 Start the server with `LEYLINE_WEB_DEV_TOOLS=true`. The flag exposes fixture
-metadata and owner-scoped puzzle candidate routes; it defaults to false.
-Development frontend builds show the Challenges navigation. The editor can validate an
-exact `.pzl` draft, run a bounded engine trial, and launch the loaded candidate
-on the standard board.
+metadata and authored puzzle text reads; it defaults to false.
+Development frontend builds show the Challenges navigation. Validate starts a local
+browser engine on first use and reports validation issues. Play launches the authored
+text on the standard local board. Generation and engine trials are not product APIs.
 
 After signing in locally, open `/dev/puzzle/commander-return-self-bolt`. Cast
 Lightning Bolt at Arabella, accept the command-zone return, and click her card
@@ -244,7 +178,7 @@ Library remains available while the engine permits it.
 
 The Citadel check casts Grizzly Bears for two life, advances to Forest, then
 removes the Citadel and verifies that library actions and inspection disappear.
-Run it in both Server and Browser execution with:
+Run it in Browser execution with:
 
 ```bash
 bun run gre -- -g 'Citadel exposes'
@@ -258,7 +192,7 @@ Cards exposed by hand-inspection effects appear in the opponent hand fan and
 can be inspected in the existing card viewer. Concealed cards retain their
 slots. Removing the permission closes stale inspection surfaces and conceals
 the identities. The authored Telepathy scenario checks this lifecycle, delayed
-images, continued play and a new-match reset in both executions.
+images, continued play and a new-match reset in Browser execution.
 
 The gameplay cost scenarios cover zero and two multikicker payments, K’rrik
 life payment for Flashback with cancellation and retry, and Strong Back equip

@@ -14,26 +14,17 @@ import forge.web.server.http.installHttpApplication
 import forge.web.server.http.installServerErrorReporting
 import forge.web.server.http.serverBackendRelease
 import forge.web.server.limited.LimitedSetView
-import forge.web.server.match.BrowserGreTransport
-import forge.web.server.match.BrowserMatchLauncher
-import forge.web.server.match.DevPuzzleCandidates
 import forge.web.server.match.MatchReplayConfig
 import forge.web.server.match.MatchReplayStore
-import forge.web.server.match.SpectatorDeckPool
 import forge.web.server.match.developmentChallenges
 import forge.web.server.match.emptyChallenges
 import forge.web.server.persistence.PlayerDatabase
-import forge.web.server.puzzles.OpenRouterPuzzleModels
-import forge.web.server.puzzles.PuzzlePipeline
 import io.ktor.server.application.Application
 import io.ktor.server.application.ApplicationStopped
-import io.ktor.server.application.ApplicationStopping
 import io.ktor.server.application.install
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.netty.Netty
 import io.ktor.server.plugins.forwardedheaders.XForwardedHeaders
-import kotlinx.coroutines.runBlocking
-import leyline.config.EngineSettings
 import leyline.domain.CollationPool
 import leyline.domain.PlayerId
 import leyline.domain.service.CollectionService
@@ -43,10 +34,7 @@ import leyline.domain.service.GeneratedPool
 import leyline.domain.service.RepositoryMatchCoordinator
 import leyline.game.data.ForgeCardRepository
 import leyline.game.generator.ForgeBoosterDraftDriver
-import leyline.game.generator.PuzzleValidation
 import leyline.game.generator.SealedPoolGenerator
-import leyline.match.InProcessMatchRuntime
-import leyline.match.PuzzleTrial
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -84,10 +72,6 @@ fun main(args: Array<String>) {
 }
 
 internal fun Application.installServer(services: WebServices) {
-    monitor.subscribe(ApplicationStopping) {
-        runBlocking { services.greRelay.shutdown() }
-        services.puzzlePipeline?.close()
-    }
     installHttpApplication(services)
 }
 
@@ -105,10 +89,6 @@ private fun serverServices(
     val authStore = database.authStore
     val starterDecks =
         StarterDecks.load { name, set ->
-            cardRepo.findGrpIdByNameAndSet(name, set.orEmpty()) ?: cardRepo.findGrpIdByName(name)
-        }
-    val spectatorDeckPool =
-        SpectatorDeckPool.load { name, set ->
             cardRepo.findGrpIdByNameAndSet(name, set.orEmpty()) ?: cardRepo.findGrpIdByName(name)
         }
     val defaultPlayerId = PlayerId(web.playerId)
@@ -166,63 +146,10 @@ private fun serverServices(
                 maxBytes = web.replayMaxBytes,
                 maxMatchBytes = web.replayMaxMatchBytes,
             ),
-            cardRepo,
-            serverRelease,
-            cardImages = cardImages,
         )
 
-    fun matchRuntime(settings: EngineSettings) =
-        InProcessMatchRuntime(
-            engineSettings = settings,
-            coordinator = coordinator,
-            cardRepository = cardRepo,
-            puzzlesDir = paths.puzzlesDir,
-        )
-
-    val playerRuntime = matchRuntime(config.playerEngine)
-    val devPuzzleCandidates =
-        if (web.devTools) {
-            DevPuzzleCandidates(
-                validate = PuzzleValidation(cardRepo)::validate,
-                runTrial = PuzzleTrial(matchRuntime(config.playerEngine), config.playerEngine.seed)::run,
-            )
-        } else {
-            null
-        }
-    val puzzleModel = System.getenv("FORGE_WEB_PUZZLE_MODEL")?.trim()?.takeIf(String::isNotEmpty) ?: "google/gemini-3.8-flash"
-    val puzzleGeneratorEmail = System.getenv("FORGE_WEB_PUZZLE_GENERATOR_EMAIL")?.trim()?.lowercase().orEmpty()
-    val openRouterKey = System.getenv("OPEN_ROUTER_API_KEY")?.trim().orEmpty()
-    val puzzlePipeline =
-        if (puzzleGeneratorEmail.isNotEmpty() && openRouterKey.isNotEmpty()) {
-            PuzzlePipeline.production(
-                store = database.puzzles,
-                models = OpenRouterPuzzleModels(openRouterKey, puzzleModel),
-                cards = cardRepo,
-                runtime = matchRuntime(config.playerEngine),
-                model = "$puzzleModel + typesafe/jev-1.13",
-            )
-        } else {
-            null
-        }
-    val relay =
-        BrowserGreTransport(
-            playerRuntime,
-            spectatorRuntime = matchRuntime(engineSettings),
-            maxConcurrentMatches = System.getenv("FORGE_WEB_MAX_MATCHES")?.toInt() ?: 8,
-            replayStore = replayStore,
-            outcomeRecorder = database.matchOutcomes,
-            serverRelease = serverRelease,
-        )
-    val challengeCatalog =
-        if (web.devTools) developmentChallenges(paths.puzzlesDir) else emptyChallenges()
-    val launcher =
-        BrowserMatchLauncher(
-            challengeCatalog = challengeCatalog,
-            coordinator = coordinator,
-            courseService = courseService,
-            relay = relay,
-            devPuzzleCandidates = devPuzzleCandidates,
-        )
+    val challengeCatalog = if (web.devTools) developmentChallenges(paths.puzzlesDir) else emptyChallenges()
+    val coursePlay = forge.web.server.limited.CoursePlayService(database.database, coordinator, courseService, cardRepo)
     val emailSender =
         if (web.resendApiKey.isNotBlank()) {
             ResendEmailSender(web.resendApiKey, web.resendFrom)
@@ -238,9 +165,7 @@ private fun serverServices(
         cardRepository = cardRepo,
         cardImages = cardImages,
         roadmap = database.roadmap,
-        matchLauncher = launcher,
-        greRelay = relay,
-        spectatorDeckPool = spectatorDeckPool,
+        coursePlay = coursePlay,
         replayStore = replayStore,
         authService =
             WebAuthService(
@@ -258,10 +183,7 @@ private fun serverServices(
             ),
         challengeCatalog = challengeCatalog,
         devToolsEnabled = web.devTools,
-        devPuzzleCandidates = devPuzzleCandidates,
         puzzleStore = database.puzzles,
-        puzzlePipeline = puzzlePipeline,
-        puzzleGeneratorEmail = puzzleGeneratorEmail,
         sealedSets = {
             SealedPoolGenerator.supportedSets().map {
                 LimitedSetView(code = it.code, name = it.name, type = it.type, cardCount = it.cardCount)

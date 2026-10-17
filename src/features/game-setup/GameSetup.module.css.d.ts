@@ -22,7 +22,6 @@ declare const styles: {
   readonly "pickOpponent": string
   readonly "rules": string
   readonly "selectedDeck": string
-  readonly "serverStart": string
 }
 
 export default styles

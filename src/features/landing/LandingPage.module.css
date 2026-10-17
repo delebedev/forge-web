@@ -4,7 +4,8 @@
 .invitation[hidden], .match[hidden] { display: none; }
 .invitation h1 { font: 500 clamp(36px, 3.4vw, 60px)/1.06 var(--public-display); letter-spacing: -1.5px; margin: 0 0 26px; }
 .description { color: var(--public-muted); font-size: 15px; line-height: 1.7; margin: 0 0 28px; max-width: 30ch; }
-.match { min-width: 0; min-height: 0; }
+.match { min-width: 0; min-height: 0; display: flex; flex-direction: column; padding-bottom: 24px; }
+.match > :first-child { flex: 1; min-height: 0; }
 .expand { border: 0; background: none; color: var(--public-text); font: 500 12px var(--public-body); padding: 9px 0; cursor: pointer; }
 .expand:hover { color: var(--public-accent); }
 .expanded { grid-template-columns: minmax(0, 1fr); }

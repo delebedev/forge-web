@@ -23,7 +23,7 @@ test('browser replay retries failed chunks without interrupting capture', async 
     if (!available) {
       throw new Error('Replay storage unavailable')
     }
-    return { ok: true } as Response
+    return new Response(null)
   } as typeof fetch
   const streamer = new BrowserReplayStreamer(collector, matchId, upload)
   try {
@@ -64,7 +64,7 @@ test('completion follows an in-flight feedback upload', async () => {
     if (sent.length === 1) {
       await firstResponse
     }
-    return { ok: true } as Response
+    return new Response(null)
   }
   const streamer = new BrowserReplayStreamer(collector, matchId, upload as typeof fetch)
   const feedback = streamer.flush('feedback', 'report-1')
@@ -89,7 +89,7 @@ test('metadata added after first upload reaches an idle in-progress replay', asy
   const sent: { events: unknown[]; cards: Record<string, unknown> }[] = []
   const upload = async (_url: string, options: RequestInit) => {
     sent.push(JSON.parse(String(options.body)))
-    return { ok: true } as Response
+    return new Response(null)
   }
   const streamer = new BrowserReplayStreamer(collector, matchId, upload as typeof fetch)
   try {
@@ -231,5 +231,89 @@ test('diagnostic subscriber failures cannot turn acknowledged uploads into netwo
     expect(streamer.diagnostics()).toEqual({ replay_state: 'acknowledged', replay_ack_seq: 1 })
   } finally {
     streamer.finish('left')
+  }
+})
+
+test('replay acknowledgement waits for the successful response body', async () => {
+  const collector = new BrowserReplayCollector({
+    execution: 'browser',
+    attemptId: 'attempt',
+    matchId: 'match',
+    gameType: 'constructed',
+  })
+  collector.incoming([{ type: 1 }])
+  let completeBody!: () => void
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      completeBody = () => controller.close()
+    },
+  })
+  let firstUpload = true
+  const streamer = new BrowserReplayStreamer(collector, 'match', (async () => {
+    const response = new Response(firstUpload ? body : null)
+    firstUpload = false
+    return response
+  }) as unknown as typeof fetch)
+  try {
+    const pending = streamer.flush()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(streamer.diagnostics()).toEqual({ replay_state: 'uploading', replay_ack_seq: 0 })
+    expect(await streamer.flush()).toBe(false)
+    completeBody()
+    expect(await pending).toBe(true)
+    expect(streamer.diagnostics()).toEqual({ replay_state: 'acknowledged', replay_ack_seq: 1 })
+  } finally {
+    streamer.finish('left')
+  }
+})
+
+test('failed response bodies preserve the replay prefix for retry', async () => {
+  const collector = new BrowserReplayCollector({
+    execution: 'browser',
+    attemptId: 'attempt',
+    matchId: 'match',
+    gameType: 'constructed',
+  })
+  collector.incoming([{ type: 1 }])
+  let rejectBody!: () => void
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      rejectBody = () => controller.error(new Error('Response interrupted'))
+    },
+  })
+  const sent: { after: string; events: number[] }[] = []
+  const report = spyOn(reporting, 'reportDiagnostic').mockImplementation(() => {})
+  const streamer = new BrowserReplayStreamer(collector, 'match', (async (
+    _url: string,
+    options: RequestInit,
+  ) => {
+    const chunk = JSON.parse(String(options.body))
+    sent.push({
+      after: (options.headers as Record<string, string>)['X-Replay-After-Seq'],
+      events: chunk.events.map((event: { seq: number }) => event.seq),
+    })
+    return new Response(sent.length === 1 ? body : null)
+  }) as typeof fetch)
+  try {
+    const pending = streamer.flush()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    rejectBody()
+    expect(await pending).toBe(false)
+    expect(streamer.diagnostics()).toEqual({
+      replay_state: 'failed',
+      replay_ack_seq: 0,
+      replay_failure: 'network',
+    })
+    collector.outgoing(Uint8Array.of(1))
+    expect(await streamer.flush()).toBe(true)
+    expect(streamer.diagnostics()).toEqual({ replay_state: 'acknowledged', replay_ack_seq: 2 })
+    expect(sent).toEqual([
+      { after: '0', events: [1] },
+      { after: '0', events: [1, 2] },
+    ])
+  } finally {
+    streamer.finish('left')
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    report.mockRestore()
   }
 })

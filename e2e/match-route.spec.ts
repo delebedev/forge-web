@@ -85,27 +85,16 @@ test('legacy replay route ignores saved launch config and opens the transcript p
   expect(observed.sockets).toEqual([])
 })
 
-test('compatible saved launch starts once and opens its GRE connection', async ({ page }) => {
-  const observed = await observeAdmission(page, savedConfig)
-  await page.goto('/match/constructed')
-  await expect.poll(() => observed.sockets.length).toBe(1)
-  await expect(page).toHaveURL(/\/match\/constructed$/)
-  await expect(page.getByRole('region', { name: 'Battlefield', exact: true })).toBeVisible()
-  expect(observed.starts).toHaveLength(1)
-  expect(observed.starts[0]).toMatchObject({
-    seat1Deck: savedConfig.seat1Deck,
-    seat2Deck: savedConfig.seat2Deck,
+test('historical server matches return to setup without a gameplay request', async ({ page }) => {
+  const observed = await observeAdmission(page, {
+    ...savedConfig,
+    execution: 'server',
+    matchId: 'existing-match',
   })
-})
-
-test('compatible saved match resumes its GRE connection without a new launch', async ({ page }) => {
-  const observed = await observeAdmission(page, { ...savedConfig, matchId: 'existing-match' })
   await page.goto('/match/constructed')
-  await expect.poll(() => observed.sockets.length).toBe(1)
-  await expect(page).toHaveURL(/\/match\/constructed$/)
-  await expect(page.getByRole('region', { name: 'Battlefield', exact: true })).toBeVisible()
+  await expect(page).toHaveURL(/\/play\/game$/)
   expect(observed.starts).toEqual([])
-  expect(observed.sockets[0]).toContain('matchId=existing-match')
+  expect(observed.sockets).toEqual([])
 })
 
 test('compatible browser match after reload keeps its ended-game controls without server startup', async ({
@@ -114,6 +103,7 @@ test('compatible browser match after reload keeps its ended-game controls withou
   const observed = await observeAdmission(page, {
     ...savedConfig,
     execution: 'browser',
+    attemptId: 'attempt-route-fixture',
     matchId: 'browser-route-fixture',
   })
   await page.goto('/match/constructed')

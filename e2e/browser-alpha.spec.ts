@@ -61,14 +61,9 @@ test('browser play is the lazy default and opens both shared match formats', asy
 
   await page.goto('/play/game?traffic=smoke')
   const primary = page.getByRole('button', { name: 'Start game', exact: true })
-  const server = page.getByRole('button', { name: 'Play on server', exact: true })
   await expect(primary).toBeEnabled()
-  await expect(server).toBeEnabled()
   const primaryBox = await primary.boundingBox()
-  const serverBox = await server.boundingBox()
   expect(primaryBox).not.toBeNull()
-  expect(serverBox).not.toBeNull()
-  expect(serverBox!.y).toBeGreaterThan(primaryBox!.y + primaryBox!.height)
   expect(await page.evaluate(() => sessionStorage.getItem('forge:gre:lastMatchConfig'))).toBeNull()
 
   await page.screenshot({ path: info.outputPath('lobby-1280x720.png') })
@@ -122,7 +117,7 @@ test('browser play is the lazy default and opens both shared match formats', asy
   })
 })
 
-test('browser bootstrap stays visible and server play replaces its card catalog', async ({
+test('browser bootstrap stays visible and a second local game keeps its card catalog', async ({
   page,
 }, info) => {
   await authenticate(page)
@@ -167,7 +162,7 @@ test('browser bootstrap stays visible and server play replaces its card catalog'
   await expect(page.getByText('Preparing your opening hand')).toBeHidden()
   await page.goBack()
   await expect(page.getByRole('heading', { name: 'What are you playing?' })).toBeVisible()
-  await page.getByRole('button', { name: 'Play on server', exact: true }).click()
+  await page.getByRole('button', { name: 'Start game', exact: true }).click()
   await expect.poll(() => page.evaluate(() => window.__greState()?.hand.length ?? 0)).toBe(7)
   const hand = page.locator('[data-zone="hand"][data-owner="self"]')
   await expect
@@ -183,65 +178,36 @@ test('browser bootstrap stays visible and server play replaces its card catalog'
       ),
     )
     .toBe(7)
-  await page.screenshot({ path: info.outputPath('server-art-after-browser.png') })
+  await page.screenshot({ path: info.outputPath('local-art-second-game.png') })
   await page.getByRole('button', { name: 'Keep hand', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Opening hand', exact: true })).toBeHidden()
   await page.getByRole('button', { name: /End Match/, exact: true }).click()
   await expect(page.getByRole('heading', { name: 'What are you playing?' })).toBeVisible()
 })
 
-test('a full server queue offers the same game in the browser', async ({ page }, info) => {
+test('a browser without required APIs shows an honest retry without server play', async ({
+  page,
+}) => {
+  await page.addInitScript(() =>
+    Object.defineProperty(window, 'Worker', { value: undefined, configurable: true }),
+  )
   await authenticate(page)
-  let serverStarts = 0
-  await page.route('**/api/gre/start', async (route) => {
-    serverStarts += 1
-    await route.fulfill({
-      status: 503,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        code: 'match_capacity',
-        message: 'All game slots are busy.',
-        retryAfterSeconds: 5,
-      }),
-    })
+  const starts: string[] = []
+  page.on('request', (request) => {
+    if (new URL(request.url()).pathname === '/api/gre/start') {
+      starts.push(request.url())
+    }
   })
   await page.goto('/play/game?traffic=smoke')
-  await page.getByRole('button', { name: 'Play on server', exact: true }).click()
-  await expect(page.getByText('All game slots are busy', { exact: true })).toBeVisible()
-  const original = await page.evaluate(() =>
-    JSON.parse(sessionStorage.getItem('forge:gre:lastMatchConfig')!),
-  )
-  const fallback = page.getByRole('button', { name: 'Start browser game' })
-  await expect(fallback).toBeEnabled()
-  await page.screenshot({ path: info.outputPath('capacity-browser-choice.png') })
-  await fallback.click()
-  await waitForBoard(page)
-  const browser = await page.evaluate(() =>
-    JSON.parse(sessionStorage.getItem('forge:gre:lastMatchConfig')!),
-  )
-  expect(browser).toMatchObject({
-    execution: 'browser',
-    gameType: original.gameType,
-    seat1Deck: original.seat1Deck,
-    seat2Deck: original.seat2Deck,
-  })
-  expect(serverStarts).toBe(1)
-})
-
-test('a browser without required APIs selects server play before launch', async ({ page }) => {
-  await page.addInitScript(() => {
-    Object.defineProperty(window, 'Worker', { value: undefined, configurable: true })
-  })
-  await authenticate(page)
-  await page.goto('/play/game?traffic=smoke')
-  await expect(page.getByRole('button', { name: 'Start server game', exact: true })).toBeEnabled()
+  await expect(
+    page.getByRole('button', { name: 'Browser unavailable', exact: true }),
+  ).toBeDisabled()
   await expect(page.getByRole('status')).toContainText('Web Workers are unavailable')
-  await expect(page.getByRole('button', { name: 'Play on server', exact: true })).toHaveCount(0)
-  await page.getByRole('button', { name: 'Start server game', exact: true }).click()
-  await waitForBoard(page)
-  expect(await page.evaluate(() => window.__greState?.()?.matchId.startsWith('browser-'))).toBe(
-    false,
-  )
+  await page.getByRole('button', { name: 'Check browser again', exact: true }).click()
+  await expect(
+    page.getByRole('button', { name: 'Browser unavailable', exact: true }),
+  ).toBeDisabled()
+  expect(starts).toEqual([])
 })
 
 test('an initializing browser game can be cancelled without leaving a stale match', async ({
@@ -264,65 +230,42 @@ test('an initializing browser game can be cancelled without leaving a stale matc
   releaseRequest?.()
 })
 
-test('a missing release falls back visibly to one server launch', async ({ page }) => {
-  test.setTimeout(360_000)
-  await authenticate(page)
-  let releaseRequests = 0
-  let serverStarts = 0
-  let continueServerStart!: () => void
-  const serverStartReady = new Promise<void>((resolve) => {
-    continueServerStart = resolve
+for (const fault of ['release', 'runtime', 'worker'] as const) {
+  test(`a blocked ${fault} stays local and offers a retry`, async ({ page, context }, info) => {
+    await authenticate(page)
+    const starts: string[] = []
+    page.on('request', (request) => {
+      if (new URL(request.url()).pathname === '/api/gre/start') {
+        starts.push(request.url())
+      }
+    })
+    if (fault === 'release') {
+      await context.route('**/browser-engine/release.json', (route) =>
+        route.fulfill({ status: 503 }),
+      )
+    }
+    if (fault === 'runtime') {
+      await context.route('https://cjrtnc.leaningtech.com/4.3/loader.js', (route) =>
+        route.abort('blockedbyclient'),
+      )
+    }
+    if (fault === 'worker') {
+      const manifest = (await (
+        await page.request.get('/browser-engine/release.json')
+      ).json()) as BrowserRelease
+      const worker = manifest.assets.find((asset) => asset.path === 'web/engine-worker.js')!
+      await context.route(`**${worker.url}`, (route) => route.abort('blockedbyclient'))
+    }
+    await page.goto('/play/game?traffic=smoke')
+    await startBrowserGame(page)
+    await expect(page.getByRole('button', { name: 'Retry in browser', exact: true })).toBeVisible({
+      timeout: 240_000,
+    })
+    await expect(page.getByRole('alert')).toContainText('could not start')
+    expect(starts).toEqual([])
+    await page.screenshot({ path: info.outputPath(`${fault}-failure.png`) })
   })
-  await page.route('**/browser-engine/release.json', async (route) => {
-    releaseRequests += 1
-    await route.fulfill({ status: 503, body: 'qualification fault' })
-  })
-  await page.route('**/api/gre/start', async (route) => {
-    serverStarts += 1
-    await serverStartReady
-    await route.continue()
-  })
-  await page.goto('/play/game?traffic=smoke')
-  await startBrowserGame(page)
-  await expect(page.getByText('Continuing on server', { exact: true })).toBeVisible()
-  continueServerStart()
-  await waitForBoard(page)
-  expect(await page.evaluate(() => window.__greState?.()?.matchId.startsWith('browser-'))).toBe(
-    false,
-  )
-  expect(releaseRequests).toBe(1)
-  expect(serverStarts).toBe(1)
-})
-
-test('a blocked hosted runtime falls back to a server game', async ({ page, context }, info) => {
-  await authenticate(page)
-  await context.route('https://cjrtnc.leaningtech.com/4.3/loader.js', (route) =>
-    route.abort('blockedbyclient'),
-  )
-  await page.goto('/play/game?traffic=smoke')
-  await startBrowserGame(page)
-  await waitForBoard(page)
-  expect(await page.evaluate(() => window.__greState?.()?.matchId.startsWith('browser-'))).toBe(
-    false,
-  )
-  await page.screenshot({ path: info.outputPath('blocked-runtime.png') })
-})
-
-test('a blocked game worker falls back to a server game', async ({ page, context }, info) => {
-  await authenticate(page)
-  const manifest = (await (
-    await page.request.get('/browser-engine/release.json')
-  ).json()) as BrowserRelease
-  const worker = manifest.assets.find((asset) => asset.path === 'web/engine-worker.js')!
-  await context.route(`**${worker.url}`, (route) => route.abort('blockedbyclient'))
-  await page.goto('/play/game?traffic=smoke')
-  await startBrowserGame(page)
-  await waitForBoard(page)
-  expect(await page.evaluate(() => window.__greState?.()?.matchId.startsWith('browser-'))).toBe(
-    false,
-  )
-  await page.screenshot({ path: info.outputPath('blocked-worker.png') })
-})
+}
 
 test('browser worker and release assets bypass stale cached URLs', async ({ page, context }) => {
   await authenticate(page)
@@ -388,7 +331,7 @@ test('background suspension survives and refresh offers a fresh local match', as
   await cdp.detach()
 })
 
-for (const execution of ['server', 'browser'] as const) {
+for (const execution of ['browser'] as const) {
   for (const [name, keyword] of [
     ['Goblin Trailblazer', 'Menace'],
     ['Zurgo Bellstriker', 'Dash'],
@@ -409,10 +352,10 @@ for (const execution of ['server', 'browser'] as const) {
       expect(await page.evaluate(() => window.__greState?.()?.matchId.startsWith('browser-'))).toBe(
         execution === 'browser',
       )
-      if (execution === 'browser') {
-        expect(starts).toEqual([])
-        expect(workers.some((url) => url.includes('engine-worker.js'))).toBe(true)
-      }
+
+      expect(starts).toEqual([])
+      expect(workers.some((url) => url.includes('engine-worker.js'))).toBe(true)
+
       const card = page
         .locator(`[data-zone="hand"][data-owner="self"] [data-card="${name}"]`)
         .first()

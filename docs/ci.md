@@ -19,7 +19,7 @@ Publish Forge Web waits up to 45 minutes for successful main Web CI at its exact
 commit, including the CI gate. Failed or cancelled CI blocks publication.
 Publication builds with production configuration, uploads private source maps,
 validates the new server distribution and packages the release. Source tests,
-public spectator gameplay, release-classifier tests and packaging tests belong
+curated autoplay games, release-classifier tests and packaging tests belong
 to Web CI.
 
 The production release classifier still compares the cumulative diff against
@@ -29,25 +29,24 @@ owned by the deployment runbook.
 
 Full-breadth Web CI runs all Bun unit tests, Python script tests, native Node
 checks, server and shared card-presentation tests, Java 17 browser-engine tests,
-SEO and distribution checks. Product and server gameplay journeys
+SEO and distribution checks. Product and local gameplay journeys
 run in parallel lanes. They cover login, deck import and editing, match setup,
-challenges, release draining, catalog mechanics, priority and recovery. Login,
+challenges, catalog mechanics, priority and recovery. Login,
 import, deck editing, setup, news and desktop challenge journeys share one
 isolated product server and Vite instance. Each test gets a fresh browser
-context; gameplay tests retire their launched matches. Release draining keeps
-its own stack, and catalog checks retain their catalog-only configuration.
+context; gameplay tests retire their local workers. Catalog checks retain their
+catalog-only configuration.
 
 Browser Local combines the validated Java 17 assets with the UI job's tested
 frontend distribution for the generated
-puzzle journey and one bundled combat puzzle. The complete bundled challenge
+saved-puzzle read/play/rating journey and one bundled combat puzzle. The complete bundled challenge
 sweep, daily completion, retry, load recovery and phone checks run in extended
 qualification.
 
 Extended gameplay qualification runs weekly and by manual dispatch. Desktop
-Chrome checks browser game setup, card inspection, fallback, worker recovery,
+Chrome checks browser game setup, card inspection, startup failure/retry, worker recovery,
 bounded Commander tax and keyword inspection scenarios on a hosted runner.
-It also checks concurrent server capacity and the imported mechanic fixture
-corpus. Those extended checks are separate from the PR gate. Failures still fail their
+It also checks the imported mechanic fixture corpus. Those extended checks are separate from the PR gate. Failures still fail their
 qualification job and keep traces or diagnostic artifacts. The imported corpus includes intentional Web
 skips and is not yet a green baseline. The Sidewinder full-control setup,
 Selvala Wild and narrow-board input checks also remain in qualification until
@@ -65,7 +64,7 @@ parked without an active browser journey.
 
 PRs retain all source checks and Java 21/17 build validation. Known product-source
 changes and Leyline pin updates run representative browser proof. Main and manual
-runs retain the complete regular product, catalog, GRE and release-drain suites.
+runs retain the complete regular product, catalog, GRE suites.
 Browser Local still runs its generated and bundled startup/action smoke on both.
 
 `scripts/ci-browser-selection.mjs` resolves the following authored test calls to
@@ -76,14 +75,13 @@ history expand the affected suite to full coverage.
 | Claim | PR case | Main regression coverage |
 | --- | --- | --- |
 | Real login and persisted session | email code login persists after reload | all authentication cases |
-| Deck import, editing and selection | deck library controls; playable deck import and launch | full product suite, including Draft, challenges, spectator and launch recovery |
+| Deck import, editing and selection | deck library controls; playable deck import and launch | full product suite, including Draft, challenges, curated watch and local recovery |
 | Server opening and action | first land | all regular GRE cases |
 | Combat and catalog identity | attacker submission; Jungle Lion cast and combat damage | full catalog and GRE combat cases |
 | Reconnect ownership | socket loss restores opening and played board | complete recovery suite |
 | Terminal outcome | lethal burn | full outcome and retirement cases |
 | Costs in both execution heads | sacrifice/discard offered-branch call, four generated cases | complete life/kicker/offspring matrix |
 | Browser Local startup and action | existing generated/bundled puzzle smoke | same required smoke, extended qualification unchanged |
-| Release drain | changed release-drain spec runs in full | complete release-drain case on every full run |
 
 Every new or changed managed spec runs its entire regular suite file on PRs,
 without a smoke tag. This includes generated test matrices. Existing explicit
@@ -105,27 +103,19 @@ PR workloads; no measured latency saving is claimed before a current burst sampl
 
 ### Runtime scheduling and cancellation
 
-The product runtime lane runs the complete selected `gre-priority` spec
-after product and release-drain journeys. The Browser cost-choice matrix stays
-in gameplay to avoid moving its repeated initialization into the product lane.
-The gameplay runtime lane runs catalog and all remaining selected GRE specs. Both lanes
-verify the same sealed Browser runtime because each contains Browser Local
-cases. Partitioning happens after representative or changed-file selection;
-changing the relocated spec still runs every regular case in that file.
-Missing relocated files or unknown partition selectors fail CI rather than
-certifying an empty workload. No case moves out of the required gate.
+Product and catalog journeys run in independent jobs. Four GRE jobs use native
+Playwright sharding with `--fully-parallel` to distribute individual selected
+tests across runners. Each job retains `--workers=1`, so browser engines do not
+compete within a runner. Tests have isolated browser contexts and accounts and
+do not require another case to run first.
 
-The full main baseline [37375352185](https://github.com/delebedev/forge-web/actions/runs/37375352185)
-contains 96 GRE cases, partitioned into 30 product-lane and 66 gameplay-lane
-cases with no overlap. Its product/drain test bodies total 151.547 seconds,
-and catalog/GRE bodies total 868.821 seconds. The relocated priority spec accounts
-for 183.826 seconds, projecting 335.373 and 684.995 seconds of test bodies.
-The attempted priority-plus-cost-choice partition in run
-[37383552090](https://github.com/delebedev/forge-web/actions/runs/37383552090)
-hit Browser initialization deadlines and ordinary progression bounds. Those
-failures are retained as measurement evidence, not a speedup claim.
-These are scheduling inputs, not measured improvements: startup, Browser
-initialization and runner ordering also contribute to elapsed time.
+All six runtime jobs verify the same sealed server, frontend and Browser assets.
+Representative and changed-spec selection happens before sharding. A changed
+spec still contributes every regular case, with the existing qualification
+exclusions. The required gate waits for the complete runtime matrix. Artifact
+names include the unique lane, and unknown or inconsistent lane entries fail.
+Each runtime job stops after two failed tests and remains failed. Other matrix
+jobs continue, and successful runs execute every selected test.
 
 Reporting and the required gate use `!cancelled()` rather than job-level
 `always()`. They remain eligible after test/build failure, so failed jobs still
@@ -137,8 +127,8 @@ Cancelled runs do not produce a successful proof receipt. This follows
 
 ## Build and test pyramid
 
-UI validation runs on the dedicated `forge-web-ui` runner (1 CPU / 3 GiB).
-One `forge-web-heavy` builder prepares pinned Forge dependencies once, then
+UI validation and runtime assembly use separate `ubuntu-latest` hosted runners.
+One builder prepares pinned Forge dependencies once, then
 validates and packages Java 21 server and Java 17 Browser Local distributions.
 Gradle caches task outputs using its tracked input fingerprints. The shared
 Leyline/card-presentation outputs and root Gradle project caches are separated
@@ -147,11 +137,11 @@ can still rerun some shared-module compilation. Browser tests use the same
 pruning setting as the shipped distribution. Root configuration
 caching is enabled; OpenAPI response cleanup keeps no live Project reference.
 CI uses the compiler inside the Gradle process and stops Gradle after assembly.
-Dependency/build caches remain in the heavy runner's dedicated Gradle volume;
-Bun's package cache is shared and installs still enforce `bun.lock`.
+Build and dependency caches remain local to each ephemeral hosted job.
+Bun installs enforce `bun.lock`; the workflow adds no persistent cache.
 
-After UI and builder success, the two heavy runners execute product, gameplay
-and Browser Local lanes. Their distributions are sealed with the tested Git
+After UI and builder success, hosted runners execute product, catalog, four GRE
+shards and Browser Local independently. Their distributions are sealed with the tested Git
 tree, Leyline pin, Java variant, producer run/attempt and every file's SHA-256.
 Consumers
 reject missing, stale, damaged or differently targeted artifacts. Failed-job
@@ -161,8 +151,7 @@ preserve launcher permissions. Product/GRE jobs launch the distribution directly
 with a 1 GiB heap and isolated suite state, without Gradle or Kotlin daemons.
 The product built-page checks reuse the tested UI bundle instead of rebuilding.
 
-A builder co-locates both targets to avoid occupying both heavy slots for build
-setup. This deliberately makes server browser tests wait for Java 17 validation
+A builder co-locates both targets to avoid repeating build setup. This deliberately makes product browser tests wait for Java 17 validation
 too. Reconsider separate builders if measured build time dominates the graph.
 The source and builder jobs run independently; failed source checks prevent all
 engine-backed browser work. Conservative path classification stays in place.
@@ -173,10 +162,9 @@ engine-backed browser work. Conservative path classification stays in place.
 | HTTP contracts, persistence, product composition, packaging                                 | Java 21 tests, OpenAPI export and distribution checks    |
 | Java 17 engine adapter and shipped dependency graph                                         | Java 17 tests with browser pruning                       |
 | Authored replacement descriptor, pointer input and retirement                               | Vite-only transport integration; no engine or real login |
-| Real login, deck library/import, Draft, lobby-to-game, public spectator and challenge entry | Product browser lane                                     |
+| Real login, deck library/import, Draft, lobby-to-game, curated watch and challenge entry | Product browser lane                                     |
 | Real action, priority, combat, reconnect, terminal outcome and replay                       | GRE browser lane                                         |
 | Catalog identity and representative mechanics                                               | Isolated catalog browser lane                            |
-| Active matches survive release drain while new games are rejected                           | Isolated release-drain browser lane                      |
 | Browser Local startup and one generated/bundled puzzle action                               | Browser Local smoke                                      |
 | Exhaustive mechanic corpus and additional device qualification                  | Weekly/manual qualification                              |
 
@@ -187,9 +175,7 @@ The catalog combat case retains the opponent turn needed for summoning sickness.
 Draft completes one real course, resumes its saved pool and launches a match;
 reset and duplicate-click behavior use a small authored HTTP fixture in the UI lane.
 The authored transport case retains every pointer/descriptor assertion with an
-auth fixture instead of paying for a real server login. Release-drain capture is
-opt-in through `RELEASE_DRAIN_DEMO_DIR`; CI waits on observable state rather than
-presentation sleeps. No retries are added and distinct gameplay claims remain.
+auth fixture instead of paying for a real account login. CI waits on observable state rather than presentation sleeps. No retries are added and distinct gameplay claims remain.
 
 `build:ci` omits the duplicate TypeScript pass only within the UI job after
 `check`. Normal `build` retains it for local and release callers. Java artifacts
@@ -212,6 +198,6 @@ such. Gradle cached outcomes and repeated OpenAPI export checks are labelled;
 they are not presented as newly executed or unique tests. Extended qualification,
 coverage and historical flake rates are outside this report.
 
-Rollback the workflow and proof logic together; stop routing UI to the small
-runner before retiring it. Keep existing caches and the required `CI gate` name.
+Rollback workflow, selection and proof logic together. Keep the required
+`CI gate` name.
 Production publication still requires successful CI for the exact main SHA.

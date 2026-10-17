@@ -8,7 +8,7 @@ JavaScript; React replaces it when the interactive interface mounts. The 404
 document renders `NotFoundPage` itself at build time. Its scoped stylesheet
 loads in the initial HTML so the public theme also works without JavaScript.
 
-Public pages use self-referencing canonical URLs. Account pages and unavailable
+Public pages, including `/watch` and the three allowlisted `/watch/<id>` game-viewing pages, use self-referencing canonical URLs. Unknown replay identifiers return HTTP 404. Account pages and unavailable
 routes use `noindex`. Robots allows
 crawling so search engines can read those directives. Authentication still
 protects account data. The sitemap contains only public canonical pages;

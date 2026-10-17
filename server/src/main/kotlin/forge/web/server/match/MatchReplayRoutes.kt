@@ -9,7 +9,6 @@ import io.ktor.server.request.receive
 import io.ktor.server.response.header
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
-import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.route
@@ -41,29 +40,6 @@ internal fun Route.installReplayOperatorRoutes(store: MatchReplayStore) {
                     return@post call.respond(HttpStatusCode.BadRequest, it.message ?: "Invalid pin")
                 }
             call.respond(if (pinned) HttpStatusCode.NoContent else HttpStatusCode.NotFound)
-        }
-    }.excludeContract("operator diagnostics")
-}
-
-internal fun Route.installReleaseOperatorRoutes(
-    store: MatchReplayStore,
-    relay: BrowserGreRelay,
-) {
-    route("/operator/release/drain") {
-        get {
-            call.response.header(HttpHeaders.CacheControl, "no-store")
-            if (!call.isOperator(store)) return@get call.respond(HttpStatusCode.NotFound)
-            call.respond(relay.drainStatus())
-        }
-        post {
-            call.response.header(HttpHeaders.CacheControl, "no-store")
-            if (!call.isOperator(store)) return@post call.respond(HttpStatusCode.NotFound)
-            call.respond(relay.beginDrain())
-        }
-        delete {
-            call.response.header(HttpHeaders.CacheControl, "no-store")
-            if (!call.isOperator(store)) return@delete call.respond(HttpStatusCode.NotFound)
-            call.respond(relay.endDrain())
         }
     }.excludeContract("operator diagnostics")
 }

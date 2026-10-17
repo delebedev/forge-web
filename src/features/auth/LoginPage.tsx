@@ -1,5 +1,6 @@
 /** Email-code form shared by the public entry shell and design references. */
 
+import { loginReturnPath } from './login-return'
 import { useEffect, useState, type FormEvent } from 'react'
 import { trackLogin } from '@shared/analytics'
 import { authStore } from '@shared/auth/auth'
@@ -14,7 +15,10 @@ const apiBase = import.meta.env['VITE_WEBDOOR_URL'] ?? location.origin
 export function LoginPage({ preview = false }: { preview?: boolean }) {
   const router = useRouter()
   const auth = useAuthSnapshot()
-  const afterLogin = router.query.get('returnTo') === '/roadmap' ? '/roadmap' : '/play/game'
+  const afterLogin = loginReturnPath(
+    router.query.get('returnTo'),
+    `${router.path}?${router.query.toString()}`,
+  )
 
   useEffect(() => {
     if (!preview && auth.ready && auth.isAuthenticated && !auth.guest) {

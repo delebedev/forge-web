@@ -54,7 +54,7 @@ class PlayerDatabaseTest {
         }
 
         assertTrue(stateDir.isDirectory)
-        assertEquals(listOf("1", "2", "3", "4", "5", "6"), migrationVersions(path.file))
+        assertEquals(listOf("1", "2", "3", "4", "5", "6", "7"), migrationVersions(path.file))
         assertTrue(queryPlan(path.file, "SELECT * FROM decks WHERE player_id = 'p'").contains("USING INDEX decks_player_id"))
         PlayerDatabase.open(path).use { reopened ->
             reopened.playerStore.bindCardCatalog(testCards())
@@ -92,6 +92,51 @@ class PlayerDatabaseTest {
                 assertEquals(archivedRow, (1..archivedRow.size).map(rows::getString))
                 assertEquals(false, rows.next())
             }
+        }
+    }
+
+    @Test
+    fun `opening the API database preserves pending legacy match and puzzle trial rows`() {
+        val path = PlayerDatabasePath.fromStateDir(tempDirectory("legacy-pending"))
+        PlayerDatabase.open(path).close()
+        DriverManager.getConnection("jdbc:sqlite:${path.file.absolutePath}").use { connection ->
+            connection.createStatement().use { statement ->
+                statement.executeUpdate(
+                    """
+                    INSERT INTO match_outcomes VALUES ('legacy-match', 'started', NULL, 'old-release', 'play', 0, 'constructed', NULL)
+                    """.trimIndent(),
+                )
+                statement.executeUpdate(
+                    """
+                    INSERT INTO puzzle_generation_runs VALUES (
+                        'legacy-run', 'owner', 'created', 'updated', 'running', 'testing_solution',
+                        'model', 'v1', '[]', '[{"featuredCard":"Lightning Bolt","trial":"pending trial"}]', NULL, NULL
+                    )
+                    """.trimIndent(),
+                )
+            }
+        }
+
+        fun rows(table: String): List<List<String?>> =
+            DriverManager.getConnection("jdbc:sqlite:${path.file.absolutePath}").use { connection ->
+                connection.createStatement().use { statement ->
+                    statement.executeQuery("SELECT * FROM $table").use { rows ->
+                        buildList {
+                            while (rows.next()) add((1..rows.metaData.columnCount).map(rows::getString))
+                        }
+                    }
+                }
+            }
+        val outcomes = rows("match_outcomes")
+        val runs = rows("puzzle_generation_runs")
+        repeat(2) {
+            PlayerDatabase.open(path).use { database ->
+                val run = requireNotNull(database.puzzles.findRun("legacy-run"))
+                assertEquals("running", run.status)
+                assertEquals("pending trial", run.attempts.single().trial)
+            }
+            assertEquals(outcomes, rows("match_outcomes"))
+            assertEquals(runs, rows("puzzle_generation_runs"))
         }
     }
 
@@ -147,7 +192,7 @@ class PlayerDatabaseTest {
     fun `failed migration rolls back and corrected migration recovers`() {
         val file = File(tempDirectory("failed-migration"), "player.db")
         val migrations = tempDirectory("migration-scripts")
-        val migration = File(migrations, "V7__probe.sql")
+        val migration = File(migrations, "V8__probe.sql")
         migration.writeText("CREATE TABLE migration_probe (id INT); INSERT INTO migration_probe VALUES (1); BROKEN SQL;")
         val locations = arrayOf("classpath:db/migration", "filesystem:${migrations.absolutePath}")
 

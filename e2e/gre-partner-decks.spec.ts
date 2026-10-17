@@ -53,11 +53,11 @@ async function importSavedPair(page: Page, name: string) {
   await page.getByRole('combobox', { name: 'AI opponent', exact: true }).selectOption('mirror')
 }
 
-for (const execution of ['Server', 'Browser'] as const) {
+for (const execution of ['Browser'] as const) {
   test(`Partner deck saves, reopens and casts both commanders on ${execution}`, async ({
     page,
   }, info) => {
-    test.setTimeout(execution === 'Browser' ? 240_000 : 90_000)
+    test.setTimeout(240_000)
     await page.addInitScript(() =>
       localStorage.setItem('forge:gre:priority-flag:hideCardArt', 'true'),
     )
@@ -65,7 +65,7 @@ for (const execution of ['Server', 'Browser'] as const) {
     await importSavedPair(page, `Partner ${execution}`)
     await page
       .getByRole('button', {
-        name: execution === 'Server' ? 'Play on server' : 'Start game',
+        name: 'Start game',
         exact: true,
       })
       .click()

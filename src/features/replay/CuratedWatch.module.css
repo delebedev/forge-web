@@ -1,0 +1,8 @@
+.page { height: 100svh; display: flex; flex-direction: column; color: var(--public-text); background: var(--public-bg); }
+.embedded { height: 100%; }
+.viewer { display: flex; flex: 1; flex-direction: column; min-height: 0; padding: 12px 20px 0; }
+.embedded .viewer { padding: 0; }
+.heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; min-height: 40px; color: var(--public-muted); font-size: 12px; }
+.play { color: var(--public-muted); text-underline-offset: 4px; }
+.play:hover { color: var(--public-text); }
+.board { flex: 1; min-height: 0; border: 1px solid var(--public-line); border-radius: 4px; overflow: hidden; }

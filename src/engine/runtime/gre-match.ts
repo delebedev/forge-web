@@ -6,8 +6,6 @@ const STORAGE_KEY = 'forge:gre:lastMatchConfig'
 export const DEFAULT_GRE_PLAYER_DECK = '20 Raging Goblin\n20 Shock\n20 Mountain'
 export const DEFAULT_GRE_OPPONENT_DECK = '60 Plains'
 export const DEFAULT_GRE_LIMITED_OPPONENT_DECK = '16 Raging Goblin\n8 Shock\n16 Mountain'
-export const DEFAULT_GRE_SPECTATOR_DECK_A = '24 Raging Goblin\n12 Shock\n24 Mountain'
-export const DEFAULT_GRE_SPECTATOR_DECK_B = '24 Savannah Lions\n12 Giant Growth\n24 Forest'
 
 export function deckDetailToGreDeck(deck: DeckDetail | null | undefined): string | null {
   const content = deck?.content?.trim()
@@ -53,15 +51,30 @@ export function loadGreMatchConfig(): GreStartConfig | null {
   if (!raw) {
     return null
   }
-  return parseGreMatchConfig(raw)
+  const config = parseGreMatchConfig(raw)
+  if (!config) {
+    sessionStorage.removeItem(STORAGE_KEY)
+    sessionStorage.setItem('forge:gre:unavailable', 'true')
+  }
+  return config
 }
 
 export function parseGreMatchConfig(raw: string): GreStartConfig | null {
   try {
     const parsed = JSON.parse(raw) as Record<string, unknown>
-    const config: GreStartConfig = {}
-    if (parsed['execution'] === 'server' || parsed['execution'] === 'browser') {
+    if (
+      parsed['execution'] !== 'browser' ||
+      parsed['spectatorMode'] === true ||
+      (parsed['matchId'] && typeof parsed['attemptId'] !== 'string')
+    ) {
+      return null
+    }
+    const config: GreStartConfig = { execution: 'browser' }
+    if (parsed['execution'] === 'browser') {
       config.execution = parsed['execution']
+    }
+    if (typeof parsed['coursePlayId'] === 'string') {
+      config.coursePlayId = parsed['coursePlayId']
     }
     if (typeof parsed['attemptId'] === 'string') {
       config.attemptId = parsed['attemptId']
@@ -84,20 +97,17 @@ export function parseGreMatchConfig(raw: string): GreStartConfig | null {
     if (typeof parsed['challengeId'] === 'string') {
       config.challengeId = parsed['challengeId']
     }
-    if (typeof parsed['candidateId'] === 'string') {
-      config.candidateId = parsed['candidateId']
-    }
-    if (typeof parsed['puzzle'] === 'string') {
-      config.puzzle = parsed['puzzle']
-    }
     if (typeof parsed['puzzleText'] === 'string') {
       config.puzzleText = parsed['puzzleText']
     }
+    if (!config.challengeId && typeof parsed['puzzle'] === 'string') {
+      if (!parsed['puzzle'].trim() || !config.puzzleText?.trim()) {
+        return null
+      }
+      config.challengeId = parsed['puzzle']
+    }
     if (typeof parsed['turnLimit'] === 'number') {
       config.turnLimit = parsed['turnLimit']
-    }
-    if (typeof parsed['spectatorMode'] === 'boolean') {
-      config.spectatorMode = parsed['spectatorMode']
     }
     if (isGreGameType(parsed['gameType'])) {
       config.gameType = parsed['gameType']
@@ -105,14 +115,8 @@ export function parseGreMatchConfig(raw: string): GreStartConfig | null {
     if (typeof parsed['matchId'] === 'string') {
       config.matchId = parsed['matchId']
     }
-    if (typeof parsed['wireMatchId'] === 'string') {
-      config.wireMatchId = parsed['wireMatchId']
-    }
     if (typeof parsed['deckId'] === 'string') {
       config.deckId = parsed['deckId']
-    }
-    if (typeof parsed['authToken'] === 'string') {
-      config.authToken = parsed['authToken']
     }
     if (typeof parsed['returnPath'] === 'string') {
       config.returnPath = parsed['returnPath']
@@ -123,12 +127,7 @@ export function parseGreMatchConfig(raw: string): GreStartConfig | null {
     if (typeof parsed['objective'] === 'string') {
       config.objective = parsed['objective']
     }
-    return config.seat1Deck ||
-      config.seat2Deck ||
-      config.challengeId ||
-      config.candidateId ||
-      config.puzzle ||
-      config.matchId
+    return config.seat1Deck || config.seat2Deck || config.challengeId || config.matchId
       ? config
       : null
   } catch {
@@ -144,7 +143,6 @@ function isGreGameType(value: unknown): value is NonNullable<GreStartConfig['gam
     value === 'oathbreaker' ||
     value === 'puzzle' ||
     value === 'draft' ||
-    value === 'sealed' ||
-    value === 'spectator'
+    value === 'sealed'
   )
 }

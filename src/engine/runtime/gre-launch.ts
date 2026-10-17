@@ -12,7 +12,7 @@ export const STORAGE_KEY_GAME_OPPONENT = 'forge:game:opponentDeck'
 
 export type GreLaunchGameStartConfig = {
   gameType: GreStartConfig['gameType']
-  mode: 'play' | 'watch'
+  mode: 'play'
   seed?: number
   deckList?: string
   opponentMode?: string
@@ -52,18 +52,6 @@ export function gameSetupToGreStartConfig(
   playerDeck: DeckDetail | null,
   opponentDeck: DeckDetail | null,
 ): GreStartConfig {
-  if (config.mode === 'watch') {
-    const seat1Deck = config.deck1List?.trim() || deckDetailToGreDeck(playerDeck)
-    const seat2Deck = config.deck2List?.trim() || deckDetailToGreDeck(opponentDeck)
-    return {
-      ...(seat1Deck ? { seat1Deck } : {}),
-      ...(seat2Deck ? { seat2Deck } : {}),
-      gameType: config.gameType,
-      ...(config.seed == null ? {} : { seed: config.seed }),
-      spectatorMode: true,
-    }
-  }
-
   const seat1Deck = config.deckList?.trim() || deckDetailToGreDeck(playerDeck)
   const seat2Deck =
     config.opponentDeckList?.trim() ||
@@ -94,7 +82,7 @@ export function puzzleToGreStartConfig(
   context?: { name: string; objective: string },
 ): GreStartConfig {
   return {
-    puzzle: filename,
+    challengeId: filename,
     gameType: 'puzzle',
     returnPath: '/challenges',
     label: context?.name ?? filename,
@@ -113,20 +101,6 @@ export function challengeToGreStartConfig(challenge: {
     returnPath: '/challenges',
     label: challenge.name,
     objective: challenge.objective,
-  }
-}
-
-export function candidateToGreStartConfig(candidate: {
-  candidateId: string
-  name: string
-  objective: string
-}): GreStartConfig {
-  return {
-    candidateId: candidate.candidateId,
-    gameType: 'puzzle',
-    returnPath: '/challenges',
-    label: candidate.name,
-    objective: candidate.objective,
   }
 }
 

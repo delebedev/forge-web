@@ -41,7 +41,7 @@ PR_SPECS = {
     'react-challenge.spec.ts', 'whats-new.spec.ts', 'gre-play.spec.ts',
     'gre-partner-decks.spec.ts', 'gre-modal-cancel.spec.ts', 'gre-search-owner.spec.ts', 'gre-prompts.spec.ts', 'gre-recovery.spec.ts', 'gre-priority.spec.ts',
     'gre-sounds.spec.ts', 'gre-equip-cost.spec.ts', 'gre-repeatable-cost.spec.ts', 'gre-alternate-life-cost.spec.ts', 'gre-cost-choice.spec.ts', 'forge-catalog.spec.ts',
-    'release-drain.spec.ts', 'match-route.spec.ts', 'gre-known-opponent-hand.spec.ts', 'gre-warp.spec.ts', 'gre-library-permissions.spec.ts', 'gre-player-counters.spec.ts', 'gre-mana-payment.spec.ts',
+    'match-route.spec.ts', 'gre-known-opponent-hand.spec.ts', 'gre-warp.spec.ts', 'gre-library-permissions.spec.ts', 'gre-player-counters.spec.ts', 'gre-mana-payment.spec.ts',
 }
 
 

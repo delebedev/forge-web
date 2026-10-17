@@ -48,26 +48,16 @@ import {
 import { EMPTY_ID_CHAIN, processIdChanges, type IdChain } from '@engine/state/gre-id-chain'
 import { buildBoardProjection, type BoardProjection } from '@engine/state/gre-projection'
 import { dungeonCardIds } from '@engine/state/dungeon-view'
-import { buildBootstrapMessages, loadGreProto } from '@engine/wire/gre-bootstrap'
+import { buildBootstrapMessages } from '@engine/wire/gre-bootstrap'
 import { fetchGreCardMeta } from './gre-card-meta'
 import { GameLog } from '@engine/state/game-log'
 import { GreDiagnostics } from './gre-diagnostics'
 import { GreDispatch, type GreDecisionHorizon } from './gre-dispatch'
 import { greMessageTypeLabel } from '@engine/state/gre-labels'
 import { outcomeFromIntermission, type GameOutcome } from '@engine/state/gre-outcome'
-import {
-  SocketFrameSource,
-  type GreFrameBatch,
-  type GreFrameSink,
-  type GreFrameSource,
-} from './gre-frame-source'
+import { type GreFrameBatch, type GreFrameSink, type GreFrameSource } from './gre-frame-source'
 import { JourneyHealth } from './journey-health'
-import {
-  classifyGreClose,
-  GreStartError,
-  startGreMatch,
-  type GreConnectionClose,
-} from './gre-transport'
+import { classifyGreClose, type GreConnectionClose } from './gre-connection'
 import type { GreGameType, GreStartConfig } from './start'
 import type { BoardSnapshot } from './snapshot'
 import { BrowserReplayCollector } from '@engine/replay/browser-replay-collector'
@@ -77,7 +67,6 @@ import {
   trackGameComplete,
   trackGameFirstAction,
   trackGameStart,
-  trackGameStartFailed,
   trackTurnMilestone,
   trackBrowserLifecycle,
   type GameMode,
@@ -93,7 +82,7 @@ type GameAnalyticsContext = {
   gameType: GreGameType
   format?: string
   deckId?: string
-  execution?: 'server' | 'browser'
+  execution?: 'browser'
   attemptId?: string
   frontendBuild?: string
   engineBuild?: string
@@ -101,43 +90,19 @@ type GameAnalyticsContext = {
 }
 
 function gameAnalyticsContext(config: GreStartConfig): GameAnalyticsContext {
-  const gameType =
-    config.gameType ??
-    (config.challengeId || config.puzzle
-      ? 'puzzle'
-      : config.spectatorMode
-        ? 'spectator'
-        : 'constructed')
-  const format = gameType === 'puzzle' || gameType === 'spectator' ? undefined : gameType
+  const gameType = config.gameType ?? (config.challengeId ? 'puzzle' : 'constructed')
+  const format = gameType === 'puzzle' ? undefined : gameType
   return {
-    mode: config.spectatorMode ? 'watch' : 'play',
+    mode: 'play',
     gameType,
     format,
     deckId: config.deckId,
-    execution: config.execution ?? 'server',
+    execution: config.execution ?? 'browser',
     attemptId: config.attemptId,
     frontendBuild: config.frontendBuild,
     engineBuild: config.engineBuild,
     seed: config.seed,
   }
-}
-
-function gameStartFailureReason(
-  error: unknown,
-): 'aborted' | 'network' | 'server' | 'protocol' | 'unknown' {
-  if (error instanceof DOMException && error.name === 'AbortError') {
-    return 'aborted'
-  }
-  if (error instanceof TypeError) {
-    return 'network'
-  }
-  if (error instanceof GreStartError) {
-    return 'server'
-  }
-  if (error instanceof Error && /proto|decode|parse/i.test(error.message)) {
-    return 'protocol'
-  }
-  return 'unknown'
 }
 
 function gameEndReason(reason: number): string | undefined {
@@ -385,11 +350,7 @@ export class GreStore {
   private browserBoardReady = false
   private browserReplay: BrowserReplayCollector | null = null
   private browserReplayStreamer: BrowserReplayStreamer | null = null
-  private startInFlight: Promise<string> | null = null
-  private resumeInFlight: Promise<string> | null = null
-  private resumeInFlightMatchId = ''
   private disconnectIncidentId = ''
-  private reconnectAttempt = 0
 
   /**
    * The request on screen, and the game state it was asked at.
@@ -676,195 +637,6 @@ export class GreStore {
     return () => this.subscribers.delete(listener)
   }
 
-  startGame(config: GreStartConfig = {}, signal?: AbortSignal): Promise<string> {
-    if (this.source?.isOpen || this.source?.isConnecting) {
-      return Promise.resolve(this.currentMatchId)
-    }
-    if (this.startInFlight) {
-      return this.startInFlight
-    }
-    const pending = this.startGameOnce(config, signal)
-    this.startInFlight = pending
-    void pending
-      .finally(() => {
-        if (this.startInFlight === pending) {
-          this.startInFlight = null
-        }
-      })
-      .catch(() => {})
-    return pending
-  }
-
-  private async startGameOnce(config: GreStartConfig, signal?: AbortSignal): Promise<string> {
-    const generation = ++this.sourceGeneration
-    this.connectionClose = null
-    this.disconnectIncidentId = ''
-    this.reconnectAttempt = 0
-    this.resetGameAnalytics()
-    this.resetGameState()
-    this.watchReducedMotion()
-    this.setDwellPolicy(humanDwellPolicy())
-    this.status = 'starting game'
-    this.currentMatchId = config.matchId ?? ''
-    this.spectatorMode = Boolean(config.spectatorMode)
-    this.currentGameType =
-      config.gameType ??
-      (config.challengeId || config.puzzle
-        ? 'puzzle'
-        : config.spectatorMode
-          ? 'spectator'
-          : 'constructed')
-    this.authToken = config.authToken ?? ''
-    this.journey.end('cancelled', 'superseded')
-    this.journey.begin('game-start', { ...gameAnalyticsContext(config) })
-    try {
-      const body = await startGreMatch(config, signal, (timing) => {
-        if (this.sourceGeneration !== generation) {
-          return
-        }
-        this.backendRelease = String(timing['backend_release'] ?? 'unknown')
-        this.journey.enrich('game-start', timing)
-      })
-      signal?.throwIfAborted()
-      if (this.sourceGeneration !== generation) {
-        return this.currentMatchId
-      }
-      this.matchId = body.matchId ?? `web-gre-local-${Date.now()}`
-      this.wireMatchId = body.wireMatchId ?? this.matchId
-      this.currentMatchId = this.matchId
-      this.journey.enrich('game-start', { match_id: this.matchId })
-      await this.ensureProto()
-      signal?.throwIfAborted()
-      if (this.sourceGeneration !== generation) {
-        return this.currentMatchId
-      }
-      this.status = 'connecting'
-      signal?.throwIfAborted()
-      this.attachSource(new SocketFrameSource(this.matchId))
-      this.recordGameStart(config, this.matchId)
-      this.publish()
-      return this.currentMatchId
-    } catch (error) {
-      if (this.sourceGeneration === generation) {
-        this.journey.end('failure', gameStartFailureReason(error))
-        this.recordGameStartFailed(config, error)
-        this.disconnect()
-      }
-      throw error
-    }
-  }
-
-  resumeGame(config: GreStartConfig = {}, signal?: AbortSignal): Promise<string> {
-    if (!config.matchId) {
-      return this.startGame(config, signal)
-    }
-    if (
-      this.currentMatchId === config.matchId &&
-      (this.source?.isOpen || this.source?.isConnecting)
-    ) {
-      return Promise.resolve(this.currentMatchId)
-    }
-    if (
-      this.currentMatchId === config.matchId &&
-      this.connectionClose &&
-      this.connectionClose.category !== 'transient'
-    ) {
-      return Promise.resolve(this.currentMatchId)
-    }
-    if (this.resumeInFlight && this.resumeInFlightMatchId === config.matchId) {
-      return this.resumeInFlight
-    }
-    const pending = this.resumeGameOnce(config, signal)
-    this.resumeInFlight = pending
-    this.resumeInFlightMatchId = config.matchId
-    void pending
-      .finally(() => {
-        if (this.resumeInFlight === pending) {
-          this.resumeInFlight = null
-          this.resumeInFlightMatchId = ''
-        }
-      })
-      .catch(() => {})
-    return pending
-  }
-
-  private async resumeGameOnce(config: GreStartConfig, signal?: AbortSignal): Promise<string> {
-    const matchId = config.matchId
-    if (!matchId) {
-      return this.startGame(config, signal)
-    }
-    const generation = ++this.sourceGeneration
-    const resumingCurrentMatch = this.currentMatchId === matchId
-    const newAnalyticsMatch = this.analyticsMatchId !== matchId
-    const trackResumeStart = newAnalyticsMatch && Boolean(config.spectatorMode)
-    if (newAnalyticsMatch) {
-      this.resetGameAnalytics()
-      this.analyticsMatchId = matchId
-      this.analyticsContext = gameAnalyticsContext(config)
-    }
-    if (resumingCurrentMatch) {
-      this.submittingActionOwner = null
-    } else {
-      this.resetGameState()
-      this.connectionClose = null
-      this.disconnectIncidentId = ''
-      this.reconnectAttempt = 0
-    }
-    this.watchReducedMotion()
-    this.setDwellPolicy(humanDwellPolicy())
-    this.status = 'connecting'
-    this.matchId = matchId
-    this.wireMatchId = config.wireMatchId ?? matchId
-    this.currentMatchId = matchId
-    this.spectatorMode = Boolean(config.spectatorMode)
-    this.currentGameType =
-      config.gameType ??
-      (config.challengeId || config.puzzle
-        ? 'puzzle'
-        : config.spectatorMode
-          ? 'spectator'
-          : 'constructed')
-    this.authToken = config.authToken ?? ''
-    this.journey.end('cancelled', 'superseded')
-    const reconnect: Record<string, string | number> = {}
-    if (this.disconnectIncidentId) {
-      reconnect['disconnect_id'] = this.disconnectIncidentId
-      reconnect['reconnect_attempt'] = ++this.reconnectAttempt
-    }
-    this.journey.begin('reconnect', {
-      ...gameAnalyticsContext(config),
-      match_id: this.matchId,
-      backend_release: this.backendRelease,
-      ...reconnect,
-    })
-    try {
-      signal?.throwIfAborted()
-      await this.ensureProto()
-      signal?.throwIfAborted()
-      if (this.sourceGeneration !== generation) {
-        return this.currentMatchId
-      }
-      this.attachSource(new SocketFrameSource(this.matchId), Boolean(this.disconnectIncidentId))
-      if (trackResumeStart) {
-        this.recordGameStart(config, this.matchId)
-      }
-      this.publish()
-      return this.currentMatchId
-    } catch (error) {
-      if (this.sourceGeneration === generation) {
-        this.journey.end('failure', gameStartFailureReason(error))
-        if (trackResumeStart) {
-          this.recordGameStartFailed(config, error)
-        }
-        if (newAnalyticsMatch) {
-          this.resetGameAnalytics()
-        }
-        this.disconnect()
-      }
-      throw error
-    }
-  }
-
   /**
    * Binds a frame source to this store and starts it, replacing any current one.
    *
@@ -901,7 +673,6 @@ export class GreStore {
           this.connectionClose = null
           if (recovering) {
             this.disconnectIncidentId = ''
-            this.reconnectAttempt = 0
             recovering = false
           }
           if (publishRecovery) {
@@ -930,7 +701,6 @@ export class GreStore {
           category !== 'abandoned'
         ) {
           this.disconnectIncidentId = crypto.randomUUID()
-          this.reconnectAttempt = 0
           trackJourney('journey-disconnected', {
             ...(this.analyticsContext ?? {}),
             match_id: this.matchId,
@@ -954,7 +724,7 @@ export class GreStore {
         if (this.sourceGeneration !== generation) {
           return
         }
-        const execution = this.analyticsContext?.execution ?? 'server'
+        const execution = this.analyticsContext?.execution ?? 'browser'
         // Browser worker failures already carry their diagnostic through the session owner.
         if (!(execution === 'browser' && phase === 'transport' && error === undefined)) {
           reportGreFailure(error, { phase, execution, matchId: this.matchId })
@@ -994,8 +764,8 @@ export class GreStore {
     this.resetGameAnalytics()
     this.fetchCardMeta = config.fetchCardMeta
     this.currentMatchId = this.matchId = this.wireMatchId = config.matchId
-    this.spectatorMode = Boolean(config.spectatorMode)
-    this.currentGameType = config.spectatorMode ? 'spectator' : (config.gameType ?? 'constructed')
+    this.spectatorMode = !source.canSend
+    this.currentGameType = config.gameType ?? 'constructed'
     this.watchReducedMotion()
     this.setDwellPolicy(humanDwellPolicy())
     this.recordGameStart(config, config.matchId)
@@ -1020,7 +790,7 @@ export class GreStore {
     return {
       ...this.browserReplayStreamer?.diagnostics(),
       match_id: this.matchId,
-      execution: this.analyticsContext?.execution ?? 'server',
+      execution: this.analyticsContext?.execution ?? 'browser',
       backend_release:
         this.analyticsContext?.execution === 'browser' ? undefined : this.backendRelease,
       frontend_build: this.analyticsContext?.frontendBuild,
@@ -1077,7 +847,6 @@ export class GreStore {
     this.authToken = ''
     this.connectionClose = null
     this.disconnectIncidentId = ''
-    this.reconnectAttempt = 0
     this.resetGameState()
     this.status = 'idle'
     this.connected = false
@@ -1164,10 +933,6 @@ export class GreStore {
     this.publish()
   }
 
-  private async ensureProto(): Promise<void> {
-    await loadGreProto()
-  }
-
   async setPrioritySettings(
     settings: ProtoObject,
     generation = this.sourceGeneration,
@@ -1235,15 +1000,6 @@ export class GreStore {
     this.analyticsChallengeId = config.execution === 'browser' ? (config.challengeId ?? '') : ''
     this.analyticsStartAt = Date.now()
     trackGameStart({ ...this.analyticsContext, matchId })
-  }
-
-  private recordGameStartFailed(config: GreStartConfig, error: unknown): void {
-    trackGameStartFailed({
-      ...gameAnalyticsContext(config),
-      matchId: this.currentMatchId || config.matchId,
-      reason: gameStartFailureReason(error),
-      ...(error instanceof GreStartError ? { status: error.status, category: error.category } : {}),
-    })
   }
 
   private recordGameComplete(): void {

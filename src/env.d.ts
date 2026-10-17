@@ -1,5 +1,4 @@
 declare const __GIT_SHA__: string
-declare const __WEBDOOR_WS_BASE__: string
 
 interface Window {
   umami?: {

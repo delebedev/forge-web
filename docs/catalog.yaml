@@ -15,7 +15,7 @@
 # src/, and the e2e suites. GRE (Game Rules Engine) is the active match runtime;
 # the pre-GRE lobby/room-code backend (LobbyHandler, RoomId, GameActionBridge,
 # PlayableActionDto) is gone — forge-web is browser UX in front of the pinned
-# product server's HTTP + WebSocket surface over the pinned Leyline runtime.
+# product APIs and browser-local pinned Leyline runtime.
 #
 # Updated: 2026-10-03
 
@@ -67,9 +67,7 @@ game-modes:
   constructed:
     status: works
     notes: >
-      GameSetup.tsx (src/shell/) picks deck/format/
-      opponent, launches GRE via POST /api/gre/start. Commander/Brawl/
-      Oathbreaker share this setup flow.
+      GameSetup picks decks and launches Constructed or Commander in a local browser worker.
 
   browser-local-execution:
     status: works
@@ -77,9 +75,7 @@ game-modes:
       Constructed and Commander run in the browser when the secure context,
       Worker, WebAssembly, decompression, and cryptography capabilities are
       available. Browser identity and device class do not decide eligibility.
-      A concrete pre-game startup failure visibly falls back once to a server
-      game; cancellation and failures after gameplay starts do not replace the
-      active match.
+      A startup failure stays visible with a browser retry. There is no server gameplay fallback.
 
   puzzle:
     status: partial
@@ -102,7 +98,7 @@ game-modes:
       three UTC days. No browse/catalog, saved
       progress, or public puzzle creation.
       The older plural /challenges launcher is development-only and uses the
-      server-backed /match/puzzle route.
+      browser-local /match/puzzle route.
 
   booster-draft:
     status: works
@@ -120,17 +116,14 @@ game-modes:
       (/api/sealed/start returns the course with its cardPool directly) into
       LimitedDeckBuilder.tsx, submits via /api/sealed/deck, launches via
       /api/sealed/play the same way draft does. Refresh-resume reads
-      GET /api/courses instead of a session WS. MatchMatrixTest proves
-      the play route reaches an initial GRE state. SEALED_ENABLED
+      GET /api/courses. Play returns decks and a result receipt for local launch. SEALED_ENABLED
       (src/shared/flags.ts) remains off, so the browser path is gated behind the flag.
 
-  public-spectator:
+  curated-watch:
     status: works
     notes: >
-      LandingPage.tsx shows a durable public AI-vs-AI match sourced from
-      POST /api/public/spectator/start. Refresh joins the active match
-      instead of resetting it; game-over rotates to the next match; relay
-      fan-out supports multiple connected spectators on one match stream.
+      Landing and /watch offer complete saved games. Playback uses static
+      transcripts and creates no live match or gameplay WebSocket.
 
 
 # ─── GRE Match Runtime ────────────────────────────────────────────
@@ -139,19 +132,11 @@ gre-runtime:
   match-lifecycle:
     status: works
     notes: >
-      Landing → setup → mulligan → live match → terminal outcome, including
-      puzzle and spectator/watch modes, tab-scoped refresh-resume via
-      sessionStorage (forge:gre:lastMatchConfig), durable public spectator
-      reuse, and concede. Victory and defeat lock game actions; Back to Play
-      and Play Again retire the old match before navigation or relaunch.
-      Refresh after gameplay rebuilds the returning viewer from the current
-      Full state, preserves any current action horizon with fresh response
-      identities, and leaves other viewer feeds untouched. Encoded responses
-      are bound to one match-source generation, so delayed work cannot cross
-      into or clear prompts from a replacement match.
-      Owned by runtime/gre-store.ts (WebSocket lifecycle, state projection, message
-      decode/encode), gre-session.ts (retirement), and gre-launch.ts (start
-      payloads).
+      Setup launches a browser-local match through mulligan, play, outcome,
+      and concede. Browser workers and read-only replay sources share the
+      projected board. Leaving retires the worker handle. Warm rematches reuse
+      the initialized engine. Refresh ends the local game and offers a restart.
+      Course results save through an owner-scoped idempotent REST receipt.
 
   board-presentation:
     status: works
@@ -281,7 +266,7 @@ testing:
     status: works
     notes: >
       e2e/product-smoke.spec.ts (product mode in playwright.config.ts) covers
-      the live public spectator landing, constructed setup, anonymous challenges,
+      the curated replay landing, constructed setup, anonymous challenges,
       a real GRE start, and dialog focus behavior. Draft and sealed play routes
       reach initial GRE state in MatchMatrixTest.
 

@@ -31,7 +31,6 @@ type LauncherPhase = 'ready' | 'preparing' | 'active' | 'failed'
 export type EngineProgressWatchdogSnapshot = {
   phase: LauncherPhase
   gameOver: boolean
-  spectator: boolean
   prompt: boolean
   canPass: boolean
   legalActionCount: number
@@ -81,9 +80,6 @@ function queryOrRandomSeed(): number {
 export function engineProgressWatchdogNeeded(snapshot: EngineProgressWatchdogSnapshot): boolean {
   if (snapshot.phase !== 'active' || snapshot.gameOver) {
     return false
-  }
-  if (snapshot.spectator) {
-    return true
   }
   return !snapshot.prompt && !snapshot.canPass && snapshot.legalActionCount === 0
 }
@@ -244,7 +240,7 @@ function BrowserMatch() {
   const [phase, setPhaseState] = useState<LauncherPhase>('ready')
   const [error, setError] = useState('')
   const [status, setStatus] = useState('Ready to start a local game.')
-  const [spectator, setSpectator] = useState(false)
+  const spectator = false
   const [match, setMatch] = useState<BrowserMatch | null>(null)
   const [playerChoice, setPlayerChoice] = useState<DeckChoice>('red')
   const [opponentChoice, setOpponentChoice] = useState<DeckChoice>('golgari')
@@ -271,7 +267,6 @@ function BrowserMatch() {
   >({
     phase: 'ready',
     gameOver: false,
-    spectator: false,
     prompt: false,
     canPass: false,
     legalActionCount: 0,
@@ -315,7 +310,7 @@ function BrowserMatch() {
     })
   }
 
-  async function launch(watch: boolean): Promise<{ matchId: string }> {
+  async function launch(): Promise<{ matchId: string }> {
     if (phaseRef.current === 'preparing') {
       throw new Error('A local game is already preparing.')
     }
@@ -327,7 +322,6 @@ function BrowserMatch() {
     setPhase('preparing')
     setStatus('Preparing the local engine…')
     const seed = queryOrRandomSeed()
-    setSpectator(watch)
     setActiveSeed(seed)
     try {
       const unsupported = currentBrowserPreflightFailure()
@@ -346,7 +340,6 @@ function BrowserMatch() {
         activeDecks[0],
         activeDecks[1],
         seed,
-        watch,
         'constructed',
         `browser-${crypto.randomUUID()}`,
       )
@@ -356,7 +349,7 @@ function BrowserMatch() {
       }
       greStore.connectSource(result.source, {
         matchId: result.matchId,
-        spectatorMode: watch,
+        execution: 'browser',
         fetchCardMeta: (ids) => active.fetchCardMeta(ids),
       })
       setMatch(result)
@@ -376,8 +369,8 @@ function BrowserMatch() {
     }
   }
 
-  function launchFromSetup(watch: boolean): void {
-    void launch(watch).catch(() => {})
+  function launchFromSetup(): void {
+    void launch().catch(() => {})
   }
 
   function downloadReport(): void {
@@ -387,7 +380,6 @@ function BrowserMatch() {
       build: BUILD_ID,
       phase: phaseRef.current,
       seed: activeSeed,
-      spectator,
       status,
       error,
       decks: {
@@ -535,7 +527,6 @@ function BrowserMatch() {
   latestWatchdogRef.current = {
     phase,
     gameOver: board.gameOver,
-    spectator,
     prompt: hasPrompt,
     canPass: board.canPass,
     legalActionCount,
@@ -575,18 +566,13 @@ function BrowserMatch() {
     hasPrompt,
     legalActionCount,
     phase,
-    spectator,
   ])
 
   const playerLabel = playerChoice === 'custom' ? 'Custom deck' : CURATED_DECKS[playerChoice].label
   const opponentLabel =
     opponentChoice === 'custom' ? 'Custom deck' : CURATED_DECKS[opponentChoice].label
   const defaultPlayLabel = playerChoice === 'red' && opponentChoice === 'golgari'
-  const nextMatchLabel = spectator
-    ? 'Watch AI vs AI'
-    : defaultPlayLabel
-      ? 'Play Red Deck Wins'
-      : 'Play local game'
+  const nextMatchLabel = defaultPlayLabel ? 'Play Red Deck Wins' : 'Play local game'
 
   function startNextMatch(): void {
     if (!greStore.gameOver) {
@@ -607,7 +593,7 @@ function BrowserMatch() {
         <header className={styles.matchBar}>
           <div>
             <p className={styles.eyebrow}>Browser-local Forge</p>
-            <h1>{spectator ? 'AI vs AI' : 'Local game'}</h1>
+            <h1>Local game</h1>
           </div>
           <div className={styles.matchActions}>
             <span className={styles.liveStatus} role="status">
@@ -627,7 +613,7 @@ function BrowserMatch() {
             <button
               className={styles.primaryButton}
               type="button"
-              onClick={board.gameOver ? () => launchFromSetup(spectator) : startNextMatch}
+              onClick={board.gameOver ? () => launchFromSetup() : startNextMatch}
             >
               {board.gameOver ? nextMatchLabel : 'New game'}
             </button>
@@ -654,8 +640,8 @@ function BrowserMatch() {
           <p className={styles.eyebrow}>Browser-local Forge</p>
           <h1 id="launcher-title">Play Forge in your browser.</h1>
           <p className={styles.lede}>
-            A complete Forge card pool runs on your machine. Pick a deck, paste a decklist, or watch
-            two decks play through the normal tabletop.
+            A complete Forge card pool runs on your machine. Pick a deck or paste a decklist. two
+            decks play through the normal tabletop.
           </p>
           <a
             className={styles.vendorLink}
@@ -714,7 +700,7 @@ function BrowserMatch() {
                 <button
                   className={styles.primaryButton}
                   type="button"
-                  onClick={() => launchFromSetup(spectator)}
+                  onClick={() => launchFromSetup()}
                 >
                   Try again
                 </button>
@@ -744,17 +730,9 @@ function BrowserMatch() {
               className={styles.primaryButton}
               type="button"
               disabled={phase === 'preparing'}
-              onClick={() => launchFromSetup(false)}
+              onClick={() => launchFromSetup()}
             >
               {defaultPlayLabel ? 'Play Red Deck Wins' : 'Play local game'}
-            </button>
-            <button
-              className={styles.secondaryButton}
-              type="button"
-              disabled={phase === 'preparing'}
-              onClick={() => launchFromSetup(true)}
-            >
-              Watch AI vs AI
             </button>
           </div>
           {phase === 'preparing' && (

@@ -120,9 +120,7 @@ export function WhatsNewProvider({ children }: { children: ReactNode }) {
     }
   }, [latestDate, seenState])
 
-  const activePlayerMatch = Boolean(
-    session.config?.matchId && !session.isSpectator && !board.gameOver,
-  )
+  const activePlayerMatch = Boolean(session.config?.matchId && !board.gameOver)
 
   useEffect(() => {
     const accountId = auth.player?.id ?? null

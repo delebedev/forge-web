@@ -33,15 +33,4 @@ class PuzzleStoreTest {
             assertEquals("published", assertNotNull(database.puzzles.findRun(runId)).status)
         }
     }
-
-    @Test
-    fun `interrupted runs fail on restart`() {
-        val path = PlayerDatabasePath(temp.resolve("player.db").toFile())
-        val runId = PlayerDatabase.open(path).use { it.puzzles.createRun("owner", "flash", "v1").id }
-        PlayerDatabase.open(path).use { database ->
-            val run = assertNotNull(database.puzzles.findRun(runId))
-            assertEquals("failed", run.status)
-            assertEquals("interrupted", run.stage)
-        }
-    }
 }

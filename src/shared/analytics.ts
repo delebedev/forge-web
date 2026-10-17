@@ -7,7 +7,7 @@ import type { BrowserFailureSnapshot } from './browser-failure-snapshot'
 
 export type AnalyticsValue = string | number | boolean
 export type AnalyticsProps = Record<string, AnalyticsValue>
-export type GameMode = 'play' | 'watch'
+export type GameMode = 'play'
 
 const EVENTS = {
   GAME_START: 'game-start',
@@ -18,10 +18,6 @@ const EVENTS = {
   TURN_MILESTONE: 'turn-milestone',
   BROWSER_LIFECYCLE: 'browser-lifecycle',
   GAME_RECOVERY: 'game-recovery',
-  GAME_EXECUTION_FALLBACK: 'game-execution-fallback',
-  SPECTATOR_START: 'spectator-start',
-  SPECTATOR_START_FAILED: 'spectator-start-failed',
-  SPECTATOR_COMPLETE: 'spectator-complete',
   LOGIN: 'login',
   DECK_PASTE: 'deck-paste',
   DECK_SEARCH: 'deck-search',
@@ -55,6 +51,7 @@ export type BrowserFailureOperation =
   | 'close'
   | 'metadata'
   | 'advice'
+  | 'validate-puzzle'
   | 'memory'
   | 'heartbeat'
   | 'progress'
@@ -100,40 +97,8 @@ export type BrowserFailureDiagnostic = {
   heartbeatState?: 'not-started' | 'pending' | 'responsive'
 }
 
-export type GameExecutionFallbackReason =
-  | 'unsupported-browser'
-  | 'insecure-context'
-  | 'missing-engine-apis'
-  | 'missing-required-apis'
-  | 'local-startup-failed'
-
-export type GameExecutionFallbackDetail =
-  | 'secure-context'
-  | 'worker'
-  | 'wasm'
-  | 'decompression-stream'
-  | 'subtle-crypto'
-  | 'asset'
-  | 'heartbeat'
-  | 'progress'
-  | 'catalog'
-  | 'runtime'
-  | 'worker-startup'
-
-export function trackGameExecutionFallback(
-  reason: GameExecutionFallbackReason,
-  detail?: GameExecutionFallbackDetail,
-): void {
-  track(EVENTS.GAME_EXECUTION_FALLBACK, {
-    from: 'browser',
-    to: 'server',
-    reason,
-    ...(detail ? { detail } : {}),
-  })
-}
-
 type ExecutionAnalyticsContext = {
-  execution?: 'server' | 'browser'
+  execution?: 'browser'
   attemptId?: string
   frontendBuild?: string
   engineBuild?: string
@@ -352,7 +317,7 @@ export function trackGameStart(
     data['deck_id'] = props.deckId
   }
   Object.assign(data, browserContextData(props))
-  track(props.mode === 'watch' ? EVENTS.SPECTATOR_START : EVENTS.GAME_START, data)
+  track(EVENTS.GAME_START, data)
 }
 
 export function trackGameStartFailed(
@@ -384,7 +349,7 @@ export function trackGameStartFailed(
     data['category'] = props.category
   }
   Object.assign(data, browserContextData(props))
-  track(props.mode === 'watch' ? EVENTS.SPECTATOR_START_FAILED : EVENTS.GAME_START_FAILED, data)
+  track(EVENTS.GAME_START_FAILED, data)
 }
 
 export function trackGameComplete(
@@ -424,7 +389,7 @@ export function trackGameComplete(
     data['deck_id'] = props.deckId
   }
   Object.assign(data, browserContextData(props))
-  track(props.mode === 'watch' ? EVENTS.SPECTATOR_COMPLETE : EVENTS.GAME_COMPLETE, data)
+  track(EVENTS.GAME_COMPLETE, data)
 }
 
 export function trackGameLeft(

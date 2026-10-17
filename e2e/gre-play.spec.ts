@@ -3,9 +3,16 @@ import { startScenario } from './gre-scenario'
 import { isFamilyPromptScenario } from './gre-prompt-cases'
 import { readFileSync } from 'node:fs'
 import type { Page, TestInfo } from '@playwright/test'
-import { authenticateShell, expect, handZone, promptZone, startPuzzleGame, test } from './gre-test'
-import { decodeMessage } from '../src/engine/wire/gre-proto'
-import { collectConsoleErrors } from './gre-browser-observations'
+import {
+  authenticateShell,
+  expect,
+  handZone,
+  promptZone,
+  startPuzzleGame,
+  test,
+  waitForBrowserGameReady,
+} from './gre-test'
+import { collectConsoleErrors, readBrowserJournal } from './gre-browser-observations'
 import {
   discoverAcceptanceSuites,
   loadAcceptanceSuite,
@@ -81,17 +88,8 @@ test('Commander match offers its first command-zone cast beside the hand', async
   gre: _gre,
 }, testInfo) => {
   await authenticateShell(page)
-  await page.addInitScript(() => {
-    sessionStorage.setItem(
-      'forge:gre:lastMatchConfig',
-      JSON.stringify({
-        gameType: 'commander',
-        seat1Deck: '[Commander]\n1 Isamaru, Hound of Konda\n[Deck]\n99 Plains',
-        seat2Deck: '[Commander]\n1 Isamaru, Hound of Konda\n[Deck]\n99 Plains',
-      }),
-    )
-  })
-  await page.goto('/match/commander')
+  const deck = '[Commander]\n1 Isamaru, Hound of Konda\n[Deck]\n99 Plains'
+  await startDeckGame(page, deck, deck, 'commander')
   await keepOpeningHandIfPrompt(page)
   await runGreAcceptanceSteps(page, {
     id: 'commander-first-cast',
@@ -193,14 +191,8 @@ for (const [name, file] of [
   test(`Commander stays visible without mana: ${name}`, async ({ page, gre: _gre }, testInfo) => {
     await authenticateShell(page)
     const deck = readFileSync(`dev/decks/commander/${file}`, 'utf8')
-    await page.addInitScript((deck) => {
-      sessionStorage.setItem(
-        'forge:gre:lastMatchConfig',
-        JSON.stringify({ gameType: 'commander', seat1Deck: deck, seat2Deck: deck }),
-      )
-    }, deck)
     try {
-      await page.goto('/match/commander')
+      await startDeckGame(page, deck, deck, 'commander')
       await keepOpeningHandIfPrompt(page)
       const commander = page
         .getByRole('region', { name: 'Cards outside your hand' })
@@ -232,25 +224,8 @@ for (const [name, file] of [
 for (const payable of [false, true]) {
   test(`opponent cycling priority: payable=${payable}`, async ({ page, gre: _gre }, testInfo) => {
     await authenticateShell(page)
-    const frames: unknown[] = []
-    const pendingDecodes: Promise<void>[] = []
-    page.on('websocket', (socket) => {
-      if (!socket.url().includes('/gre?')) {
-        return
-      }
-      socket.on('framereceived', ({ payload }) => {
-        if (typeof payload === 'string') {
-          return
-        }
-        pendingDecodes.push(
-          decodeMessage('MatchServiceToClientMessage', payload).then((message) => {
-            frames.push(message)
-          }),
-        )
-      })
-    })
     try {
-      await page.goto(`/dev/puzzle/priority-cycling-${payable ? 'payable' : 'unpayable'}`)
+      await startPuzzleGame(page, `priority-cycling-${payable ? 'payable' : 'unpayable'}`)
       await expect
         .poll(
           async () => {
@@ -268,6 +243,10 @@ for (const payable of [false, true]) {
         .toBe(true)
       const state = await page.evaluate(() => window.__greState()!)
       expect(state.diagnostics.errorCount).toBe(0)
+      const journal = await readBrowserJournal(page)
+      expect(journal?.context?.execution).toBe('browser')
+      expect(journal?.batches.length).toBeGreaterThan(0)
+      expect(journal?.status?.truncated).toBe(false)
       await page.screenshot({ path: testInfo.outputPath('priority.png') })
       await testInfo.attach('state', {
         body: JSON.stringify(state, null, 2),
@@ -278,9 +257,8 @@ for (const payable of [false, true]) {
         body: JSON.stringify(await page.evaluate(() => window.__greState?.()), null, 2),
         contentType: 'application/json',
       })
-      await Promise.all(pendingDecodes)
       await testInfo.attach('engine-emissions', {
-        body: JSON.stringify(frames, null, 2),
+        body: JSON.stringify(await readBrowserJournal(page).catch(() => null), null, 2),
         contentType: 'application/json',
       })
       await page.evaluate(() => window.__greAct?.('concede')).catch(() => undefined)
@@ -315,7 +293,7 @@ test('starts GRE game and plays first land', async ({ page }) => {
   // our next turn, and the engine auto-passes there in a few hundred ms — the
   // dip is only observable if a poll happens to land inside that window.
   //
-  // The first match after a server boot pays one-time engine warmup, so the
+  // A cold browser match pays one-time engine warmup, so the
   // first action can take well over the default poll window.
   await expect
     .poll(() => selfLandsZone(page).count(), { timeout: 20_000 })
@@ -568,7 +546,7 @@ test('GRE UI screenshot states render cleanly', async ({ page }, testInfo) => {
   })
 
   await authenticateShell(page)
-  await openDeckSetup(page, '28 Shock\n32 Mountain', '60 Plains', 424242)
+  await page.goto('/play/game')
   await page.screenshot({ path: testInfo.outputPath('gre-pre-start.png') })
 
   await startScenario(page, 'burn-controls')
@@ -710,10 +688,10 @@ test('concede shows GRE defeat outcome', async ({ page }) => {
 
 test('play again retires the old match and launches once on the same route', async ({ page }) => {
   const consoleErrors = collectConsoleErrors(page)
-  let launches = 0
+  let serverLaunches = 0
   page.on('request', (request) => {
     if (request.url().endsWith('/api/gre/start')) {
-      launches += 1
+      serverLaunches += 1
     }
   })
 
@@ -725,7 +703,6 @@ test('play again retires the old match and launches once on the same route', asy
   )
   await page.evaluate(() => window.__greActWait('concede'))
   await expect(page.getByRole('dialog')).toBeVisible({ timeout: 30_000 })
-  const beforeReplay = launches
   await page.getByRole('button', { name: 'Play Again' }).click()
 
   await expect(page).toHaveURL(/\/match\/constructed$/)
@@ -740,40 +717,31 @@ test('play again retires the old match and launches once on the same route', asy
       { timeout: 20_000 },
     )
     .not.toBe(oldMatchId)
-  expect(launches).toBe(beforeReplay + 1)
+  expect(serverLaunches).toBe(0)
   await expect(handZone(page).first()).toBeVisible({ timeout: 20_000 })
   expect(consoleErrors).toEqual([])
 })
 
-async function startDeckGame(page: Page, seat1Deck: string, seat2Deck: string): Promise<void> {
-  await openDeckSetup(page, seat1Deck, seat2Deck)
-  await startDeckFromSetup(page)
-}
-
-async function openDeckSetup(
+async function startDeckGame(
   page: Page,
   seat1Deck: string,
   seat2Deck: string,
-  seed?: number,
+  gameType: 'constructed' | 'commander' = 'constructed',
 ): Promise<void> {
   await page.goto('/play/game')
   await page.evaluate(
-    ({ seat1Deck, seat2Deck, seed }) => {
-      sessionStorage.setItem(
-        'forge:gre:lastMatchConfig',
-        JSON.stringify({ gameType: 'constructed', seat1Deck, seat2Deck, seed }),
-      )
+    async (config) => {
+      const modulePath = '/src/engine/runtime/gre-session.ts'
+      const { greSession } = await import(modulePath)
+      greSession.startBrowser(config)
     },
-    { seat1Deck, seat2Deck, seed },
+    { gameType, seat1Deck, seat2Deck },
   )
-}
-
-async function startDeckFromSetup(page: Page): Promise<void> {
-  await page.goto('/match/constructed')
-  await page.waitForURL(/\/match\/constructed/, { timeout: 20_000 })
+  await page.waitForURL(new RegExp(`/match/${gameType}$`), { timeout: 20_000 })
 }
 
 async function keepOpeningHandIfPrompt(page: Page): Promise<void> {
+  await waitForBrowserGameReady(page)
   const keep = page.getByRole('button', { name: 'Keep hand' })
   // Some puzzle setups begin directly on a populated battlefield and never
   // publish a mulligan or hand. Any rendered card proves authoritative setup.

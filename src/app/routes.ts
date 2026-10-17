@@ -12,6 +12,8 @@ export const ROUTES: Route[] = [
   { pattern: '/', component: 'landing' },
   { pattern: '/about', component: 'about' },
   { pattern: '/roadmap', component: 'roadmap' },
+  { pattern: '/watch', component: 'watch' },
+  { pattern: '/watch/:replayId', component: 'watch' },
   { pattern: '/login', component: 'login' },
   { pattern: '/challenge/:challengeId', component: 'browser-challenge' },
   { pattern: '/play/game', component: 'game' },

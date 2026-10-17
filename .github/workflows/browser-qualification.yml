@@ -63,7 +63,7 @@ jobs:
           retention-days: 1
 
   mechanics:
-    name: Mechanic fixtures and server capacity
+    name: Local mechanic fixtures
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
@@ -78,7 +78,9 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '21'
+          java-version: |
+            17
+            21
 
       - uses: stCarolas/setup-maven@v5
         with:
@@ -90,21 +92,20 @@ jobs:
       - run: bun run leyline:check
       - run: bun x --bun playwright install --with-deps chromium
 
-      - name: Run concurrent server games through two capacity waves
-        run: bun run e2e capacity --workers=1 --output=test-results/capacity
+      - name: Build local gameplay assets
+        run: bun run browser:assets
 
       - name: Run imported mechanic fixtures
         if: '!cancelled()'
         run: bun run gre --grep '@mechanic|@qualification' --workers=1 --output=test-results/mechanics
 
-      - name: Upload server qualification evidence
+      - name: Upload mechanic qualification evidence
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: server-qualification
+          name: mechanic-qualification
           path: |
             test-results/**
             /tmp/forge-web-gre-*-web.log
-            /tmp/forge-web-capacity-*-web.log
           if-no-files-found: ignore
           retention-days: 1

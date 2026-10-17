@@ -42,7 +42,12 @@ it('starts only one course match during concurrent deck submissions', async () =
     return Promise.resolve({
       ok: true,
       status: 200,
-      json: () => Promise.resolve({ matchId: 'match-1', wireMatchId: 'wire-1' }),
+      json: () =>
+        Promise.resolve({
+          coursePlayId: 'course-play-1',
+          seat1Deck: '40 Mountain',
+          seat2Deck: '40 Plains',
+        }),
     } as Response)
   }) as typeof fetch
 
@@ -86,7 +91,12 @@ it('keeps a submitted course until its match launch completes', async () => {
       resolve({
         ok: true,
         status: 200,
-        json: () => Promise.resolve({ matchId: 'match-1', wireMatchId: 'wire-1' }),
+        json: () =>
+          Promise.resolve({
+            coursePlayId: 'course-play-1',
+            seat1Deck: '40 Mountain',
+            seat2Deck: '40 Plains',
+          }),
       } as Response)
   })
   const requests: string[] = []
@@ -114,7 +124,11 @@ it('keeps a submitted course until its match launch completes', async () => {
   await submit
 
   expect(draftStore.snapshot().phase).toBe('playing')
-  expect(draftStore.snapshot().matchLaunch).toEqual({ matchId: 'match-1', wireMatchId: 'wire-1' })
+  expect(draftStore.snapshot().matchLaunch).toEqual({
+    coursePlayId: 'course-play-1',
+    seat1Deck: '40 Mountain',
+    seat2Deck: '40 Plains',
+  })
 })
 
 it('clears a pick error after a successful retry', async () => {

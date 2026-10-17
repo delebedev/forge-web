@@ -1,4 +1,5 @@
 import { test, expect, errors, type Locator, type Page } from '@playwright/test'
+import { startPuzzleGame } from './gre-test'
 import { readdirSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { parse } from 'yaml'
@@ -70,8 +71,7 @@ export function loadAcceptanceScenarios(suiteName: string): RawScenario[] {
 }
 
 export async function runGreAcceptanceScenario(page: Page, scenario: RawScenario): Promise<void> {
-  await page.goto(`/dev/puzzle/${encodeURIComponent(scenario.puzzle)}`)
-  await page.waitForURL(/\/match\/puzzle/, { timeout: 20_000 })
+  await startPuzzleGame(page, scenario.puzzle)
   await runGreAcceptanceSteps(page, scenario)
 }
 

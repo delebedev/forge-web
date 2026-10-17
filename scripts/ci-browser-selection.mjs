@@ -1,5 +1,5 @@
 import { execFileSync, spawnSync } from 'node:child_process'
-import { readFileSync, readdirSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import ts from 'typescript'
@@ -19,23 +19,19 @@ export const representatives = {
       'declares an attacker and submits combat',
       'handles game over after lethal burn puzzle',
     ],
-    'e2e/gre-recovery.spec.ts': [
-      'socket loss restores the opening decision and the played board in the same match',
-    ],
+    'e2e/gre-recovery.spec.ts': ['Urborg and Takenuma survive priority and pay for a spell'],
     'e2e/gre-cost-choice.spec.ts': ['additional cost:'],
   },
   catalog: {
     'e2e/forge-catalog.spec.ts': ['casts Jungle Lion from the catalog and deals combat damage'],
   },
-  drain: {},
 }
 
 export const suites = {
   product:
     /(?:auth-passwordless|bootstrap|deck-import|decks|draft|product-smoke|react-challenge|whats-new)\.spec\.ts$/,
-  gre: /gre-(?:play|prompts|mulligan|recovery|priority|sounds|cost-choice|equip-cost|repeatable-cost|alternate-life-cost|modal-cancel|search-owner|library-permissions|partner-decks|known-opponent-hand|warp|player-counters|mana-payment|proliferate)\.spec\.ts$/,
+  gre: /gre-(?:play|prompts|mulligan|recovery|priority|sounds|cost-choice|equip-cost|repeatable-cost|alternate-life-cost|modal-cancel|search-owner|library-permissions|partner-decks|known-opponent-hand|warp|player-counters|mana-payment|protection-mixed|proliferate)\.spec\.ts$/,
   catalog: /forge-catalog\.spec\.ts$/,
-  drain: /release-drain\.spec\.ts$/,
 }
 
 export function representativeLocations(file, source, titles) {
@@ -92,34 +88,6 @@ export function selection(suite, breadth, changed, read = (file) => readFileSync
   return [...new Set(selectors)]
 }
 
-// Keep these complete specs together on the shorter runtime lane.
-export const productGreSpecs = ['e2e/gre-priority.spec.ts']
-
-export function partitionGre(
-  selectors,
-  lane,
-  inventory = readdirSync('e2e').map((file) => `e2e/${file}`),
-) {
-  if (!['product', 'gameplay'].includes(lane)) {
-    throw new Error('Unknown GRE partition')
-  }
-  const files = inventory.filter((file) => suites.gre.test(file))
-  for (const file of productGreSpecs) {
-    if (!files.includes(file)) {
-      throw new Error(`Missing relocated GRE spec: ${file}`)
-    }
-  }
-  const selected = selectors.length ? selectors : files
-  for (const selector of selected) {
-    if (!files.includes(selector.split(':')[0])) {
-      throw new Error(`Unknown GRE selector: ${selector}`)
-    }
-  }
-  return selected.filter(
-    (selector) => productGreSpecs.includes(selector.split(':')[0]) === (lane === 'product'),
-  )
-}
-
 export function changedPaths(base, cwd = '.') {
   if (!/^[0-9a-f]{40}$/.test(base ?? '')) {
     throw new Error('Missing comparison revision')
@@ -137,7 +105,6 @@ const commands = {
   product: ['product:smoke'],
   gre: ['gre'],
   catalog: ['forge-catalog:smoke'],
-  drain: ['e2e', 'release-drain'],
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
@@ -146,38 +113,22 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     throw new Error(`Unknown suite ${suite}`)
   }
   let selectors
-  let fallback = false
   try {
     selectors = selection(suite, breadth, breadth === 'pr' ? changedPaths(base) : [])
   } catch (error) {
     // Missing history or a stale representative must expand coverage rather than certify no tests.
     console.warn(`Full ${suite} fallback: ${error.message}`)
     selectors = []
-    fallback = true
   }
-  const partitionArgs = extra.filter((arg) => arg.startsWith('--ci-partition='))
-  if (partitionArgs.length > 1 || (partitionArgs.length && suite !== 'gre')) {
-    throw new Error('GRE partition must be specified once on the GRE suite')
+  console.log(`${suite} selection: ${selectors.length ? selectors.join(', ') : 'full suite'}`)
+  const args = ['run', ...commands[suite], ...selectors]
+  if (suite === 'gre') {
+    args.push('--grep-invert', '@mechanic|@qualification')
   }
-  if (partitionArgs.length) {
-    selectors = partitionGre(selectors, partitionArgs[0].slice('--ci-partition='.length))
-    extra.splice(extra.indexOf(partitionArgs[0]), 1)
+  args.push(...extra)
+  const result = spawnSync('bun', args, { stdio: 'inherit', env: process.env })
+  if (result.error) {
+    throw result.error
   }
-  if (partitionArgs.length && selectors.length === 0) {
-    console.log('No selected GRE cases in this runtime partition')
-  } else if (!fallback && breadth === 'pr' && suite === 'drain' && selectors.length === 0) {
-    console.log('Release-drain regression remains in main coverage')
-  } else {
-    console.log(`${suite} selection: ${selectors.length ? selectors.join(', ') : 'full suite'}`)
-    const args = ['run', ...commands[suite], ...selectors]
-    if (suite === 'gre') {
-      args.push('--grep-invert', '@mechanic|@qualification')
-    }
-    args.push(...extra)
-    const result = spawnSync('bun', args, { stdio: 'inherit', env: process.env })
-    if (result.error) {
-      throw result.error
-    }
-    process.exit(result.status ?? 1)
-  }
+  process.exit(result.status ?? 1)
 }

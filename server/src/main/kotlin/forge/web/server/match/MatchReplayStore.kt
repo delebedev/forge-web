@@ -1,15 +1,8 @@
 package forge.web.server.match
 
-import com.google.protobuf.MessageOrBuilder
-import com.google.protobuf.util.JsonFormat
-import forge.web.cards.GreCardMetaDto
-import forge.web.server.cards.CardImageIndex
-import forge.web.server.cards.cardMeta
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonObjectBuilder
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
@@ -17,12 +10,7 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
-import leyline.game.data.CardRepository
 import org.slf4j.LoggerFactory
-import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
-import wotc.mtgo.gre.external.messaging.Messages.ClientToMatchServiceMessage
-import wotc.mtgo.gre.external.messaging.Messages.ClientToMatchServiceMessageType
-import wotc.mtgo.gre.external.messaging.Messages.MatchServiceToClientMessage
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
@@ -34,7 +22,6 @@ import java.security.MessageDigest
 import java.time.Clock
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicLong
 import java.util.zip.GZIPInputStream
 import java.util.zip.GZIPOutputStream
 
@@ -57,15 +44,11 @@ internal data class MatchReplayConfig(
 internal data class ReplayStorageHealth(
     val bytesUsed: Long,
     val maxBytes: Long,
-    val rejectedOpens: Long,
 )
 
 internal class MatchReplayStore(
     private val config: MatchReplayConfig,
-    private val cards: CardRepository,
-    private val release: String,
     private val clock: Clock = Clock.systemUTC(),
-    private val cardImages: CardImageIndex = CardImageIndex.empty(),
 ) {
     private val json =
         Json {
@@ -73,9 +56,6 @@ internal class MatchReplayStore(
             ignoreUnknownKeys = true
         }
     private val log = LoggerFactory.getLogger(MatchReplayStore::class.java)
-    private val active = mutableMapOf<String, MatchReplayWriter>()
-    private val unavailable = mutableMapOf<String, ReplayFailure>()
-    private val rejectedOpens = AtomicLong()
 
     // ponytail: Health uses the last completed measurement; add independent accounting if immediate freshness is required.
     @Volatile private var lastMeasuredBytesUsed = 0L
@@ -97,44 +77,10 @@ internal class MatchReplayStore(
             )
     }
 
-    @Synchronized
-    fun open(
-        matchId: String,
-        viewerSeatId: Int = 1,
-    ): MatchReplayWriter {
-        requireValidMatchId(matchId)
-        return runCatching {
-            cleanupTemporaryFiles()
-            if (journalFile(matchId) != null) throw ReplayStorageException("already_exists")
-            ensureCapacity(config.maxMatchBytes)
-            val bytesUsed = storageBudgetUsage()
-            if (config.maxBytes - bytesUsed < config.maxMatchBytes) {
-                rejectedOpens.incrementAndGet()
-                throw ReplayStorageException("storage_quota_exhausted")
-            }
-            val allocation = config.maxMatchBytes
-            val file = replayFile(matchId)
-            MatchReplayWriter(file, matchId, viewerSeatId, release, allocation, cards, cardImages, clock) { finished ->
-                synchronized(this) {
-                    if (active.remove(matchId, finished)) lastMeasuredBytesUsed += file.length() - allocation
-                }
-            }.also {
-                active[matchId] = it
-                lastMeasuredBytesUsed = bytesUsed + allocation
-            }
-        }.getOrElse { cause ->
-            val reason = (cause as? ReplayStorageException)?.message ?: "storage_unavailable"
-            log.error("Replay unavailable (matchId={} reason={})", matchId, reason, cause)
-            unavailable[matchId] = ReplayFailure(clock.millis(), reason.orEmpty())
-            MatchReplayWriter.disabled(reason.orEmpty())
-        }
-    }
-
     fun health(): ReplayStorageHealth =
         ReplayStorageHealth(
             bytesUsed = lastMeasuredBytesUsed,
             maxBytes = config.maxBytes,
-            rejectedOpens = rejectedOpens.get(),
         )
 
     fun authorized(token: String?): Boolean {
@@ -161,7 +107,7 @@ internal class MatchReplayStore(
         require(context.execution == "browser") { "Invalid replay execution" }
         require(context.matchId == matchId && submitted.matchId == matchId) { "Replay match identity mismatch" }
         require(context.attemptId?.matches(UUID) == true) { "Invalid replay attempt identity" }
-        require(context.gameType in setOf("constructed", "commander")) { "Invalid replay format" }
+        require(context.gameType in BROWSER_REPLAY_FORMATS) { "Invalid replay format" }
         require(submitted.batches.size <= 50_000 && submitted.events.size <= 100_000) { "Replay is too complex" }
         submitted.status.reportId?.let {
             require(artifactId == "$matchId:$it") { "Replay report identity mismatch" }
@@ -207,7 +153,7 @@ internal class MatchReplayStore(
         require(chunk.source == "forge-web-browser" && context.execution == "browser") { "Invalid replay source" }
         require(context.matchId == matchId && chunk.matchId == matchId) { "Replay match identity mismatch" }
         require(context.attemptId?.matches(UUID) == true) { "Invalid replay attempt identity" }
-        require(context.gameType in setOf("constructed", "commander")) { "Invalid replay format" }
+        require(context.gameType in BROWSER_REPLAY_FORMATS) { "Invalid replay format" }
         require(chunk.events.size <= 10_000 && chunk.batches.size <= 10_000) { "Replay chunk is too complex" }
         require(chunk.events.withIndex().all { (index, event) -> event.seq == afterSeq + index + 1 }) {
             "Replay chunk sequence is not contiguous"
@@ -285,27 +231,8 @@ internal class MatchReplayStore(
                     ),
             )
         }
-        val file = journalFile(matchId)
-        if (file == null) {
-            unavailable[matchId]?.let { failure ->
-                return ReplayBundle(
-                    version = 2,
-                    label = "Match $matchId",
-                    source = "forge-web",
-                    viewerSeatId = 1,
-                    matchId = matchId,
-                    release = release,
-                    batches = emptyList(),
-                    cards = emptyMap(),
-                    responses = emptyList(),
-                    events = emptyList(),
-                    status = ReplayStatus(false, failure.reason, truncated = true),
-                )
-            }
-            return null
-        }
-        val activeWriter = synchronized(this) { active[matchId] }
-        val parsed = activeWriter?.snapshot { readRecords(file) } ?: readRecords(file)
+        val file = journalFile(matchId) ?: return null
+        val parsed = readRecords(file)
         val header = parsed.records.firstOrNull { it.string("kind") == "header" }
         val batches = parsed.records.filter { it.string("kind") == "outbound" }.mapNotNull { it["messages"] as? JsonArray }
         if (header == null) return null
@@ -317,12 +244,9 @@ internal class MatchReplayStore(
         val responses = parsed.records.filter { it.string("kind") == "inbound" }.mapNotNull { it["message"] }
         val terminal = parsed.records.lastOrNull { it.string("kind") == "status" }
         val complete = terminal?.boolean("complete") == true && !parsed.truncated
-        val writerFailure = activeWriter?.failureReason
         val reason =
             when {
                 parsed.truncated -> "journal_tail_truncated"
-                writerFailure != null -> writerFailure
-                terminal == null && activeWriter != null -> "recording"
                 terminal == null -> "process_interrupted"
                 else -> terminal.string("reason") ?: if (complete) "completed" else "incomplete"
             }
@@ -356,7 +280,7 @@ internal class MatchReplayStore(
                 ReplayStatus(
                     complete,
                     reason,
-                    parsed.truncated || writerFailure != null || terminal?.boolean("truncated") == true,
+                    parsed.truncated || terminal?.boolean("truncated") == true,
                     pin?.string("reportId"),
                     pin?.long("pinnedUntilMs"),
                 ),
@@ -392,13 +316,11 @@ internal class MatchReplayStore(
         maxCompactions: Int? = MAX_COMPACTIONS_PER_CLEANUP,
     ) {
         val now = clock.millis()
-        unavailable.entries.removeIf { now - it.value.timeMs >= config.retentionDays * DAY_MS }
         cleanupTemporaryFiles()
         var compactions = 0
         for (file in replayFiles()) {
             if (requiredBytes != null && config.maxBytes - storageBudgetUsage() >= requiredBytes) break
             val matchId = matchId(file) ?: continue
-            if (matchId in active) continue
             val created = readCreatedTime(file) ?: file.lastModified()
             val pinnedUntil = readPin(matchId)?.long("pinnedUntilMs") ?: 0
             val expires = maxOf(created + config.retentionDays * DAY_MS, pinnedUntil)
@@ -412,50 +334,6 @@ internal class MatchReplayStore(
             }
         }
         storageBudgetUsage()
-    }
-
-    private fun ensureCapacity(requiredBytes: Long) {
-        if (config.maxBytes - storageBudgetUsage() >= requiredBytes) return
-        val now = clock.millis()
-        val candidates =
-            replayFiles()
-                .mapNotNull { file -> evictionCandidate(file, now) }
-                .sortedWith(compareBy<EvictionCandidate> { it.terminalTime }.thenBy { it.createdTime })
-        for (candidate in candidates) {
-            if (config.maxBytes - storageBudgetUsage() >= requiredBytes) return
-            if (!candidate.file.delete()) {
-                log.warn("Replay quota eviction failed (file={})", candidate.file.name)
-                continue
-            }
-            pinFile(candidate.matchId).delete()
-            browserMetadataFile(candidate.matchId).delete()
-        }
-    }
-
-    private fun evictionCandidate(
-        file: File,
-        now: Long,
-    ): EvictionCandidate? {
-        val matchId = matchId(file) ?: return null
-        if (matchId in active) return null
-        val pinnedUntil = readPin(matchId)?.long("pinnedUntilMs") ?: 0
-        if (pinnedUntil > now) return null
-        if (file.name.endsWith(".browser.json")) {
-            val created = readCreatedTime(file) ?: file.lastModified()
-            return EvictionCandidate(file, matchId, file.lastModified(), created)
-        }
-        val parsed =
-            runCatching { readRecords(file) }.getOrElse {
-                log.warn("Replay eviction inspection failed (file={})", file.name, it)
-                return null
-            }
-        val terminal = parsed.records.lastOrNull { it.string("kind") == "status" } ?: return null
-        return EvictionCandidate(
-            file = file,
-            matchId = matchId,
-            terminalTime = terminal.long("timeMs") ?: Long.MAX_VALUE,
-            createdTime = parsed.records.firstOrNull()?.long("timeMs") ?: file.lastModified(),
-        )
     }
 
     private fun replayFiles(): List<File> =
@@ -478,11 +356,7 @@ internal class MatchReplayStore(
 
     private fun storageFiles(): List<File> = config.root.listFiles { file -> file.isFile }?.toList().orEmpty()
 
-    private fun storageBudgetUsage(): Long {
-        val activeJournalNames = active.keys.mapTo(mutableSetOf()) { "$it.ndjson" }
-        val committed = storageFiles().filterNot { it.name in activeJournalNames }.sumOf(File::length)
-        return (committed + active.values.sumOf(MatchReplayWriter::storageReservation)).also { lastMeasuredBytesUsed = it }
-    }
+    private fun storageBudgetUsage(): Long = storageFiles().sumOf(File::length).also { lastMeasuredBytesUsed = it }
 
     private fun replayFile(matchId: String) = File(config.root, "$matchId.ndjson")
 
@@ -582,218 +456,6 @@ internal class MatchReplayStore(
     }
 
     private data class ParsedRecords(val records: List<JsonObject>, val truncated: Boolean)
-
-    private data class EvictionCandidate(
-        val file: File,
-        val matchId: String,
-        val terminalTime: Long,
-        val createdTime: Long,
-    )
-
-    private data class ReplayFailure(val timeMs: Long, val reason: String)
-}
-
-internal class MatchReplayWriter internal constructor(
-    private val file: File?,
-    private val matchId: String,
-    private val viewerSeatId: Int,
-    private val release: String,
-    private val maxBytes: Long,
-    private val cards: CardRepository?,
-    private val cardImages: CardImageIndex,
-    private val clock: Clock,
-    private val onFinished: (MatchReplayWriter) -> Unit = {},
-) {
-    private val printer = JsonFormat.printer()
-    private val json = Json { encodeDefaults = true }
-    private val sequence = AtomicLong()
-    private val recordedCards = mutableSetOf<Int>()
-    private val log = LoggerFactory.getLogger(MatchReplayWriter::class.java)
-
-    @Volatile private var failedReason: String? = null
-
-    @Volatile private var terminal = false
-
-    val storageReservation: Long get() = if (file == null) 0 else maxBytes
-    val failureReason: String? get() = failedReason
-
-    init {
-        if (file != null) {
-            append(
-                buildJsonObject {
-                    put("kind", "header")
-                    put("seq", sequence.incrementAndGet())
-                    put("timeMs", clock.millis())
-                    put("matchId", matchId)
-                    put("viewerSeatId", viewerSeatId)
-                    put("release", release)
-                },
-            )
-        }
-    }
-
-    @Synchronized
-    fun outbound(message: MatchServiceToClientMessage) {
-        if (file == null || terminal || failedReason != null) return
-        try {
-            val root = protoJson(message)
-            val messages = root["greToClientEvent"]?.jsonObject?.get("greToClientMessages") as? JsonArray ?: JsonArray(emptyList())
-            recordCards(messages)
-            append(
-                buildJsonObject {
-                    put("kind", "outbound")
-                    common()
-                    put("messages", messages)
-                },
-            )
-        } catch (cause: Exception) {
-            fail("write_failed", cause)
-        }
-    }
-
-    @Synchronized
-    fun inbound(message: ClientToMatchServiceMessage) {
-        if (file == null || terminal || failedReason != null) return
-        try {
-            val seatId =
-                if (message.clientToMatchServiceMessageType == ClientToMatchServiceMessageType.ClientToGremessage) {
-                    runCatching { ClientToGREMessage.parseFrom(message.payload).systemSeatId }.getOrDefault(viewerSeatId)
-                } else {
-                    viewerSeatId
-                }
-            append(
-                buildJsonObject {
-                    put("kind", "inbound")
-                    common(seatId)
-                    val choice =
-                        if (message.clientToMatchServiceMessageType == ClientToMatchServiceMessageType.ClientToGremessage) {
-                            runCatching { protoJson(ClientToGREMessage.parseFrom(message.payload)) }.getOrElse { protoJson(message) }
-                        } else {
-                            protoJson(message)
-                        }
-                    put("message", choice)
-                },
-            )
-        } catch (cause: Exception) {
-            fail("write_failed", cause)
-        }
-    }
-
-    fun finish(
-        complete: Boolean,
-        reason: String,
-    ) {
-        val notify =
-            synchronized(this) {
-                if (file == null || terminal) return
-                terminal = true
-                val failure = failedReason
-                runCatching {
-                    append(
-                        buildJsonObject {
-                            put("kind", "status")
-                            common()
-                            put("complete", complete && failure == null)
-                            put("reason", failure ?: reason)
-                            put("truncated", failure != null)
-                        },
-                        reserveStatus = false,
-                    )
-                }.onFailure { log.error("Replay status write failed (matchId={} reason={})", matchId, reason, it) }
-                true
-            }
-        if (notify) onFinished(this)
-    }
-
-    fun <T> snapshot(block: () -> T): T = synchronized(this) { block() }
-
-    @Synchronized
-    fun markFailed(
-        reason: String,
-        cause: Throwable,
-    ) {
-        if (failedReason == null) failedReason = reason
-        log.error("Replay recording failed (matchId={} reason={})", matchId, reason, cause)
-    }
-
-    private fun recordCards(messages: JsonArray) {
-        val ids = mutableSetOf<Int>()
-
-        fun visit(
-            element: JsonElement,
-            key: String? = null,
-        ) {
-            when (element) {
-                is JsonObject -> element.forEach { (childKey, child) -> visit(child, childKey) }
-                is JsonArray -> element.forEach { visit(it, key) }
-                is JsonPrimitive -> if (key?.endsWith("grpId", ignoreCase = true) == true) element.longOrNull?.toInt()?.let(ids::add)
-            }
-        }
-        visit(messages)
-        ids.filter(recordedCards::add).forEach { grpId ->
-            val metadata =
-                cards?.findByGrpId(grpId)?.let {
-                    cards.cardMeta(grpId, cardImages, includeAbilities = true)
-                } ?: return@forEach
-            append(
-                buildJsonObject {
-                    put("kind", "card")
-                    common()
-                    put("grpId", grpId.toString())
-                    put("metadata", json.encodeToJsonElement(GreCardMetaDto.serializer(), metadata))
-                },
-            )
-        }
-    }
-
-    private fun JsonObjectBuilder.common(seatId: Int = viewerSeatId) {
-        put("seq", sequence.incrementAndGet())
-        put("timeMs", clock.millis())
-        put("seatId", seatId)
-        put("matchId", matchId)
-        put("release", release)
-    }
-
-    private fun protoJson(message: MessageOrBuilder): JsonObject = Json.parseToJsonElement(printer.print(message)).jsonObject
-
-    private fun append(
-        record: JsonObject,
-        reserveStatus: Boolean = true,
-    ) {
-        val target = checkNotNull(file)
-        val bytes = (record.toString() + "\n").toByteArray(StandardCharsets.UTF_8)
-        val limit = if (reserveStatus) maxBytes - STATUS_RESERVE_BYTES else maxBytes
-        if (target.length() + bytes.size > limit) {
-            failedReason = "match_quota_exceeded"
-            throw ReplayStorageException("Replay match quota exceeded")
-        }
-        appendRecord(target, record)
-    }
-
-    private fun fail(
-        reason: String,
-        cause: Exception,
-    ) {
-        if (failedReason == null) failedReason = reason
-        log.error("Replay write failed (matchId={} reason={})", matchId, reason, cause)
-    }
-
-    companion object {
-        fun disabled(reason: String = "disabled") =
-            MatchReplayWriter(null, reason, 1, "unknown", 0, null, CardImageIndex.empty(), Clock.systemUTC())
-    }
-}
-
-internal class ReplayStorageException(message: String) : RuntimeException(message)
-
-private fun appendRecord(
-    file: File,
-    record: JsonObject,
-) {
-    FileOutputStream(file, true).use { output ->
-        output.write((record.toString() + "\n").toByteArray(StandardCharsets.UTF_8))
-        output.fd.sync()
-    }
 }
 
 private fun writeAtomic(
@@ -823,10 +485,10 @@ private fun matchId(file: File): String? =
     }
 
 private val MATCH_ID = Regex("[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
+private val BROWSER_REPLAY_FORMATS = setOf("constructed", "commander", "draft", "sealed")
 private val UUID = Regex("[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}", RegexOption.IGNORE_CASE)
 private val BROWSER_MATCH_ID = Regex("browser-${UUID.pattern}", RegexOption.IGNORE_CASE)
 private val REPORT_ID = Regex("[A-Za-z0-9][A-Za-z0-9._:-]{0,99}")
 private const val DAY_MS = 86_400_000L
 private const val MIN_REPLAY_BYTES = 64L * 1024
-private const val STATUS_RESERVE_BYTES = 2L * 1024
 private const val MAX_COMPACTIONS_PER_CLEANUP = 16

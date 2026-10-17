@@ -50,7 +50,7 @@ for (const zone of ['Graveyard', 'Exile'] as const) {
   })
 }
 
-for (const execution of ['server', 'browser'] as const) {
+for (const execution of ['browser'] as const) {
   for (const suiteName of ['library-play', 'opposition-search']) {
     test(`library permissions: ${suiteName} (${execution})`, async ({ page }, info) => {
       test.setTimeout(180_000)

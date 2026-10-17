@@ -47,8 +47,8 @@ function validRelease(value: unknown): value is BrowserRelease {
 }
 
 export function getBrowserRelease(): Promise<BrowserRelease> {
-  releasePromise ??= fetch('/browser-engine/release.json', { cache: 'no-store' }).then(
-    async (response) => {
+  releasePromise ??= fetch('/browser-engine/release.json', { cache: 'no-store' })
+    .then(async (response) => {
       if (!response.ok) {
         throw new Error(`Release manifest download failed (${response.status})`)
       }
@@ -57,8 +57,11 @@ export function getBrowserRelease(): Promise<BrowserRelease> {
         throw new Error('Release manifest is incompatible. Refresh and retry.')
       }
       return release
-    },
-  )
+    })
+    .catch((error: unknown) => {
+      releasePromise = null
+      throw error
+    })
   return releasePromise
 }
 

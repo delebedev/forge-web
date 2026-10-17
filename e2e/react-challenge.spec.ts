@@ -28,22 +28,19 @@ test('anonymous direct link reaches the normal board and Victory', async ({ page
   }
 })
 
-test('Return keeps a failed retirement visible and retries before opening Challenges', async ({
-  page,
-}, testInfo) => {
-  test.skip(testInfo.project.name === 'mobile', 'Desktop project owns lifecycle proof.')
+test('Return retires the local challenge without a server gameplay request', async ({ page }) => {
+  const requests: string[] = []
+  page.on('request', (request) => {
+    if (new URL(request.url()).pathname.startsWith('/api/gre/')) {
+      requests.push(request.url())
+    }
+  })
   await openLethalBoltChallenge(page)
-  await page.route('**/api/gre/abandon', (route) => route.fulfill({ status: 500 }))
-  await page.getByRole('button', { name: /Return to Challenges/ }).click()
-  await expect(page.getByRole('alert')).toContainText('Could not leave the match')
-  await expect(page).toHaveURL(/\/match\/puzzle$/)
-  await expect(page.getByRole('region', { name: 'Battlefield', exact: true })).toBeVisible()
-  await page.screenshot({ path: testInfo.outputPath('retirement-failed.png') })
-
-  await page.unroute('**/api/gre/abandon')
-  await page.getByRole('button', { name: 'Try Return again' }).click()
+  await solveLethalBoltWithPointer(page)
+  await page.getByRole('button', { name: 'Return to Challenges', exact: true }).click()
   await expect(page).toHaveURL(/\/challenges$/)
   await expect(page.getByRole('heading', { name: 'Challenges', exact: true })).toBeVisible()
+  expect(requests).toEqual([])
 })
 
 test('keyboard-only cast and target journey', async ({ page }, testInfo) => {

@@ -14,7 +14,7 @@ Each store field has exactly one module that writes to it. Multiple readers OK.
 If two modules need to write the same state, it belongs in the module they both depend on.
 
 ### C3. Pending → Confirm → Broadcast
-Server frames own authoritative game state. Prompt choices are local drafts
+Engine frames own authoritative game state. Prompt choices are local drafts
 owned by their family under `runtime/prompts/`. `GreDispatch` owns identity,
 correlation, source guards, waiting, rejection, retirement, and publication.
 Ordinary submission retires on delivery. Cancellation and bounded continuations
@@ -22,8 +22,8 @@ wait under that same owner. [ADR-006](adr/006-family-owned-prompt-controls.md)
 owns the binding and composition rules.
 
 ### C4. The Runtime Owns Transport
-Components never open or write to a WebSocket directly. `GreFrameSource` adapters
-own server, browser, and replay transport. Components submit through store methods
+Components never launch games or transport frames directly. `GreFrameSource` adapters
+own browser-worker and read-only replay delivery. Components submit through store methods
 or interaction-bound prompt controls; encoding and delivery remain centralized.
 Serializable board snapshots contain no executable controls. Controls must bind
 to the displayed prompt and revalidate current interaction identity and offered
@@ -74,7 +74,6 @@ prompt state visible until the route implements it.
 
 ## Established Patterns
 
-- **One Store ↔ One Transport** — `greStore` owns the GRE WebSocket;
-  `draftStore`/`sealedStore` are REST-only (product course routes), no transport
-  to share.
+- **One Store ↔ One Frame Source** — `greStore` consumes the browser worker or a
+  read-only replay. `draftStore`/`sealedStore` own product course REST state.
 - **Card ID as Identity** — selection sets are `number[]` of card/object IDs.

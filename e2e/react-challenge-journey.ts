@@ -1,10 +1,12 @@
-import { expect, type Page } from '@playwright/test'
+import type { Page } from '@playwright/test'
+import { expect, waitForBrowserGameReady } from './gre-test'
 
 export const LETHAL_BOLT_CHALLENGE_ID = 'gre-game-over-bolt'
 
 export async function openLethalBoltChallenge(page: Page): Promise<void> {
   await page.goto(`/challenges/${LETHAL_BOLT_CHALLENGE_ID}`)
   await expect(page).toHaveURL(/\/match\/puzzle$/, { timeout: 20_000 })
+  await waitForBrowserGameReady(page)
   await expect(page.getByRole('region', { name: 'Battlefield', exact: true })).toBeVisible({
     timeout: 30_000,
   })
@@ -13,7 +15,7 @@ export async function openLethalBoltChallenge(page: Page): Promise<void> {
   )
 
   const keep = page.getByRole('button', { name: 'Keep hand' })
-  if (await keep.isVisible({ timeout: 8_000 }).catch(() => false)) {
+  if (await keep.isVisible()) {
     await keep.click()
   }
   await expect(

@@ -40,7 +40,7 @@ import type {
 } from './gre-debug-contract'
 
 const ACTION_TIMEOUT_MS = 4000
-const START_TIMEOUT_MS = 12000
+const START_TIMEOUT_MS = 240000
 const WAIT_POLL_MS = 120
 const RECENT_MESSAGE_TYPES = 20
 const LOCAL_INTENT_VERBS = new Set(['damage', 'group', 'selectN', 'search'])
@@ -659,11 +659,13 @@ async function greStart(
   const deadline = Date.now() + timeoutMs
   const abort = new AbortController()
   try {
-    const cfg: GreStartConfig = config ?? {
+    const cfg: GreStartConfig = {
       seat1Deck: DEFAULT_GRE_PLAYER_DECK,
       seat2Deck: DEFAULT_GRE_OPPONENT_DECK,
+      ...config,
     }
-    const start = greStore.startGame(cfg, abort.signal)
+    greSession.startBrowser({ ...cfg, gameType: cfg.gameType ?? 'constructed' }, false)
+    const start = greSession.connectBrowser(greSession.config!, abort.signal)
     let timer: ReturnType<typeof setTimeout> | undefined
     let completed: boolean
     try {

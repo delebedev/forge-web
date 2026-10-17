@@ -1,3 +1,4 @@
+import { replaySetup } from './replay-setup'
 import { DeckViewSchema } from '@shared/api/wire-schemas'
 import { readJson } from '@shared/api/decoding'
 /**
@@ -34,7 +35,6 @@ import {
 import { createGameSetupStarter } from './setup-game-start'
 import { currentBrowserPreflight } from '@engine/runtime/browser-support'
 import { warmBrowserRelease } from '@engine/runtime/browser-release'
-import { trackGameExecutionFallback, type GameExecutionFallbackReason } from '@shared/analytics'
 
 migrateStoredDeckKey('forge:constructed:playerDeck', STORAGE_KEY_GAME_PLAYER)
 migrateStoredDeckKey('forge:constructed:aiDeck', STORAGE_KEY_GAME_OPPONENT)
@@ -43,38 +43,40 @@ function isPlayableRecentDeck(deck: RecentUserDeck): boolean {
   return deck.cardCount >= 60 && !/\b(test|sample|demo|debug)\b/i.test(deck.name)
 }
 
-type BrowserAvailability =
-  | { status: 'available' }
-  | { status: 'fallback'; reason: GameExecutionFallbackReason; message: string }
+type BrowserAvailability = { status: 'available' } | { status: 'unavailable'; message: string }
 
 export function GameSetupRoute() {
   const auth = useAuthSnapshot()
+  const [previousGameUnavailable] = useState(
+    () => sessionStorage.getItem('forge:gre:unavailable') === 'true',
+  )
+  useEffect(() => {
+    sessionStorage.removeItem('forge:gre:unavailable')
+  }, [])
+  const [replay] = useState(() => replaySetup(location.search))
   const [playerDeck, setPlayerDeck] = useState<DeckDetail | null>(() => {
+    if (replay) {
+      return replay.playerDeck
+    }
     const stored = loadStoredDeck(STORAGE_KEY_GAME_PLAYER)
     return stored?.hasCommander ? stored : COMMANDER_DECKS[0]!
   })
-  const [opponentDeck, setOpponentDeck] = useState<DeckDetail | null>(() =>
-    loadStoredDeck(STORAGE_KEY_GAME_OPPONENT),
+  const [opponentDeck, setOpponentDeck] = useState<DeckDetail | null>(
+    () => replay?.opponentDeck ?? loadStoredDeck(STORAGE_KEY_GAME_OPPONENT),
   )
   const [pickerTarget, setPickerTarget] = useState<'player' | 'opponent' | null>(null)
   const [deckSelectionError, setDeckSelectionError] = useState<string | null>(null)
   const [starting, setStarting] = useState(false)
   const [browserAvailability, setBrowserAvailability] = useState<BrowserAvailability>(() => {
     const unsupported = currentBrowserPreflight()
-    return unsupported ? { status: 'fallback', ...unsupported } : { status: 'available' }
+    return unsupported ? { status: 'unavailable', ...unsupported } : { status: 'available' }
   })
-  const [gameTypeId, setGameTypeId] = useState<GameTypeId>('commander')
+  const [gameTypeId, setGameTypeId] = useState<GameTypeId>(replay?.gameType ?? 'commander')
   const [recentDecksLoaded, setRecentDecksLoaded] = useState(false)
   const requireCommander = COMMANDER_VARIANTS.includes(gameTypeId)
   const seedParam = new URLSearchParams(window.location.search).get('seed')
   const requestedSeed = seedParam == null ? Number.NaN : Number(seedParam)
   const seed = Number.isSafeInteger(requestedSeed) && requestedSeed >= 0 ? requestedSeed : undefined
-  const [startGame] = useState(() =>
-    createGameSetupStarter({
-      start: (config) => greSession.start(config),
-      onStarting: setStarting,
-    }),
-  )
   const [startBrowserGame] = useState(() =>
     createGameSetupStarter({
       start: (config) => greSession.startBrowser(config),
@@ -103,7 +105,7 @@ export function GameSetupRoute() {
   }, [playerDeck, opponentDeck])
 
   useEffect(() => {
-    if (!auth.isAuthenticated || recentDecksLoaded) {
+    if (replay || !auth.isAuthenticated || recentDecksLoaded) {
       return
     }
     const playerId = auth.player?.id
@@ -155,7 +157,7 @@ export function GameSetupRoute() {
     return () => {
       cancelled = true
     }
-  }, [auth.isAuthenticated, auth.player?.id, recentDecksLoaded])
+  }, [auth.isAuthenticated, auth.player?.id, recentDecksLoaded, replay])
 
   function openGameDeckPicker(slot: 'player' | 'opponent'): void {
     decksStore.clearSelection()
@@ -195,30 +197,11 @@ export function GameSetupRoute() {
     }
   }
 
-  async function handleGameStart(config: GameStartConfig): Promise<void> {
-    setDeckSelectionError(null)
-    const result = await startGame(
-      { ...config, ...(seed == null ? {} : { seed }) },
-      playerDeck,
-      opponentDeck,
-    )
-    if (!result || result.ok) {
-      return
-    }
-    if (result.clearPlayerDeck) {
-      setPlayerDeck(null)
-      localStorage.removeItem(STORAGE_KEY_GAME_PLAYER)
-    }
-    setDeckSelectionError(result.error)
-  }
-
   async function handleDefaultGameStart(config: GameStartConfig): Promise<void> {
     setDeckSelectionError(null)
     const unsupported = currentBrowserPreflight()
     if (unsupported) {
-      setBrowserAvailability({ status: 'fallback', ...unsupported })
-      trackGameExecutionFallback(unsupported.reason, unsupported.capability)
-      await handleGameStart(config)
+      setBrowserAvailability({ status: 'unavailable', ...unsupported })
       return
     }
     setBrowserAvailability({ status: 'available' })
@@ -234,7 +217,20 @@ export function GameSetupRoute() {
 
   return (
     <>
+      {previousGameUnavailable && (
+        <p role="status">
+          Your previous game is no longer available. Start a new local game below.
+        </p>
+      )}
       <GameSetup
+        initialGameType={replay?.gameType ?? 'commander'}
+        initialAiMode={replay ? 'pick' : 'random'}
+        onRetryBrowser={() => {
+          const failure = currentBrowserPreflight()
+          setBrowserAvailability(
+            failure ? { status: 'unavailable', ...failure } : { status: 'available' },
+          )
+        }}
         playerDeck={playerDeck}
         opponentDeck={opponentDeck}
         onChooseDeck={(deck) => {
@@ -245,7 +241,6 @@ export function GameSetupRoute() {
         }}
         onPickDeck={openGameDeckPicker}
         onStartDefault={(config) => void handleDefaultGameStart(config)}
-        onStartServer={(config) => void handleGameStart(config)}
         onGameTypeChange={handleGameTypeChange}
         deckError={deckSelectionError}
         starting={starting}

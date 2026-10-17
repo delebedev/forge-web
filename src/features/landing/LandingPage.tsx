@@ -2,7 +2,7 @@ import { useState, type ReactNode, type MouseEvent } from 'react'
 import { SiteHeader } from '@shared/SiteHeader'
 import { useRouter } from '@app/router'
 import { useAuthSnapshot } from '@shared/auth/hooks'
-import { SpectatorTable } from './SpectatorTable'
+import { CuratedWatch } from '@features/replay/CuratedWatch'
 import { useWhatsNew } from '@features/whats-new/WhatsNewController'
 import '@shared/public-theme.css'
 import styles from './LandingPage.module.css'
@@ -10,7 +10,7 @@ import { dailyBrowserChallengePath } from '@features/challenges/browser-challeng
 import { productionFeedbackEnabled } from '@shared/feedback'
 import { hasCompletedDailyPuzzle } from '@features/challenges/daily-progress'
 
-/** One public shell keeps the spectator mounted through landing, login and About. */
+/** One public shell keeps the replay mounted through landing, login and About. */
 export function LandingPage({
   screen,
   login,
@@ -42,6 +42,9 @@ export function LandingPage({
     <div className={`public-theme ${styles.page}`}>
       <SiteHeader onNavigate={follow}>
         <nav className="site-header-links" aria-label="Main navigation">
+          <a href="/watch" onClick={follow}>
+            Watch
+          </a>
           <a className="nav-link-with-badge" href={dailyBrowserChallengePath()} onClick={follow}>
             Daily Puzzle
             <span className="nav-badge" data-complete={dailyComplete}>
@@ -105,18 +108,15 @@ export function LandingPage({
         </section>
         {showingAbout && about}
         <div className={styles.match} hidden={showingAbout}>
-          <SpectatorTable
-            actions={
-              <button
-                className={styles.expand}
-                type="button"
-                aria-expanded={expanded}
-                onClick={() => setExpanded(!expanded)}
-              >
-                {expanded ? 'Back to landing' : 'Expand match'}
-              </button>
-            }
-          />
+          <CuratedWatch embedded active={!showingAbout} />
+          <button
+            className={styles.expand}
+            type="button"
+            aria-expanded={expanded}
+            onClick={() => setExpanded(!expanded)}
+          >
+            {expanded ? 'Back to landing' : 'Expand game'}
+          </button>
         </div>
       </main>
     </div>

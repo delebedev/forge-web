@@ -2,7 +2,6 @@ import { afterEach, expect, test } from 'bun:test'
 import {
   setAnalyticsAccountId,
   syncAnalyticsIdentity,
-  trackGameExecutionFallback,
   trackGameStart,
   trackBrowserLifecycle,
   trackJourney,
@@ -98,33 +97,6 @@ test('custom events add smoke attribution and never surface Umami failures', () 
   expect(() => telemetry.track('challenge_opened', 'challenge-7')).not.toThrow()
 })
 
-test('execution fallback reports only its bounded route and reason', () => {
-  const { events } = captureAnalytics()
-
-  trackGameExecutionFallback('missing-engine-apis')
-
-  expect(events[0]).toMatchObject({
-    name: 'game-execution-fallback',
-    data: { from: 'browser', to: 'server', reason: 'missing-engine-apis' },
-  })
-})
-
-test('execution fallback includes bounded diagnostic detail', () => {
-  const { events } = captureAnalytics()
-
-  trackGameExecutionFallback('local-startup-failed', 'runtime')
-
-  expect(events[0]).toMatchObject({
-    name: 'game-execution-fallback',
-    data: {
-      from: 'browser',
-      to: 'server',
-      reason: 'local-startup-failed',
-      detail: 'runtime',
-    },
-  })
-})
-
 test('account changes replace native identity and custom event attribution', () => {
   const { events, identities } = captureAnalytics()
 
@@ -132,7 +104,7 @@ test('account changes replace native identity and custom event attribution', () 
   trackGameStart({ mode: 'play', gameType: 'constructed', matchId: 'match-1' })
   setAnalyticsAccountId('account-2')
   setAnalyticsAccountId(null)
-  trackGameStart({ mode: 'watch', gameType: 'spectator', matchId: 'match-2' })
+  trackGameStart({ mode: 'play', gameType: 'constructed', matchId: 'match-2' })
 
   expect(identities).toEqual(['account-1', 'account-2', ''])
   expect(events[0]?.data).toMatchObject({ account_id: 'account-1' })

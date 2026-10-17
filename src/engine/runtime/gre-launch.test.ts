@@ -6,7 +6,6 @@ import {
   DEFAULT_GRE_PLAYER_DECK,
 } from './gre-match'
 import {
-  candidateToGreStartConfig,
   challengeToGreStartConfig,
   devDefaultGreStartConfig,
   gameSetupToGreStartConfig,
@@ -42,7 +41,7 @@ function deck(content: string | null): DeckDetail {
 }
 
 describe('gameSetupToGreStartConfig', () => {
-  it('preserves a fixed seed for browser and server starts', () => {
+  it('preserves a fixed seed for local starts', () => {
     expect(
       gameSetupToGreStartConfig(
         {
@@ -82,21 +81,6 @@ describe('gameSetupToGreStartConfig', () => {
       gameType: 'constructed',
     })
   })
-
-  it('marks watch mode as spectator and keeps both seats explicit', () => {
-    const config = gameSetupToGreStartConfig(
-      { gameType: 'constructed', mode: 'watch', deck1List: '1 Forest', deck2List: '1 Swamp' },
-      null,
-      null,
-    )
-
-    expect(config).toEqual({
-      seat1Deck: '1 Forest',
-      seat2Deck: '1 Swamp',
-      gameType: 'constructed',
-      spectatorMode: true,
-    })
-  })
 })
 
 it('builds limited, puzzle, and dev GRE configs', () => {
@@ -106,7 +90,7 @@ it('builds limited, puzzle, and dev GRE configs', () => {
     gameType: 'draft',
   })
   expect(puzzleToGreStartConfig('combat.pzl')).toEqual({
-    puzzle: 'combat.pzl',
+    challengeId: 'combat.pzl',
     gameType: 'puzzle',
     returnPath: '/challenges',
     label: 'combat.pzl',
@@ -117,7 +101,7 @@ it('builds limited, puzzle, and dev GRE configs', () => {
       objective: 'Win within 10 turns. Put the revealed card on the bottom.',
     }),
   ).toEqual({
-    puzzle: 'scry-wall-of-runes',
+    challengeId: 'scry-wall-of-runes',
     gameType: 'puzzle',
     returnPath: '/challenges',
     label: 'Scry Wall of Runes',
@@ -143,21 +127,5 @@ it('keeps challenge context and returns dev play to the launcher', () => {
     returnPath: '/challenges',
     label: 'Find lethal',
     objective: 'Win this turn.',
-  })
-})
-
-it('keeps candidate identity and context for restart on the shared board', () => {
-  expect(
-    candidateToGreStartConfig({
-      candidateId: 'candidate-1',
-      name: 'Edited puzzle',
-      objective: 'Win within 2 turns.',
-    }),
-  ).toEqual({
-    candidateId: 'candidate-1',
-    gameType: 'puzzle',
-    returnPath: '/challenges',
-    label: 'Edited puzzle',
-    objective: 'Win within 2 turns.',
   })
 })

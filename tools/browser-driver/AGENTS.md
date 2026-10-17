@@ -1,7 +1,7 @@
 # Browser driver
 
-Keep browser orchestration and semantic UI execution here. Leyline owns puzzle
-loading, engine trials, and copilot decisions; reuse the normal gameplay board.
+Keep browser orchestration and semantic UI execution here. The browser runtime owns puzzle
+validation, loading, and copilot decisions; reuse the normal gameplay board.
 
 ## Run
 
@@ -18,7 +18,7 @@ loading, engine trials, and copilot decisions; reuse the normal gameplay board.
    or an explicit bounded failure, including the last observed position.
 4. Inspect the report and relevant visual evidence. Count win/loss/draw only
    from the authoritative terminal state; preserve other failure classifications.
-   Separate engine loading, engine-trial success, and browser success; a loss
+   Separate validation/loading from browser success; a loss
    or timeout alone establishes neither invalidity nor unsolvability.
    Report the observed objective or interaction, input, local source revision,
    observed backend release (or unknown), outcome, and evidence paths.
@@ -49,7 +49,7 @@ establishes that path, not difficulty, uniqueness, or fun.
 - **Whitebox advice:** consult the active match's Forge AI through its live
   GameBridge. Describe results as engine-informed UI execution. Copilot
   reconstruction from a client snapshot and visual judgment need separate
-  verification. Try engine evaluates its own disposable match.
+  verification. Local validation establishes loading; visible play establishes a solution.
 - **Visible execution:** use actionable DOM controls for every gameplay action.
   Read `__greState()` only for match/prompt identity, progress, and outcome.
   Never force clicks, submit GRE responses, call the debug action bridge, or

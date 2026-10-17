@@ -34,6 +34,14 @@ class BrowserDecksTest {
     }
 
     @Test
+    fun `realizes both sections of a local course launch`() {
+        val deck = BrowserDecks.validate("[Deck]\n40 Mountain\n[Sideboard]\n2 Lightning Bolt")
+        assertEquals(40, deck.get(DeckSection.Main).countAll())
+        assertEquals(2, deck.get(DeckSection.Sideboard).countAll())
+        assertEquals("Lightning Bolt", deck.get(DeckSection.Sideboard).toFlatList().first().name)
+    }
+
+    @Test
     fun `rejects blank and all-sideboard decks`() {
         assertContains(assertFailsWith<IllegalArgumentException> { BrowserDecks.validate("  \n") }.message.orEmpty(), "blank")
         assertContains(
@@ -70,8 +78,8 @@ class BrowserDecksTest {
 
     @Test
     fun `browser runtime carries stable identity and Commander variant`() {
-        val commander = BrowserRuntime.runtimeConfig("browser-stable", "deck one", "deck two", "commander", false)
-        val constructed = BrowserRuntime.runtimeConfig("browser-other", "deck one", "deck two", "constructed", false)
+        val commander = BrowserRuntime.runtimeConfig("browser-stable", "deck one", "deck two", "commander")
+        val constructed = BrowserRuntime.runtimeConfig("browser-other", "deck one", "deck two", "constructed")
 
         assertEquals("browser-stable", commander.matchId)
         assertEquals("commander", commander.gameVariant)
@@ -80,7 +88,7 @@ class BrowserDecksTest {
 
     @Test
     fun `browser runtime carries inline puzzle without decks`() {
-        val puzzle = BrowserRuntime.runtimeConfig("browser-puzzle", "", "", "puzzle", false, "bolt-at-three-v1", "[metadata]\nGoal:Win")
+        val puzzle = BrowserRuntime.runtimeConfig("browser-puzzle", "", "", "puzzle", "bolt-at-three-v1", "[metadata]\nGoal:Win")
         assertNull(puzzle.seat1)
         assertNull(puzzle.seat2)
         assertEquals("bolt-at-three-v1", puzzle.puzzleDefinition?.identity)

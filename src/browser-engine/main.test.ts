@@ -81,7 +81,6 @@ describe('browser-local launcher diagnostics', () => {
     const base = {
       phase: 'active' as const,
       gameOver: false,
-      spectator: false,
       prompt: false,
       canPass: false,
       legalActionCount: 0,
@@ -90,7 +89,6 @@ describe('browser-local launcher diagnostics', () => {
     expect(engineProgressWatchdogNeeded({ ...base, prompt: true })).toBe(false)
     expect(engineProgressWatchdogNeeded({ ...base, canPass: true })).toBe(false)
     expect(engineProgressWatchdogNeeded({ ...base, legalActionCount: 1 })).toBe(false)
-    expect(engineProgressWatchdogNeeded({ ...base, spectator: true })).toBe(true)
     expect(engineProgressWatchdogNeeded({ ...base, phase: 'preparing' })).toBe(false)
     expect(engineProgressWatchdogNeeded({ ...base, gameOver: true })).toBe(false)
   })

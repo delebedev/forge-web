@@ -2,7 +2,7 @@ import { startScenario } from './gre-scenario'
 import { authenticateShell, expect, test } from './gre-test'
 import { runGreAcceptanceSteps } from './gre-acceptance'
 
-for (const execution of ['server', 'browser'] as const) {
+for (const execution of ['browser'] as const) {
   for (const branch of ['sacrifice', 'discard'] as const) {
     test(`${execution} additional cost: ${branch} displays and pays the offered branch`, async ({
       page,
@@ -14,11 +14,9 @@ for (const execution of ['server', 'browser'] as const) {
       await authenticateShell(page, 'cost-proof')
       await startScenario(page, 'cost-choice', execution)
       await expect(page.locator('[data-board]')).toHaveAttribute('data-card-art', 'off')
-      if (execution === 'browser') {
-        expect(page.workers().some((worker) => worker.url().includes('engine-worker.js'))).toBe(
-          true,
-        )
-      }
+
+      expect(page.workers().some((worker) => worker.url().includes('engine-worker.js'))).toBe(true)
+
       await runGreAcceptanceSteps(page, { steps: [{ cast: 'Demand Answers' }] })
       const prompt = page.locator('[data-prompt="castingOptions"]')
       await expect(prompt.locator('button[data-choice-id]')).toHaveCount(2)
@@ -71,7 +69,7 @@ for (const execution of ['server', 'browser'] as const) {
   }
 }
 
-for (const execution of ['server', 'browser'] as const) {
+for (const execution of ['browser'] as const) {
   for (const branch of ['life', 'discard'] as const) {
     test(`${execution} life cost: ${branch} displays and pays before destroying the target`, async ({
       page,
@@ -130,7 +128,7 @@ for (const execution of ['server', 'browser'] as const) {
   }
 }
 
-for (const execution of ['server', 'browser'] as const) {
+for (const execution of ['browser'] as const) {
   for (const kick of [true, false]) {
     test(`${execution} kicker cost: ${kick ? 'pay' : 'decline'} shows the amount and resolves its branch`, async ({
       page,
@@ -187,7 +185,7 @@ for (const execution of ['server', 'browser'] as const) {
   }
 }
 
-for (const execution of ['server', 'browser'] as const) {
+for (const execution of ['browser'] as const) {
   test(`${execution} offspring cost: Forge title pays and creates a token copy`, async ({
     page,
   }, info) => {

@@ -69,6 +69,7 @@ export type BoardProps = {
   onCloseZone: () => void
   dropZoneRef: (el: HTMLElement | null) => void
   onBackToPlay?: () => void
+  playAgainDisabled?: boolean
   onPlayAgain?: () => void
   context?: { label: string; objective: string; turns?: number }
   backLabel?: string
@@ -115,6 +116,7 @@ export function Board({
   dropZoneRef,
   onBackToPlay,
   onPlayAgain,
+  playAgainDisabled = false,
   context,
   backLabel = 'Back to Play',
   playAgainLabel = 'Play Again',
@@ -199,7 +201,6 @@ export function Board({
     Boolean(board.currentMatchId) &&
     !board.gameOver &&
     board.currentGameType !== 'puzzle' &&
-    board.currentGameType !== 'spectator' &&
     (!board.connectionClose || board.connectionClose.category === 'transient')
 
   function offerCardActions(card: CardView): void {
@@ -359,6 +360,7 @@ export function Board({
                 <button
                   className={fullGameHref ? styles.outcomeSecondary : styles.outcomePrimary}
                   type="button"
+                  disabled={playAgainDisabled}
                   onClick={onPlayAgain}
                 >
                   {playAgainLabel}
