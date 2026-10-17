@@ -10,12 +10,10 @@ import leyline.domain.deck.DecklistException
 import leyline.game.data.CardRepository
 
 internal fun deckCopyFormat(name: String?): DeckFormat =
-    when (name?.lowercase()) {
+    when (name?.trim()?.lowercase()) {
         "commander" -> DeckFormat.Commander
         "brawl" -> DeckFormat.Brawl
         "oathbreaker" -> DeckFormat.Oathbreaker
-        "limited" -> DeckFormat.Limited
-        "commanderdraft" -> DeckFormat.CommanderDraft
         else -> DeckFormat.Constructed
     }
 

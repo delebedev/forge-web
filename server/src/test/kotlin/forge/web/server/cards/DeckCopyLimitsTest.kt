@@ -31,6 +31,7 @@ import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertTrue
 
 class DeckCopyLimitsTest {
     @BeforeTest
@@ -131,5 +132,24 @@ class DeckCopyLimitsTest {
                     setBody("""{"seat1Deck":"5 Lightning Bolt\n55 Mountain","seat2Deck":"60 Mountain"}""")
                 }
             assertEquals(400, start.status.value)
+            for ((variant, quantity, limit) in listOf(Triple("limited", 5, 4), Triple("commanderdraft", 5, 4), Triple(" brawl ", 2, 1))) {
+                val rejectedVariant =
+                    client.post("/api/gre/start") {
+                        header(HttpHeaders.Cookie, cookie)
+                        contentType(ContentType.Application.Json)
+                        setBody(
+                            """{"seat1Deck":"$quantity Lightning Bolt\n55 Mountain","seat2Deck":"60 Mountain","gameVariant":"$variant"}""",
+                        )
+                    }
+                assertEquals(400, rejectedVariant.status.value, variant)
+                assertTrue(rejectedVariant.bodyAsText().contains("at most $limit copies"), variant)
+            }
+            val missingCommander =
+                client.post("/api/gre/start") {
+                    header(HttpHeaders.Cookie, cookie)
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"seat1Deck":"60 Mountain","seat2Deck":"60 Mountain","gameVariant":" commander "}""")
+                }
+            assertEquals(400, missingCommander.status.value)
         }
 }

@@ -39,14 +39,15 @@ internal class BrowserMatchLauncher(
         val matchId = request.matchId?.takeIf { it.isNotBlank() } ?: "web-${UUID.randomUUID()}"
         val puzzleDefinition = resolvePuzzleDefinition(request, challengeCatalog, devPuzzleCandidates, playerId)
         val spectator = request.spectatorMode == true
+        val gameVariant = request.gameVariant?.trim()?.lowercase()
         val seat1Text = request.seat1Deck?.takeIf { it.isNotBlank() } ?: "60 Plains".takeIf { spectator }
         val seat2Text = request.seat2Deck?.takeIf { it.isNotBlank() } ?: "60 Mountain".takeIf { spectator }
         if (puzzleDefinition == null && request.puzzle == null) {
             for (text in listOf(seat1Text, seat2Text)) {
-                val commander = request.gameVariant?.equals("commander", ignoreCase = true) == true
+                val commander = gameVariant == "commander"
                 if (commander) requireNotNull(text) { "Commander deck is required" }
                 val deck = text?.let { DeckLoader.load(DeckSource.ForgeText(it)) } ?: continue
-                validateDeckCopies(deck, deckCopyFormat(request.gameVariant))
+                validateDeckCopies(deck, deckCopyFormat(gameVariant))
                 if (commander) commanderDeckProblem(deck)?.let { throw DecklistException(listOf("Commander deck $it.")) }
             }
         }
@@ -58,7 +59,7 @@ internal class BrowserMatchLauncher(
                             matchId = matchId,
                             seat1 = seat1Text?.let(DeckSource::ForgeText),
                             seat2 = seat2Text?.let(DeckSource::ForgeText),
-                            gameVariant = request.gameVariant,
+                            gameVariant = gameVariant,
                             seed = request.seed,
                             puzzle = request.puzzle,
                             puzzleDefinition = puzzleDefinition,
