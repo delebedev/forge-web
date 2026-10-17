@@ -299,7 +299,10 @@ test('renders a keyword-created Clue with a catalog identity and metadata', asyn
   const battlefield = page.locator('[data-zone="battlefield"][data-owner="self"]')
   const clueCard = battlefield.locator(`[data-instance-id="${runtimeClue!.instanceId}"]`).first()
   await expect(clueCard).toHaveAttribute('data-card', clue.name)
-  await expect(clueCard).toContainText('Artifact')
+  await clueCard.hover()
+  await expect(
+    page.getByRole('complementary', { name: 'Clue Token inspection', exact: true }),
+  ).toContainText('Artifact')
   const clueImage = clueCard.getByRole('img', { name: clue.name, exact: true })
   await expect(clueImage).toBeVisible()
   await expect
