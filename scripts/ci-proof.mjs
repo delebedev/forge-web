@@ -73,7 +73,7 @@ async function mergedStackTip(github, context, pull) {
     : null
 }
 
-export async function findPrRun(github, context) {
+export async function findPrRun(github, context, sleep = setTimeout) {
   const { owner, repo } = context.repo
   const { data: pulls } = await github.rest.repos.listPullRequestsAssociatedWithCommit({
     owner,
@@ -90,23 +90,30 @@ export async function findPrRun(github, context) {
       continue
     }
     const candidate = (await mergedStackTip(github, context, pull)) ?? pull
-    const { data } = await github.rest.actions.listWorkflowRuns({
-      owner,
-      repo,
-      workflow_id: 'web-ci.yml',
-      event: 'pull_request',
-      status: 'success',
-      head_sha: candidate.head.sha,
-      per_page: 10,
-    })
-    const run = data.workflow_runs.find(
-      (run) =>
-        run.conclusion === 'success' &&
-        run.head_sha === candidate.head.sha &&
-        run.event === 'pull_request',
-    )
-    if (run) {
-      return run.id
+    // The required gate can finish before the workflow's final report.
+    for (let attempt = 0; attempt <= 24; attempt++) {
+      const { data } = await github.rest.actions.listWorkflowRuns({
+        owner,
+        repo,
+        workflow_id: 'web-ci.yml',
+        event: 'pull_request',
+        head_sha: candidate.head.sha,
+        per_page: 10,
+      })
+      const runs = data.workflow_runs.filter(
+        (run) => run.head_sha === candidate.head.sha && run.event === 'pull_request',
+      )
+      const run = runs.find((run) => run.status === 'completed' && run.conclusion === 'success')
+      if (run) {
+        return run.id
+      }
+      if (
+        attempt === 24 ||
+        !runs.some((run) => run.status !== 'completed' && run.conclusion == null)
+      ) {
+        break
+      }
+      await sleep(5000)
     }
   }
   return null
