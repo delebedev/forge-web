@@ -37,7 +37,6 @@ internal class PlayerDatabase private constructor(
     internal val database: Database,
     val playerStore: SqlitePlayerStore,
     val authStore: SqliteWebAuthStore,
-    val matchOutcomes: SqliteMatchOutcomeStore,
     val puzzles: PuzzleStore,
     val roadmap: RoadmapStore,
 ) : AutoCloseable {
@@ -56,9 +55,8 @@ internal class PlayerDatabase private constructor(
                 PlayerDatabaseMigrator.migrate(dataSource)
                 val playerStore = SqlitePlayerStore(database)
                 val authStore = SqliteWebAuthStore(database)
-                val matchOutcomes = SqliteMatchOutcomeStore(database).also(SqliteMatchOutcomeStore::recoverInterrupted)
-                val puzzles = PuzzleStore(database).also(PuzzleStore::recoverInterrupted)
-                PlayerDatabase(path, database, playerStore, authStore, matchOutcomes, puzzles, RoadmapStore(database))
+                val puzzles = PuzzleStore(database)
+                PlayerDatabase(path, database, playerStore, authStore, puzzles, RoadmapStore(database))
             } catch (cause: Exception) {
                 TransactionManager.closeAndUnregister(database)
                 throw IllegalStateException("Failed to open product database at ${path.file.absolutePath}: ${cause.message}", cause)

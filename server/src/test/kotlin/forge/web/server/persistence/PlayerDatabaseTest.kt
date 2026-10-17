@@ -96,6 +96,51 @@ class PlayerDatabaseTest {
     }
 
     @Test
+    fun `opening the API database preserves pending legacy match and puzzle trial rows`() {
+        val path = PlayerDatabasePath.fromStateDir(tempDirectory("legacy-pending"))
+        PlayerDatabase.open(path).close()
+        DriverManager.getConnection("jdbc:sqlite:${path.file.absolutePath}").use { connection ->
+            connection.createStatement().use { statement ->
+                statement.executeUpdate(
+                    """
+                    INSERT INTO match_outcomes VALUES ('legacy-match', 'started', NULL, 'old-release', 'play', 0, 'constructed', NULL)
+                    """.trimIndent(),
+                )
+                statement.executeUpdate(
+                    """
+                    INSERT INTO puzzle_generation_runs VALUES (
+                        'legacy-run', 'owner', 'created', 'updated', 'running', 'testing_solution',
+                        'model', 'v1', '[]', '[{"featuredCard":"Lightning Bolt","trial":"pending trial"}]', NULL, NULL
+                    )
+                    """.trimIndent(),
+                )
+            }
+        }
+
+        fun rows(table: String): List<List<String?>> =
+            DriverManager.getConnection("jdbc:sqlite:${path.file.absolutePath}").use { connection ->
+                connection.createStatement().use { statement ->
+                    statement.executeQuery("SELECT * FROM $table").use { rows ->
+                        buildList {
+                            while (rows.next()) add((1..rows.metaData.columnCount).map(rows::getString))
+                        }
+                    }
+                }
+            }
+        val outcomes = rows("match_outcomes")
+        val runs = rows("puzzle_generation_runs")
+        repeat(2) {
+            PlayerDatabase.open(path).use { database ->
+                val run = requireNotNull(database.puzzles.findRun("legacy-run"))
+                assertEquals("running", run.status)
+                assertEquals("pending trial", run.attempts.single().trial)
+            }
+            assertEquals(outcomes, rows("match_outcomes"))
+            assertEquals(runs, rows("puzzle_generation_runs"))
+        }
+    }
+
+    @Test
     fun `card names survive changed runtime ids`() {
         val path = PlayerDatabasePath.fromStateDir(tempDirectory("catalog-version"))
         val playerId = PlayerId("player-1")
