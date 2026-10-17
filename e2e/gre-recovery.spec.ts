@@ -44,9 +44,16 @@ test('Urborg and Takenuma survive priority and pay for a spell', async ({ page }
   await expect(
     page.getByRole('button', { name: 'Full control · On', exact: true }),
   ).toHaveAttribute('aria-pressed', 'true')
-  expect(
-    (await page.evaluate(() => window.__greActWait('action', 'Use Takenuma, Abandoned Mire'))).ok,
-  ).toBe(true)
+  const takenuma = page.locator(
+    '[data-zone="battlefield"][data-owner="self"] [data-card="Takenuma, Abandoned Mire"]',
+  )
+  const urborg = page.locator(
+    '[data-zone="battlefield"][data-owner="self"] [data-card="Urborg, Tomb of Yawgmoth"]',
+  )
+  await expect(takenuma).toHaveAttribute('data-action-types', '4')
+  await takenuma.click()
+  await expect(takenuma).toHaveAttribute('data-tapped', 'true')
+  await expect(urborg).toHaveAttribute('data-tapped', 'false')
   const result = await page.evaluate(() => window.__greActWait('cast', 'Vampire of the Dire Moon'))
   expect(result.ok).toBe(true)
   for (let attempt = 0; attempt < 8; attempt += 1) {
@@ -62,6 +69,7 @@ test('Urborg and Takenuma survive priority and pay for a spell', async ({ page }
   expect(state.board.you.find((card) => card.name === 'Takenuma, Abandoned Mire')?.tapped).toBe(
     true,
   )
+  await expect(urborg).toHaveAttribute('data-tapped', 'false')
   expect(state.diagnostics.errorCount).toBe(0)
   await page.screenshot({ path: info.outputPath('urborg-takenuma-spell.png') })
   await test

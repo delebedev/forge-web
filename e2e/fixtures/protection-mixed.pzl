@@ -1,0 +1,15 @@
+[metadata]
+Name:Mixed protection choices
+Goal:Survive
+Turns:5
+Description:Choose artifact and color protection, then use legal remaining targets.
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanhand=Apostle's Blessing;Apostle's Blessing;Shock;Ornithopter
+humanbattlefield=Plains;Plains;Plains;Plains;Mountain;Mountain;Mountain;Mountain;Aeolipile;Grizzly Bears
+humanlibrary=Forest;Forest;Forest
+aibattlefield=Centaur Courser;Hill Giant
+ailibrary=Forest;Forest;Forest

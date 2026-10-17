@@ -76,7 +76,11 @@ test('optional action presentation hydrates without changing response identity',
 for (const accept of [true, false]) {
   test(`optional ${accept} encodes descriptor-owned outcome and retires`, async () => {
     const { owner, sent } = encodedPromptHarness()
-    owner.applyFamilyRequest(request())
+    owner.applyFamilyRequest({
+      ...request(),
+      prompt: { parameters: [{ parameterName: 'Cost', type: 1, stringValue: '{2}' }] },
+    })
+    expect(owner.prompt).toMatchObject({ message: 'Pay {2}?', paymentCost: '{2}' })
     const bound = bindingFor(owner, 'optionalAction').controls
     expect(await bound.respond(accept)).toBe(true)
     expect(await decodeGre(sent[0]!)).toMatchObject({

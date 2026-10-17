@@ -9,6 +9,8 @@ import {
 } from '@engine/state/gre-state'
 import type { PromptContext, PromptFamily, PromptResponse } from './family'
 
+const INSUFFICIENT_BLOCKERS = 1
+
 export function blockersPrompt(message: ProtoObject): PromptFamily | null {
   const req = message['declareBlockersReq']
   if (!isRecord(req)) {
@@ -20,8 +22,22 @@ export function blockersPrompt(message: ProtoObject): PromptFamily | null {
       const candidate = blockCandidateView(row, new Map(), context.tables, context.cardMeta)
       return candidate ? [candidate] : []
     })
+  const insufficientBlockers = asArray(req['blockWarnings'])
+    .filter(isRecord)
+    .filter((warning) => asNumber(warning['type']) === INSUFFICIENT_BLOCKERS)
+    .map((warning) => asNumber(warning['instanceId']))
+  const warningInstruction = (context: PromptContext) =>
+    insufficientBlockers
+      .map((id) => {
+        const attacker = candidates(context)
+          .flatMap((blocker) => blocker.attackers)
+          .find((candidate) => candidate.attackerInstanceId === id)
+        return `${attacker?.name ?? 'An attacking creature'} needs more blockers. Assign more creatures to it or remove its block.`
+      })
+      .join(' ')
   const available = (id: number, context: PromptContext) => !objectIsPhasedOut(id, context.tables)
   const legal = (context: PromptContext) =>
+    insufficientBlockers.length === 0 &&
     !candidates(context).some((blocker) =>
       blocker.attackers.some(
         (attacker) =>
@@ -55,7 +71,11 @@ export function blockersPrompt(message: ProtoObject): PromptFamily | null {
           .filter((blocker) => blocker.attackers.length > 0),
         canSubmit: legal(context),
       }
-      return { ...view, instruction: blockersInstruction({ ...view, waiting: context.waiting }) }
+      return {
+        ...view,
+        instruction:
+          warningInstruction(context) || blockersInstruction({ ...view, waiting: context.waiting }),
+      }
     },
     bind(view, scope) {
       if (view.kind !== 'blockers') {

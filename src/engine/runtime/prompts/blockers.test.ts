@@ -102,3 +102,29 @@ test('block assignments redirect, remove, retain other echoed rows and reject un
   )[0] as ProtoObject
   expect(asArray(row['selectedAttackerInstanceIds'])).toEqual([])
 })
+
+test('insufficient-blockers warnings explain the attacker and block only invalid submission', async () => {
+  const h = encodedPromptHarness()
+  h.tables.objects.set(100, { instanceId: 100, grpId: 300 })
+  h.cardMeta.set(300, { grpId: 300, name: 'Phyrexian Fleshgorger' })
+  const warned = blockerRequest(70, 80, true)
+  ;(warned['declareBlockersReq'] as ProtoObject)['blockWarnings'] = [
+    { instanceId: 100, type: 1, warningPromptId: 117 },
+  ]
+  h.owner.applyFamilyRequest(warned)
+  expect(viewFor(h.owner, 'blockers').instruction).toContain(
+    'Phyrexian Fleshgorger needs more blockers',
+  )
+  expect(viewFor(h.owner, 'blockers').canSubmit).toBe(false)
+  expect(await bindingFor(h.owner, 'blockers').controls.submit()).toBe(false)
+  expect(h.sent).toHaveLength(0)
+  const corrected = blockerRequest(71, 81, true)
+  h.owner.applyFamilyRequest(corrected)
+  expect(viewFor(h.owner, 'blockers').instruction).not.toContain('needs more blockers')
+  expect(viewFor(h.owner, 'blockers').canSubmit).toBe(true)
+  await bindingFor(h.owner, 'blockers').controls.submit()
+  expect(await decodeGre(h.sent[0])).toMatchObject({ gameStateId: 81, respId: 71 })
+  h.owner.applyFamilyRequest(blockerRequest(72, 82))
+  expect(viewFor(h.owner, 'blockers').instruction).not.toContain('needs more blockers')
+  expect(viewFor(h.owner, 'blockers').canSubmit).toBe(true)
+})
