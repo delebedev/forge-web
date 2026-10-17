@@ -20,6 +20,7 @@ import leyline.domain.CourseDeck
 import leyline.domain.CourseDeckSummary
 import leyline.domain.DeckId
 import leyline.domain.DraftSession
+import leyline.domain.DraftSessionId
 import leyline.domain.service.CourseService
 import leyline.domain.service.DraftService
 import leyline.domain.service.EventRegistry
@@ -47,7 +48,11 @@ internal fun Route.installLimitedRoutes(
     courses: CourseService,
     plays: CoursePlayService,
     sealedSets: () -> List<LimitedSetView>,
+    draftInterrupted: (DraftSession) -> Boolean,
+    draftDropped: (DraftSessionId) -> Unit,
 ) {
+    fun view(session: DraftSession) = sessionView(session, draftInterrupted(session))
+
     post("/courses/result") {
         val request = call.receive<CourseResultRequest>()
         val playerId = call.ownedPlayerId(auth, null)
@@ -61,7 +66,7 @@ internal fun Route.installLimitedRoutes(
         post("/start") {
             val request = call.receive<StartDraftRequest>()
             val playerId = call.ownedPlayerId(auth, request.playerId)
-            call.respond(sessionView(drafts.startDraft(playerId, request.eventName)))
+            call.respond(view(drafts.startDraft(playerId, request.eventName)))
         }.contract {
             request<StartDraftRequest>()
             response<DraftSessionView>()
@@ -70,16 +75,22 @@ internal fun Route.installLimitedRoutes(
         post("/pick") {
             val request = call.receive<PickDraftRequest>()
             val playerId = call.ownedPlayerId(auth, request.playerId)
-            call.respond(sessionView(drafts.pick(playerId, request.eventName, request.cardId)))
+            val session = drafts.getStatus(playerId, request.eventName)
+            if (session != null && draftInterrupted(session)) {
+                call.respond(HttpStatusCode.Conflict, "This draft was interrupted by a server restart. Discard it to start a new draft.")
+                return@post
+            }
+            call.respond(view(drafts.pick(playerId, request.eventName, request.cardId)))
         }.contract {
             request<PickDraftRequest>()
             response<DraftSessionView>()
+            text(409)
             empty(401, 403)
         }
         get("/status") {
             val playerId = call.ownedPlayerId(auth, call.request.queryParameters["playerId"])
             val session = drafts.getStatus(playerId, call.requiredQuery("eventName"))
-            if (session == null) call.respond(HttpStatusCode.NotFound) else call.respond(sessionView(session))
+            if (session == null) call.respond(HttpStatusCode.NotFound) else call.respond(view(session))
         }.contract {
             query<String>("playerId")
             query<String>("eventName", required = true)
@@ -98,7 +109,10 @@ internal fun Route.installLimitedRoutes(
         }
         delete {
             val playerId = call.ownedPlayerId(auth, call.request.queryParameters["playerId"])
-            drafts.drop(playerId, call.requiredQuery("eventName"))
+            val eventName = call.requiredQuery("eventName")
+            val session = drafts.getStatus(playerId, eventName)
+            drafts.drop(playerId, eventName)
+            session?.let { draftDropped(it.id) }
             call.respond(HttpStatusCode.NoContent)
         }.contract {
             query<String>("playerId")
@@ -159,8 +173,18 @@ private suspend fun ApplicationCall.playCourse(
     respond(plays.launch(ownedPlayerId(auth, request.playerId), request.eventName))
 }
 
-private fun sessionView(session: DraftSession) =
-    DraftSessionView(session.eventName, session.status.name, session.packNumber, session.pickNumber, session.draftPack, session.pickedCards)
+private fun sessionView(
+    session: DraftSession,
+    interrupted: Boolean,
+) = DraftSessionView(
+    session.eventName,
+    session.status.name,
+    session.packNumber,
+    session.pickNumber,
+    session.draftPack,
+    session.pickedCards,
+    interrupted,
+)
 
 private fun courseView(course: Course) =
     CourseView(course.eventName, course.module.name, course.wins, course.losses, course.cardPool, course.deck?.deckId?.value)

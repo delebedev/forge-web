@@ -191,6 +191,7 @@ export const DraftSessionViewSchema: z.ZodType<components['schemas']['DraftSessi
     pickNumber: z.number().int().min(-2147483648).max(2147483647),
     draftPack: z.array(z.number().int().min(-2147483648).max(2147483647)),
     pickedCards: z.array(z.number().int().min(-2147483648).max(2147483647)),
+    interrupted: z.boolean(),
   })
 export const PickDraftRequestInputSchema: z.ZodType<
   components['schemas']['PickDraftRequestInput']

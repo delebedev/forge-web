@@ -26,6 +26,7 @@ import io.ktor.server.engine.embeddedServer
 import io.ktor.server.netty.Netty
 import io.ktor.server.plugins.forwardedheaders.XForwardedHeaders
 import leyline.domain.CollationPool
+import leyline.domain.DraftStatus
 import leyline.domain.PlayerId
 import leyline.domain.service.CollectionService
 import leyline.domain.service.CourseService
@@ -36,6 +37,7 @@ import leyline.game.data.ForgeCardRepository
 import leyline.game.generator.ForgeBoosterDraftDriver
 import leyline.game.generator.SealedPoolGenerator
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 
 fun main(args: Array<String>) {
@@ -75,7 +77,7 @@ internal fun Application.installServer(services: WebServices) {
     installHttpApplication(services)
 }
 
-private fun serverServices(
+internal fun serverServices(
     config: ServerConfig,
     database: PlayerDatabase,
 ): WebServices {
@@ -110,6 +112,7 @@ private fun serverServices(
             cardRepo::findGrpIdByName,
             engineSettings.draft.copy(modelDir = paths.draftModelDir(engineSettings.draft.modelDir).absolutePath),
         )
+    val activeDraftSessions = ConcurrentHashMap.newKeySet<String>()
     val draftService =
         DraftService(
             draftRepo,
@@ -117,7 +120,7 @@ private fun serverServices(
                 override fun start(
                     sessionKey: String,
                     setCode: String,
-                ): List<Int> = draftDriver.start(sessionKey, setCode)
+                ): List<Int> = draftDriver.start(sessionKey, setCode).also { activeDraftSessions.add(sessionKey) }
 
                 override fun pick(
                     sessionKey: String,
@@ -129,11 +132,12 @@ private fun serverServices(
 
                 override fun complete(sessionKey: String): DraftService.PodOutcome {
                     val result = draftDriver.complete(sessionKey)
+                    activeDraftSessions.remove(sessionKey)
                     return DraftService.PodOutcome(result.playerPool, result.botDecks)
                 }
             },
             courseService,
-        ).also { it.discardIncompleteSessions() }
+        )
     val coordinator = RepositoryMatchCoordinator(defaultPlayerId, playerStore, courseService, draftRepo)
     val serverRelease = serverBackendRelease(System.getenv())
     val replayStore =
@@ -159,6 +163,8 @@ private fun serverServices(
 
     return WebServices(
         draftService = draftService,
+        draftInterrupted = { it.status == DraftStatus.PickNext && it.id.value !in activeDraftSessions },
+        draftDropped = { activeDraftSessions.remove(it.value) },
         courseService = courseService,
         decks = playerStore,
         collectionService = CollectionService { cardRepo.findAllGrpIds() },

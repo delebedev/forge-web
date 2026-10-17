@@ -5,7 +5,8 @@ import { apiFetch } from '@shared/api/client'
 import { authStore } from '@shared/auth/auth'
 import { toWebDeckCards, webDraftCards } from '@shared/cards/catalog'
 
-export type DraftPhase = 'idle' | 'connecting' | 'drafting' | 'deck_build' | 'playing' | 'finished'
+export type DraftPhase =
+  'idle' | 'connecting' | 'interrupted' | 'drafting' | 'deck_build' | 'playing' | 'finished'
 
 const DEFAULT_EVENT_NAME = 'QuickDraft_FDN_20260223'
 
@@ -122,7 +123,11 @@ class DraftStore {
       this.pack = await webDraftCards(view.draftPack)
       this.pool = await webDraftCards(view.pickedCards ?? [])
       this.poolSize = this.pool.length
-      this.phase = view.status === 'Completed' ? 'deck_build' : 'drafting'
+      this.phase = view.interrupted
+        ? 'interrupted'
+        : view.status === 'Completed'
+          ? 'deck_build'
+          : 'drafting'
       return true
     } catch (err) {
       this.error = err instanceof Error ? err.message : 'network_error'
@@ -135,7 +140,7 @@ class DraftStore {
 
   /** Pick a card from the current pack. */
   async pickCard(cardName: string): Promise<void> {
-    if (this.picking) {
+    if (this.picking || this.phase === 'interrupted') {
       return
     }
     this.picking = true
@@ -159,6 +164,11 @@ class DraftStore {
           pickNumber: this.pick,
         }),
       })
+      if (res.status === 409) {
+        this.phase = 'interrupted'
+        this.error = null
+        return
+      }
       if (!res.ok) {
         throw new Error(`draft_pick_${res.status}`)
       }

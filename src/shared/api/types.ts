@@ -1846,6 +1846,15 @@ export interface paths {
           }
           content?: never
         }
+        /** @description Conflict */
+        409: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'text/plain': string
+          }
+        }
         /** @description Internal Server Error */
         500: {
           headers: {
@@ -2727,6 +2736,7 @@ export interface components {
       pickNumber: number
       draftPack: number[]
       pickedCards: number[]
+      interrupted: boolean
     }
     /** PickDraftRequestInput */
     PickDraftRequestInput: {

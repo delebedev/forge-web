@@ -40,6 +40,8 @@ import io.ktor.server.routing.route
 import io.ktor.server.routing.routing
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import leyline.domain.DraftSession
+import leyline.domain.DraftSessionId
 import leyline.domain.deck.DeckCards
 import leyline.domain.json.productionJson
 import leyline.domain.repo.DeckRepository
@@ -50,6 +52,8 @@ import leyline.game.data.CardRepository
 
 internal data class WebServices(
     val draftService: DraftService,
+    val draftInterrupted: (DraftSession) -> Boolean = { false },
+    val draftDropped: (DraftSessionId) -> Unit = {},
     val courseService: CourseService,
     val decks: DeckRepository,
     val collectionService: CollectionService,
@@ -162,6 +166,8 @@ internal fun Application.installHttpApplication(services: WebServices) {
                 services.courseService,
                 services.coursePlay,
                 services.sealedSets,
+                services.draftInterrupted,
+                services.draftDropped,
             )
         }
     }
