@@ -280,9 +280,8 @@ export function LimitedView({
       <section className={styles.setupScreen} aria-label="Interrupted draft">
         <h2 className={styles.setupTitle}>Draft interrupted</h2>
         <p className={styles.setupSubtitle}>
-          The server restarted during this draft, so its remaining picks cannot continue. Your{' '}
-          {pool.length} picked cards are still saved. Starting a new draft discards this draft and
-          its pool.
+          The server restarted during this draft, so its remaining picks cannot continue. Your
+          picked cards are still saved. Starting a new draft discards this draft and its pool.
         </p>
         <ul aria-label="Saved draft pool">
           {pool.map((card, index) => (
