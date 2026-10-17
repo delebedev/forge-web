@@ -146,9 +146,6 @@ private fun serverServices(
                 maxBytes = web.replayMaxBytes,
                 maxMatchBytes = web.replayMaxMatchBytes,
             ),
-            cardRepo,
-            serverRelease,
-            cardImages = cardImages,
         )
 
     val challengeCatalog = if (web.devTools) developmentChallenges(paths.puzzlesDir) else emptyChallenges()

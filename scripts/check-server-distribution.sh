@@ -39,7 +39,7 @@ while IFS= read -r archive; do
     echo "Product distribution includes legacy Leyline web head: $name:$legacy" >&2
     exit 1
   fi
-  gameplay=$(printf '%s\n' "$listing" | grep -E '^forge/web/server/(match/(BrowserGreTransport|BrowserMatchLauncher|MatchRoutesKt|SpectatorRoutesKt|DevPuzzleCandidates)|puzzles/(PuzzlePipeline|PuzzleTrialTrace)|persistence/(MatchOutcome|MatchStartRecord|SqliteMatchOutcomeStore|NoOpMatchOutcomeRecorder))' | head -1 || true)
+  gameplay=$(printf '%s\n' "$listing" | grep -E '^forge/web/server/(match/(MatchReplayWriter|BrowserGreTransport|BrowserMatchLauncher|MatchRoutesKt|SpectatorRoutesKt|DevPuzzleCandidates)|puzzles/(PuzzlePipeline|PuzzleTrialTrace)|persistence/(MatchOutcome|MatchStartRecord|SqliteMatchOutcomeStore|NoOpMatchOutcomeRecorder))' | head -1 || true)
   if [[ -n "$gameplay" ]]; then
     echo "Product distribution includes a removed gameplay entrypoint: $name:$gameplay" >&2
     exit 1

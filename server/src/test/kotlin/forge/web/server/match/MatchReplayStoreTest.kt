@@ -1,8 +1,6 @@
 package forge.web.server.match
 
 import forge.web.server.auth.InMemoryRateLimiter
-import forge.web.server.support.concedeBytes
-import forge.web.server.support.testCards
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.http.HttpHeaders
@@ -18,13 +16,6 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonPrimitive
 import leyline.domain.json.productionJson
-import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
-import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
-import wotc.mtgo.gre.external.messaging.Messages.GameObjectInfo
-import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
-import wotc.mtgo.gre.external.messaging.Messages.GameStateType
-import wotc.mtgo.gre.external.messaging.Messages.GreToClientEvent
-import wotc.mtgo.gre.external.messaging.Messages.MatchServiceToClientMessage
 import java.nio.file.Files
 import java.time.Clock
 import java.time.Instant
@@ -33,7 +24,6 @@ import java.util.Base64
 import java.util.Random
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
-import kotlin.io.path.appendText
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -47,7 +37,7 @@ class MatchReplayStoreTest {
     fun `limited browser chunks and full uploads preserve format and authenticated owner`() {
         for (format in listOf("draft", "sealed")) {
             val root = Files.createTempDirectory("browser-limited-$format").toFile()
-            val store = MatchReplayStore(config(root), testCards(), "abc1234")
+            val store = MatchReplayStore(config(root))
             val bundle = browserBundle(format)
             val bytes = Json.encodeToString(ReplayBundle.serializer(), bundle).toByteArray()
 
@@ -58,7 +48,7 @@ class MatchReplayStoreTest {
             }
             assertTrue(store.ingestBrowser("account-1", bundle.matchId, "${bundle.matchId}:full", bytes))
 
-            val retained = assertNotNull(MatchReplayStore(config(root), testCards(), "abc1234").export(bundle.matchId))
+            val retained = assertNotNull(MatchReplayStore(config(root)).export(bundle.matchId))
             assertEquals("account-1", retained.context?.accountId)
             assertEquals(format, retained.context?.gameType)
             assertEquals(listOf(1L), retained.events.map { it.seq })
@@ -70,7 +60,7 @@ class MatchReplayStoreTest {
     @Test
     fun `browser replay uploads reject unsupported formats`() {
         val root = Files.createTempDirectory("browser-invalid-format").toFile()
-        val store = MatchReplayStore(config(root), testCards(), "abc1234")
+        val store = MatchReplayStore(config(root))
         for (format in listOf("puzzle", "brawl", "oathbreaker", "unknown", "", null)) {
             val bundle = browserBundle(format)
             val bytes = Json.encodeToString(ReplayBundle.serializer(), bundle).toByteArray()
@@ -93,7 +83,7 @@ class MatchReplayStoreTest {
     @Test
     fun `browser chunks persist during play and retry without duplicating events`() {
         val root = Files.createTempDirectory("browser-chunks").toFile()
-        val store = MatchReplayStore(config(root), testCards(), "abc1234")
+        val store = MatchReplayStore(config(root))
         val matchId = "browser-11111111-1111-4111-8111-111111111111"
         val context = BrowserReplayContext("browser", "22222222-2222-4222-8222-222222222222", matchId, "constructed")
 
@@ -150,7 +140,7 @@ class MatchReplayStoreTest {
     @Test
     fun `browser replay ingestion authenticates ownership deduplicates and exports viewer data`() {
         val root = Files.createTempDirectory("browser-replay").toFile()
-        val store = MatchReplayStore(config(root), testCards(), "abc1234")
+        val store = MatchReplayStore(config(root))
         val matchId = "browser-11111111-1111-4111-8111-111111111111"
         val bundle =
             ReplayBundle(
@@ -190,15 +180,10 @@ class MatchReplayStoreTest {
     }
 
     @Test
-    fun `journal exports ordered gameplay, immutable card metadata and completion`() {
-        val root = Files.createTempDirectory("match-replay").toFile()
-        val store = MatchReplayStore(config(root), testCards(), "abc1234")
-        val writer = store.open("web-proof")
-
-        writer.outbound(outbound(grpId = 1))
-        writer.inbound(wotc.mtgo.gre.external.messaging.Messages.ClientToMatchServiceMessage.parseFrom(concedeBytes(7)))
-        writer.finish(complete = true, reason = "completed")
-
+    fun `historical journal exports ordered gameplay metadata and completion`() {
+        val root = Files.createTempDirectory("historical-replay").toFile()
+        seedHistoricalReplay(root, "web-proof")
+        val store = MatchReplayStore(config(root))
         val bundle = assertNotNull(store.export("web-proof"))
         assertTrue(bundle.status.complete)
         assertEquals("abc1234", bundle.release)
@@ -209,12 +194,10 @@ class MatchReplayStoreTest {
     }
 
     @Test
-    fun `malformed crash tail stays readable and visibly incomplete`() {
-        val root = Files.createTempDirectory("match-replay-crash").toFile()
-        val store = MatchReplayStore(config(root), testCards(), "abc1234")
-        store.open("web-crash").outbound(outbound(grpId = 1))
-        root.toPath().resolve("web-crash.ndjson").appendText("{cut")
-
+    fun `malformed historical tail stays readable and visibly incomplete`() {
+        val root = Files.createTempDirectory("historical-replay-tail").toFile()
+        seedHistoricalReplay(root, "web-crash", complete = null).appendText("{cut")
+        val store = MatchReplayStore(config(root))
         val bundle = assertNotNull(store.export("web-crash"))
         assertEquals(1, bundle.batches.size)
         assertFalse(bundle.status.complete)
@@ -223,16 +206,22 @@ class MatchReplayStoreTest {
     }
 
     @Test
-    fun `pin survives ordinary expiry then expires at its own deadline`() {
-        val root = Files.createTempDirectory("match-replay-retention").toFile()
-        val clock = MutableClock(Instant.parse("2026-09-01T00:00:00Z"))
-        val store = MatchReplayStore(config(root, retentionDays = 1, pinnedRetentionDays = 3), testCards(), "abc1234", clock)
-        store.open("web-pinned").apply {
-            outbound(outbound(1))
-            finish(true, "completed")
-        }
-        assertTrue(store.pin("web-pinned", "report-7"))
+    fun `historical journal without a terminal row remains interrupted`() {
+        val root = Files.createTempDirectory("historical-replay-interrupted").toFile()
+        seedHistoricalReplay(root, "web-interrupted", complete = null)
+        val bundle = assertNotNull(MatchReplayStore(config(root)).export("web-interrupted"))
+        assertFalse(bundle.status.complete)
+        assertFalse(bundle.status.truncated)
+        assertEquals("process_interrupted", bundle.status.reason)
+    }
 
+    @Test
+    fun `historical pin survives ordinary expiry then expires at its own deadline`() {
+        val root = Files.createTempDirectory("historical-replay-retention").toFile()
+        val clock = MutableClock(Instant.parse("2026-09-01T00:00:00Z"))
+        seedHistoricalReplay(root, "web-pinned", clock.millis())
+        val store = MatchReplayStore(config(root, retentionDays = 1, pinnedRetentionDays = 3), clock)
+        assertTrue(store.pin("web-pinned", "report-7"))
         clock.advanceDays(2)
         assertEquals("report-7", assertNotNull(store.export("web-pinned")).status.reportId)
         clock.advanceDays(2)
@@ -240,33 +229,12 @@ class MatchReplayStoreTest {
     }
 
     @Test
-    fun `concurrent reservations enforce quota without blocking gameplay`() {
-        val root = Files.createTempDirectory("match-replay-quota").toFile()
-        val store = MatchReplayStore(config(root, maxBytes = 128 * 1024, maxMatchBytes = 64 * 1024), testCards(), "abc1234")
-        store.open("one")
-        store.open("two")
-        val unavailable = store.open("three")
-
-        unavailable.finish(false, "abandoned")
-        val bundle = assertNotNull(store.export("three"))
-        assertFalse(bundle.status.complete)
-        assertEquals("storage_quota_exhausted", bundle.status.reason)
-        assertFalse(root.resolve("three.ndjson").exists())
-    }
-
-    @Test
-    fun `cleanup compresses inactive journals and export reads compressed journal`() {
-        val root = Files.createTempDirectory("match-replay-compress").toFile()
-        val store = MatchReplayStore(config(root), testCards(), "abc1234")
-        store.open("web-compress").apply {
-            outbound(outbound(1))
-            finish(true, "completed")
-        }
-
-        store.open("web-trigger").finish(false, "abandoned")
+    fun `cleanup compresses historical journals and export reads gzip`() {
+        val root = Files.createTempDirectory("historical-replay-compress").toFile()
+        seedHistoricalReplay(root, "web-compress")
+        val store = MatchReplayStore(config(root))
         assertTrue(root.resolve("web-compress.ndjson").isFile)
         store.cleanup()
-
         assertFalse(root.resolve("web-compress.ndjson").exists())
         assertTrue(root.resolve("web-compress.ndjson.gz").isFile)
         assertEquals(root.listFiles().sumOf { it.length() }, store.health().bytesUsed)
@@ -274,100 +242,76 @@ class MatchReplayStoreTest {
     }
 
     @Test
-    fun `cleanup compacts a bounded journal batch`() {
-        val root = Files.createTempDirectory("match-replay-batch").toFile()
-        val store = MatchReplayStore(config(root), testCards(), "abc1234")
-
-        repeat(17) { index ->
-            store.open("web-batch-$index").finish(false, "abandoned")
-        }
-
-        store.cleanup()
-
+    fun `cleanup compacts a bounded historical journal batch`() {
+        val root = Files.createTempDirectory("historical-replay-batch").toFile()
+        repeat(17) { index -> seedHistoricalReplay(root, "web-batch-$index") }
+        val store = MatchReplayStore(config(root))
+        val rawJournal = root.listFiles().last()
+        assertTrue(assertNotNull(store.export(rawJournal.name.removeSuffix(".ndjson"))).status.complete)
+        assertTrue(rawJournal.isFile)
         assertEquals(1, root.listFiles { file -> file.name.endsWith(".ndjson") }?.size)
         assertEquals(16, root.listFiles { file -> file.name.endsWith(".ndjson.gz") }?.size)
     }
 
     @Test
-    fun `duplicate open does not evict the existing journal under quota pressure`() {
-        val root = Files.createTempDirectory("match-replay-duplicate").toFile()
-        val clock = MutableClock(Instant.parse("2026-09-01T00:00:00Z"))
-        val store =
-            MatchReplayStore(
-                config(root, maxBytes = 128 * 1024, maxMatchBytes = 64 * 1024),
-                testCards(),
-                "abc1234",
-                clock,
-            )
-        store.open("existing").finish(true, "completed")
-        root.toPath().resolve("existing.ndjson").appendText(paddingRecord())
-        clock.advanceDays(1)
-        store.open("other").finish(true, "completed")
-        root.toPath().resolve("other.ndjson").appendText(paddingRecord(seed = 17))
-
-        val duplicate = store.open("existing")
-
-        assertEquals(0L, duplicate.storageReservation)
-        assertTrue(assertNotNull(store.export("existing")).status.complete)
-        assertNotNull(store.export("other"))
-        assertEquals(0L, store.health().rejectedOpens)
-    }
-
-    @Test
-    fun `cleanup removes interrupted compression temporary files before quota check`() {
-        val root = Files.createTempDirectory("match-replay-temp").toFile()
+    fun `cleanup removes interrupted compression temporary files from stored usage`() {
+        val root = Files.createTempDirectory("historical-replay-temp").toFile()
         root.resolve(".orphan.replay-gzip.tmp").writeBytes(ByteArray(64 * 1024))
-        val store = MatchReplayStore(config(root, maxBytes = 64 * 1024, maxMatchBytes = 64 * 1024), testCards(), "abc1234")
-
-        val writer = store.open("web-after-interruption")
-
-        assertEquals(64 * 1024L, writer.storageReservation)
+        val store = MatchReplayStore(config(root, maxBytes = 64 * 1024, maxMatchBytes = 64 * 1024))
+        store.cleanup()
         assertFalse(root.resolve(".orphan.replay-gzip.tmp").exists())
+        assertEquals(0L, store.health().bytesUsed)
     }
 
     @Test
-    fun `quota cleanup evicts oldest terminal unpinned journal but protects pinned journal`() {
-        val root = Files.createTempDirectory("match-replay-eviction").toFile()
-        val clock = MutableClock(Instant.parse("2026-09-01T00:00:00Z"))
-        val store =
-            MatchReplayStore(
-                config(root, retentionDays = 30, maxBytes = 150 * 1024, maxMatchBytes = 64 * 1024),
-                testCards(),
-                "abc1234",
-                clock,
-            )
-        store.open("old").finish(true, "completed")
-        root.toPath().resolve("old.ndjson").appendText(paddingRecord())
-        clock.advanceDays(1)
-        store.open("pinned").finish(true, "completed")
-        root.toPath().resolve("pinned.ndjson").appendText(paddingRecord(seed = 17))
+    fun `browser quotas fail closed without evicting retained historical journals`() {
+        val root = Files.createTempDirectory("historical-replay-quota").toFile()
+        seedHistoricalReplay(root, "unpinned").appendText(paddingRecord())
+        seedHistoricalReplay(root, "pinned").appendText(paddingRecord(seed = 17))
+        val store = MatchReplayStore(config(root, maxBytes = 128 * 1024, maxMatchBytes = 64 * 1024))
+        store.cleanup()
         assertTrue(store.pin("pinned", "report-7"))
-        clock.advanceDays(1)
-
-        store.open("new").finish(false, "abandoned")
-
-        assertNull(store.export("old"))
-        assertNotNull(store.export("pinned"))
-        assertNotNull(store.export("new"))
+        val bundle = browserBundle("draft").copy(cards = mapOf("1" to JsonPrimitive(paddingRecord(bytes = 32_000))))
+        val bytes = Json.encodeToString(ReplayBundle.serializer(), bundle).toByteArray()
+        assertTrue(bytes.size < 64 * 1024)
+        assertEquals(
+            "Replay storage quota is exhausted",
+            assertFailsWith<IllegalArgumentException> {
+                store.ingestBrowser("account-1", bundle.matchId, "${bundle.matchId}:full", bytes)
+            }.message,
+        )
+        assertEquals(
+            "Replay match quota exceeded",
+            assertFailsWith<IllegalArgumentException> {
+                store.ingestBrowserChunk("account-1", bundle.matchId, 0, ByteArray(64 * 1024 + 1))
+            }.message,
+        )
+        assertNotNull(store.export("unpinned"))
+        assertEquals("report-7", assertNotNull(store.export("pinned")).status.reportId)
+        assertNull(store.export(bundle.matchId))
     }
 
     @Test
-    fun `health reports replay usage and quota rejected opens`() {
-        val root = Files.createTempDirectory("match-replay-health").toFile()
-        val store = MatchReplayStore(config(root, maxBytes = 128 * 1024, maxMatchBytes = 64 * 1024), testCards(), "abc1234")
-        store.open("one")
-        store.open("two")
-        store.open("three")
-
-        assertEquals(128 * 1024L, store.health().bytesUsed)
-        assertEquals(128 * 1024L, store.health().maxBytes)
-        assertEquals(1L, store.health().rejectedOpens)
+    fun `health accounts for stored historical and browser replay bytes`() {
+        val root = Files.createTempDirectory("replay-health").toFile()
+        seedHistoricalReplay(root, "historical")
+        val store = MatchReplayStore(config(root))
+        val bundle = browserBundle("draft")
+        store.ingestBrowser(
+            "account-1",
+            bundle.matchId,
+            "${bundle.matchId}:full",
+            Json.encodeToString(ReplayBundle.serializer(), bundle).toByteArray(),
+        )
+        assertEquals(root.listFiles().sumOf { it.length() }, store.health().bytesUsed)
+        assertTrue(store.health().bytesUsed > 0)
+        assertEquals(512L * 1024 * 1024, store.health().maxBytes)
     }
 
     @Test
     fun `health does not wait for replay cleanup lock`() {
         val root = Files.createTempDirectory("match-replay-health-lock").toFile()
-        val store = MatchReplayStore(config(root), testCards(), "abc1234")
+        val store = MatchReplayStore(config(root))
         val executor = Executors.newSingleThreadExecutor()
         try {
             synchronized(store) {
@@ -380,48 +324,34 @@ class MatchReplayStoreTest {
     }
 
     @Test
-    fun `pin budget includes active writer reservations`() {
-        val root = Files.createTempDirectory("match-replay-pin-quota").toFile()
-        val store = MatchReplayStore(config(root, maxBytes = 128 * 1024, maxMatchBytes = 64 * 1024), testCards(), "abc1234")
-        store.open("one")
-        store.open("two")
-
-        assertFailsWith<IllegalArgumentException> { store.pin("one", "report-7") }
-    }
-
-    @Test
-    fun `writer retains its reservation through terminal notification`() {
-        val root = Files.createTempDirectory("match-replay-terminal-reservation").toFile()
-        val store = MatchReplayStore(config(root, maxBytes = 64 * 1024, maxMatchBytes = 64 * 1024), testCards(), "abc1234")
-        val writer = store.open("one")
-
-        writer.finish(true, "completed")
-
-        assertEquals(64 * 1024, writer.storageReservation)
+    fun `pin budget includes every stored file`() {
+        val root = Files.createTempDirectory("replay-pin-quota").toFile()
+        seedHistoricalReplay(root, "historical")
+        val store = MatchReplayStore(config(root, maxBytes = 64 * 1024, maxMatchBytes = 64 * 1024))
+        root.resolve("retained-other.bin").writeBytes(ByteArray((64 * 1024 - store.health().bytesUsed).toInt()))
+        assertFailsWith<IllegalArgumentException> { store.pin("historical", "report-7") }
+        assertFalse(root.resolve("historical.pin.json").exists())
     }
 
     @Test
     fun `operator token is retrieval-only and compared exactly`() {
         val root = Files.createTempDirectory("match-replay-auth").toFile()
-        val openStore = MatchReplayStore(config(root, token = "secret-token"), testCards(), "abc1234")
-        val closedStore = MatchReplayStore(config(root, token = ""), testCards(), "abc1234")
+        val openStore = MatchReplayStore(config(root, token = "secret-token"))
+        val closedStore = MatchReplayStore(config(root, token = ""))
 
         assertTrue(openStore.authorized("secret-token"))
         assertFalse(openStore.authorized("secret-token-extra"))
         assertFalse(closedStore.authorized(""))
-        closedStore.open("recording-still-on").finish(false, "abandoned")
-        assertTrue(root.resolve("recording-still-on.ndjson").isFile)
+        seedHistoricalReplay(root, "historical")
+        assertNotNull(closedStore.export("historical"))
     }
 
     @Test
     fun `operator replay route denies unprivileged access and disables response storage`() =
         testApplication {
             val root = Files.createTempDirectory("match-replay-route").toFile()
-            val store = MatchReplayStore(config(root, token = "secret-token"), testCards(), "abc1234")
-            store.open("web-route").apply {
-                outbound(outbound(1))
-                finish(true, "completed")
-            }
+            val store = MatchReplayStore(config(root, token = "secret-token"))
+            seedHistoricalReplay(root, "web-route")
             application {
                 install(ContentNegotiation) { json(productionJson()) }
                 routing { route("/api") { installReplayOperatorRoutes(store) } }
@@ -471,26 +401,12 @@ class MatchReplayStoreTest {
         maxMatchBytes: Long = 32L * 1024 * 1024,
     ) = MatchReplayConfig(root, token, retentionDays, pinnedRetentionDays, maxBytes, maxMatchBytes)
 
-    private fun outbound(grpId: Int): MatchServiceToClientMessage {
-        val state =
-            GameStateMessage.newBuilder()
-                .setType(GameStateType.Full)
-                .setGameStateId(1)
-                .addGameObjects(GameObjectInfo.newBuilder().setInstanceId(10).setGrpId(grpId))
-        val gre =
-            GREToClientMessage.newBuilder()
-                .setType(GREMessageType.GameStateMessage_695e)
-                .setMsgId(1)
-                .setGameStateId(1)
-                .setGameStateMessage(state)
-        return MatchServiceToClientMessage.newBuilder()
-            .setGreToClientEvent(GreToClientEvent.newBuilder().addGreToClientMessages(gre))
-            .build()
-    }
-
-    private fun paddingRecord(seed: Int = 7): String {
-        val bytes = ByteArray(48_000).also { Random(seed.toLong()).nextBytes(it) }
-        return """{"kind":"padding","payload":"${Base64.getEncoder().encodeToString(bytes)}"}
+    private fun paddingRecord(
+        seed: Int = 7,
+        bytes: Int = 48_000,
+    ): String {
+        val payload = ByteArray(bytes).also { Random(seed.toLong()).nextBytes(it) }
+        return """{"kind":"padding","payload":"${Base64.getEncoder().encodeToString(payload)}"}
 """
     }
 }

@@ -8,7 +8,7 @@ import forge.web.server.auth.WEB_SESSION_MAX_AGE_SECONDS
 import forge.web.server.auth.WebAuthService
 import forge.web.server.match.MatchReplayConfig
 import forge.web.server.match.MatchReplayStore
-import forge.web.server.support.testCards
+import forge.web.server.match.seedHistoricalReplay
 import forge.web.server.support.testServices
 import io.ktor.client.request.get
 import io.ktor.client.request.header
@@ -43,8 +43,6 @@ class ServerTest {
                         maxBytes = 128 * 1024,
                         maxMatchBytes = 64 * 1024,
                     ),
-                    testCards(),
-                    "abc1234",
                 )
             application { installServer(testServices(replayStore = replayStore)) }
             val matchId = "browser-33333333-3333-4333-8333-333333333333"
@@ -89,33 +87,23 @@ class ServerTest {
         }
 
     @Test
-    fun `health reports replay capacity`() =
+    fun `health reports stored replay bytes and capacity`() =
         testApplication {
+            val root = Files.createTempDirectory("server-health-replay").toFile()
+            seedHistoricalReplay(root, "historical")
             val replayStore =
                 MatchReplayStore(
-                    MatchReplayConfig(
-                        root = Files.createTempDirectory("server-health-replay").toFile(),
-                        operatorToken = "secret-token",
-                        maxBytes = 128 * 1024,
-                        maxMatchBytes = 64 * 1024,
-                    ),
-                    testCards(),
-                    "abc1234",
+                    MatchReplayConfig(root, "secret-token", maxBytes = 128 * 1024, maxMatchBytes = 64 * 1024),
                 )
-            replayStore.open("one")
-            replayStore.open("two")
-            replayStore.open("three")
             application { installServer(testServices(replayStore = replayStore)) }
-
             val response = client.get("/api/health")
             val body = Json.parseToJsonElement(response.bodyAsText()).jsonObject
             val replay = checkNotNull(body["replay"]?.jsonObject)
-
             assertEquals(200, response.status.value)
             assertEquals("ok", body["status"]?.jsonPrimitive?.content)
-            assertEquals(128 * 1024L, replay["bytesUsed"]?.jsonPrimitive?.long)
+            assertEquals(root.listFiles().sumOf { it.length() }, replay["bytesUsed"]?.jsonPrimitive?.long)
             assertEquals(128 * 1024L, replay["maxBytes"]?.jsonPrimitive?.long)
-            assertEquals(1L, replay["rejectedOpens"]?.jsonPrimitive?.long)
+            assertEquals(setOf("bytesUsed", "maxBytes"), replay.keys)
         }
 
     @Test
@@ -131,8 +119,6 @@ class ServerTest {
                         root = Files.createTempDirectory("operator-player").toFile(),
                         operatorToken = "secret-token",
                     ),
-                    testCards(),
-                    "abc1234",
                 )
             application { installServer(testServices(authService = auth, replayStore = replayStore)) }
 
