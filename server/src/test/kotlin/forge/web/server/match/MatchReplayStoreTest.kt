@@ -255,8 +255,8 @@ class MatchReplayStoreTest {
             val root = Files.createTempDirectory("historical-replay-batch").toFile()
             repeat(17) { index -> seedHistoricalReplay(root, "web-batch-$index") }
             val store = MatchReplayStore(config(root))
-            val rawJournal = root.listFiles().last()
             store.cleanup()
+            val rawJournal = root.listFiles { file -> file.name.endsWith(".ndjson") }!!.single()
             assertTrue(assertNotNull(store.export(rawJournal.name.removeSuffix(".ndjson"))).status.complete)
             assertTrue(rawJournal.isFile)
             assertEquals(1, root.listFiles { file -> file.name.endsWith(".ndjson") }?.size)
