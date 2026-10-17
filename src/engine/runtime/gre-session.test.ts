@@ -10,6 +10,7 @@ import { ZONE_HAND } from '@engine/state/gre-state'
 import { parseGreCardMeta } from './gre-card-meta'
 import * as router from '@app/router'
 import * as analytics from '@shared/analytics'
+import * as reporting from '@shared/reporting'
 import { BrowserReplayCollector } from '@engine/replay/browser-replay-collector'
 
 afterEach(() => {
@@ -742,8 +743,23 @@ it('retires streaming before failure upload when the engine is already disposed'
   const navigate = spyOn(router, 'reactNavigate').mockImplementation(() => {})
   const session = new GreSessionStore(null)
   const delivery: string[] = []
+  let activeHealth = true
+  const health = spyOn(greStore, 'reportingContext').mockImplementation(() =>
+    activeHealth
+      ? {
+          match_id: 'retired-match',
+          execution: 'browser',
+          replay_state: 'failed',
+          replay_ack_seq: 7,
+          replay_failure: 'http',
+          replay_http_status: 503,
+        }
+      : undefined,
+  )
+  const reported = spyOn(reporting, 'reportBrowserFailure').mockImplementation(() => {})
   const disconnect = spyOn(greStore, 'disconnect').mockImplementation(() => {
     delivery.push('disconnect')
+    activeHealth = false
   })
   const upload = spyOn(greStore, 'uploadBrowserReplay').mockImplementation(async (reason) => {
     delivery.push(reason)
@@ -758,6 +774,7 @@ it('retires streaming before failure upload when the engine is already disposed'
       seed: 42,
     })
     delivery.length = 0
+    activeHealth = true
     const engine = new BrowserEngine(() => {})
     engine.dispose()
     const retired = session as unknown as {
@@ -769,7 +786,16 @@ it('retires streaming before failure upload when the engine is already disposed'
     expect(session.snapshot().browserPhase).toBe('failed')
     expect(session.snapshot().browserError).toBe('Recovery timed out')
     expect(delivery).toEqual(['disconnect', 'worker'])
+    expect(reported.mock.calls[0]?.[3]).toMatchObject({
+      replay_state: 'failed',
+      replay_ack_seq: 7,
+      replay_failure: 'http',
+      replay_http_status: 503,
+    })
+    expect(greStore.reportingContext()).toBeUndefined()
   } finally {
+    reported.mockRestore()
+    health.mockRestore()
     disconnect.mockRestore()
     upload.mockRestore()
     session.clear()

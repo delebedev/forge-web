@@ -1,4 +1,9 @@
-import type { GreFrameSink, GreFrameSource } from './gre-frame-source'
+import type {
+  GreFailurePhase,
+  GreFrameBatch,
+  GreFrameSink,
+  GreFrameSource,
+} from './gre-frame-source'
 import { decodeMessage } from '@engine/wire/gre-proto'
 import { asArray, isRecord } from '@engine/state/gre-state'
 
@@ -58,14 +63,7 @@ export class BrowserMatchSource implements GreFrameSource {
     if (this.retired || this.closed) {
       return
     }
-    const bytes = Uint8Array.from(atob(encoded), (character) => character.charCodeAt(0))
-    this.delivery = this.delivery
-      .then(() => this.deliver(bytes))
-      .catch(() => {
-        if (!this.retired) {
-          this.sink?.onError()
-        }
-      })
+    this.delivery = this.delivery.then(() => this.deliver(encoded))
   }
 
   flush(): Promise<void> {
@@ -74,7 +72,7 @@ export class BrowserMatchSource implements GreFrameSource {
 
   receiveError(): void {
     if (!this.retired) {
-      this.sink?.onError()
+      this.sink?.onError(undefined, 'transport')
     }
   }
 
@@ -91,21 +89,36 @@ export class BrowserMatchSource implements GreFrameSource {
     })
   }
 
-  private async deliver(bytes: Uint8Array): Promise<void> {
+  private async deliver(encoded: string): Promise<void> {
     if (this.retired) {
       return
     }
-    const wrapper = await decodeMessage('MatchServiceToClientMessage', bytes)
+    let batch: GreFrameBatch = { byteLength: 0, messages: [] }
+    let failure: { error: unknown; phase: GreFailurePhase } | undefined
+    try {
+      const bytes = Uint8Array.from(atob(encoded), (character) => character.charCodeAt(0))
+      batch.byteLength = bytes.byteLength
+      const wrapper = await decodeMessage('MatchServiceToClientMessage', bytes)
+      const event = wrapper['greToClientEvent']
+      batch = {
+        byteLength: bytes.byteLength,
+        authenticated: isRecord(wrapper['authenticateResponse']),
+        messages: isRecord(event) ? asArray(event['greToClientMessages']).filter(isRecord) : [],
+      }
+    } catch (error) {
+      failure = { error, phase: 'decode' }
+    }
     if (this.retired) {
       return
     }
-    const event = wrapper['greToClientEvent']
-    const messages = isRecord(event) ? asArray(event['greToClientMessages']).filter(isRecord) : []
-    this.host.observeBatch?.(messages)
-    this.sink?.onBatch({
-      byteLength: bytes.byteLength,
-      authenticated: isRecord(wrapper['authenticateResponse']),
-      messages,
-    })
+    try {
+      this.host.observeBatch?.(batch.messages)
+      this.sink?.onBatch(batch)
+    } catch (error) {
+      failure = { error, phase: 'apply' }
+    }
+    if (failure && !this.retired) {
+      this.sink?.onError(failure.error, failure.phase)
+    }
   }
 }

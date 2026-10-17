@@ -257,3 +257,21 @@ The full user agent and exception messages are not copied into these diagnostic
 fields. Version claims are the browser's advertised versions and the selected
 loader channel, not independently verified runtime builds. Existing once-per-attempt
 deduplication and the three-report page budget remain unchanged.
+
+Caught frame failures retain their original exception and distinguish transport,
+decoding and state application. Generic browser reports inherit the active
+match, execution and known build identities at capture time; leaving the match
+clears that scope. A native socket error without an exception remains a message
+rather than receiving a fabricated stack.
+
+Unexpected API failures include only a generated route template, method when
+known, status and validated backend release. Response decoding reports omit
+response values and validation messages. Expected authentication, validation,
+capacity and deployment responses remain routine. These additional diagnostic
+reports share a ten-report page budget and deduplicate owned exception objects.
+
+Browser replay delivery reports its first collection, HTTP or network failure
+per match without blocking play. Later gameplay reports can include the latest
+upload state and acknowledged sequence. Busy uploads are not failures; a
+successful retry clears the failure state. Delivery acknowledgements establish
+only the uploaded prefix, not a complete or reproducible game.
