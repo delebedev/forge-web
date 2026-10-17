@@ -41,13 +41,25 @@ test('browser AI pays for Arena with three lands and resolves its upkeep', async
   expect(resolved.turn).toBe(1)
   expect(resolved.stack).toHaveLength(0)
   expect(resolved.life.opp).toBe(40)
+  const paidLands = resolved.board.opp.filter((card) =>
+    ['Swamp', 'Cabal Stronghold'].includes(card.name),
+  )
+  expect(paidLands).toHaveLength(3)
+  expect(paidLands.every((card) => card.tapped)).toBe(true)
   const libraryBefore = resolved.counts.opp!.library
   const handBefore = resolved.counts.opp!.hand
   const annotationBefore = Math.max(-1, ...resolved.annotations.map((a) => a.seq))
+  await page.getByRole('button', { name: 'Full control', exact: true }).click()
+  await expect(
+    page.getByRole('button', { name: 'Full control · On', exact: true }),
+  ).toHaveAttribute('aria-pressed', 'true')
   await runGreAcceptanceSteps(page, {
     steps: [{ pass_until: { opponent_life: 39, max_passes: 40 } }],
   })
   const upkeep = await page.evaluate(() => window.__greState()!)
+  expect(upkeep.step).toBe('Upkeep')
+  expect(upkeep.activeSeat).not.toBe(upkeep.viewerSeat)
+  expect(upkeep.life.opp).toBe(39)
   expect(upkeep.counts.opp!.library).toBe(libraryBefore - 1)
   expect(upkeep.counts.opp!.hand).toBe(handBefore + 1)
   expect(upkeep.stack).toHaveLength(0)
@@ -60,10 +72,6 @@ test('browser AI pays for Arena with three lands and resolves its upkeep', async
     true,
   )
   expect(events.some((a) => a.types.includes(types.damage))).toBe(false)
-  writeFileSync(
-    info.outputPath('upkeep-life-loss.json'),
-    JSON.stringify({ resolved, upkeep, events, types }, null, 2),
-  )
   await expect
     .poll(() =>
       page.evaluate(() => {
@@ -75,6 +83,21 @@ test('browser AI pays for Arena with three lands and resolves its upkeep', async
   expect((await page.evaluate(() => window.__greState()!)).diagnostics.errorCount).toBe(0)
   await page.mouse.move(20, 200)
   await page.screenshot({ path: info.outputPath('result.png'), scale: 'css' })
+  await runGreAcceptanceSteps(page, {
+    steps: [{ pass_until: { phase: 'Draw', max_passes: 8 } }],
+  })
+  const normalDraw = await page.evaluate(() => window.__greState()!)
+  expect(normalDraw.turn).toBe(upkeep.turn)
+  expect(normalDraw.step).toBe('Draw')
+  expect(normalDraw.life.opp).toBe(39)
+  expect(normalDraw.counts.opp!.library).toBe(libraryBefore - 2)
+  expect(normalDraw.counts.opp!.hand).toBe(handBefore + 2)
+  expect(normalDraw.stack).toHaveLength(0)
+  expect(normalDraw.diagnostics.errorCount).toBe(0)
+  writeFileSync(
+    info.outputPath('upkeep-life-loss.json'),
+    JSON.stringify({ resolved, upkeep, normalDraw, events, types }, null, 2),
+  )
   if (recordDemos) {
     await page.waitForTimeout(1500)
   }
