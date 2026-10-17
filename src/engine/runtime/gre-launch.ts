@@ -82,7 +82,7 @@ export function puzzleToGreStartConfig(
   context?: { name: string; objective: string },
 ): GreStartConfig {
   return {
-    puzzle: filename,
+    challengeId: filename,
     gameType: 'puzzle',
     returnPath: '/challenges',
     label: context?.name ?? filename,

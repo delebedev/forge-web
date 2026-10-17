@@ -13,7 +13,6 @@ export type GreStartConfig = {
   seat1Deck?: string
   seat2Deck?: string
   challengeId?: string
-  puzzle?: string
   puzzleText?: string
   turnLimit?: number
   gameType?: GreGameType

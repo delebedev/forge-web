@@ -97,11 +97,14 @@ export function parseGreMatchConfig(raw: string): GreStartConfig | null {
     if (typeof parsed['challengeId'] === 'string') {
       config.challengeId = parsed['challengeId']
     }
-    if (typeof parsed['puzzle'] === 'string') {
-      config.puzzle = parsed['puzzle']
-    }
     if (typeof parsed['puzzleText'] === 'string') {
       config.puzzleText = parsed['puzzleText']
+    }
+    if (!config.challengeId && typeof parsed['puzzle'] === 'string') {
+      if (!parsed['puzzle'].trim() || !config.puzzleText?.trim()) {
+        return null
+      }
+      config.challengeId = parsed['puzzle']
     }
     if (typeof parsed['turnLimit'] === 'number') {
       config.turnLimit = parsed['turnLimit']
@@ -124,11 +127,7 @@ export function parseGreMatchConfig(raw: string): GreStartConfig | null {
     if (typeof parsed['objective'] === 'string') {
       config.objective = parsed['objective']
     }
-    return config.seat1Deck ||
-      config.seat2Deck ||
-      config.challengeId ||
-      config.puzzle ||
-      config.matchId
+    return config.seat1Deck || config.seat2Deck || config.challengeId || config.matchId
       ? config
       : null
   } catch {

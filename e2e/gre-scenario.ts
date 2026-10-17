@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
-import { expect, type Page } from '@playwright/test'
+import type { Page } from '@playwright/test'
+import { waitForBrowserGameReady } from './gre-test'
 
 /** Set up the real runtime; all scenario actions remain visible browser input. */
 export async function startScenario(
@@ -25,10 +26,5 @@ export async function startScenario(
     { execution, name, text },
   )
   await page.waitForURL(/\/match\/puzzle/, { timeout: 20_000 })
-  await expect
-    .poll(() => page.evaluate(() => window.__greState?.()?.connected), { timeout: 240_000 })
-    .toBe(true)
-  await expect
-    .poll(() => page.evaluate(() => window.__greState?.()?.horizon), { timeout: 30_000 })
-    .toBeTruthy()
+  await waitForBrowserGameReady(page)
 }

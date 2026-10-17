@@ -90,8 +90,7 @@ type GameAnalyticsContext = {
 }
 
 function gameAnalyticsContext(config: GreStartConfig): GameAnalyticsContext {
-  const gameType =
-    config.gameType ?? (config.challengeId || config.puzzle ? 'puzzle' : 'constructed')
+  const gameType = config.gameType ?? (config.challengeId ? 'puzzle' : 'constructed')
   const format = gameType === 'puzzle' ? undefined : gameType
   return {
     mode: 'play',

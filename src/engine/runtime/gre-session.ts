@@ -784,7 +784,7 @@ export class GreSessionStore {
   }
 
   private inferGameType(config: GreStartConfig): GreGameType {
-    if (config.challengeId || config.puzzle) {
+    if (config.challengeId) {
       return 'puzzle'
     }
     return 'constructed'

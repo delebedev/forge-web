@@ -1,6 +1,7 @@
 import { httpCardMeta } from '@shared/api/http-test-fixtures'
 import { afterEach, expect, it, spyOn } from 'bun:test'
 import { GreSessionStore } from './gre-session'
+import { parseGreMatchConfig } from './gre-match'
 import { BrowserEngine } from './browser-engine'
 import type { BrowserEngineEvent } from './browser-match-source'
 import { greStore } from './gre-store'
@@ -177,12 +178,15 @@ it('owns browser launches, retries, and disposal without server match requests',
 
     const navigationCount = navigate.mock.calls.length
     session.startBrowser(
-      {
-        gameType: 'puzzle',
-        challengeId: 'bolt-at-three-v1',
-        puzzleText: '[metadata]\nGoal:Win',
-        seed: 42,
-      },
+      parseGreMatchConfig(
+        JSON.stringify({
+          execution: 'browser',
+          gameType: 'puzzle',
+          puzzle: 'bolt-at-three-v1',
+          puzzleText: '[metadata]\nGoal:Win',
+          seed: 42,
+        }),
+      )!,
       false,
     )
     await session.connectBrowser(session.config!)
@@ -200,6 +204,7 @@ it('owns browser launches, retries, and disposal without server match requests',
       type: 'start',
       gameType: 'puzzle',
       puzzleId: 'bolt-at-three-v1',
+      puzzleText: '[metadata]\nGoal:Win',
     })
 
     expect(await session.leave()).toBe(true)

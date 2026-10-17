@@ -67,9 +67,20 @@ export function promptZone(page: Page) {
 export async function startPuzzleGame(page: Page, puzzle: string): Promise<void> {
   await page.goto(`/dev/puzzle/${encodeURIComponent(puzzle)}`)
   await page.waitForURL(/\/match\/puzzle/, { timeout: 20_000 })
+  await waitForBrowserGameReady(page)
+}
+
+export async function waitForBrowserGameReady(page: Page): Promise<void> {
   await expect
-    .poll(() => page.evaluate(() => window.__greState?.()?.horizon), { timeout: 240_000 })
-    .toBeTruthy()
+    .poll(
+      () =>
+        page.evaluate(() => {
+          const state = window.__greState?.()
+          return Boolean(state?.connected && state.horizon)
+        }),
+      { timeout: 240_000 },
+    )
+    .toBe(true)
 }
 
 /**

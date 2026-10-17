@@ -40,3 +40,32 @@ it('rejects historical server matches and live spectator configurations', () => 
     expect(parseGreMatchConfig(JSON.stringify(config))).toBeNull()
   }
 })
+
+it('normalizes an embedded local puzzle identity without changing its authored text', () => {
+  const puzzleText = '[metadata]\nName: Find lethal\n[state]\nhumanhand=Lightning Bolt'
+  const restored = parseGreMatchConfig(
+    JSON.stringify({ execution: 'browser', puzzle: 'find-lethal', puzzleText }),
+  )
+  expect(restored).toEqual({ execution: 'browser', challengeId: 'find-lethal', puzzleText })
+  expect(
+    parseGreMatchConfig(
+      JSON.stringify({ execution: 'browser', puzzle: 'old-name', challengeId: 'current-name' }),
+    ),
+  ).toEqual({ execution: 'browser', challengeId: 'current-name' })
+})
+
+it('retires a historical local puzzle without embedded content', () => {
+  for (const puzzleText of [undefined, '', '   ']) {
+    expect(
+      parseGreMatchConfig(
+        JSON.stringify({
+          execution: 'browser',
+          attemptId: 'attempt-1',
+          matchId: 'browser-1',
+          puzzle: 'missing-content',
+          puzzleText,
+        }),
+      ),
+    ).toBeNull()
+  }
+})

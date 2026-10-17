@@ -90,7 +90,7 @@ it('builds limited, puzzle, and dev GRE configs', () => {
     gameType: 'draft',
   })
   expect(puzzleToGreStartConfig('combat.pzl')).toEqual({
-    puzzle: 'combat.pzl',
+    challengeId: 'combat.pzl',
     gameType: 'puzzle',
     returnPath: '/challenges',
     label: 'combat.pzl',
@@ -101,7 +101,7 @@ it('builds limited, puzzle, and dev GRE configs', () => {
       objective: 'Win within 10 turns. Put the revealed card on the bottom.',
     }),
   ).toEqual({
-    puzzle: 'scry-wall-of-runes',
+    challengeId: 'scry-wall-of-runes',
     gameType: 'puzzle',
     returnPath: '/challenges',
     label: 'Scry Wall of Runes',
