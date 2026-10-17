@@ -15,6 +15,21 @@ async function signIn(page: Page): Promise<void> {
 test('drafts a deck and enters a playable pod match', async ({ page }, testInfo) => {
   const gameplayRequests: string[] = []
   const gameplaySockets: string[] = []
+  const journalUploads: { status: number; format?: string; complete: boolean }[] = []
+  page.on('response', (response) => {
+    if (!/\/api\/browser-replays\/[^/]+\/chunks$/.test(new URL(response.url()).pathname)) {
+      return
+    }
+    const chunk = response.request().postDataJSON() as {
+      context?: { gameType?: string }
+      status?: { complete?: boolean }
+    }
+    journalUploads.push({
+      status: response.status(),
+      format: chunk.context?.gameType,
+      complete: chunk.status?.complete === true,
+    })
+  })
   page.on('request', (request) => {
     if (new URL(request.url()).pathname.startsWith('/api/gre/')) {
       gameplayRequests.push(request.url())
@@ -97,6 +112,14 @@ test('drafts a deck and enters a playable pod match', async ({ page }, testInfo)
     .toBeGreaterThan(gameStateBeforePass)
   await expect(page.getByText('Catching up...')).not.toBeVisible({ timeout: 20_000 })
   expect(await page.evaluate(() => window.__greState()!.matchId)).toMatch(/^browser-/)
+  await expect
+    .poll(
+      () => journalUploads.some((upload) => upload.status === 200 && upload.format === 'draft'),
+      {
+        timeout: 30_000,
+      },
+    )
+    .toBe(true)
   const saved = page.waitForResponse(
     (response) =>
       response.url().endsWith('/api/courses/result') && response.request().method() === 'POST',
@@ -109,11 +132,17 @@ test('drafts a deck and enters a playable pod match', async ({ page }, testInfo)
   await expect(
     page.getByText('Course result saved: 0 wins · 1 losses.', { exact: true }),
   ).toBeVisible()
+  await expect
+    .poll(() => journalUploads.some((upload) => upload.status === 200 && upload.complete), {
+      timeout: 30_000,
+    })
+    .toBe(true)
   await page.screenshot({ path: testInfo.outputPath('draft-course-result.png') })
   await page.getByRole('button', { name: 'Play Again', exact: true }).click()
   await expect(page).toHaveURL(/\/play\/limited/)
   const courses = await (await page.request.get('/api/courses')).json()
   expect(courses).toEqual(expect.arrayContaining([expect.objectContaining({ wins: 0, losses: 1 })]))
+  expect(journalUploads.filter((upload) => upload.status < 200 || upload.status >= 300)).toEqual([])
   expect(gameplayRequests).toEqual([])
   expect(gameplaySockets).toEqual([])
 })
