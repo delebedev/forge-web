@@ -218,8 +218,8 @@ describe('BrowserEngine', () => {
     const engine = engineWith(worker)
     const puzzle = { id: 'bolt-at-three-v1', text: '[metadata]\nGoal:Win' }
 
-    await engine.createMatch('', '', 42, false, 'puzzle', 'first', puzzle)
-    await engine.createMatch('', '', 42, false, 'puzzle', 'retry', puzzle)
+    await engine.createMatch('', '', 42, 'puzzle', 'first', puzzle)
+    await engine.createMatch('', '', 42, 'puzzle', 'retry', puzzle)
 
     expect(worker.commands.filter((command) => command.type === 'start')).toEqual([
       expect.objectContaining({
@@ -247,7 +247,6 @@ describe('BrowserEngine', () => {
       '99 Island\nCommander\n1 Empress Galina',
       '99 Mountain\nCommander\n1 Zo-Zu the Punisher',
       42,
-      false,
       'commander',
       'browser-stable-id',
     )
@@ -258,7 +257,6 @@ describe('BrowserEngine', () => {
       matchId: 'browser-stable-id',
       gameType: 'commander',
       seed: 42,
-      spectator: false,
     })
     engine.dispose()
   })
@@ -266,7 +264,7 @@ describe('BrowserEngine', () => {
   it('suppresses delivery only for requested replay sends and rejects a retired source', async () => {
     const worker = new FakeWorker()
     const engine = engineWith(worker)
-    const first = await engine.createMatch('deck 1', 'deck 2', 42, false)
+    const first = await engine.createMatch('deck 1', 'deck 2', 42)
     await engine.sendAndWait(first.source, new Uint8Array([1]), true)
     await engine.sendAndWait(first.source, new Uint8Array([2]))
     expect(worker.commands.filter((command) => command.type === 'send')).toEqual([
@@ -274,7 +272,7 @@ describe('BrowserEngine', () => {
       expect.objectContaining({ payload: 'Ag==' }),
     ])
     expect(worker.commands.at(-1)?.['silent']).toBeUndefined()
-    await engine.createMatch('deck 1', 'deck 2', 42, false)
+    await engine.createMatch('deck 1', 'deck 2', 42)
     const error: unknown = await engine.sendAndWait(first.source, new Uint8Array([1]), true).then(
       () => null,
       (error: unknown) => error,
@@ -287,9 +285,9 @@ describe('BrowserEngine', () => {
     const worker = new FakeWorker()
     const engine = engineWith(worker)
 
-    const first = await engine.createMatch('deck 1', 'deck 2', 42, true)
+    const first = await engine.createMatch('deck 1', 'deck 2', 42)
     first.source.start(sink().value)
-    const second = await engine.createMatch('deck 3', 'deck 4', 43, false)
+    const second = await engine.createMatch('deck 3', 'deck 4', 43)
 
     expect(first.matchId).toBe('match-1')
     expect(second.matchId).toBe('match-2')
@@ -341,12 +339,12 @@ describe('BrowserEngine', () => {
       () => pendingRelease,
     )
     try {
-      await engine.createMatch('deck 1', 'deck 2', 42, false, 'constructed', 'first')
-      await engine.createMatch('deck 1', 'deck 2', 43, false, 'constructed', 'second')
+      await engine.createMatch('deck 1', 'deck 2', 42, 'constructed', 'first')
+      await engine.createMatch('deck 1', 'deck 2', 43, 'constructed', 'second')
 
       expect(workers[0]!.commands.filter(({ type }) => type === 'initialize')).toHaveLength(1)
 
-      const disposedStart = disposedEngine.createMatch('deck 1', 'deck 2', 44, false)
+      const disposedStart = disposedEngine.createMatch('deck 1', 'deck 2', 44)
       await Promise.resolve()
       disposedEngine.dispose()
       resolveRelease(release)
@@ -367,11 +365,11 @@ describe('BrowserEngine', () => {
   it('does not deliver a late old-match frame to the second match', async () => {
     const worker = new FakeWorker()
     const engine = engineWith(worker)
-    const first = await engine.createMatch('deck 1', 'deck 2', 42, true)
+    const first = await engine.createMatch('deck 1', 'deck 2', 42)
     const firstSink = sink()
     first.source.start(firstSink.value)
     const bytes = await encodeMessage('MatchServiceToClientMessage', {})
-    const second = await engine.createMatch('deck 3', 'deck 4', 43, true)
+    const second = await engine.createMatch('deck 3', 'deck 4', 43)
     const secondSink = sink()
     second.source.start(secondSink.value)
     const payload = btoa(String.fromCharCode(...bytes))
@@ -394,9 +392,9 @@ describe('BrowserEngine', () => {
       (event) => events.push(event),
       () => worker as unknown as Worker,
     )
-    const first = await engine.createMatch('deck 1', 'deck 2', 42, true)
+    const first = await engine.createMatch('deck 1', 'deck 2', 42)
     first.source.start(sink().value)
-    const second = await engine.createMatch('deck 3', 'deck 4', 43, true)
+    const second = await engine.createMatch('deck 3', 'deck 4', 43)
     const observer = sink()
     second.source.start(observer.value)
 
@@ -447,7 +445,7 @@ describe('BrowserEngine', () => {
       },
       () => worker as unknown as Worker,
     )
-    const match = await engine.createMatch('deck 1', 'deck 2', 42, true)
+    const match = await engine.createMatch('deck 1', 'deck 2', 42)
     match.source.start(observer.value)
 
     worker.emit({
@@ -485,7 +483,7 @@ describe('BrowserEngine', () => {
     const worker = new FakeWorker()
     worker.respond = false
     const engine = engineWith(worker)
-    const pending = engine.createMatch('deck 1', 'deck 2', 42, true)
+    const pending = engine.createMatch('deck 1', 'deck 2', 42)
     await Promise.resolve()
 
     engine.dispose()
@@ -499,8 +497,8 @@ describe('BrowserEngine', () => {
     worker.failNextStart = true
     const engine = engineWith(worker)
 
-    expect(engine.createMatch('deck 1', 'deck 2', 42, true)).rejects.toThrow('launch failed')
-    const match = await engine.createMatch('deck 1', 'deck 2', 43, true)
+    expect(engine.createMatch('deck 1', 'deck 2', 42)).rejects.toThrow('launch failed')
+    const match = await engine.createMatch('deck 1', 'deck 2', 43)
 
     expect(match.matchId).toBe('match-1')
     expect(worker.commands.map((command) => command.type)).toEqual([
@@ -514,12 +512,12 @@ describe('BrowserEngine', () => {
   it('retries a failed close before starting another match', async () => {
     const worker = new FakeWorker()
     const engine = engineWith(worker)
-    const first = await engine.createMatch('deck 1', 'deck 2', 42, true)
+    const first = await engine.createMatch('deck 1', 'deck 2', 42)
     first.source.start(sink().value)
     worker.failNextClose = true
 
-    expect(engine.createMatch('deck 3', 'deck 4', 43, true)).rejects.toThrow('close failed')
-    const match = await engine.createMatch('deck 3', 'deck 4', 43, true)
+    expect(engine.createMatch('deck 3', 'deck 4', 43)).rejects.toThrow('close failed')
+    const match = await engine.createMatch('deck 3', 'deck 4', 43)
 
     expect(match.matchId).toBe('match-2')
     expect(worker.commands.map((command) => command.type)).toEqual([
@@ -546,11 +544,11 @@ describe('BrowserEngine', () => {
       },
       { maxMatchesPerWorker: 2 },
     )
-    const first = await engine.createMatch('a', 'b', 42, true)
+    const first = await engine.createMatch('a', 'b', 42)
     first.source.start(sink().value)
     const oldCallback = workers[0]!.onmessage!
-    await engine.createMatch('a', 'b', 43, true)
-    const third = await engine.createMatch('c', 'd', 44, true)
+    await engine.createMatch('a', 'b', 43)
+    const third = await engine.createMatch('c', 'd', 44)
     const latest = sink()
     third.source.start(latest.value)
     oldCallback({
@@ -576,9 +574,9 @@ describe('BrowserEngine', () => {
       () => workers.shift() as unknown as Worker,
     )
 
-    expect(engine.createMatch('a', 'b', 42, false)).rejects.toThrow('catalog unavailable')
+    expect(engine.createMatch('a', 'b', 42)).rejects.toThrow('catalog unavailable')
     expect(first.terminated).toBe(true)
-    await engine.createMatch('a', 'b', 42, false)
+    await engine.createMatch('a', 'b', 42)
     expect(second.commands.map((command) => command.type)).toEqual(['initialize', 'start'])
     expect(engine.diagnostics().generation).toBe(2)
     engine.dispose()
@@ -595,10 +593,10 @@ describe('BrowserEngine', () => {
       { initializationTimeoutMs: 10 },
     )
 
-    expect(engine.createMatch('a', 'b', 42, true)).rejects.toThrow('timed out')
+    expect(engine.createMatch('a', 'b', 42)).rejects.toThrow('timed out')
     expect(first.terminated).toBe(true)
     expect(engine.diagnostics().failed).toBe(true)
-    await engine.createMatch('a', 'b', 42, true)
+    await engine.createMatch('a', 'b', 42)
     expect(engine.diagnostics().failed).toBe(false)
     engine.dispose()
   })
@@ -610,7 +608,7 @@ describe('BrowserEngine', () => {
       () => worker as unknown as Worker,
       { commandTimeoutMs: 5 },
     )
-    await engine.createMatch('a', 'b', 42, true)
+    await engine.createMatch('a', 'b', 42)
     worker.respond = false
 
     const failure = await engine.fetchCardMeta([1]).catch((error: unknown) => error)
@@ -637,7 +635,7 @@ describe('BrowserEngine', () => {
       () => worker as unknown as Worker,
       { commandTimeoutMs: 50, heartbeatIntervalMs: 2, heartbeatTimeoutMs: 50 },
     )
-    const match = await engine.createMatch('a', 'b', 42, true)
+    const match = await engine.createMatch('a', 'b', 42)
     match.source.start(sink().value)
     worker.blockSend = true
 
@@ -679,7 +677,7 @@ describe('BrowserEngine', () => {
         commandTimeoutMs: 50,
       },
     )
-    const match = await engine.createMatch('a', 'b', 42, false)
+    const match = await engine.createMatch('a', 'b', 42)
     match.source.start(sink().value)
     worker.respond = false
     const send = engine
@@ -709,7 +707,7 @@ describe('BrowserEngine', () => {
         commandTimeoutMs: 50,
       },
     )
-    const match = await engine.createMatch('a', 'b', 42, false)
+    const match = await engine.createMatch('a', 'b', 42)
     match.source.start(sink().value)
     await stateFrame(worker, match.matchId, 10)
     await match.source.flush()
@@ -747,7 +745,7 @@ describe('BrowserEngine', () => {
           commandTimeoutMs: 50,
         },
       )
-      const match = await engine.createMatch('a', 'b', 42, false)
+      const match = await engine.createMatch('a', 'b', 42)
       match.source.start(sink().value)
       worker.respond = false
       worker.emitCommandStart = emitCommandStart
@@ -779,7 +777,7 @@ describe('BrowserEngine', () => {
         heartbeatTimeoutMs: 40,
       },
     )
-    const match = await engine.createMatch('a', 'b', 42, false)
+    const match = await engine.createMatch('a', 'b', 42)
     match.source.start(sink().value)
     worker.respond = false
     worker.respondHeartbeat = false
@@ -806,7 +804,7 @@ describe('BrowserEngine', () => {
       () => worker as unknown as Worker,
       { commandTimeoutMs: 5 },
     )
-    await engine.createMatch('a', 'b', 42, true)
+    await engine.createMatch('a', 'b', 42)
     worker.emitCommandStart = false
     worker.respond = false
 
@@ -831,7 +829,7 @@ describe('BrowserEngine', () => {
     let now = 0
     Date.now = () => now
     try {
-      await engine.createMatch('a', 'b', 42, true)
+      await engine.createMatch('a', 'b', 42)
       worker.respond = false
       const metadata = engine.fetchCardMeta([1])
       await Promise.resolve()
@@ -856,7 +854,7 @@ describe('BrowserEngine', () => {
       () => {},
       () => workers.shift() as unknown as Worker,
     )
-    const match = await engine.createMatch('a', 'b', 42, false)
+    const match = await engine.createMatch('a', 'b', 42)
     const observer = sink()
     match.source.start(observer.value)
     first.respond = false
@@ -867,7 +865,7 @@ describe('BrowserEngine', () => {
     expect(first.terminated).toBe(true)
     expect(observer.errors()).toBe(1)
     expect(match.source.isRetired).toBe(true)
-    await engine.createMatch('a', 'b', 43, false)
+    await engine.createMatch('a', 'b', 43)
     expect(engine.diagnostics().generation).toBe(2)
     engine.dispose()
   })
@@ -879,7 +877,7 @@ describe('BrowserEngine', () => {
       () => worker as unknown as Worker,
       { heartbeatIntervalMs: 2, heartbeatTimeoutMs: 10 },
     )
-    const match = await engine.createMatch('a', 'b', 42, true)
+    const match = await engine.createMatch('a', 'b', 42)
 
     await wait(15)
 
@@ -905,7 +903,7 @@ describe('BrowserEngine', () => {
       () => workers.shift() as unknown as Worker,
       { heartbeatIntervalMs: 2, heartbeatTimeoutMs: 5 },
     )
-    const firstMatch = await engine.createMatch('a', 'b', 42, true)
+    const firstMatch = await engine.createMatch('a', 'b', 42)
     const observer = sink()
     firstMatch.source.start(observer.value)
 
@@ -922,7 +920,7 @@ describe('BrowserEngine', () => {
         diagnostic: expect.objectContaining({ operation: 'heartbeat', kind: 'timeout' }),
       }),
     })
-    const secondMatch = await engine.createMatch('a', 'b', 43, true)
+    const secondMatch = await engine.createMatch('a', 'b', 43)
     expect(secondMatch.matchId).toBe('match-1')
     expect(engine.diagnostics()).toMatchObject({ generation: 2, matches: 1, failed: false })
     engine.dispose()
@@ -936,7 +934,7 @@ describe('BrowserEngine', () => {
       () => worker as unknown as Worker,
       { heartbeatIntervalMs: 2, heartbeatTimeoutMs: 5 },
     )
-    await engine.createMatch('a', 'b', 42, true)
+    await engine.createMatch('a', 'b', 42)
     const oldCallback = worker.onmessage!
     const heartbeatCount = worker.heartbeats
 
@@ -961,7 +959,7 @@ describe('BrowserEngine', () => {
       { heartbeatIntervalMs: 2, heartbeatTimeoutMs: 5 },
     )
 
-    await engine.createMatch('a', 'b', 42, true)
+    await engine.createMatch('a', 'b', 42)
     await wait(15)
 
     expect(worker.terminated).toBe(true)
@@ -990,7 +988,7 @@ describe('BrowserEngine', () => {
     let now = 0
     Date.now = () => now
     try {
-      await engine.createMatch('a', 'b', 42, true)
+      await engine.createMatch('a', 'b', 42)
       now = 8
       await wait(10)
 
@@ -1011,7 +1009,7 @@ describe('BrowserEngine', () => {
       () => worker as unknown as Worker,
       { commandTimeoutMs: 10 },
     )
-    const match = await engine.createMatch('private deck', 'other deck', 42, false)
+    const match = await engine.createMatch('private deck', 'other deck', 42)
     match.source.start(sink().value)
     const payload = await encodeMessage('ClientToGREMessage', {
       type: 15,
@@ -1058,7 +1056,7 @@ describe('BrowserEngine', () => {
       (event) => events.push(event),
       () => worker as unknown as Worker,
     )
-    await engine.createMatch('a', 'b', 42, false)
+    await engine.createMatch('a', 'b', 42)
     worker.emit({
       event: 'worker-online',
       data: { runtimeReady: true, runtimeVersion: '4.3' },
@@ -1092,13 +1090,13 @@ describe('BrowserEngine', () => {
       () => workers.shift() as unknown as Worker,
       { commandTimeoutMs: 5, diagnosticTimeoutMs: 10 },
     )
-    await engine.createMatch('a', 'b', 42, false)
+    await engine.createMatch('a', 'b', 42)
     expect(first.commands.some((c) => c.type === 'failure-diagnostic')).toBe(false)
     first.respond = false
     const error = await engine.fetchCardMeta([1]).catch((e) => e)
     expect(error.diagnostic.snapshot.runtime).toBe('timed-out')
     expect(first.terminated).toBe(true)
-    await engine.createMatch('a', 'b', 43, false)
+    await engine.createMatch('a', 'b', 43)
     expect(next.terminated).toBe(false)
     engine.dispose()
   })

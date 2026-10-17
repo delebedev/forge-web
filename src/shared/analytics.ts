@@ -18,7 +18,6 @@ const EVENTS = {
   TURN_MILESTONE: 'turn-milestone',
   BROWSER_LIFECYCLE: 'browser-lifecycle',
   GAME_RECOVERY: 'game-recovery',
-  GAME_EXECUTION_FALLBACK: 'game-execution-fallback',
   SPECTATOR_START: 'spectator-start',
   SPECTATOR_START_FAILED: 'spectator-start-failed',
   SPECTATOR_COMPLETE: 'spectator-complete',
@@ -55,6 +54,7 @@ export type BrowserFailureOperation =
   | 'close'
   | 'metadata'
   | 'advice'
+  | 'validate-puzzle'
   | 'memory'
   | 'heartbeat'
   | 'progress'
@@ -98,38 +98,6 @@ export type BrowserFailureDiagnostic = {
   queueDurationMs?: number
   timerLatenessMs?: number
   heartbeatState?: 'not-started' | 'pending' | 'responsive'
-}
-
-export type GameExecutionFallbackReason =
-  | 'unsupported-browser'
-  | 'insecure-context'
-  | 'missing-engine-apis'
-  | 'missing-required-apis'
-  | 'local-startup-failed'
-
-export type GameExecutionFallbackDetail =
-  | 'secure-context'
-  | 'worker'
-  | 'wasm'
-  | 'decompression-stream'
-  | 'subtle-crypto'
-  | 'asset'
-  | 'heartbeat'
-  | 'progress'
-  | 'catalog'
-  | 'runtime'
-  | 'worker-startup'
-
-export function trackGameExecutionFallback(
-  reason: GameExecutionFallbackReason,
-  detail?: GameExecutionFallbackDetail,
-): void {
-  track(EVENTS.GAME_EXECUTION_FALLBACK, {
-    from: 'browser',
-    to: 'server',
-    reason,
-    ...(detail ? { detail } : {}),
-  })
 }
 
 type ExecutionAnalyticsContext = {

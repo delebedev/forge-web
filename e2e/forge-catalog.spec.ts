@@ -164,9 +164,9 @@ test('imports, saves, reloads, and searches the same catalog identity', async ({
   await page.goto('/play/game')
   await page.getByRole('button', { name: 'Constructed', exact: true }).click()
   await page.getByRole('button', { name: 'Forge catalog proof 60 cards', exact: true }).click()
-  await page.getByRole('button', { name: /^(Play on server|Start server game)$/ }).click()
+  await page.getByRole('button', { name: 'Start game', exact: true }).click()
   await expect
-    .poll(() => page.evaluate(() => window.__greState()?.connected), { timeout: 30_000 })
+    .poll(() => page.evaluate(() => window.__greState()?.connected), { timeout: 240_000 })
     .toBe(true)
   await attachState(testInfo, 'catalog-identities', {
     parsed: parsedCard,
@@ -840,7 +840,7 @@ async function attackWith(page: Page, name: string): Promise<void> {
       .poll(() => page.evaluate(() => window.__greState()!.gsId), { timeout: 20_000 })
       .not.toBe(stateBefore)
   }
-  await expect(prompt).toBeVisible({ timeout: 30_000 })
+  await expect(prompt).toBeVisible({ timeout: 240_000 })
   const lifeBefore = await opponentLife(page)
   const count = Math.min(lifeBefore, await attackers.count())
   expect(count).toBeGreaterThan(0)

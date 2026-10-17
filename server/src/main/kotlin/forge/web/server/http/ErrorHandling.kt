@@ -6,10 +6,6 @@ import forge.web.server.auth.UnauthorizedPlayer
 import forge.web.server.auth.WEB_SESSION_COOKIE
 import forge.web.server.auth.WebAuthService
 import forge.web.server.cards.ParseDecklistErrorResponse
-import forge.web.server.match.MatchCapacityException
-import forge.web.server.match.MatchCapacityResponse
-import forge.web.server.match.MatchDrainingException
-import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
 import io.ktor.server.application.install
@@ -17,7 +13,6 @@ import io.ktor.server.application.log
 import io.ktor.server.plugins.statuspages.StatusPages
 import io.ktor.server.plugins.statuspages.exception
 import io.ktor.server.request.path
-import io.ktor.server.response.header
 import io.ktor.server.response.respond
 import io.sentry.Sentry
 import io.sentry.SentryEvent
@@ -26,10 +21,6 @@ import io.sentry.protocol.Request
 import io.sentry.protocol.User
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
-import java.io.IOException
-
-private const val MATCH_CAPACITY_RETRY_AFTER_SECONDS = 5
-private const val MATCH_DRAIN_RETRY_AFTER_SECONDS = 15
 
 internal fun Application.installHttpErrorHandling(auth: WebAuthService) {
     install(StatusPages) {
@@ -39,27 +30,6 @@ internal fun Application.installHttpErrorHandling(auth: WebAuthService) {
         }
         exception<IllegalArgumentException> { call, cause ->
             call.respond(HttpStatusCode.BadRequest, cause.message ?: "Bad request")
-        }
-        exception<MatchCapacityException> { call, cause ->
-            call.response.header(HttpHeaders.RetryAfter, MATCH_CAPACITY_RETRY_AFTER_SECONDS)
-            call.respond(
-                HttpStatusCode.ServiceUnavailable,
-                MatchCapacityResponse(
-                    message = cause.message ?: "All game slots are busy. Please try again shortly.",
-                    retryAfterSeconds = MATCH_CAPACITY_RETRY_AFTER_SECONDS,
-                ),
-            )
-        }
-        exception<MatchDrainingException> { call, cause ->
-            call.response.header(HttpHeaders.RetryAfter, MATCH_DRAIN_RETRY_AFTER_SECONDS)
-            call.respond(
-                HttpStatusCode.ServiceUnavailable,
-                MatchCapacityResponse(
-                    code = "deployment_in_progress",
-                    message = cause.message ?: "A deployment is in progress.",
-                    retryAfterSeconds = MATCH_DRAIN_RETRY_AFTER_SECONDS,
-                ),
-            )
         }
         exception<UnauthorizedPlayer> { _, _ -> }
         exception<Throwable> { call, cause ->
@@ -145,7 +115,6 @@ private fun sendServerReportingCanary() {
 }
 
 internal fun sanitizeServerErrorEvent(event: SentryEvent): SentryEvent? {
-    if (event.throwable?.isRoutineWebSocketPingTimeout() == true) return null
     event.setUser(event.user?.id?.let { User().apply { id = it } })
     event.setExtras(emptyMap())
     event.setBreadcrumbs(emptyList())
@@ -159,12 +128,5 @@ internal fun sanitizeServerErrorEvent(event: SentryEvent): SentryEvent? {
     }
     return event
 }
-
-private fun Throwable.isRoutineWebSocketPingTimeout(): Boolean =
-    generateSequence(this) { it.cause }.any { cause ->
-        cause is IOException &&
-            cause.message == "Ping timeout" &&
-            cause.stackTrace.any { it.className.startsWith("io.ktor.websocket.DefaultWebSocketSessionImpl") }
-    }
 
 private const val PRODUCT_SENTRY_APPENDER_NAME = "FORGE_WEB_SENTRY"

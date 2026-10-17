@@ -1,8 +1,6 @@
 import { reportDiagnostic } from '@shared/reporting'
 import { responseSchemas } from './wire-schemas'
 
-const MAX_ADMISSION_BODY_BYTES = 4096
-const ADMISSION_READ_TIMEOUT_MS = 250
 const routes = Object.keys(responseSchemas).map((operation) => {
   const [method, path] = operation.split(' ')
   return { operation, method, path: path!, segments: path!.split('/') }
@@ -51,59 +49,6 @@ export function reportApiNetworkFailure(path: string, method: string): void {
   })
 }
 
-/** Only contracted admission responses may suppress a service-unavailable report. */
-async function isAdmissionPause(response: Response, operation: string): Promise<boolean> {
-  if (
-    response.status !== 503 ||
-    !Object.hasOwn(responseSchemas[operation as keyof typeof responseSchemas] ?? {}, '503') ||
-    !response.headers?.get('Content-Type')?.toLowerCase().includes('application/json')
-  ) {
-    return false
-  }
-  let reader: ReadableStreamDefaultReader<Uint8Array> | undefined
-  let deadline: ReturnType<typeof setTimeout> | undefined
-  let timedOut = false
-  let length = 0
-  let body = ''
-  const decoder = new TextDecoder()
-  try {
-    reader = response.clone().body?.getReader()
-    if (!reader) {
-      return false
-    }
-    deadline = setTimeout(() => {
-      timedOut = true
-      void reader?.cancel().catch(() => {})
-    }, ADMISSION_READ_TIMEOUT_MS)
-    while (true) {
-      const chunk = await reader.read()
-      if (chunk.done) {
-        break
-      }
-      length += chunk.value.byteLength
-      if (length > MAX_ADMISSION_BODY_BYTES) {
-        return false
-      }
-      body += decoder.decode(chunk.value, { stream: true })
-    }
-    if (timedOut) {
-      return false
-    }
-    const value: unknown = JSON.parse(body + decoder.decode())
-    return (
-      value !== null &&
-      typeof value === 'object' &&
-      'code' in value &&
-      (value.code === 'match_capacity' || value.code === 'deployment_in_progress')
-    )
-  } catch {
-    return false
-  } finally {
-    clearTimeout(deadline)
-    void reader?.cancel().catch(() => {})
-  }
-}
-
 export async function observeApiResponse(
   response: Response,
   path: string,
@@ -113,9 +58,6 @@ export async function observeApiResponse(
   const context = { operation, handled: response.status >= 400 }
   responseContexts.set(response, context)
   if (!(response.status >= 500)) {
-    return
-  }
-  if (await isAdmissionPause(response, operation)) {
     return
   }
   reportDiagnostic(undefined, 'API HTTP request failed', {

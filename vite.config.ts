@@ -20,7 +20,6 @@ function gitSha(): string {
 
 const webPort = process.env['LEYLINE_WEBDOOR_PORT'] ?? '8080'
 const webUrl = process.env['LEYLINE_WEBDOOR_URL'] ?? `http://127.0.0.1:${webPort}`
-const webWs = process.env['LEYLINE_WEBDOOR_WS_URL'] ?? webUrl.replace(/^http/, 'ws')
 const allowedHosts =
   process.env['VITE_ALLOWED_HOSTS']
     ?.split(',')
@@ -59,8 +58,6 @@ function devTranscripts(): Plugin {
 export default defineConfig({
   define: {
     __GIT_SHA__: JSON.stringify(gitSha()),
-    // Vite's dev WS proxy fails to upgrade `/gre`; connect straight to Leyline web.
-    __WEBDOOR_WS_BASE__: JSON.stringify(webWs),
   },
   plugins: [react(), devTranscripts(), seo()],
   resolve: {
@@ -101,7 +98,6 @@ export default defineConfig({
       '/api': {
         target: webUrl,
       },
-      // NOTE: no '/gre' WS proxy. The GRE client connects via __WEBDOOR_WS_BASE__.
     },
   },
 })

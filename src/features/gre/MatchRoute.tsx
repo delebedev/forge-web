@@ -51,7 +51,6 @@ export function MatchRoute() {
         showDeckConfig={false}
         showHeader={false}
         showHeaderActions={false}
-        spectator={session.isSpectator}
         browserPhase={session.browserPhase}
         browserStatus={session.browserStatus}
         browserError={session.browserError}
@@ -59,7 +58,6 @@ export function MatchRoute() {
         onRecoverBrowser={
           session.browserRecoveryAvailable ? () => greSession.recoverBrowser() : undefined
         }
-        executionFallback={session.executionFallback}
         onMatchStarted={(id) => greSession.recordMatchId(id)}
         onBackToPlay={() => greSession.leave()}
         onPlayAgain={() => greSession.playAgain()}

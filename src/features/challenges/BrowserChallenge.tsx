@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from '@app/router'
 import { useBoardSnapshot, useGreSessionSnapshot } from '@engine/runtime/hooks'
 import { greSession } from '@engine/runtime/gre-session'
@@ -13,25 +13,11 @@ import {
   nextBrowserChallenge,
 } from './browser-challenges'
 import { PuzzleRating } from './PuzzleRating'
-import {
-  canGeneratePuzzle,
-  getPuzzle,
-  getPuzzleRun,
-  listPuzzles,
-  startPuzzleGeneration,
-  type PuzzleRun,
-} from './puzzle-api'
+import { getPuzzle, listPuzzles } from './puzzle-api'
 import { markDailyPuzzleComplete } from './daily-progress'
 import styles from './BrowserChallenge.module.css'
 
 type Position = { id: string; name: string; objective: string; turns: number; generated: boolean }
-
-const GENERATION_STAGES = [
-  { id: 'finding_idea', label: 'Finding a card interaction' },
-  { id: 'building_challenge', label: 'Building a position' },
-  { id: 'testing_solution', label: 'Testing the winning line' },
-  { id: 'checking_shortcuts', label: 'Checking for shortcuts' },
-]
 
 export function BrowserChallenge({ challengeId }: { challengeId: string }) {
   const session = useGreSessionSnapshot()
@@ -40,17 +26,10 @@ export function BrowserChallenge({ challengeId }: { challengeId: string }) {
   const [position, setPosition] = useState<Position | null>(null)
   const [failure, setFailure] = useState('')
   const [loadAttempt, setLoadAttempt] = useState(0)
-  const [canGenerate, setCanGenerate] = useState(false)
-  const [generating, setGenerating] = useState(false)
-  const [generation, setGeneration] = useState<PuzzleRun | null>(null)
-  const [generationError, setGenerationError] = useState('')
-  const generationController = useRef<AbortController | null>(null)
-
   useEffect(() => {
     document.body.classList.add('match-route')
     return () => {
       document.body.classList.remove('match-route')
-      generationController.current?.abort()
       greSession.clear()
     }
   }, [])
@@ -59,13 +38,6 @@ export function BrowserChallenge({ challengeId }: { challengeId: string }) {
     const controller = new AbortController()
     setFailure('')
     setPosition(null)
-    setGenerating(false)
-    setGeneration(null)
-    setGenerationError('')
-    void canGeneratePuzzle(controller.signal)
-      .then(setCanGenerate)
-      .catch(() => setCanGenerate(false))
-
     async function openPosition(): Promise<void> {
       if (challengeId === 'random') {
         const pool = await listPuzzles(controller.signal).catch(() => [])
@@ -141,56 +113,8 @@ export function BrowserChallenge({ challengeId }: { challengeId: string }) {
     return () => controller.abort()
   }, [challengeId, loadAttempt, navigate])
 
-  async function pollGeneration(runId: string, signal: AbortSignal): Promise<void> {
-    let run: PuzzleRun
-    do {
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-      if (signal.aborted) {
-        return
-      }
-      run = await getPuzzleRun(runId, signal)
-      if (signal.aborted) {
-        return
-      }
-      setGeneration(run)
-    } while (run.status === 'running')
-    if (run.status !== 'published' || !run.puzzleId) {
-      setGenerationError('No puzzle passed the engine checks this time. Try again.')
-      return
-    }
-    navigate(browserChallengePath(run.puzzleId))
-  }
-
-  async function generateNext(resumeId?: string): Promise<void> {
-    generationController.current?.abort()
-    const controller = new AbortController()
-    generationController.current = controller
-    setGenerating(true)
-    setGenerationError('')
-    try {
-      const run = resumeId
-        ? await getPuzzleRun(resumeId, controller.signal)
-        : await startPuzzleGeneration(controller.signal)
-      if (controller.signal.aborted) {
-        return
-      }
-      setGeneration(run)
-      await pollGeneration(run.id, controller.signal)
-    } catch (cause) {
-      if (!controller.signal.aborted) {
-        setGenerationError(
-          cause instanceof Error ? cause.message : 'Could not generate a puzzle. Try again.',
-        )
-      }
-    }
-  }
-
-  async function nextChallenge(): Promise<void> {
-    if (canGenerate || (await canGeneratePuzzle().catch(() => false))) {
-      await generateNext()
-    } else {
-      navigate(browserChallengePath('random'))
-    }
+  function nextChallenge(): void {
+    navigate(browserChallengePath('random'))
   }
 
   const outcome =
@@ -201,41 +125,6 @@ export function BrowserChallenge({ challengeId }: { challengeId: string }) {
       markDailyPuzzleComplete()
     }
   }, [isDailyChallenge, outcome])
-
-  if (generating) {
-    const stage = generation?.stage ?? 'finding_idea'
-    const stageIndex = GENERATION_STAGES.findIndex((item) => item.id === stage)
-    return (
-      <main className={`public-theme ${styles.loading}`}>
-        <h1>Making your next challenge</h1>
-        <p>Each position is played through and checked before it joins the pool.</p>
-        <ol className={styles.stages} aria-label="Generation progress">
-          {GENERATION_STAGES.map((item, index) => (
-            <li key={item.id} data-active={index === stageIndex} data-complete={index < stageIndex}>
-              {item.label}
-            </li>
-          ))}
-        </ol>
-        {generationError ? (
-          <div className={styles.recovery} role="alert">
-            <p>{generationError}</p>
-            <Button
-              onClick={() =>
-                void generateNext(generation?.status === 'running' ? generation.id : undefined)
-              }
-            >
-              {generation?.status === 'running' ? 'Check again' : 'Try again'}
-            </Button>
-            <Button variant="secondary" onClick={() => navigate(browserChallengePath('random'))}>
-              Choose from the pool
-            </Button>
-          </div>
-        ) : (
-          <p role="status">{GENERATION_STAGES[stageIndex]?.label ?? 'Finishing the puzzle'}…</p>
-        )}
-      </main>
-    )
-  }
 
   if (failure || !position || session.config?.challengeId !== challengeId) {
     return (
@@ -272,13 +161,7 @@ export function BrowserChallenge({ challengeId }: { challengeId: string }) {
         onBackToPlay={() =>
           isDailyChallenge && outcome === 'win' ? navigate('/') : void nextChallenge()
         }
-        backLabel={
-          isDailyChallenge && outcome === 'win'
-            ? 'Done for today'
-            : canGenerate
-              ? 'Generate next'
-              : 'Another challenge'
-        }
+        backLabel={isDailyChallenge && outcome === 'win' ? 'Done for today' : 'Another challenge'}
         onPlayAgain={() => {
           telemetry.track('challenge_restart', position.generated ? 'generated' : challengeId)
           return greSession.playAgain()

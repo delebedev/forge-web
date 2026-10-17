@@ -5,7 +5,6 @@ import forge.web.server.support.concedeBytes
 import forge.web.server.support.testCards
 import io.ktor.client.request.get
 import io.ktor.client.request.header
-import io.ktor.client.request.post
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
@@ -393,27 +392,6 @@ class MatchReplayStoreTest {
             assertEquals("no-store", response.headers[HttpHeaders.CacheControl])
         }
 
-    @Test
-    fun `operator release route starts and reports the drain`() =
-        testApplication {
-            val root = Files.createTempDirectory("match-release-route").toFile()
-            val store = MatchReplayStore(config(root, token = "secret-token"), testCards(), "abc1234")
-            val relay = DrainRelay()
-            application {
-                install(ContentNegotiation) { json(productionJson()) }
-                routing { route("/api") { installReleaseOperatorRoutes(store, relay) } }
-            }
-
-            assertEquals(HttpStatusCode.NotFound, client.post("/api/operator/release/drain").status)
-            val started = client.post("/api/operator/release/drain") { header(HttpHeaders.Authorization, "Bearer secret-token") }
-            assertEquals(HttpStatusCode.OK, started.status)
-            assertTrue(relay.drainStatus().draining)
-            assertEquals(
-                HttpStatusCode.OK,
-                client.get("/api/operator/release/drain") { header(HttpHeaders.Authorization, "Bearer secret-token") }.status,
-            )
-        }
-
     private fun config(
         root: java.io.File,
         token: String = "token",
@@ -445,29 +423,6 @@ class MatchReplayStoreTest {
         return """{"kind":"padding","payload":"${Base64.getEncoder().encodeToString(bytes)}"}
 """
     }
-}
-
-private class DrainRelay : BrowserGreRelay {
-    private var draining = false
-
-    override fun isActive(matchId: String) = false
-
-    override fun beginDrain() = MatchDrainStatus(true, 1, 1).also { draining = true }
-
-    override fun endDrain() = MatchDrainStatus(false, 1, 1).also { draining = false }
-
-    override fun drainStatus() = MatchDrainStatus(draining, 1, 1)
-
-    override suspend fun attach(
-        matchId: String,
-        playerId: leyline.domain.PlayerId?,
-        session: io.ktor.server.websocket.DefaultWebSocketServerSession,
-    ) = BrowserAttachResult.Unavailable
-
-    override suspend fun abandon(
-        matchId: String,
-        playerId: leyline.domain.PlayerId,
-    ) = false
 }
 
 private class MutableClock(private var instant: Instant) : Clock() {

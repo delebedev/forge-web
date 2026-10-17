@@ -6,35 +6,7 @@ type GreHarness = {
   start(config: Parameters<GreDebugWindow['__greStart']>[0]): Promise<GreDebugResult>
 }
 
-export const test = base.extend<{ gre: GreHarness; cleanupMatches: void }>({
-  cleanupMatches: [
-    async ({ page }, use) => {
-      const launches: Array<Promise<string | undefined>> = []
-      page.on('response', (response) => {
-        const path = new URL(response.url()).pathname
-        if (
-          response.request().method() === 'POST' &&
-          (path === '/api/gre/start' || path === '/api/draft/play') &&
-          response.ok()
-        ) {
-          launches.push(
-            response
-              .json()
-              .then((body) => body.matchId)
-              .catch(() => undefined),
-          )
-        }
-      })
-      await use()
-      for (const matchId of new Set(await Promise.all(launches))) {
-        if (matchId) {
-          const response = await page.request.post('/api/gre/abandon', { data: { matchId } })
-          expect(response.status()).toBe(204)
-        }
-      }
-    },
-    { auto: true },
-  ],
+export const test = base.extend<{ gre: GreHarness }>({
   gre: async ({ page }, use, testInfo) => {
     const browserErrors: string[] = []
     page.on('console', (message) => {
@@ -95,6 +67,9 @@ export function promptZone(page: Page) {
 export async function startPuzzleGame(page: Page, puzzle: string): Promise<void> {
   await page.goto(`/dev/puzzle/${encodeURIComponent(puzzle)}`)
   await page.waitForURL(/\/match\/puzzle/, { timeout: 20_000 })
+  await expect
+    .poll(() => page.evaluate(() => window.__greState?.()?.horizon), { timeout: 240_000 })
+    .toBeTruthy()
 }
 
 /**

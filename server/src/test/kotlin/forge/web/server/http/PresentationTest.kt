@@ -3,17 +3,9 @@ package forge.web.server.http
 import forge.web.server.cards.CardImageIndex
 import forge.web.server.cards.ParseDecklistResponse
 import forge.web.server.installServer
-import forge.web.server.match.BrowserAttachResult
-import forge.web.server.match.BrowserGreRelay
 import forge.web.server.match.ChallengeCatalog
 import forge.web.server.match.ChallengeSummary
-import forge.web.server.match.DraftPlayResponse
-import forge.web.server.match.GreStartRequest
-import forge.web.server.match.SpectatorDeck
-import forge.web.server.match.SpectatorDeckPool
-import forge.web.server.match.WebMatchLauncher
 import forge.web.server.match.developmentChallenges
-import forge.web.server.match.resolveChallenge
 import forge.web.server.support.testCards
 import forge.web.server.support.testServices
 import io.ktor.client.request.get
@@ -24,26 +16,19 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.contentType
 import io.ktor.server.testing.testApplication
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import leyline.config.PuzzleDefinition
-import leyline.domain.PlayerId
 import leyline.game.data.AbilityLocalization
 import leyline.game.data.CardRepository
 import leyline.game.data.ModalAbilityInfo
 import java.io.File
 import java.nio.file.Files
-import java.util.concurrent.CopyOnWriteArrayList
-import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFailsWith
 import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
@@ -76,11 +61,20 @@ class PresentationTest {
         testApplication {
             val rebalancedName = "A-Delver of Secrets"
             val rebalancedGrpId = 900
+            val base = testCards()
             val cards =
-                object : CardRepository by testCards() {
-                    override fun findGrpIdByName(name: String): Int? = if (name == rebalancedName) rebalancedGrpId else null
+                object : CardRepository by base {
+                    override fun findGrpIdByName(name: String): Int? =
+                        if (name == rebalancedName) rebalancedGrpId else base.findGrpIdByName(name)
 
-                    override fun findNameByGrpId(grpId: Int): String? = if (grpId == rebalancedGrpId) rebalancedName else null
+                    override fun findNameByGrpId(grpId: Int): String? =
+                        if (grpId == rebalancedGrpId) {
+                            rebalancedName
+                        } else {
+                            base.findNameByGrpId(
+                                grpId,
+                            )
+                        }
                 }
             application {
                 installServer(testServices(cards = cards, cardImages = CardImageIndex.load()))
@@ -156,13 +150,8 @@ class PresentationTest {
             catalog.describePuzzle("descriptive-goal")?.objective,
         )
         assertEquals(listOf("second", "first"), ordered.summaries().map { it.challengeId })
-        assertEquals("bolt-face", resolveChallenge(GreStartRequest(challengeId = "bolt-face"), catalog)?.identity)
-        assertFailsWith<IllegalArgumentException> {
-            resolveChallenge(GreStartRequest(challengeId = "missing"), catalog)
-        }
-        assertFailsWith<IllegalArgumentException> {
-            resolveChallenge(GreStartRequest(challengeId = "bolt-face", puzzle = "other"), catalog)
-        }
+        assertEquals("bolt-face", catalog.find("bolt-face")?.identity)
+        assertEquals(null, catalog.find("missing"))
     }
 
     @Test
@@ -437,126 +426,4 @@ class PresentationTest {
                 }
             assertEquals(204, accepted.status.value)
         }
-
-    @Test
-    fun `spectator route reuses an active match and rotates after it expires`() =
-        testApplication {
-            val relay = RecordingRelay()
-            val launcher = RecordingLauncher { relay.activeMatchId = it }
-            application {
-                installServer(
-                    testServices(
-                        matchLauncher = launcher,
-                        greRelay = relay,
-                        spectatorDeckPool = spectatorPool("Alpha" to "60 Mountain", "Beta" to "60 Lightning Bolt"),
-                    ),
-                )
-            }
-
-            val first = Json.parseToJsonElement(client.post("/api/public/spectator/start").bodyAsText()).jsonObject
-            val second = Json.parseToJsonElement(client.post("/api/public/spectator/start").bodyAsText()).jsonObject
-
-            assertEquals("Alpha", first["seat1"]?.jsonObject?.get("name")?.jsonPrimitive?.content)
-            assertEquals("Beta", first["seat2"]?.jsonObject?.get("name")?.jsonPrimitive?.content)
-            assertEquals(first["matchId"], second["matchId"])
-            assertEquals(1, launcher.requests.size)
-            assertEquals("60 Mountain", launcher.requests.first().seat1Deck)
-            assertEquals("60 Lightning Bolt", launcher.requests.first().seat2Deck)
-            assertTrue(launcher.requests.all { it.spectatorMode == true })
-
-            relay.activeMatchId = null
-            val replacement = Json.parseToJsonElement(client.post("/api/public/spectator/start").bodyAsText()).jsonObject
-
-            assertNotEquals(first["matchId"], replacement["matchId"])
-            assertEquals("Beta", replacement["seat1"]?.jsonObject?.get("name")?.jsonPrimitive?.content)
-            assertEquals("Alpha", replacement["seat2"]?.jsonObject?.get("name")?.jsonPrimitive?.content)
-            assertEquals(2, launcher.requests.size)
-        }
-
-    @Test
-    fun `spectator route reuses one active engine across sequential starts`() =
-        testApplication {
-            application {
-                installServer(testServices(spectatorDeckPool = spectatorPool("Alpha" to "60 Mountain", "Beta" to "60 Lightning Bolt")))
-            }
-
-            val first = Json.parseToJsonElement(client.post("/api/public/spectator/start").bodyAsText()).jsonObject
-            val second = Json.parseToJsonElement(client.post("/api/public/spectator/start").bodyAsText()).jsonObject
-
-            assertEquals(first["matchId"], second["matchId"])
-            assertEquals(first["wireMatchId"], second["wireMatchId"])
-        }
-
-    @Test
-    fun `spectator route serializes concurrent starts onto one active match`() =
-        testApplication {
-            val relay = RecordingRelay()
-            val launcher = RecordingLauncher { relay.activeMatchId = it }
-            application {
-                installServer(
-                    testServices(
-                        matchLauncher = launcher,
-                        greRelay = relay,
-                        spectatorDeckPool = spectatorPool("Alpha" to "60 Mountain", "Beta" to "60 Lightning Bolt"),
-                    ),
-                )
-            }
-
-            val responses =
-                coroutineScope {
-                    (1..8).map { async { client.post("/api/public/spectator/start") } }.awaitAll()
-                }
-            val matchIds = responses.map { Json.parseToJsonElement(it.bodyAsText()).jsonObject["matchId"] }.toSet()
-
-            assertTrue(responses.all { it.status.value == 200 })
-            assertEquals(1, launcher.requests.size)
-            assertEquals(1, matchIds.size)
-        }
-}
-
-private fun spectatorPool(vararg decks: Pair<String, String>) =
-    SpectatorDeckPool(decks.map { (name, decklist) -> SpectatorDeck(name, decklist) })
-
-private class RecordingLauncher(
-    private val onLaunch: (String) -> Unit = {},
-) : WebMatchLauncher {
-    val requests = CopyOnWriteArrayList<GreStartRequest>()
-    private val launches = AtomicInteger()
-
-    override fun launchGreMatch(
-        playerId: PlayerId?,
-        request: GreStartRequest,
-    ): DraftPlayResponse {
-        requests += request
-        val sequence = launches.incrementAndGet()
-        return DraftPlayResponse("match-$sequence", "wire-$sequence").also { onLaunch(it.matchId) }
-    }
-
-    override fun launchCourseMatch(
-        playerId: PlayerId,
-        eventName: String,
-    ): DraftPlayResponse = error("not used")
-}
-
-private class RecordingRelay : BrowserGreRelay {
-    @Volatile var activeMatchId: String? = null
-
-    override fun isActive(matchId: String): Boolean = activeMatchId == matchId
-
-    override fun beginDrain() = error("not used")
-
-    override fun endDrain() = error("not used")
-
-    override fun drainStatus() = error("not used")
-
-    override suspend fun attach(
-        matchId: String,
-        playerId: PlayerId?,
-        session: io.ktor.server.websocket.DefaultWebSocketServerSession,
-    ): BrowserAttachResult = BrowserAttachResult.Unavailable
-
-    override suspend fun abandon(
-        matchId: String,
-        playerId: PlayerId,
-    ): Boolean = false
 }

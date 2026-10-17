@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'bun:test'
 import { encodeMessage } from '@engine/wire/gre-proto'
 import { BrowserMatchSource } from './browser-match-source'
-import { SocketFrameSource, type GreFrameBatch, type GreFrameSink } from './gre-frame-source'
+import { type GreFrameBatch, type GreFrameSink } from './gre-frame-source'
 
-for (const execution of ['server', 'browser'] as const) {
+for (const execution of ['browser'] as const) {
   describe(`${execution} GRE failures`, () => {
     async function withSource(
       consume: (batch: GreFrameBatch) => void,
@@ -37,46 +37,6 @@ for (const execution of ['server', 'browser'] as const) {
           source.stop()
         }
         return
-      }
-      const originalSocket = globalThis.WebSocket
-      const originalLocation = Object.getOwnPropertyDescriptor(globalThis, 'location')
-      class FakeSocket extends EventTarget {
-        static readonly instances: FakeSocket[] = []
-        static OPEN = 1
-        readyState = 1
-        constructor() {
-          super()
-          FakeSocket.instances.push(this)
-        }
-        close() {}
-        send() {}
-      }
-      globalThis.WebSocket = FakeSocket as unknown as typeof WebSocket
-      Object.defineProperty(globalThis, 'location', {
-        configurable: true,
-        value: new URL('http://localhost'),
-      })
-      const source = new SocketFrameSource('synthetic-match')
-      source.start(sink)
-      try {
-        await check({
-          errors,
-          stop: () => source.stop(),
-          receive: async (bytes) => {
-            FakeSocket.instances[0]!.dispatchEvent(
-              new MessageEvent('message', { data: bytes.slice().buffer }),
-            )
-            await new Promise((resolve) => setTimeout(resolve, 0))
-          },
-        })
-      } finally {
-        source.stop()
-        globalThis.WebSocket = originalSocket
-        if (originalLocation) {
-          Object.defineProperty(globalThis, 'location', originalLocation)
-        } else {
-          Reflect.deleteProperty(globalThis, 'location')
-        }
       }
     }
 

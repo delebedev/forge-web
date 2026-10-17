@@ -1,64 +1,42 @@
 import { expect, it } from 'bun:test'
 import { parseGreMatchConfig } from './gre-match'
+import type { GreStartConfig } from './start'
 
-it('restores development challenge context with the puzzle match', () => {
-  expect(
-    parseGreMatchConfig(
-      JSON.stringify({
-        challengeId: 'bolt-face',
-        gameType: 'puzzle',
-        matchId: 'match-1',
-        returnPath: '/challenges',
-        label: 'Find lethal',
-        objective: 'Win this turn.',
-      }),
-    ),
-  ).toEqual({
+it('restores authored local puzzle context for an honest restart', () => {
+  const config: GreStartConfig = {
+    execution: 'browser',
+    attemptId: 'attempt-1',
+    matchId: 'browser-1',
     challengeId: 'bolt-face',
     gameType: 'puzzle',
-    matchId: 'match-1',
+    puzzleText: '[metadata]\nName: Find lethal',
     returnPath: '/challenges',
     label: 'Find lethal',
     objective: 'Win this turn.',
-  })
+  }
+  expect(parseGreMatchConfig(JSON.stringify(config))).toEqual(config)
 })
 
-it('restores a candidate id for exact-position restart', () => {
-  expect(
-    parseGreMatchConfig(
-      JSON.stringify({
-        candidateId: 'candidate-1',
-        gameType: 'puzzle',
-        matchId: 'match-1',
-        returnPath: '/challenges',
-        label: 'Edited puzzle',
-        objective: 'Win within 1 turn.',
-      }),
-    ),
-  ).toEqual({
-    candidateId: 'candidate-1',
-    gameType: 'puzzle',
-    matchId: 'match-1',
-    returnPath: '/challenges',
-    label: 'Edited puzzle',
-    objective: 'Win within 1 turn.',
-  })
-})
-
-it('restores server-created matches without deck text', () => {
-  expect(
-    parseGreMatchConfig(
-      JSON.stringify({
-        matchId: 'course-1',
-        wireMatchId: 'wire-1',
-        deckId: 'deck-1',
-        gameType: 'draft',
-      }),
-    ),
-  ).toEqual({
-    matchId: 'course-1',
-    wireMatchId: 'wire-1',
-    deckId: 'deck-1',
+it('restores local course decks and the result receipt', () => {
+  const config: GreStartConfig = {
+    execution: 'browser',
+    attemptId: 'attempt-2',
+    matchId: 'browser-2',
+    coursePlayId: 'course-play-1',
     gameType: 'draft',
-  })
+    seat1Deck: '40 Plains',
+    seat2Deck: '40 Forest',
+  }
+  expect(parseGreMatchConfig(JSON.stringify(config))).toEqual(config)
+})
+
+it('rejects historical server matches and live spectator configurations', () => {
+  for (const config of [
+    { matchId: 'course-1', wireMatchId: 'wire-1', gameType: 'draft' },
+    { execution: 'server', matchId: 'match-1' },
+    { execution: 'browser', matchId: 'match-1' },
+    { execution: 'browser', attemptId: 'attempt-1', spectatorMode: true },
+  ]) {
+    expect(parseGreMatchConfig(JSON.stringify(config))).toBeNull()
+  }
 })

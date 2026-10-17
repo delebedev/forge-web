@@ -3,7 +3,7 @@ import { test, readyForVideo } from './demo-test'
 import { startScenario } from './gre-scenario'
 import { runGreAcceptanceSteps } from './gre-acceptance'
 
-for (const execution of ['server', 'browser'] as const) {
+for (const execution of ['browser'] as const) {
   test(`Quantum Riddler Warp draws, returns from exile and continues (${execution})`, async ({
     page,
   }, info) => {

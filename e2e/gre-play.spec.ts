@@ -315,7 +315,7 @@ test('starts GRE game and plays first land', async ({ page }) => {
   // our next turn, and the engine auto-passes there in a few hundred ms — the
   // dip is only observable if a poll happens to land inside that window.
   //
-  // The first match after a server boot pays one-time engine warmup, so the
+  // A cold browser match pays one-time engine warmup, so the
   // first action can take well over the default poll window.
   await expect
     .poll(() => selfLandsZone(page).count(), { timeout: 20_000 })
@@ -740,7 +740,7 @@ test('play again retires the old match and launches once on the same route', asy
       { timeout: 20_000 },
     )
     .not.toBe(oldMatchId)
-  expect(launches).toBe(beforeReplay + 1)
+  expect(launches).toBe(beforeReplay)
   await expect(handZone(page).first()).toBeVisible({ timeout: 20_000 })
   expect(consoleErrors).toEqual([])
 })

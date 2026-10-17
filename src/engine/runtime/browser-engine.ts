@@ -154,13 +154,12 @@ export class BrowserEngine implements BrowserMatchHost {
     deck1: string,
     deck2: string,
     seed: number,
-    spectator: boolean,
     gameType: 'constructed' | 'commander' | 'puzzle' = 'constructed',
     matchId?: string,
     puzzle?: { id: string; text: string },
   ): Promise<BrowserMatch> {
     const result = this.transition.then(() =>
-      this.launch(deck1, deck2, seed, spectator, gameType, matchId, puzzle),
+      this.launch(deck1, deck2, seed, gameType, matchId, puzzle),
     )
     this.transition = result.then(
       () => undefined,
@@ -171,6 +170,11 @@ export class BrowserEngine implements BrowserMatchHost {
 
   async fetchCardMeta(ids: number[]) {
     return parseGreCardMeta(await this.request('metadata', { ids }))
+  }
+  async validatePuzzle(text: string): Promise<unknown> {
+    await this.initialize()
+    this.assertAvailable()
+    return this.request('validate-puzzle', { text })
   }
   async advice(): Promise<unknown> {
     return this.request('advice')
@@ -228,7 +232,6 @@ export class BrowserEngine implements BrowserMatchHost {
     deck1: string,
     deck2: string,
     seed: number,
-    spectator: boolean,
     gameType: 'constructed' | 'commander' | 'puzzle',
     matchId?: string,
     puzzle?: { id: string; text: string },
@@ -266,7 +269,6 @@ export class BrowserEngine implements BrowserMatchHost {
       deck1,
       deck2,
       seed,
-      spectator,
       gameType,
       ...(puzzle ? { puzzleId: puzzle.id, puzzleText: puzzle.text } : {}),
       ...(matchId ? { matchId } : {}),

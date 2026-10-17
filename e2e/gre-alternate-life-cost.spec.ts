@@ -4,7 +4,7 @@ import { startScenario } from './gre-scenario'
 import { runGreAcceptanceSteps } from './gre-acceptance'
 import { castSpell } from './gre-actions'
 
-for (const execution of ['server', 'browser'] as const) {
+for (const execution of ['browser'] as const) {
   test(`Krrik flashback life choice cancels and completes on retry (${execution})`, async ({
     page,
   }, info) => {

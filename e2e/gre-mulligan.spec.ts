@@ -1,7 +1,7 @@
 import { authenticateShell, expect } from './gre-test'
 import { recordDemos, readyForVideo, test } from './demo-test'
 
-for (const execution of ['server', 'browser'] as const) {
+for (const execution of ['browser'] as const) {
   test(`Commander free mulligan keeps seven before a later bottom choice (${execution})`, async ({
     page,
   }, info) => {
@@ -18,11 +18,8 @@ for (const execution of ['server', 'browser'] as const) {
         seat2Deck: '[Commander]\n1 Isamaru, Hound of Konda\n[Deck]\n99 Plains',
         seed: 42,
       }
-      if (execution === 'browser') {
-        greSession.startBrowser(config)
-      } else {
-        greSession.start(config)
-      }
+
+      greSession.startBrowser(config)
     }, execution)
     await page.waitForURL(/\/match\/commander/)
     await expect
@@ -32,9 +29,7 @@ for (const execution of ['server', 'browser'] as const) {
     const opening = page.locator('[data-prompt="mulligan"]')
     await expect(opening).toBeVisible()
     await expect(opening).toContainText('1 free mulligan available')
-    expect(await page.evaluate(() => window.__greState()!.matchId)).toMatch(
-      execution === 'browser' ? /^browser-/ : /^web-/,
-    )
+    expect(await page.evaluate(() => window.__greState()!.matchId)).toMatch(/^browser-/)
     await expect(hand).toHaveCount(7)
     await page.getByRole('button', { name: 'Board options', exact: true }).click()
     await page.getByRole('checkbox', { name: 'Hide card art', exact: true }).check()

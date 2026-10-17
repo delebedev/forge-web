@@ -91,16 +91,15 @@ Single-writer pattern — one store owns each signal.
   → browser worker starts the match → GRE projection → hydrate
 ```
 
-Supported browsers use browser execution by default. Play on server, missing
-browser capabilities, or a failed browser startup select server execution through
-`POST /api/gre/start` and the GRE WebSocket.
+All games execute locally. Missing browser capabilities and startup failures show
+an explicit error and browser retry. There is no alternate server host.
 
 ### Development challenge
 ```
 /challenges/:id → authStore.ensureSession() → POST /api/auth/guest if needed
-  → resolve GET /api/dev/challenges → greSession.start()
-  → POST /api/gre/start → GRE WS connect
-  → router.navigate('/match/puzzle') → hydrate GrePlay
+  → resolve GET /api/dev/challenges + GET /api/dev/puzzles/{id}
+  → greSession.startBrowser({puzzleText}) → router.navigate('/match/puzzle')
+  → worker starts the puzzle → hydrate GrePlay
 ```
 
 The puzzle supplies its initial state and objective only. `greStore` remains the
@@ -109,10 +108,9 @@ match before launching the exact same puzzle. Return clears the match and opens
 the launcher. `/dev/puzzle/:id` resolves fixture metadata through
 `GET /api/dev/puzzles/{puzzleId}` and uses the same match path.
 
-Editable candidates use `POST /api/dev/puzzle-candidates` to validate and retain
-the exact draft. `POST /api/dev/puzzle-candidates/{candidateId}/trial` runs a
-bounded engine trial. Play starts the ordinary puzzle match with `candidateId`;
-it does not depend on a winning trial result.
+Editable candidates validate authored text in a dedicated browser worker. First
+validation explicitly initializes the local engine. Play launches that exact text.
+Generation and server engine trials have no product route.
 
 ### Draft
 ```
@@ -121,8 +119,9 @@ it does not depend on a winning trial result.
   → pick cards (3 rounds) → POST /api/draft/pick per pick
   → status: Completed → deck_build phase → LimitedDeckBuilder
   → confirm deck → submit → POST /api/draft/deck → {deckId}
-  → POST /api/draft/play → {matchId, wireMatchId}
-  → GRE joins by matchId (GreStore.resumeGame) → router.navigate('/match/draft')
+  → POST /api/draft/play → {coursePlayId, seat1Deck, seat2Deck}
+  → greSession.startBrowser({coursePlayId, seat1Deck, seat2Deck, gameType: 'draft'})
+  → terminal result → POST /api/courses/result → saved course progress
 ```
 
 ### Sealed
@@ -131,8 +130,9 @@ it does not depend on a winning trial result.
   → sealedStore.startSealed() → POST /api/sealed/start → {cardPool}
   → deck_build phase → LimitedDeckBuilder (pool pre-populated)
   → confirm deck → submit → POST /api/sealed/deck → {deckId}
-  → POST /api/sealed/play → {matchId, wireMatchId}
-  → GRE joins by matchId (GreStore.resumeGame) → router.navigate('/match/sealed')
+  → POST /api/sealed/play → {coursePlayId, seat1Deck, seat2Deck}
+  → greSession.startBrowser({coursePlayId, seat1Deck, seat2Deck, gameType: 'sealed'})
+  → terminal result → POST /api/courses/result → saved course progress
 
 Refresh mid-build: sealedStore.tryResume() → GET /api/courses → restore the
 course with a pool but no deckId yet (no session WebSocket to reconnect).
@@ -141,7 +141,7 @@ course with a pool but no deckId yet (no session WebSocket to reconnect).
 ### Play saved deck
 ```
 /decks → select saved draft/sealed deck → Play button
-  → GRE launch with saved deck ID → router.navigate('/match/draft')
+  → hydrate both complete decks → browser-local launch → router.navigate('/match/draft')
 ```
 
 ### Constructed deck builder

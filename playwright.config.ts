@@ -56,7 +56,6 @@ function makeSmokeConfig({
   frontendPort,
   webPort,
   invalidCardDb = false,
-  deterministicOpponentStart = false,
   builtFrontendPort,
 }: {
   name: string
@@ -65,7 +64,6 @@ function makeSmokeConfig({
   frontendPort: number
   webPort: number
   invalidCardDb?: boolean
-  deterministicOpponentStart?: boolean
   builtFrontendPort?: number
 }): PlaywrightTestConfig {
   if (suite === name) {
@@ -85,12 +83,11 @@ function makeSmokeConfig({
     process.env['FORGE_WEB_PLAYWRIGHT_STATE_DIR'] ??
     `/tmp/forge-web-${name}-${webPort}-${process.pid}-${Date.now()}-state`
   const cardDb = invalidCardDb ? 'LEYLINE_CARD_DB=/dev/null/forge-card-db.sqlite ' : ''
-  const game = `LEYLINE_ENGINE_DIE_ROLL_WINNER=${deterministicOpponentStart ? 2 : 1} LEYLINE_ENGINE_SEED=424242 `
   const serverCommand = process.env['FORGE_WEB_SERVER_DIST']
     ? 'bash scripts/run-ci-server.sh'
     : './leyline/gradlew :server:run'
   const serverLog = `/tmp/forge-web-${name}-${webPort}-${process.pid}-web.log`
-  const webCommand = `bash -lc 'set -o pipefail; ${cardDb}${game}LEYLINE_WEB_PORT=${webPort} LEYLINE_WEB_LOGIN_CODE=123456 LEYLINE_WEB_ALLOW_FIXED_LOGIN_CODE=true LEYLINE_WEB_DEV_TOOLS=true LEYLINE_WEB_AUTH_SECRET=forge-web-${name}-test-secret-1234567890 LEYLINE_WEB_REPLAY_OPERATOR_TOKEN=forge-web-${name}-operator-secret-1234567890 LEYLINE_PATHS_STATE="${stateDir}" ${serverCommand} 2>&1 | tee ${serverLog} >&2'`
+  const webCommand = `bash -lc 'set -o pipefail; ${cardDb}LEYLINE_WEB_PORT=${webPort} LEYLINE_WEB_LOGIN_CODE=123456 LEYLINE_WEB_ALLOW_FIXED_LOGIN_CODE=true LEYLINE_WEB_DEV_TOOLS=true LEYLINE_WEB_AUTH_SECRET=forge-web-${name}-test-secret-1234567890 LEYLINE_WEB_REPLAY_OPERATOR_TOKEN=forge-web-${name}-operator-secret-1234567890 LEYLINE_PATHS_STATE="${stateDir}" ${serverCommand} 2>&1 | tee ${serverLog} >&2'`
 
   return defineConfig({
     metadata: { serverLog },
@@ -187,23 +184,6 @@ const forgeCatalogBase = makeSmokeConfig({
   frontendPort: 15179,
   webPort: 15189,
   invalidCardDb: true,
-  deterministicOpponentStart: true,
-})
-
-const spectatorVideoBase = makeSmokeConfig({
-  name: 'spectator-video',
-  testMatch: /spectator-video\.spec\.ts/,
-  timeout: 600_000,
-  frontendPort: 15180,
-  webPort: 15190,
-})
-
-const releaseDrainBase = makeSmokeConfig({
-  name: 'release-drain',
-  testMatch: /release-drain\.spec\.ts/,
-  timeout: 90_000,
-  frontendPort: 15181,
-  webPort: 15191,
 })
 
 const browserAlphaBase = makeSmokeConfig({
@@ -222,7 +202,7 @@ const transportPort = managedPorts(
 const managedConfigs: Record<string, PlaywrightTestConfig> = {
   transport: defineConfig({
     testDir: './e2e',
-    testMatch: /(?:(?:gre-prompt|draft)-transport|match-route)\.spec\.ts/,
+    testMatch: /(?:(?:gre-prompt|draft)-transport|match-route|course-result)\.spec\.ts/,
     timeout: 30_000,
     retries: 0,
     use: {
@@ -265,13 +245,6 @@ const managedConfigs: Record<string, PlaywrightTestConfig> = {
     preserveOutput: 'always',
   }),
   gre: greBase,
-  capacity: makeSmokeConfig({
-    name: 'capacity',
-    testMatch: /match-capacity\.spec\.ts/,
-    timeout: 300_000,
-    frontendPort: 15185,
-    webPort: 15195,
-  }),
   screenshots: defineConfig({
     ...screenshotsBase,
     projects: [
@@ -336,16 +309,6 @@ const managedConfigs: Record<string, PlaywrightTestConfig> = {
         use: { browserName: 'chromium', channel: 'chromium' },
       },
     ],
-  }),
-  'spectator-video': defineConfig({
-    ...spectatorVideoBase,
-    outputDir: process.env['SPECTATOR_VIDEO_OUTPUT_DIR'],
-    preserveOutput: 'always',
-  }),
-  'release-drain': defineConfig({
-    ...releaseDrainBase,
-    outputDir: process.env['RELEASE_DRAIN_OUTPUT_DIR'],
-    preserveOutput: 'always',
   }),
   'browser-alpha': defineConfig({
     ...browserAlphaBase,

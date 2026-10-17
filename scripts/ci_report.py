@@ -144,7 +144,7 @@ def render(root, metadata):
         lines += ['<details><summary>Slowest reported unit/server tests and browser journeys</summary>', '']
         for browser in [False, True]:
             rows = [row for row in slow if (row[1] in
-                    ['product', 'gre', 'forge-catalog', 'release-drain', 'transport']) == browser][:5]
+                    ['product', 'gre', 'forge-catalog', 'transport']) == browser][:5]
             if rows:
                 lines += [('Browser journeys' if browser else 'Unit/server tests') + ':', '']
                 lines += [f'- {cell(label)}: {cell(name)} ({duration(elapsed)})'

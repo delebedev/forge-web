@@ -5,9 +5,6 @@ import forge.web.server.auth.ownedPlayerId
 import forge.web.server.decks.toDomainDeckCards
 import forge.web.server.http.contract
 import forge.web.server.http.requiredQuery
-import forge.web.server.match.DraftPlayResponse
-import forge.web.server.match.MatchCapacityResponse
-import forge.web.server.match.WebMatchLauncher
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.ApplicationCall
 import io.ktor.server.application.call
@@ -48,9 +45,18 @@ internal fun Route.installLimitedRoutes(
     auth: WebAuthService,
     drafts: DraftService,
     courses: CourseService,
-    launcher: WebMatchLauncher,
+    plays: CoursePlayService,
     sealedSets: () -> List<LimitedSetView>,
 ) {
+    post("/courses/result") {
+        val request = call.receive<CourseResultRequest>()
+        val playerId = call.ownedPlayerId(auth, null)
+        call.respond(courseView(plays.report(playerId, request.coursePlayId, request.won)))
+    }.contract {
+        request<CourseResultRequest>()
+        response<CourseView>()
+        empty(401, 403)
+    }
     route("/draft") {
         post("/start") {
             val request = call.receive<StartDraftRequest>()
@@ -85,10 +91,9 @@ internal fun Route.installLimitedRoutes(
             response<CourseView>()
             empty(401, 403)
         }
-        post("/play") { call.playCourse(auth, launcher) }.contract {
+        post("/play") { call.playCourse(auth, plays) }.contract {
             request<PlayDraftRequest>()
-            response<DraftPlayResponse>()
-            response<MatchCapacityResponse>(503)
+            response<CoursePlayResponse>()
             empty(401, 403)
         }
         delete {
@@ -118,10 +123,9 @@ internal fun Route.installLimitedRoutes(
             response<CourseView>()
             empty(401, 403)
         }
-        post("/play") { call.playCourse(auth, launcher) }.contract {
+        post("/play") { call.playCourse(auth, plays) }.contract {
             request<PlayDraftRequest>()
-            response<DraftPlayResponse>()
-            response<MatchCapacityResponse>(503)
+            response<CoursePlayResponse>()
             empty(401, 403)
         }
         delete {
@@ -149,10 +153,10 @@ private suspend fun ApplicationCall.submitCourseDeck(
 
 private suspend fun ApplicationCall.playCourse(
     auth: WebAuthService,
-    launcher: WebMatchLauncher,
+    plays: CoursePlayService,
 ) {
     val request = receive<PlayDraftRequest>()
-    respond(launcher.launchCourseMatch(ownedPlayerId(auth, request.playerId), request.eventName))
+    respond(plays.launch(ownedPlayerId(auth, request.playerId), request.eventName))
 }
 
 private fun sessionView(session: DraftSession) =

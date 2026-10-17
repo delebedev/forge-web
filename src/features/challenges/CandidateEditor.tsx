@@ -1,30 +1,16 @@
 import { useSyncExternalStore } from 'react'
-import { candidateToGreStartConfig } from '@engine/runtime/gre-launch'
 import { greSession } from '@engine/runtime/gre-session'
 import { candidateDraft as draft } from './candidate-draft'
 import styles from './CandidateEditor.module.css'
 
 const MAX_PUZZLE_CHARACTERS = 32_768
-const TRIAL_LABELS: Record<string, string> = {
-  Won: 'Engine solution observed',
-  Lost: 'Advisor lost this attempt',
-  Unsupported: 'Advisor does not support this decision',
-  AdvisorUnavailable: 'Advisor could not choose a move',
-  Stalled: 'Engine trial stopped making progress',
-  DecisionBudgetExceeded: 'Decision budget reached',
-  TimeBudgetExceeded: 'Time budget reached',
-  Interrupted: 'Engine trial interrupted',
-  EngineFailure: 'Engine trial failed',
-}
-
 export function CandidateEditor() {
   const state = useSyncExternalStore(draft.subscribe, draft.snapshot, draft.snapshot)
-  const validation = state.validated?.validation
-  const loaded = validation?.status === 'Loaded' && Boolean(state.validated?.candidateId)
+  const validation = state.validated
+  const loaded = validation?.status === 'Loaded'
 
   function play(): void {
-    const candidateId = state.validated?.candidateId
-    if (!candidateId || !validation || !loaded) {
+    if (!validation || !loaded) {
       return
     }
     const goal = validation.goal ?? 'Win'
@@ -32,13 +18,14 @@ export function CandidateEditor() {
     const objective = turns
       ? `${goal} within ${turns} ${turns === 1 ? 'turn' : 'turns'}.`
       : `${goal}.`
-    greSession.start(
-      candidateToGreStartConfig({
-        candidateId,
-        name: validation.name ?? 'Candidate puzzle',
-        objective,
-      }),
-    )
+    greSession.startBrowser({
+      gameType: 'puzzle',
+      challengeId: 'candidate',
+      puzzleText: state.text,
+      label: validation.name ?? 'Candidate puzzle',
+      objective,
+      returnPath: '/challenges',
+    })
   }
 
   return (
@@ -46,8 +33,8 @@ export function CandidateEditor() {
       <header>
         <h2 id="candidate-title">Try a candidate</h2>
         <p>
-          Paste a generated or authored puzzle. Check the position, try the advisor, then play it on
-          the same board.
+          Paste an authored puzzle. Validate and play it in your browser. The first validation
+          downloads the local engine.
         </p>
       </header>
       <label className={styles.label} htmlFor="candidate-text">
@@ -74,14 +61,7 @@ export function CandidateEditor() {
           disabled={!state.text.trim() || Boolean(state.busy)}
           onClick={() => void draft.validate()}
         >
-          {state.busy === 'validation' ? 'Validating…' : 'Validate puzzle'}
-        </button>
-        <button
-          type="button"
-          disabled={!loaded || Boolean(state.busy)}
-          onClick={() => void draft.tryEngine()}
-        >
-          {state.busy === 'trial' ? 'Trying engine…' : 'Try engine'}
+          {state.busy ? 'Validating in browser…' : 'Validate puzzle'}
         </button>
         <button
           type="button"
@@ -105,8 +85,7 @@ export function CandidateEditor() {
             </strong>
             {loaded && (
               <p>
-                {validation.name} · {validation.inputCardCount} cards. Ready for a trial or manual
-                play.
+                {validation.name} · {validation.inputCardCount} cards. Ready for browser play.
               </p>
             )}
             {(validation.issues?.length ?? 0) > 0 && (
@@ -116,25 +95,6 @@ export function CandidateEditor() {
                 ))}
               </ul>
             )}
-          </section>
-        )}
-        {state.trial && (
-          <section aria-label="Engine trial result">
-            <strong>{TRIAL_LABELS[state.trial.status] ?? state.trial.status}</strong>
-            <p>
-              {state.trial.decisions?.length ?? 0} decisions ·{' '}
-              {(Number(state.trial.elapsedMillis) / 1000).toFixed(1)} seconds.
-            </p>
-            {state.trial.reason && <p>{state.trial.reason}</p>}
-            <p>
-              {state.trial.status === 'Won'
-                ? 'The browser still needs its own playthrough.'
-                : 'This attempt does not establish whether the puzzle is solvable. You can still play the validated position.'}
-            </p>
-            <details>
-              <summary>Trial details</summary>
-              <pre>{JSON.stringify(state.trial, null, 2)}</pre>
-            </details>
           </section>
         )}
       </div>

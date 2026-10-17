@@ -65,7 +65,10 @@ export function LimitedView({
     sideboard: string[],
     mode: 'draft' | 'sealed',
   ) => Promise<void>
-  onPlayMatch?: (matchId: string, wireMatchId: string, mode: 'draft' | 'sealed') => Promise<void>
+  onPlayMatch?: (
+    launch: { coursePlayId: string; seat1Deck: string; seat2Deck: string },
+    mode: 'draft' | 'sealed',
+  ) => Promise<void>
   onEditSaved?: (deckId: string) => void
 }) {
   // Rules of hooks: both snapshots are read unconditionally, then the active
@@ -130,7 +133,7 @@ export function LimitedView({
     }
     setEnteringGame(true)
     setLimitedError(null)
-    void onPlayMatch(launch.matchId, launch.wireMatchId, mode).catch((err) => {
+    void onPlayMatch(launch, mode).catch((err) => {
       setLimitedError(err instanceof Error ? err.message : 'Failed to start game')
       setEnteringGame(false)
     })

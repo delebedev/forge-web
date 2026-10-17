@@ -226,158 +226,6 @@ test('a current action horizon routes once while the board cursor trails', async
   expect(response['performActionResp']).toEqual({ actions: [action] })
 })
 
-test('resuming the current match keeps the board until replacement frames arrive', async () => {
-  const store = await freshStore()
-  const originalFetch = globalThis.fetch
-  const originalAttach = store.attachSource
-  globalThis.fetch = (async () => ({
-    ok: true,
-    headers: new Headers(),
-    json: async () => ({ matchId: 'same-match', wireMatchId: 'synthetic-wire' }),
-  })) as unknown as typeof fetch
-  store.attachSource = () => {}
-
-  try {
-    await store.startGame({ gameType: 'constructed' })
-    store.attachSource = originalAttach
-    const source = new FakeSource()
-    source.canSend = true
-    store.attachSource(source)
-    source.sink!.onBatch({
-      byteLength: 0,
-      messages: [
-        fullGameState(12, {
-          zones: [{ ...HAND_ZONE, objectInstanceIds: [100] }],
-          gameObjects: [{ instanceId: 100, grpId: 1, ownerSeatId: 1, controllerSeatId: 1 }],
-        }),
-      ],
-    })
-    source.sink!.onBatch({ byteLength: 0, messages: [actionsRequest(12)] })
-    expect(store.legalActions).toHaveLength(1)
-    source.isOpen = false
-    let replacements = 0
-    store.attachSource = () => {
-      replacements += 1
-    }
-
-    await store.resumeGame({ matchId: 'same-match', gameType: 'constructed' })
-
-    expect(replacements).toBe(1)
-    expect(store.gameStateId).toBe(12)
-    expect(store.hand).toHaveLength(1)
-    expect(store.legalActions).toHaveLength(1)
-  } finally {
-    globalThis.fetch = originalFetch
-  }
-})
-
-test('resume triggers coalesce while the replacement socket is still connecting', async () => {
-  const store = await freshStore()
-  const source = new FakeSource()
-  source.isOpen = false
-  source.isConnecting = true
-  const originalAttach = store.attachSource.bind(store)
-  let attachments = 0
-  store.attachSource = () => {
-    attachments += 1
-    originalAttach(source, true)
-  }
-
-  await store.resumeGame({ matchId: 'burst-match', gameType: 'constructed' })
-  await Promise.resolve()
-  await store.resumeGame({ matchId: 'burst-match', gameType: 'constructed' })
-  await new Promise((resolve) => setTimeout(resolve, 0))
-  await store.resumeGame({ matchId: 'burst-match', gameType: 'constructed' })
-
-  expect(attachments).toBe(1)
-})
-
-test('a terminal close blocks same-match reconnect and reports only bounded close data', async () => {
-  const store = await freshStore()
-  const analytics = captureAnalytics()
-  const source = new FakeSource()
-  source.isOpen = false
-  source.isConnecting = true
-  const originalAttach = store.attachSource.bind(store)
-  let attachments = 0
-  store.attachSource = () => {
-    attachments += 1
-    originalAttach(source)
-  }
-
-  try {
-    await store.resumeGame({ matchId: 'terminal-match', gameType: 'constructed' })
-    source.isConnecting = false
-    source.sink!.onClose({ code: 1011, reason: 'match_engine_failed', wasClean: true })
-    await store.resumeGame({ matchId: 'terminal-match', gameType: 'constructed' })
-
-    expect(attachments).toBe(1)
-    expect(store.snapshot().connectionClose).toEqual({ category: 'terminated', code: 1011 })
-    const disconnected = analytics.events.find(({ name }) => name === 'journey-disconnected')
-    expect(disconnected?.data).toMatchObject({
-      close_category: 'terminated',
-      close_code: 1011,
-      connection_status: 'closed',
-    })
-    expect(JSON.stringify(disconnected)).not.toContain('match_engine_failed')
-  } finally {
-    analytics.restore()
-  }
-})
-
-test('a generic server-error close remains reconnectable', async () => {
-  const store = await freshStore()
-  const source = new FakeSource()
-  source.isOpen = false
-  source.isConnecting = true
-  const originalAttach = store.attachSource.bind(store)
-  let attachments = 0
-  store.attachSource = () => {
-    attachments += 1
-    originalAttach(source)
-  }
-
-  await store.resumeGame({ matchId: 'retry-server-error', gameType: 'constructed' })
-  source.isConnecting = false
-  source.sink!.onClose({ code: 1011, reason: 'unexpected_error', wasClean: false })
-  await store.resumeGame({ matchId: 'retry-server-error', gameType: 'constructed' })
-
-  expect(attachments).toBe(2)
-  expect(store.snapshot().connectionClose?.category).toBe('transient')
-})
-
-test('an abandoned match is terminal without reporting a disconnect incident', async () => {
-  const store = await freshStore()
-  const analytics = captureAnalytics()
-  const source = new FakeSource()
-  source.isOpen = false
-  source.isConnecting = true
-  const originalAttach = store.attachSource.bind(store)
-  let attachments = 0
-  store.attachSource = () => {
-    attachments += 1
-    originalAttach(source)
-  }
-
-  try {
-    await store.resumeGame({ matchId: 'abandoned-match', gameType: 'constructed' })
-    source.isConnecting = false
-    source.sink!.onClose({ code: 1000, reason: 'match_abandoned', wasClean: true })
-    await store.resumeGame({ matchId: 'abandoned-match', gameType: 'constructed' })
-
-    expect(attachments).toBe(1)
-    expect(store.snapshot().connectionClose).toEqual({ category: 'abandoned', code: 1000 })
-    expect(analytics.events.filter(({ name }) => name === 'journey-disconnected')).toHaveLength(0)
-    expect(
-      analytics.events.find(
-        ({ name, data }) => name === 'journey-result' && data?.['boundary'] === 'reconnect',
-      )?.data,
-    ).toMatchObject({ outcome: 'cancelled', reason: 'abandoned' })
-  } finally {
-    analytics.restore()
-  }
-})
-
 test('local disconnect presents a reconnectable fallback without replacing a terminal close', async () => {
   const store = await freshStore()
   const source = new FakeSource()
@@ -391,43 +239,6 @@ test('local disconnect presents a reconnectable fallback without replacing a ter
   terminal.sink!.onClose({ code: 1011, reason: 'match_engine_failed', wasClean: true })
   store.disconnect()
   expect(store.snapshot().connectionClose).toEqual({ category: 'terminated', code: 1011 })
-})
-
-test('reconnect attempts stay attached to one disconnect incident', async () => {
-  const store = await freshStore()
-  const analytics = captureAnalytics()
-  const first = new FakeSource()
-  first.isOpen = false
-  first.isConnecting = true
-  const originalAttach = store.attachSource.bind(store)
-  store.attachSource = () => originalAttach(first)
-
-  try {
-    await store.resumeGame({ matchId: 'retry-match', gameType: 'constructed' })
-    first.isConnecting = false
-    first.sink!.onClose({ code: 1006, reason: '', wasClean: false })
-
-    const retry = new FakeSource()
-    retry.isOpen = false
-    retry.isConnecting = true
-    store.attachSource = (_source, recovering) => originalAttach(retry, recovering)
-    await store.resumeGame({ matchId: 'retry-match', gameType: 'constructed' })
-    retry.isConnecting = false
-    retry.sink!.onBatch({ byteLength: 0, messages: [{ type: 7 }] })
-    retry.sink!.onClose({ code: 1006, reason: '', wasClean: false })
-
-    const incidents = analytics.events.filter(({ name }) => name === 'journey-disconnected')
-    const attempts = analytics.events.filter(
-      ({ name, data }) => name === 'journey-attempt' && data?.['boundary'] === 'reconnect',
-    )
-    expect(incidents).toHaveLength(1)
-    expect(attempts.at(-1)?.data).toMatchObject({
-      reconnect_attempt: 1,
-      disconnect_id: incidents[0]?.data?.['disconnect_id'],
-    })
-  } finally {
-    analytics.restore()
-  }
 })
 
 test('an action whose source closes during its write can be retried', async () => {
@@ -1021,60 +832,6 @@ test('pending casting options refresh after card metadata arrives', async () => 
   )
 })
 
-test('an aborted start cannot attach a source after its request completes', async () => {
-  const store = await freshStore()
-  const originalFetch = globalThis.fetch
-  let finishRequest!: (response: Response) => void
-  globalThis.fetch = (() =>
-    new Promise<Response>((resolve) => {
-      finishRequest = resolve
-    })) as unknown as typeof fetch
-  let attachments = 0
-  store.attachSource = () => {
-    attachments += 1
-  }
-  const abort = new AbortController()
-
-  try {
-    const start = store.startGame({}, abort.signal)
-    abort.abort()
-    finishRequest({
-      ok: true,
-      json: async () => ({ matchId: 'late-match', wireMatchId: 'synthetic-wire' }),
-    } as Response)
-    expect(start).rejects.toThrow()
-    expect(attachments).toBe(0)
-    expect(store.connected).toBe(false)
-    expect(store.status).toBe('closed')
-  } finally {
-    globalThis.fetch = originalFetch
-  }
-})
-
-test('a failed old start cannot disconnect its replacement source', async () => {
-  const store = await freshStore()
-  const originalFetch = globalThis.fetch
-  let failRequest!: (error: Error) => void
-  globalThis.fetch = (() =>
-    new Promise<Response>((_resolve, reject) => {
-      failRequest = reject
-    })) as unknown as typeof fetch
-
-  try {
-    const start = store.startGame({})
-    const replacement = new FakeSource()
-    store.attachSource(replacement)
-    replacement.sink!.onOpen()
-    failRequest(new Error('old start failed'))
-
-    expect(start).rejects.toThrow('old start failed')
-    expect(replacement.stopped).toBe(false)
-    expect(store.connected).toBe(true)
-  } finally {
-    globalThis.fetch = originalFetch
-  }
-})
-
 test('exact legal-action identity routes the selected raw command', async () => {
   const store = await freshStore()
   const source = new FakeSource()
@@ -1108,23 +865,6 @@ test('exact legal-action identity routes the selected raw command', async () => 
   expect(response['performActionResp']).toMatchObject({
     actions: [{ actionType: 1, instanceId: 100, facetId: 44, uniqueAbilityId: 802 }],
   })
-})
-
-test('an aborted resume cannot attach a source after proto loading completes', async () => {
-  const store = await freshStore()
-  let attachments = 0
-  store.attachSource = () => {
-    attachments += 1
-  }
-  const abort = new AbortController()
-
-  const resume = store.resumeGame({ matchId: 'pending-resume' }, abort.signal)
-  abort.abort()
-
-  expect(resume).rejects.toThrow()
-  expect(attachments).toBe(0)
-  expect(store.connected).toBe(false)
-  expect(store.status).toBe('closed')
 })
 
 test('onReset rewinds the fold to empty so a source can seek backwards', async () => {
@@ -1641,36 +1381,6 @@ function captureAnalytics(): { events: AnalyticsEvent[]; restore(): void } {
   }
 }
 
-test('GRE start emits one player start across a reconnect resume', async () => {
-  const store = await freshStore()
-  const analytics = captureAnalytics()
-  const originalFetch = globalThis.fetch
-  const originalAttach = store.attachSource
-  globalThis.fetch = (async () => ({
-    ok: true,
-    status: 200,
-    json: async () => ({ matchId: 'telemetry-match', wireMatchId: 'synthetic-wire' }),
-  })) as unknown as typeof fetch
-  store.attachSource = () => {}
-
-  try {
-    await store.startGame({ gameType: 'commander' })
-    await store.resumeGame({ matchId: 'telemetry-match', gameType: 'commander' })
-
-    const starts = analytics.events.filter(({ name }) => name === 'game-start')
-    expect(starts).toHaveLength(1)
-    expect(starts[0]?.data).toMatchObject({
-      mode: 'play',
-      gameType: 'commander',
-      format: 'commander',
-    })
-  } finally {
-    store.attachSource = originalAttach
-    globalThis.fetch = originalFetch
-    analytics.restore()
-  }
-})
-
 test('GRE records the first sent non-pass action once', async () => {
   const store = await freshStore()
   const analytics = captureAnalytics()
@@ -1684,7 +1394,12 @@ test('GRE records the first sent non-pass action once', async () => {
   store.attachSource = () => {}
 
   try {
-    await store.startGame({ gameType: 'constructed', deckId: 'deck-1' })
+    store.connectSource(new FakeSource(), {
+      ...{ gameType: 'constructed', deckId: 'deck-1' },
+      execution: 'browser',
+      matchId: 'first-action-match',
+      fetchCardMeta: async () => new Map(),
+    })
     store.attachSource = originalAttach
     const source = new FakeSource()
     source.canSend = true
@@ -1732,7 +1447,7 @@ test('GRE records the first sent non-pass action once', async () => {
   }
 })
 
-test('GRE records bounded turn milestones once across reconnect', async () => {
+test('local GRE records bounded turn milestones once across repeated frames', async () => {
   const store = await freshStore()
   const analytics = captureAnalytics()
   const originalFetch = globalThis.fetch
@@ -1745,7 +1460,12 @@ test('GRE records bounded turn milestones once across reconnect', async () => {
   store.attachSource = () => {}
 
   try {
-    await store.startGame({ gameType: 'commander', deckId: 'deck-1' })
+    store.connectSource(new FakeSource(), {
+      ...{ gameType: 'commander', deckId: 'deck-1' },
+      execution: 'browser',
+      matchId: 'milestone-match',
+      fetchCardMeta: async () => new Map(),
+    })
     const applyGsmPayload = (
       store as unknown as { applyGsmPayload(message: Record<string, unknown>): void }
     ).applyGsmPayload.bind(store)
@@ -1760,7 +1480,6 @@ test('GRE records bounded turn milestones once across reconnect', async () => {
     turn(1)
     turn(1)
     turn(5)
-    await store.resumeGame({ matchId: 'milestone-match', gameType: 'commander', deckId: 'deck-1' })
     turn(5)
     turn(6)
     turn(10)
@@ -1782,17 +1501,18 @@ test('GRE records bounded turn milestones once across reconnect', async () => {
   }
 })
 
-test('GRE omits player engagement events for spectators and puzzles', async () => {
+test('GRE omits player engagement events for puzzles', async () => {
   const store = await freshStore()
   const analytics = captureAnalytics()
   const originalAttach = store.attachSource
   store.attachSource = () => {}
 
   try {
-    await store.resumeGame({
-      matchId: 'spectator-match',
-      spectatorMode: true,
-      gameType: 'spectator',
+    store.connectSource(new FakeSource(), {
+      execution: 'browser',
+      matchId: 'puzzle-match',
+      gameType: 'puzzle',
+      fetchCardMeta: async () => new Map(),
     })
     const privateStore = store as unknown as {
       recordFirstPlayerAction(actionType: number): void
@@ -1808,7 +1528,6 @@ test('GRE omits player engagement events for spectators and puzzles', async () =
       ),
     ).toHaveLength(0)
 
-    await store.resumeGame({ matchId: 'puzzle-match', gameType: 'puzzle' })
     privateStore.recordFirstPlayerAction(ACTION_PLAY)
     privateStore.applyGsmPayload({
       gameStateMessage: { type: GAME_STATE_TYPE_FULL, gameStateId: 2, turnInfo: { turnNumber: 5 } },
@@ -1818,45 +1537,6 @@ test('GRE omits player engagement events for spectators and puzzles', async () =
         ({ name }) => name === 'game-first-action' || name === 'turn-milestone',
       ),
     ).toHaveLength(0)
-  } finally {
-    store.attachSource = originalAttach
-    analytics.restore()
-  }
-})
-
-test('GRE resume emits a start for a fresh spectator match', async () => {
-  const store = await freshStore()
-  const analytics = captureAnalytics()
-  const originalAttach = store.attachSource
-  store.attachSource = () => {}
-
-  try {
-    await store.resumeGame({
-      matchId: 'fresh-spectator-match',
-      spectatorMode: true,
-      gameType: 'spectator',
-    })
-
-    const starts = analytics.events.filter(({ name }) => name === 'spectator-start')
-    expect(starts).toHaveLength(1)
-    expect(starts[0]?.data).toMatchObject({ mode: 'watch', gameType: 'spectator' })
-    expect(starts[0]?.data).not.toHaveProperty('format')
-  } finally {
-    store.attachSource = originalAttach
-    analytics.restore()
-  }
-})
-
-test('GRE resume restores a fresh player match without a duplicate start', async () => {
-  const store = await freshStore()
-  const analytics = captureAnalytics()
-  const originalAttach = store.attachSource
-  store.attachSource = () => {}
-
-  try {
-    await store.resumeGame({ matchId: 'fresh-player-match', gameType: 'constructed' })
-
-    expect(analytics.events.filter(({ name }) => name === 'game-start')).toHaveLength(0)
   } finally {
     store.attachSource = originalAttach
     analytics.restore()
@@ -1876,7 +1556,12 @@ test('GRE completion emits one result when normal game-over frames repeat', asyn
   store.attachSource = () => {}
 
   try {
-    await store.startGame({ spectatorMode: true, gameType: 'spectator' })
+    store.connectSource(new FakeSource(), {
+      ...{ gameType: 'constructed' as const },
+      execution: 'browser',
+      matchId: 'complete-match',
+      fetchCardMeta: async () => new Map(),
+    })
     const applyGsmPayload = (
       store as unknown as { applyGsmPayload(message: Record<string, unknown>): void }
     ).applyGsmPayload.bind(store)
@@ -1891,69 +1576,13 @@ test('GRE completion emits one result when normal game-over frames repeat', asyn
     gameOver(1)
     gameOver(2)
 
-    const results = analytics.events.filter(({ name }) => name === 'spectator-complete')
+    const results = analytics.events.filter(({ name }) => name === 'game-complete')
     expect(results).toHaveLength(1)
     expect(results[0]?.data).toMatchObject({
-      mode: 'watch',
-      gameType: 'spectator',
-      result: 'draw',
-      puzzle: false,
-    })
-  } finally {
-    store.attachSource = originalAttach
-    globalThis.fetch = originalFetch
-    analytics.restore()
-  }
-})
-
-test('GRE start failure emits a bounded reason without throwing analytics errors', async () => {
-  const store = await freshStore()
-  const analytics = captureAnalytics()
-  const originalFetch = globalThis.fetch
-  globalThis.fetch = (async () => ({
-    ok: false,
-    status: 503,
-    json: async () => ({}),
-  })) as unknown as typeof fetch
-
-  try {
-    expect(store.startGame({ gameType: 'constructed' })).rejects.toThrow('Start game failed: 503')
-    expect(analytics.events.filter(({ name }) => name === 'game-start-failed')).toHaveLength(1)
-    expect(analytics.events.find(({ name }) => name === 'game-start-failed')?.data).toMatchObject({
       mode: 'play',
       gameType: 'constructed',
-      reason: 'server',
-    })
-    expect(analytics.events.find(({ name }) => name === 'journey-result')?.data).toMatchObject({
-      boundary: 'game-start',
-      outcome: 'failure',
-      reason: 'server',
-    })
-  } finally {
-    globalThis.fetch = originalFetch
-    analytics.restore()
-  }
-})
-
-test('GRE start failure retains a match id allocated before connection', async () => {
-  const store = await freshStore()
-  const analytics = captureAnalytics()
-  const originalFetch = globalThis.fetch
-  const originalAttach = store.attachSource
-  globalThis.fetch = (async () => ({
-    ok: true,
-    status: 200,
-    json: async () => ({ matchId: 'failed-match', wireMatchId: 'synthetic-wire' }),
-  })) as unknown as typeof fetch
-  store.attachSource = () => {
-    throw new Error('socket attach failed')
-  }
-
-  try {
-    expect(store.startGame({ gameType: 'constructed' })).rejects.toThrow('socket attach failed')
-    expect(analytics.events.find(({ name }) => name === 'game-start-failed')?.data).toMatchObject({
-      match_id: 'failed-match',
-      reason: 'unknown',
+      result: 'draw',
+      puzzle: false,
     })
   } finally {
     store.attachSource = originalAttach

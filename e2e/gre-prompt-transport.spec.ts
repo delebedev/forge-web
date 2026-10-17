@@ -1,37 +1,33 @@
 import { writeFileSync } from 'node:fs'
-import type { WebSocketRoute } from '@playwright/test'
 import { httpCardMeta } from '../src/shared/api/http-test-fixtures'
 import { expect, test } from './gre-test'
-import { decodeMessage, encodeMessage, enumValue } from '../src/engine/wire/gre-proto'
-test('authored replacement transport fixture echoes the offered descriptor and retires after pointer input', async ({
+
+// An authored in-page frame source exercises the same prompt consumer as the worker.
+test('authored replacement source echoes the offered descriptor and retires after pointer input', async ({
   page,
 }, info) => {
-  const engineLaunches: string[] = []
+  const launches: string[] = []
   page.on('request', (request) => {
     if (new URL(request.url()).pathname === '/api/gre/start') {
-      engineLaunches.push(request.url())
+      launches.push(request.url())
     }
   })
   await page.route('**/api/auth/me', (route) =>
-    route.fulfill({ json: { playerId: 'authored-transport-player', guest: false } }),
+    route.fulfill({ json: { playerId: 'authored-source-player', guest: false } }),
   )
   await page.addInitScript(() =>
     localStorage.setItem('forge:gre:priority-flag:hideCardArt', 'true'),
   )
-  await page.route('**/api/public/cards/by-grpids?**', (route) =>
-    route.fulfill({
-      json: {
-        201: httpCardMeta(201, {
-          name: 'Fiery Temper',
-          abilities: { 401: { text: 'Madness {R}', keyword: null, manaCost: null } },
-        }),
-        202: httpCardMeta(202, {
-          name: 'Kitchen Imp',
-          abilities: { 402: { text: 'Madness {B}', keyword: null, manaCost: null } },
-        }),
-      },
+  const metadata = {
+    201: httpCardMeta(201, {
+      name: 'Fiery Temper',
+      abilities: { 401: { text: 'Madness {R}', keyword: null, manaCost: null } },
     }),
-  )
+    202: httpCardMeta(202, {
+      name: 'Kitchen Imp',
+      abilities: { 402: { text: 'Madness {B}', keyword: null, manaCost: null } },
+    }),
+  }
   const rows = [101, 102].map((id) => ({
     objectInstance: id,
     uniqueAbilityId: id + 200,
@@ -40,145 +36,149 @@ test('authored replacement transport fixture echoes the offered descriptor and r
     replacementEffectId: id + 400,
     conferringObjectZcid: id + 500,
   }))
-  const frame = async (messages: Record<string, unknown>[]) =>
-    Buffer.from(
-      await encodeMessage('MatchServiceToClientMessage', {
-        greToClientEvent: { greToClientMessages: messages },
-      }),
-    )
-  const request = (msgId: number, extra = {}) => ({
-    type: 39,
-    gameStateId: 40,
-    msgId,
-    selectReplacementReq: { replacements: rows, ...extra },
-  })
-  let socket!: WebSocketRoute
-  const greType = await enumValue('ClientToMatchServiceMessageType', 'ClientToGremessage')
-  const responses: Record<string, unknown>[] = []
-  let initialized = false
-  const observations: Promise<void>[] = []
-  const observationErrors: unknown[] = []
-  await page.routeWebSocket(/\/gre\?/, (route) => {
-    socket = route
-    route.onMessage((payload) => {
-      const observation = (async () => {
-        if (typeof payload === 'string') {
-          return
-        }
-        const wrapper = await decodeMessage('ClientToMatchServiceMessage', new Uint8Array(payload))
-        if (!initialized) {
-          initialized = true
-          route.send(
-            Buffer.from(
-              await encodeMessage('MatchServiceToClientMessage', { authenticateResponse: {} }),
-            ),
-          )
-          route.send(
-            await frame([
-              {
-                type: 1,
-                gameStateId: 40,
-                gameStateMessage: {
-                  type: 1,
-                  gameStateId: 40,
-                  zones: [{ zoneId: 31, type: 3, ownerSeatId: 1, objectInstanceIds: [101, 102] }],
-                  gameObjects: rows.map((row) => ({
-                    instanceId: row.objectInstance,
-                    grpId: row.objectInstance + 100,
-                    visibility: 1,
-                    viewers: [1, 2],
-                    type: 1,
-                    zoneId: 31,
-                    ownerSeatId: 1,
-                    controllerSeatId: 1,
-                  })),
-                  players: [
-                    { systemSeatNumber: 1, lifeTotal: 20 },
-                    { systemSeatNumber: 2, lifeTotal: 20 },
-                  ],
-                },
-              },
-              request(7),
-            ]),
-          )
-          return
-        }
-        if (wrapper['clientToMatchServiceMessageType'] === greType && wrapper['payload']) {
-          const response = await decodeMessage(
-            'ClientToGREMessage',
-            wrapper['payload'] as Uint8Array,
-          )
-          if (response['selectReplacementResp']) {
-            responses.push(response)
-          }
-        }
-      })().catch((error) => {
-        observationErrors.push(error)
+  await page.goto('/play/game?traffic=smoke')
+  await page.evaluate(
+    async ({ rows, metadata }) => {
+      const storePath = '/src/engine/runtime/gre-store.ts'
+      const sessionPath = '/src/engine/runtime/gre-session.ts'
+      const protoPath = '/src/engine/wire/gre-proto.ts'
+      const metaPath = '/src/engine/runtime/gre-card-meta.ts'
+      const { greStore } = await import(storePath)
+      const { greSession } = await import(sessionPath)
+      const { decodeMessage, enumValue } = await import(protoPath)
+      const greType = await enumValue('ClientToMatchServiceMessageType', 'ClientToGremessage')
+      const { parseGreCardMeta } = await import(metaPath)
+      const responses: unknown[] = []
+      let sink: { onOpen: () => void; onBatch: (batch: unknown) => void } | undefined
+      greSession.connectBrowser = async () => 'authored-choice'
+      greSession.startBrowser({
+        gameType: 'puzzle',
+        challengeId: 'authored-choice',
+        puzzleText: '[metadata]\nName: Authored choice',
       })
-      observations.push(observation)
-    })
-  })
-  await page.addInitScript(() =>
-    sessionStorage.setItem(
-      'forge:gre:lastMatchConfig',
-      JSON.stringify({ gameType: 'puzzle', matchId: 'authored-replacement-transport' }),
-    ),
+      greStore.connectSource(
+        {
+          canSend: true,
+          isOpen: true,
+          start(value: typeof sink) {
+            sink = value
+            sink!.onOpen()
+          },
+          stop() {},
+          async send(bytes: Uint8Array) {
+            const wrapper = await decodeMessage('ClientToMatchServiceMessage', bytes)
+            if (wrapper.clientToMatchServiceMessageType !== greType || !wrapper.payload) {
+              return
+            }
+            const response = await decodeMessage('ClientToGREMessage', wrapper.payload)
+            if (response.selectReplacementResp) {
+              responses.push(response)
+            }
+          },
+        },
+        {
+          execution: 'browser',
+          matchId: 'authored-choice',
+          challengeId: 'authored-choice',
+          fetchCardMeta: async () => parseGreCardMeta(metadata),
+        },
+      )
+      const request = (msgId: number, extra = {}) =>
+        sink!.onBatch({
+          byteLength: 0,
+          messages: [
+            {
+              type: 39,
+              gameStateId: 40,
+              msgId,
+              selectReplacementReq: { replacements: rows, ...extra },
+            },
+          ],
+        })
+      Object.assign(window, { authoredChoice: { request, responses } })
+      sink!.onBatch({
+        byteLength: 0,
+        messages: [
+          {
+            type: 1,
+            gameStateId: 40,
+            gameStateMessage: {
+              type: 1,
+              gameStateId: 40,
+              zones: [{ zoneId: 31, type: 3, ownerSeatId: 1, objectInstanceIds: [101, 102] }],
+              gameObjects: rows.map((row) => ({
+                instanceId: row.objectInstance,
+                grpId: row.objectInstance + 100,
+                visibility: 1,
+                viewers: [1, 2],
+                type: 1,
+                zoneId: 31,
+                ownerSeatId: 1,
+                controllerSeatId: 1,
+              })),
+              players: [
+                { systemSeatNumber: 1, lifeTotal: 20 },
+                { systemSeatNumber: 2, lifeTotal: 20 },
+              ],
+            },
+          },
+        ],
+      })
+      request(7)
+    },
+    { rows, metadata },
   )
-  const authenticated = page.waitForResponse('**/api/auth/me')
-  await page.goto('/match/puzzle')
-  expect((await authenticated).ok()).toBe(true)
   const prompt = page.locator('[data-prompt="replacement"]')
   await expect(prompt).toBeVisible()
   await expect(prompt).toContainText('Fiery Temper')
   await expect(prompt).toContainText('Kitchen Imp')
-  socket.send(await frame([request(8, { isOptional: true })]))
+  const request = async (id: number, extra = {}) =>
+    page.evaluate(
+      ({ id, extra }) => {
+        const fixture = (
+          window as unknown as { authoredChoice: { request: (id: number, extra: unknown) => void } }
+        ).authoredChoice
+        fixture.request(id, extra)
+      },
+      { id, extra },
+    )
+  await request(8, { isOptional: true })
   await expect(page.locator('[data-prompt="unsupported"]')).toContainText(
     'This replacement choice is not supported yet.',
   )
   await expect(prompt).toBeHidden()
-  socket.send(await frame([request(9)]))
+  await request(9)
   await expect(prompt).toBeVisible()
-  const chosen = await page.evaluate(() => window.__greState()!)
   await expect(page.locator('[data-board]')).toHaveAttribute('data-card-art', 'off')
-  await page.mouse.move(640, 300)
   await page.screenshot({ path: info.outputPath('replacement-chosen.png') })
   await prompt.locator('[data-replacement-effect-id="502"]').click()
   await expect(prompt).toBeHidden()
   await expect
-    .poll(async () => {
-      await Promise.all(observations)
-      if (observationErrors.length) {
-        throw observationErrors[0]
-      }
-      return responses.length
-    })
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (window as unknown as { authoredChoice: { responses: unknown[] } }).authoredChoice
+            .responses.length,
+      ),
+    )
     .toBe(1)
-  await Promise.all(observations)
-  if (observationErrors.length) {
-    throw observationErrors[0]
-  }
-  expect(responses[0]).toMatchObject({
-    gameStateId: 40,
-    respId: 9,
-    selectReplacementResp: { replacement: rows[1] },
-  })
+  const responses = await page.evaluate(
+    () =>
+      (window as unknown as { authoredChoice: { responses: unknown[] } }).authoredChoice.responses,
+  )
+  expect(responses).toEqual([
+    expect.objectContaining({
+      gameStateId: 40,
+      respId: 9,
+      selectReplacementResp: { replacement: rows[1] },
+    }),
+  ])
   const final = await page.evaluate(() => window.__greState()!)
-  expect(engineLaunches).toEqual([])
+  expect(launches).toEqual([])
   expect(final.prompt).toBeNull()
   expect(final.diagnostics.errorCount).toBe(0)
   writeFileSync(
     info.outputPath('replacement-result.json'),
-    JSON.stringify(
-      {
-        fixture: 'authored transport choice; no engine replacement outcome',
-        engineLaunches,
-        rows,
-        chosen,
-        responses,
-        final,
-      },
-      null,
-      2,
-    ),
+    JSON.stringify({ rows, responses, final }, null, 2),
   )
 })

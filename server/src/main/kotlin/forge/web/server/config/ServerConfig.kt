@@ -14,8 +14,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
-import leyline.config.CostChoicePresentation
-import leyline.config.EngineSettings
+import leyline.config.DraftSettings
 import net.peanuuutz.tomlkt.Toml
 import net.peanuuutz.tomlkt.TomlElement
 import net.peanuuutz.tomlkt.TomlTable
@@ -31,16 +30,13 @@ internal enum class ConfigSource { DEFAULT, TOML, ENV }
 /** Immutable product configuration resolved once at process startup. */
 internal class ServerConfig(
     val web: WebSettings,
-    val engine: EngineSettings,
+    val engine: ProductEngineSettings,
     val paths: ServerPaths,
     val baseDir: File,
     val instance: String?,
     private val configuredPaths: PathSettings,
     private val provenance: Map<String, ConfigSource>,
 ) {
-    val playerEngine: EngineSettings
-        get() = if (!engine.spectatorMode && provenance["engine.ai_speed"] == ConfigSource.DEFAULT) engine.copy(aiSpeed = 0.0) else engine
-
     fun ensureDirectories() = paths.ensureDirectories()
 
     fun report(): String {
@@ -50,7 +46,6 @@ internal class ServerConfig(
         return buildString {
             appendLine("Forge Web configuration (instance=${instance ?: "default"})")
             appendLine("  base: ${baseDir.absolutePath}")
-            appendLine("  player match AI speed: ${playerEngine.aiSpeed}")
             for ((section, leaves) in bySection) {
                 appendLine("  [$section]")
                 for (leaf in leaves.sortedBy { it.path.joinToString(".") }) {
@@ -135,9 +130,14 @@ internal data class WebSettings(
 }
 
 @Serializable
+internal data class ProductEngineSettings(val draft: DraftSettings = DraftSettings()) {
+    fun validate() = draft.validate()
+}
+
+@Serializable
 private data class ServerSettings(
     val web: WebSettings = WebSettings(),
-    val engine: EngineSettings = EngineSettings(),
+    val engine: ProductEngineSettings = ProductEngineSettings(),
     val paths: PathSettings = PathSettings(),
 ) {
     fun validate() {
@@ -192,13 +192,9 @@ internal class ServerConfigResolver(
             ServerSettings(
                 web = decodeSection(table, "web", WebSettings.serializer(), WebSettings()),
                 engine =
-                    decodeSection(table, "engine", EngineSettings.serializer(), EngineSettings()).let {
-                        if (valueAt(table, listOf("engine", "cost_choice_presentation")) == null) {
-                            it.copy(costChoicePresentation = CostChoicePresentation.ForgeText)
-                        } else {
-                            it
-                        }
-                    },
+                    (table["engine"] as? TomlTable)?.let { section ->
+                        Toml { ignoreUnknownKeys = true }.decodeFromTomlElement(ProductEngineSettings.serializer(), section)
+                    } ?: ProductEngineSettings(),
                 paths = decodeSection(table, "paths", PathSettings.serializer(), PathSettings()),
             ) to table
         } catch (cause: Exception) {

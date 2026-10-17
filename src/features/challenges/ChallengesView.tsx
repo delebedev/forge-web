@@ -1,5 +1,8 @@
 import { useEffect, useState, type MouseEvent } from 'react'
 import { useRouter } from '@app/router'
+import { apiFetch } from '@shared/api/client'
+import { readJson } from '@shared/api/decoding'
+import { DevelopmentPuzzleSchema } from '@shared/api/wire-schemas'
 import { challengeToGreStartConfig } from '@engine/runtime/gre-launch'
 import { greSession } from '@engine/runtime/gre-session'
 import { challengesStore, type Challenge } from './challenges-store'
@@ -82,10 +85,24 @@ export function ChallengesView({ challengeId }: { challengeId?: string }) {
         setError(`Challenge not found: ${challengeId}`)
         return
       }
-      greSession.start(challengeToGreStartConfig(challenge))
+      const response = await apiFetch(`/api/dev/puzzles/${encodeURIComponent(challenge.id)}`)
+      if (!response.ok) {
+        throw new Error('Puzzle content is unavailable')
+      }
+      const puzzle = await readJson(response, DevelopmentPuzzleSchema)
+      if (active) {
+        greSession.startBrowser({
+          ...challengeToGreStartConfig(challenge),
+          puzzleText: puzzle.text,
+        })
+      }
     }
 
-    void prepare()
+    void prepare().catch((error: unknown) => {
+      if (active) {
+        setError(error instanceof Error ? error.message : String(error))
+      }
+    })
     return () => {
       active = false
     }

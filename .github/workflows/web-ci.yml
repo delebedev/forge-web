@@ -335,7 +335,10 @@ jobs:
         run: bun x --bun playwright install --with-deps chromium
       - name: Run product journeys
         if: matrix.lane == 'product'
-        run: python3 scripts/ci-measure.py product bash -eo pipefail -c 'node scripts/ci-browser-selection.mjs product "$PROOF_BREADTH" "$BASE_SHA" --workers=1 --output=test-results/product && node scripts/ci-browser-selection.mjs drain "$PROOF_BREADTH" "$BASE_SHA" --workers=1 --output=test-results/release-drain && node scripts/ci-browser-selection.mjs gre "$PROOF_BREADTH" "$BASE_SHA" --ci-partition=product --workers=1 --output=test-results/gre'
+        run: python3 scripts/ci-measure.py product bash -eo pipefail -c 'node scripts/ci-browser-selection.mjs product "$PROOF_BREADTH" "$BASE_SHA" --workers=1 --output=test-results/product && node scripts/ci-browser-selection.mjs gre "$PROOF_BREADTH" "$BASE_SHA" --ci-partition=product --workers=1 --output=test-results/gre'
+      - name: Run curated replay journeys
+        if: matrix.lane == 'product'
+        run: bun x playwright test -c e2e/curated-replays.config.ts
       - name: Run gameplay journeys
         if: matrix.lane == 'gameplay'
         run: python3 scripts/ci-measure.py gameplay bash -eo pipefail -c 'node scripts/ci-browser-selection.mjs catalog "$PROOF_BREADTH" "$BASE_SHA" --workers=1 --output=test-results/forge-catalog && node scripts/ci-browser-selection.mjs gre "$PROOF_BREADTH" "$BASE_SHA" --ci-partition=gameplay --workers=1 --output=test-results/gre'

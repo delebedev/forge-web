@@ -15,23 +15,13 @@ import forge.web.server.decks.installDeckRoutes
 import forge.web.server.limited.LimitedSetView
 import forge.web.server.limited.installCourseRoutes
 import forge.web.server.limited.installLimitedRoutes
-import forge.web.server.match.BrowserGreRelay
 import forge.web.server.match.ChallengeCatalog
 import forge.web.server.match.ChallengeSummary
-import forge.web.server.match.DevPuzzleCandidates
+import forge.web.server.match.DevelopmentPuzzle
 import forge.web.server.match.MatchReplayStore
-import forge.web.server.match.SpectatorDeckPool
-import forge.web.server.match.WebMatchLauncher
 import forge.web.server.match.emptyChallenges
 import forge.web.server.match.installBrowserReplayRoutes
-import forge.web.server.match.installDevAdviceRoutes
-import forge.web.server.match.installDevPuzzleCandidateRoutes
-import forge.web.server.match.installMatchRoutes
-import forge.web.server.match.installMatchSocket
-import forge.web.server.match.installPublicSpectatorRoutes
-import forge.web.server.match.installReleaseOperatorRoutes
 import forge.web.server.match.installReplayOperatorRoutes
-import forge.web.server.puzzles.PuzzlePipeline
 import forge.web.server.puzzles.PuzzleStore
 import forge.web.server.puzzles.installPuzzleRoutes
 import forge.web.server.roadmap.RoadmapStore
@@ -48,7 +38,6 @@ import io.ktor.server.response.respondText
 import io.ktor.server.routing.get
 import io.ktor.server.routing.route
 import io.ktor.server.routing.routing
-import io.ktor.server.websocket.WebSockets
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import leyline.domain.deck.DeckCards
@@ -73,18 +62,13 @@ internal data class WebServices(
         forge.web.server.cards.validateDeckCopies(cardRepository, deck, format)
     },
     val cardImages: CardImageIndex = CardImageIndex.empty(),
-    val matchLauncher: WebMatchLauncher,
+    val coursePlay: forge.web.server.limited.CoursePlayService,
     val authService: WebAuthService,
-    val greRelay: BrowserGreRelay,
-    val spectatorDeckPool: SpectatorDeckPool,
     val replayStore: MatchReplayStore? = null,
     val sealedSets: () -> List<LimitedSetView> = { emptyList() },
     val challengeCatalog: ChallengeCatalog = emptyChallenges(),
     val devToolsEnabled: Boolean = false,
-    val devPuzzleCandidates: DevPuzzleCandidates? = null,
     val puzzleStore: PuzzleStore? = null,
-    val puzzlePipeline: PuzzlePipeline? = null,
-    val puzzleGeneratorEmail: String = "",
     val roadmap: RoadmapStore? = null,
 )
 
@@ -100,14 +84,9 @@ internal fun Application.installHttpApplication(services: WebServices) {
     }
     install(RequestTiming)
     installHttpErrorHandling(services.authService)
-    install(WebSockets) {
-        pingPeriodMillis = 15_000
-        timeoutMillis = 15_000
-    }
     val savedDecks = SavedDecks(services.decks)
     lateinit var openApiJson: String
     routing {
-        installMatchSocket(services.authService, services.greRelay)
         get("/openapi.json") {
             call.respondText(openApiJson, contentType = ContentType.Application.Json)
         }.excludeContract("contract document")
@@ -118,7 +97,6 @@ internal fun Application.installHttpApplication(services: WebServices) {
                     buildJsonObject {
                         put("status", "ok")
                         if (replayStore != null) {
-                            put("releaseDrain", "supported")
                             val health = replayStore.health()
                             put(
                                 "replay",
@@ -135,27 +113,15 @@ internal fun Application.installHttpApplication(services: WebServices) {
             installAuthRoutes(services.authService)
             services.roadmap?.let { installRoadmapRoutes(services.authService, it) }
             services.puzzleStore?.let {
-                installPuzzleRoutes(services.authService, it, services.puzzlePipeline, services.puzzleGeneratorEmail)
+                installPuzzleRoutes(services.authService, it)
             }
-            installMatchRoutes(
-                services.authService,
-                services.matchLauncher,
-                services.greRelay,
-                services.challengeCatalog,
-                services.devToolsEnabled,
-                services.devPuzzleCandidates,
-            )
             services.replayStore?.let {
                 installBrowserReplayRoutes(services.authService, it)
                 installReplayOperatorRoutes(it)
-                installReleaseOperatorRoutes(it, services.greRelay)
                 installOperatorPlayerRoutes(services.authService, it)
             }
             installPublicCardRoutes(services.cardRepository, services.cardImages)
-            installPublicSpectatorRoutes(services.spectatorDeckPool, services.matchLauncher, services.greRelay)
             if (services.devToolsEnabled) {
-                installDevAdviceRoutes(services.authService, services.greRelay)
-                services.devPuzzleCandidates?.let { installDevPuzzleCandidateRoutes(services.authService, it) }
                 get(
                     "/dev/challenges",
                 ) { call.respond(services.challengeCatalog.summaries()) }.contract { response<List<ChallengeSummary>>() }
@@ -163,7 +129,7 @@ internal fun Application.installHttpApplication(services: WebServices) {
                     val summary = services.challengeCatalog.describePuzzle(call.parameters["puzzleId"].orEmpty())
                     if (summary == null) call.respond(io.ktor.http.HttpStatusCode.NotFound) else call.respond(summary)
                 }.contract {
-                    response<ChallengeSummary>()
+                    response<DevelopmentPuzzle>()
                     empty(404)
                 }
             }
@@ -195,7 +161,7 @@ internal fun Application.installHttpApplication(services: WebServices) {
                 services.authService,
                 services.draftService,
                 services.courseService,
-                services.matchLauncher,
+                services.coursePlay,
                 services.sealedSets,
             )
         }

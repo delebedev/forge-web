@@ -19,15 +19,12 @@ export const representatives = {
       'declares an attacker and submits combat',
       'handles game over after lethal burn puzzle',
     ],
-    'e2e/gre-recovery.spec.ts': [
-      'socket loss restores the opening decision and the played board in the same match',
-    ],
+    'e2e/gre-recovery.spec.ts': ['Urborg and Takenuma survive priority and pay for a spell'],
     'e2e/gre-cost-choice.spec.ts': ['additional cost:'],
   },
   catalog: {
     'e2e/forge-catalog.spec.ts': ['casts Jungle Lion from the catalog and deals combat damage'],
   },
-  drain: {},
 }
 
 export const suites = {
@@ -35,7 +32,6 @@ export const suites = {
     /(?:auth-passwordless|bootstrap|deck-import|decks|draft|product-smoke|react-challenge|whats-new)\.spec\.ts$/,
   gre: /gre-(?:play|prompts|mulligan|recovery|priority|sounds|cost-choice|equip-cost|repeatable-cost|alternate-life-cost|modal-cancel|search-owner|library-permissions|partner-decks|known-opponent-hand|warp|player-counters|mana-payment|proliferate)\.spec\.ts$/,
   catalog: /forge-catalog\.spec\.ts$/,
-  drain: /release-drain\.spec\.ts$/,
 }
 
 export function representativeLocations(file, source, titles) {
@@ -137,7 +133,6 @@ const commands = {
   product: ['product:smoke'],
   gre: ['gre'],
   catalog: ['forge-catalog:smoke'],
-  drain: ['e2e', 'release-drain'],
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {

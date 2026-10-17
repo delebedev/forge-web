@@ -1,15 +1,16 @@
 # Frontend Data Flow
 
-The product server is composed in `server/` and embeds the pinned Leyline
-runtime in one JVM. The UI has one active transport: GRE match play through `src/engine/{wire,state,runtime,priority,replay}/*`.
-Draft/sealed deck-building is plain REST against product routes backed by
-reusable course services — no session WebSocket.
+All gameplay runs in a browser worker through the pinned Leyline runtime.
+The product server in `server/` owns accounts, saved decks, catalog queries,
+deck validation, draft generation, course progress, saved puzzles, and replay uploads.
+It constructs no games and exposes no gameplay WebSocket or match-start route.
+Unsupported browsers show a retryable error instead of switching execution hosts.
 
 ```mermaid
 graph TB
     subgraph "Match Runtime"
         GRE_LAUNCH["gre-launch.ts<br/><small>build start config</small>"]
-        GRE_STORE["runtime/gre-store.ts<br/><small>GRE socket/state/actions</small>"]
+        GRE_STORE["runtime/gre-store.ts<br/><small>worker frames/state/actions</small>"]
         GRE_VIEW["GrePlay.tsx<br/><small>shell match board</small>"]
         CHALLENGES["ChallengesView.tsx<br/><small>development puzzle launcher</small>"]
     end
@@ -43,15 +44,11 @@ graph TB
 | `src/engine/generated` | Generated GRE message descriptor |
 
 - `server/` owns browser-facing Ktor routes, REST DTOs, OpenAPI generation,
-  process composition, product configuration, authentication, browser GRE
-  transport, and curated challenge content. It also owns the product database
+  process composition, product configuration, authentication, and curated challenge content. It also owns the product database
   path, connection, [schema migrations](database-migrations.md), and persistence. The database remains
   `<resolved stateDir>/player.db`; Leyline's native local storage has a separate
-  lifecycle. The server consumes Leyline's domain, engine, protocol, and
-  reusable match primitives directly from the pinned submodule's `domain`,
-  `engine`, and `gre-proto` modules through a
-  composite Gradle build. [Leyline ADR 0018](../leyline/docs/decisions/0018-runtime-embedding-boundary.md)
-  owns the runtime-embedding boundary.
+  lifecycle. The server consumes the pinned domain and catalog/draft services
+  through the composite Gradle build. Only `browser-engine/` launches games.
 - `card-presentation/` owns the Java 17 card presentation DTOs and Forge projection shared by the server and browser worker. Hosts supply artwork from their own indexes and retain their transport boundaries.
 - The product server uses Leyline's Forge-backed `CardRepository` for card
   search, deck import, saved-deck hydration, and GRE metadata. Generated card
@@ -75,8 +72,11 @@ graph TB
   removal or rename does.
 - `runtime/gre-launch.ts` builds GRE start payloads for constructed, puzzle, and saved-deck entries.
 - `runtime/browser-match-recovery.ts` reuses the Browser Local seed and in-page journal after an active worker failure. `GreSession` permits one four-minute attempt for constructed and Commander games. Replay uses a fresh worker and match identity, advances saved decisions without transporting intermediate frames, and resyncs through the existing connection handshake. Engine version, recovered board, pending choice and boundary state must match before `GreStore` installs the full state and rebound prompt. The final submitted response and all later progress are undone, with an acknowledgement before input resumes. This checks decision continuity, not complete hidden engine state. Reloads and browser crashes lose the in-page journal.
-- `BrowserGreTransport` appends each match's outbound GRE arrivals and non-handshake player responses under the product state directory before forwarding them. The journal carries its own card metadata and terminal status, so an operator export remains inspectable after a server replacement or interrupted write. A private bearer-protected route exports the journal into the existing transcript bundle; it is not a player route.
-- `runtime/gre-store.ts` owns GRE frame-source attachment, state projection, actions, traffic counters, and reconnect behavior — including `resumeGame`, which joins an already-registered match by matchId without hitting `/api/gre/start` again. It is a plain class with explicit `subscribe`/`notify`, read by React through `engine/runtime/hooks.ts`'s `useBoardSnapshot`.
+- Browser match journals contain local decisions and frames. Players may upload
+  them through the authenticated replay API. Existing operator replay reads remain available.
+- `runtime/gre-store.ts` owns frame-source attachment, state projection, actions,
+  and traffic counters. Browser workers and read-only replay sources share this fold.
+  React reads it through `engine/runtime/hooks.ts`.
   Stack zone membership is top-first. The board projection preserves this order, and the stack panel marks its first visible entry as the next to resolve. When a zone row trails new ability objects, the accumulator preserves their incoming batch order above older entries until explicit membership arrives. Object refreshes retain that fallback order; deletion, stack exit and full state replacement retire it.
   Its `state/game-log.ts` fold retains at most 100 gameplay events for the board's Game log drawer. It reads transient action, transfer and damage annotations plus authoritative life totals. Card references enter history only when visible to the viewer in that frame. Full snapshots do not invent events, recovery discards events beyond a rolled-back boundary, and an explicit source reset or new match clears the history. Same-match reconnects retain it.
 - `runtime/gre-dispatch.ts` owns prompt lifetime, response correlation, source
@@ -97,5 +97,7 @@ graph TB
 
 1. Draft or sealed opens a course pool over REST (`POST /api/{draft,sealed}/start`); draft then picks packs over REST (`POST /api/draft/pick`).
 2. The deck_build phase builds a deck client-side in `LimitedDeckBuilder.tsx`.
-3. Submit persists the deck (`POST /api/{draft,sealed}/deck`), then registers the match server-side (`POST /api/{draft,sealed}/play`), which returns `matchId`/`wireMatchId`.
-4. The UI hands that straight to `greSession.start({matchId, wireMatchId, gameType})`, which joins the already-registered match via `GreStore.resumeGame` — no second `/api/gre/start` call.
+3. Submit persists the deck (`POST /api/{draft,sealed}/deck`). The play endpoint returns both complete decks and an owner-scoped `coursePlayId` receipt. Retrying the same pending deck returns that receipt. Editing the deck retires the prior pending receipt.
+4. `GreSession.startBrowser` launches the returned decks locally. Limited games use the constructed rules runtime while retaining draft/sealed product context.
+5. A terminal local outcome posts the receipt and win/loss to `/api/courses/result`. The server checks owner and course identity, then atomically records the result. Duplicate identical reports are harmless and conflicting reports fail. This solo progression trusts the browser outcome.
+6. The next game is unavailable until the result is saved. A failed save stays visible with retry. Leaving before saving requires confirmation. Reload does not restore a live local game.

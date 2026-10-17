@@ -14,8 +14,6 @@ try {
     stdin: 'inherit',
     env: playwrightEnv('product', {
       FORGE_WEB_PLAYWRIGHT_STATE_DIR: stateDir,
-      // Independent browser cases briefly retain disconnected matches for reconnect grace.
-      FORGE_WEB_MAX_MATCHES: '32',
     }),
   })
 

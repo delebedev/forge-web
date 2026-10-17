@@ -1,17 +1,11 @@
 export type GreGameType =
-  | 'constructed'
-  | 'commander'
-  | 'brawl'
-  | 'oathbreaker'
-  | 'puzzle'
-  | 'draft'
-  | 'sealed'
-  | 'spectator'
+  'constructed' | 'commander' | 'brawl' | 'oathbreaker' | 'puzzle' | 'draft' | 'sealed'
 
-export type GreExecution = 'server' | 'browser'
+export type GreExecution = 'browser'
 
 export type GreStartConfig = {
   execution?: GreExecution
+  coursePlayId?: string
   attemptId?: string
   seed?: number
   frontendBuild?: string
@@ -19,16 +13,12 @@ export type GreStartConfig = {
   seat1Deck?: string
   seat2Deck?: string
   challengeId?: string
-  candidateId?: string
   puzzle?: string
   puzzleText?: string
   turnLimit?: number
-  spectatorMode?: boolean
   gameType?: GreGameType
   matchId?: string
-  wireMatchId?: string
   deckId?: string
-  authToken?: string
   returnPath?: string
   label?: string
   objective?: string

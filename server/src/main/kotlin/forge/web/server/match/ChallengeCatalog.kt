@@ -18,7 +18,12 @@ class ChallengeCatalog internal constructor(
 
     internal fun find(challengeId: String): PuzzleDefinition? = entries.find { it.first.challengeId == challengeId }?.second
 
-    internal fun describePuzzle(puzzleId: String): ChallengeSummary? = puzzlesDir?.let { developmentPuzzleSummary(it, puzzleId) }
+    internal fun describePuzzle(puzzleId: String): DevelopmentPuzzle? =
+        puzzlesDir?.let { directory ->
+            developmentPuzzleSummary(directory, puzzleId)?.let { summary ->
+                DevelopmentPuzzle(summary.name, summary.objective, File(directory, "$puzzleId.pzl").readText())
+            }
+        }
 }
 
 private val DEV_CHALLENGE_IDS =

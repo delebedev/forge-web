@@ -1,7 +1,7 @@
 import type { Page } from '@playwright/test'
 import { expect, test } from './gre-test'
 
-test.setTimeout(120_000)
+test.setTimeout(360_000)
 
 async function signIn(page: Page): Promise<void> {
   const email = `draft-${Date.now()}@example.test`
@@ -13,6 +13,18 @@ async function signIn(page: Page): Promise<void> {
 }
 
 test('drafts a deck and enters a playable pod match', async ({ page }, testInfo) => {
+  const gameplayRequests: string[] = []
+  const gameplaySockets: string[] = []
+  page.on('request', (request) => {
+    if (new URL(request.url()).pathname.startsWith('/api/gre/')) {
+      gameplayRequests.push(request.url())
+    }
+  })
+  page.on('websocket', (socket) => {
+    if (new URL(socket.url()).pathname === '/gre') {
+      gameplaySockets.push(socket.url())
+    }
+  })
   await signIn(page)
   await page.goto('/play/game')
   await page
@@ -59,7 +71,7 @@ test('drafts a deck and enters a playable pod match', async ({ page }, testInfo)
 
   await expect(page).toHaveURL(/\/match\/draft$/, { timeout: 30_000 })
   await expect(page.getByRole('region', { name: 'Battlefield', exact: true })).toBeVisible({
-    timeout: 30_000,
+    timeout: 240_000,
   })
   await page.getByRole('button', { name: 'Board options', exact: true }).click()
   await page.getByRole('checkbox', { name: 'Hide card art', exact: true }).check()
@@ -67,7 +79,7 @@ test('drafts a deck and enters a playable pod match', async ({ page }, testInfo)
   await expect(page.locator('[data-board]')).toHaveAttribute('data-card-art', 'off')
   await expect
     .poll(() => page.evaluate(() => Boolean(window.__greState()?.connected)), {
-      timeout: 30_000,
+      timeout: 240_000,
     })
     .toBe(true)
 
@@ -84,4 +96,24 @@ test('drafts a deck and enters a playable pod match', async ({ page }, testInfo)
     .poll(() => page.evaluate(() => window.__greState()!.gsId), { timeout: 20_000 })
     .toBeGreaterThan(gameStateBeforePass)
   await expect(page.getByText('Catching up...')).not.toBeVisible({ timeout: 20_000 })
+  expect(await page.evaluate(() => window.__greState()!.matchId)).toMatch(/^browser-/)
+  const saved = page.waitForResponse(
+    (response) =>
+      response.url().endsWith('/api/courses/result') && response.request().method() === 'POST',
+  )
+  expect((await page.evaluate(() => window.__greActWait('concede'))).ok).toBe(true)
+  const result = await saved
+  expect(result.ok()).toBe(true)
+  const course = await result.json()
+  expect(course).toMatchObject({ wins: 0, losses: 1 })
+  await expect(
+    page.getByText('Course result saved: 0 wins · 1 losses.', { exact: true }),
+  ).toBeVisible()
+  await page.screenshot({ path: testInfo.outputPath('draft-course-result.png') })
+  await page.getByRole('button', { name: 'Play Again', exact: true }).click()
+  await expect(page).toHaveURL(/\/play\/limited/)
+  const courses = await (await page.request.get('/api/courses')).json()
+  expect(courses).toEqual(expect.arrayContaining([expect.objectContaining({ wins: 0, losses: 1 })]))
+  expect(gameplayRequests).toEqual([])
+  expect(gameplaySockets).toEqual([])
 })

@@ -1,5 +1,0 @@
-# Ordered cycle. Each deck plays the next deck; the last wraps to the first.
-Pulverize
-The Spikes
-Time Drain
-Tombstone

@@ -70,3 +70,9 @@ data class LimitedSetArchetypeView(
     val name: String,
     val strategy: String? = null,
 )
+
+@Serializable
+data class CoursePlayResponse(val coursePlayId: String, val seat1Deck: String, val seat2Deck: String)
+
+@Serializable
+data class CourseResultRequest(val coursePlayId: String, val won: Boolean)

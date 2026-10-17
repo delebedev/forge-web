@@ -942,7 +942,7 @@ test('required graveyard cost cancels and can be completed on retry', async ({ p
   }
 })
 
-for (const execution of ['server', 'browser'] as const) {
+for (const execution of ['browser'] as const) {
   test(`game log explains a visible burn spell (${execution})`, async ({ page }, info) => {
     test.setTimeout(120_000)
     await authenticateShell(page, 'game-log-proof')
@@ -1077,7 +1077,7 @@ for (const choice of [
   })
 }
 
-for (const execution of ['server', 'browser'] as const) {
+for (const execution of ['browser'] as const) {
   test(`Citadel exposes the top-library cast beside the hand and pays life (${execution})`, async ({
     page,
   }, info) => {
@@ -1175,7 +1175,7 @@ test('independent draft sets preserve an active pool', async ({ page }, info) =>
   await page.waitForTimeout(1_000)
 })
 
-for (const execution of ['server', 'browser'] as const) {
+for (const execution of ['browser'] as const) {
   test(`mixed stack shows and resolves the first entry (${execution})`, async ({ page }, info) => {
     test.setTimeout(120_000)
     await authenticateShell(page, 'mixed-stack-proof')
@@ -1238,7 +1238,7 @@ for (const execution of ['server', 'browser'] as const) {
   })
 }
 
-for (const execution of ['server', 'browser'] as const) {
+for (const execution of ['browser'] as const) {
   test(`Red protection excludes its creature from red spell targets (${execution})`, async ({
     page,
   }, info) => {
@@ -1359,7 +1359,7 @@ for (const execution of ['server', 'browser'] as const) {
   })
 }
 
-for (const execution of ['server', 'browser'] as const) {
+for (const execution of ['browser'] as const) {
   test(`Single Combat keeps the selected second creature (${execution})`, async ({
     page,
   }, info) => {
@@ -1454,7 +1454,7 @@ for (const execution of ['server', 'browser'] as const) {
   })
 }
 
-for (const execution of ['server', 'browser'] as const) {
+for (const execution of ['browser'] as const) {
   for (const choice of [
     {
       label: 'Creature',

@@ -70,8 +70,8 @@ class BrowserDecksTest {
 
     @Test
     fun `browser runtime carries stable identity and Commander variant`() {
-        val commander = BrowserRuntime.runtimeConfig("browser-stable", "deck one", "deck two", "commander", false)
-        val constructed = BrowserRuntime.runtimeConfig("browser-other", "deck one", "deck two", "constructed", false)
+        val commander = BrowserRuntime.runtimeConfig("browser-stable", "deck one", "deck two", "commander")
+        val constructed = BrowserRuntime.runtimeConfig("browser-other", "deck one", "deck two", "constructed")
 
         assertEquals("browser-stable", commander.matchId)
         assertEquals("commander", commander.gameVariant)
@@ -80,7 +80,7 @@ class BrowserDecksTest {
 
     @Test
     fun `browser runtime carries inline puzzle without decks`() {
-        val puzzle = BrowserRuntime.runtimeConfig("browser-puzzle", "", "", "puzzle", false, "bolt-at-three-v1", "[metadata]\nGoal:Win")
+        val puzzle = BrowserRuntime.runtimeConfig("browser-puzzle", "", "", "puzzle", "bolt-at-three-v1", "[metadata]\nGoal:Win")
         assertNull(puzzle.seat1)
         assertNull(puzzle.seat2)
         assertEquals("bolt-at-three-v1", puzzle.puzzleDefinition?.identity)

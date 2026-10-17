@@ -31,8 +31,6 @@ export const GeneratedPuzzleSchema: z.ZodType<components['schemas']['GeneratedPu
   text: z.string(),
   createdAt: z.string(),
 })
-export const PuzzleCapabilitiesSchema: z.ZodType<components['schemas']['PuzzleCapabilities']> =
-  z.object({ canGenerate: z.boolean() })
 export const PuzzleAttemptSchema: z.ZodType<components['schemas']['PuzzleAttempt']> = z.object({
   featuredCard: z.string(),
   puzzleText: z.string().nullable(),
@@ -64,31 +62,6 @@ export const PuzzleRatingRequestInputSchema: z.ZodType<
   outcome: z.string(),
   actions: z.array(z.string()).optional(),
 })
-export const GreStartRequestInputSchema: z.ZodType<components['schemas']['GreStartRequestInput']> =
-  z.object({
-    matchId: z.string().nullable().optional(),
-    wireMatchId: z.string().nullable().optional(),
-    seat1Deck: z.string().nullable().optional(),
-    seat2Deck: z.string().nullable().optional(),
-    gameVariant: z.string().nullable().optional(),
-    seed: z.number().int().safe().nullable().optional(),
-    challengeId: z.string().nullable().optional(),
-    candidateId: z.string().nullable().optional(),
-    puzzle: z.string().nullable().optional(),
-    spectatorMode: z.boolean().nullable().optional(),
-  })
-export const DraftPlayResponseSchema: z.ZodType<components['schemas']['DraftPlayResponse']> =
-  z.object({ matchId: z.string(), wireMatchId: z.string() })
-export const MatchCapacityResponseSchema: z.ZodType<
-  components['schemas']['MatchCapacityResponse']
-> = z.object({
-  code: z.string(),
-  message: z.string(),
-  retryAfterSeconds: z.number().int().min(-2147483648).max(2147483647),
-})
-export const GreAbandonRequestInputSchema: z.ZodType<
-  components['schemas']['GreAbandonRequestInput']
-> = z.object({ matchId: z.string() })
 export const GreMechanicHelpDtoSchema: z.ZodType<components['schemas']['GreMechanicHelpDto']> =
   z.object({
     keyword: z.string(),
@@ -122,160 +95,10 @@ export const GreCardMetaDtoSchema: z.ZodType<components['schemas']['GreCardMetaD
     z.lazy(() => GreAbilityMetaDtoSchema),
   ),
 })
-export const PublicSeatViewSchema: z.ZodType<components['schemas']['PublicSeatView']> = z.object({
-  name: z.string(),
-})
-export const PublicSpectatorResponseSchema: z.ZodType<
-  components['schemas']['PublicSpectatorResponse']
-> = z.object({
-  matchId: z.string(),
-  wireMatchId: z.string(),
-  seat1: z.lazy(() => PublicSeatViewSchema),
-  seat2: z.lazy(() => PublicSeatViewSchema),
-})
-export const ViewerCountViewSchema: z.ZodType<components['schemas']['ViewerCountView']> = z.object({
-  count: z.number().int().min(-2147483648).max(2147483647),
-})
-export const EntityRefNullableSchema: z.ZodType<components['schemas']['EntityRefNullable']> = z
-  .object({
-    instanceId: z.number().int().min(-2147483648).max(2147483647),
-    kind: z.string(),
-    name: z.string().nullable(),
-    grpId: z.number().int().min(-2147483648).max(2147483647).nullable(),
-    zone: z.string().nullable(),
-    ownerSeat: z.number().int().min(-2147483648).max(2147483647).nullable(),
-  })
-  .nullable()
-export const EntityRefSchema: z.ZodType<components['schemas']['EntityRef']> = z.object({
-  instanceId: z.number().int().min(-2147483648).max(2147483647),
-  kind: z.string(),
-  name: z.string().nullable(),
-  grpId: z.number().int().min(-2147483648).max(2147483647).nullable(),
-  zone: z.string().nullable(),
-  ownerSeat: z.number().int().min(-2147483648).max(2147483647).nullable(),
-})
-export const GroupAssignmentSchema: z.ZodType<components['schemas']['GroupAssignment']> = z.object({
-  zoneType: z.number().int().min(-2147483648).max(2147483647),
-  subZoneType: z.number().int().min(-2147483648).max(2147483647),
-  instanceIds: z.array(z.number().int().min(-2147483648).max(2147483647)),
-})
-export const CombatDamageRecipientSchema: z.ZodType<
-  components['schemas']['CombatDamageRecipient']
-> = z.object({
-  recipientId: z.number().int().min(-2147483648).max(2147483647),
-  amount: z.number().int().min(-2147483648).max(2147483647),
-})
-export const CombatDamageAssignmentSchema: z.ZodType<
-  components['schemas']['CombatDamageAssignment']
-> = z.object({
-  assignerId: z.number().int().min(-2147483648).max(2147483647),
-  recipients: z.array(z.lazy(() => CombatDamageRecipientSchema)),
-})
-export const BlockAssignmentSchema: z.ZodType<components['schemas']['BlockAssignment']> = z.object({
-  blocker: z.lazy(() => EntityRefSchema),
-  attacker: z.lazy(() => EntityRefSchema),
-})
-export const ManaTypeChoiceSchema: z.ZodType<components['schemas']['ManaTypeChoice']> = z.object({
-  ctoId: z.number().int().min(-2147483648).max(2147483647),
-  color: z.string(),
-})
-export const DistributionAmountSchema: z.ZodType<components['schemas']['DistributionAmount']> =
-  z.object({
-    instanceId: z.number().int().min(-2147483648).max(2147483647),
-    amount: z.number().int().min(-2147483648).max(2147483647),
-  })
-export const CopilotProposalSchema: z.ZodType<components['schemas']['CopilotProposal']> = z.object({
-  intent: z.string(),
-  promptType: z.string(),
-  seat: z.number().int().min(-2147483648).max(2147483647),
-  promptKey: z.string().nullable(),
-  gameStateId: z.number().int().min(-2147483648).max(2147483647).nullable(),
-  respId: z.number().int().min(-2147483648).max(2147483647).nullable(),
-  card: z.lazy(() => EntityRefNullableSchema),
-  abilityGrpId: z.number().int().min(-2147483648).max(2147483647).nullable(),
-  alternativeGrpId: z.number().int().min(-2147483648).max(2147483647).nullable(),
-  targets: z.array(z.lazy(() => EntityRefSchema)),
-  targetGroups: z.record(z.string(), z.array(z.number().int().min(-2147483648).max(2147483647))),
-  groupAssignments: z.array(z.lazy(() => GroupAssignmentSchema)),
-  combatDamageAssignments: z.array(z.lazy(() => CombatDamageAssignmentSchema)),
-  blocks: z.array(z.lazy(() => BlockAssignmentSchema)),
-  modalGrpIds: z.array(z.number().int().min(-2147483648).max(2147483647)),
-  manaTypes: z.array(z.lazy(() => ManaTypeChoiceSchema)),
-  numericValue: z.number().int().min(-2147483648).max(2147483647).nullable(),
-  distribution: z.array(z.lazy(() => DistributionAmountSchema)),
-  accept: z.boolean().nullable(),
-  ctoId: z.number().int().min(-2147483648).max(2147483647).nullable(),
-  replacementEffectId: z.number().int().min(-2147483648).max(2147483647).nullable(),
-  responseIds: z.array(z.number().int().min(-2147483648).max(2147483647)),
-  responses: z.array(z.string()),
-  reason: z.string().nullable(),
-})
-export const DevPuzzleCandidateRequestInputSchema: z.ZodType<
-  components['schemas']['DevPuzzleCandidateRequestInput']
-> = z.object({ text: z.string() })
-export const PuzzleValidationResultSchema: z.ZodType<
-  components['schemas']['PuzzleValidationResult']
-> = z.object({
-  status: z.enum(['Loaded', 'Invalid', 'Unsupported', 'EngineFailure']),
-  issues: z.array(z.string()),
-  name: z.string().nullable(),
-  goal: z.string().nullable(),
-  turns: z.number().int().min(-2147483648).max(2147483647).nullable(),
-  inputCardCount: z.number().int().min(-2147483648).max(2147483647),
-})
-export const DevPuzzleCandidateValidationResponseSchema: z.ZodType<
-  components['schemas']['DevPuzzleCandidateValidationResponse']
-> = z.object({
-  candidateId: z.string().nullable(),
-  validation: z.lazy(() => PuzzleValidationResultSchema),
-})
-export const PuzzleTrialLimitsSchema: z.ZodType<components['schemas']['PuzzleTrialLimits']> =
-  z.object({
-    maxDecisions: z.number().int().min(-2147483648).max(2147483647),
-    maxElapsedMillis: z.number().int().safe(),
-  })
-export const PuzzleTrialDecisionSchema: z.ZodType<components['schemas']['PuzzleTrialDecision']> =
-  z.object({
-    index: z.number().int().min(-2147483648).max(2147483647),
-    intent: z.string(),
-    promptType: z.string(),
-    promptKey: z.string().nullable(),
-    gameStateId: z.number().int().min(-2147483648).max(2147483647).nullable(),
-    respId: z.number().int().min(-2147483648).max(2147483647).nullable(),
-  })
-export const PuzzleTrialOutcomeNullableSchema: z.ZodType<
-  components['schemas']['PuzzleTrialOutcomeNullable']
-> = z
-  .object({
-    playerSeatId: z.number().int().min(-2147483648).max(2147483647),
-    winningTeam: z.number().int().min(-2147483648).max(2147483647),
-    won: z.boolean(),
-  })
-  .nullable()
-export const PuzzleTrialResultSchema: z.ZodType<components['schemas']['PuzzleTrialResult']> =
-  z.object({
-    status: z.enum([
-      'Won',
-      'Lost',
-      'Unsupported',
-      'AdvisorUnavailable',
-      'Stalled',
-      'DecisionBudgetExceeded',
-      'TimeBudgetExceeded',
-      'Interrupted',
-      'EngineFailure',
-    ]),
-    definitionId: z.string(),
-    matchId: z.string().nullable(),
-    engineSeed: z.number().int().safe().nullable(),
-    limits: z.lazy(() => PuzzleTrialLimitsSchema),
-    elapsedMillis: z.number().int().safe(),
-    decisions: z.array(z.lazy(() => PuzzleTrialDecisionSchema)),
-    outcome: z.lazy(() => PuzzleTrialOutcomeNullableSchema),
-    reason: z.string().nullable(),
-  })
 export const ChallengeSummarySchema: z.ZodType<components['schemas']['ChallengeSummary']> =
   z.object({ challengeId: z.string(), name: z.string(), objective: z.string() })
+export const DevelopmentPuzzleSchema: z.ZodType<components['schemas']['DevelopmentPuzzle']> =
+  z.object({ name: z.string(), objective: z.string(), text: z.string() })
 export const CollectionViewSchema: z.ZodType<components['schemas']['CollectionView']> = z.object({
   grpIds: z.array(z.number().int().min(-2147483648).max(2147483647)),
 })
@@ -326,6 +149,9 @@ export const CourseViewSchema: z.ZodType<components['schemas']['CourseView']> = 
   cardPool: z.array(z.number().int().min(-2147483648).max(2147483647)),
   deckId: z.string().nullable(),
 })
+export const CourseResultRequestInputSchema: z.ZodType<
+  components['schemas']['CourseResultRequestInput']
+> = z.object({ coursePlayId: z.string(), won: z.boolean() })
 export const WebDeckCardSchema: z.ZodType<components['schemas']['WebDeckCard']> = z.object({
   grpId: z.number().int().min(-2147483648).max(2147483647),
   quantity: z.number().int().min(-2147483648).max(2147483647),
@@ -386,6 +212,8 @@ export const SubmitDeckRequestInputSchema: z.ZodType<
 export const PlayDraftRequestInputSchema: z.ZodType<
   components['schemas']['PlayDraftRequestInput']
 > = z.object({ playerId: z.string(), eventName: z.string() })
+export const CoursePlayResponseSchema: z.ZodType<components['schemas']['CoursePlayResponse']> =
+  z.object({ coursePlayId: z.string(), seat1Deck: z.string(), seat2Deck: z.string() })
 export const LimitedSetArchetypeViewSchema: z.ZodType<
   components['schemas']['LimitedSetArchetypeView']
 > = z.object({ pair: z.string(), name: z.string(), strategy: z.string().nullable() })
@@ -419,12 +247,6 @@ export const responseSchemas = {
   'GET /api/puzzles': {
     '200': z.array(z.lazy(() => GeneratedPuzzleSchema)),
   },
-  'GET /api/puzzles/capabilities': {
-    '200': z.lazy(() => PuzzleCapabilitiesSchema),
-  },
-  'POST /api/puzzles/generate': {
-    '202': z.lazy(() => PuzzleRunSchema),
-  },
   'GET /api/puzzles/runs/{runId}': {
     '200': z.lazy(() => PuzzleRunSchema),
   },
@@ -432,11 +254,6 @@ export const responseSchemas = {
     '200': z.lazy(() => GeneratedPuzzleSchema),
   },
   'POST /api/puzzles/{puzzleId}/ratings': {},
-  'POST /api/gre/start': {
-    '200': z.lazy(() => DraftPlayResponseSchema),
-    '503': z.lazy(() => MatchCapacityResponseSchema),
-  },
-  'POST /api/gre/abandon': {},
   'GET /api/public/cards/by-grpids': {
     '200': z.record(
       z.string(),
@@ -444,27 +261,11 @@ export const responseSchemas = {
     ),
   },
   'GET /api/public/cards/image': {},
-  'POST /api/public/spectator/start': {
-    '200': z.lazy(() => PublicSpectatorResponseSchema),
-    '503': z.lazy(() => MatchCapacityResponseSchema),
-  },
-  'GET /api/public/spectate/viewers': {
-    '200': z.lazy(() => ViewerCountViewSchema),
-  },
-  'GET /api/dev/matches/{matchId}/advice': {
-    '200': z.lazy(() => CopilotProposalSchema),
-  },
-  'POST /api/dev/puzzle-candidates': {
-    '200': z.lazy(() => DevPuzzleCandidateValidationResponseSchema),
-  },
-  'POST /api/dev/puzzle-candidates/{candidateId}/trial': {
-    '200': z.lazy(() => PuzzleTrialResultSchema),
-  },
   'GET /api/dev/challenges': {
     '200': z.array(z.lazy(() => ChallengeSummarySchema)),
   },
   'GET /api/dev/puzzles/{puzzleId}': {
-    '200': z.lazy(() => ChallengeSummarySchema),
+    '200': z.lazy(() => DevelopmentPuzzleSchema),
   },
   'GET /api/collection': {
     '200': z.lazy(() => CollectionViewSchema),
@@ -484,6 +285,9 @@ export const responseSchemas = {
   },
   'GET /api/courses': {
     '200': z.array(z.lazy(() => CourseViewSchema)),
+  },
+  'POST /api/courses/result': {
+    '200': z.lazy(() => CourseViewSchema),
   },
   'POST /api/decks': {
     '200': z.lazy(() => DeckViewSchema),
@@ -513,8 +317,7 @@ export const responseSchemas = {
     '200': z.lazy(() => CourseViewSchema),
   },
   'POST /api/draft/play': {
-    '200': z.lazy(() => DraftPlayResponseSchema),
-    '503': z.lazy(() => MatchCapacityResponseSchema),
+    '200': z.lazy(() => CoursePlayResponseSchema),
   },
   'DELETE /api/draft': {},
   'GET /api/sealed/sets': {
@@ -527,8 +330,7 @@ export const responseSchemas = {
     '200': z.lazy(() => CourseViewSchema),
   },
   'POST /api/sealed/play': {
-    '200': z.lazy(() => DraftPlayResponseSchema),
-    '503': z.lazy(() => MatchCapacityResponseSchema),
+    '200': z.lazy(() => CoursePlayResponseSchema),
   },
   'DELETE /api/sealed': {},
 } as const

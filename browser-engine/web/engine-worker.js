@@ -210,7 +210,6 @@ async function dispatch(data, enqueuedAt) {
           data.deck1,
           data.deck2,
           data.seed ?? 42,
-          data.spectator ?? false,
           data.matchId ?? '',
           data.gameType ?? 'constructed',
           data.puzzleId ?? '',
@@ -244,6 +243,9 @@ async function dispatch(data, enqueuedAt) {
             cardImages[`${card.isToken && card.types !== 'Dungeon' ? 1 : 0}:${name}`]?.[0] ?? null
           delete card.isToken
         }
+        break
+      case 'validate-puzzle':
+        result = JSON.parse(await runtime.validatePuzzle(data.text))
         break
       case 'advice':
         result = JSON.parse(await runtime.advice())

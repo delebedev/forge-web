@@ -4,7 +4,7 @@ import { startScenario } from './gre-scenario'
 import { castSpell } from './gre-actions'
 import { runGreAcceptanceSteps } from './gre-acceptance'
 
-for (const execution of ['server', 'browser'] as const) {
+for (const execution of ['browser'] as const) {
   test(`known opponent hand is inspectable and withdraws with its permission (${execution})`, async ({
     page,
   }, info) => {

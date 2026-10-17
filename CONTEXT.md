@@ -33,7 +33,7 @@ A collection of cards selected for play, either supplied as a starter deck or sa
 _Avoid_: decklist, card pool
 
 **Match**:
-One instance of a game, from its initial position through its outcome or abandonment. A player match, spectator match, or puzzle match may run in the browser or on the server.
+One instance of a game, from its initial position through its outcome or abandonment. Player and puzzle matches run locally in the browser. A replay is a completed game viewed from its saved transcript.
 _Avoid_: session, room
 
 **Puzzle**:

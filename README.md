@@ -1,8 +1,9 @@
 # forge-web
 
 Forge Web is a browser workbench for solo play against Forge AI, deck testing,
-puzzles, and limited practice. It combines a React interface with a Kotlin
-product server embedding the pinned Leyline runtime. It is an independent,
+puzzles, and limited practice. The pinned Leyline rules and AI run locally in
+a browser worker. A Kotlin product server supplies accounts, saved decks, catalog
+queries, validation, draft generation and course progress. It is an independent,
 unofficial project with no human-versus-human matchmaking.
 
 ## Quick start

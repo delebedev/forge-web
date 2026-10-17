@@ -53,15 +53,30 @@ export function loadGreMatchConfig(): GreStartConfig | null {
   if (!raw) {
     return null
   }
-  return parseGreMatchConfig(raw)
+  const config = parseGreMatchConfig(raw)
+  if (!config) {
+    sessionStorage.removeItem(STORAGE_KEY)
+    sessionStorage.setItem('forge:gre:unavailable', 'true')
+  }
+  return config
 }
 
 export function parseGreMatchConfig(raw: string): GreStartConfig | null {
   try {
     const parsed = JSON.parse(raw) as Record<string, unknown>
-    const config: GreStartConfig = {}
-    if (parsed['execution'] === 'server' || parsed['execution'] === 'browser') {
+    if (
+      parsed['execution'] !== 'browser' ||
+      parsed['spectatorMode'] === true ||
+      (parsed['matchId'] && typeof parsed['attemptId'] !== 'string')
+    ) {
+      return null
+    }
+    const config: GreStartConfig = { execution: 'browser' }
+    if (parsed['execution'] === 'browser') {
       config.execution = parsed['execution']
+    }
+    if (typeof parsed['coursePlayId'] === 'string') {
+      config.coursePlayId = parsed['coursePlayId']
     }
     if (typeof parsed['attemptId'] === 'string') {
       config.attemptId = parsed['attemptId']
@@ -84,9 +99,6 @@ export function parseGreMatchConfig(raw: string): GreStartConfig | null {
     if (typeof parsed['challengeId'] === 'string') {
       config.challengeId = parsed['challengeId']
     }
-    if (typeof parsed['candidateId'] === 'string') {
-      config.candidateId = parsed['candidateId']
-    }
     if (typeof parsed['puzzle'] === 'string') {
       config.puzzle = parsed['puzzle']
     }
@@ -96,23 +108,14 @@ export function parseGreMatchConfig(raw: string): GreStartConfig | null {
     if (typeof parsed['turnLimit'] === 'number') {
       config.turnLimit = parsed['turnLimit']
     }
-    if (typeof parsed['spectatorMode'] === 'boolean') {
-      config.spectatorMode = parsed['spectatorMode']
-    }
     if (isGreGameType(parsed['gameType'])) {
       config.gameType = parsed['gameType']
     }
     if (typeof parsed['matchId'] === 'string') {
       config.matchId = parsed['matchId']
     }
-    if (typeof parsed['wireMatchId'] === 'string') {
-      config.wireMatchId = parsed['wireMatchId']
-    }
     if (typeof parsed['deckId'] === 'string') {
       config.deckId = parsed['deckId']
-    }
-    if (typeof parsed['authToken'] === 'string') {
-      config.authToken = parsed['authToken']
     }
     if (typeof parsed['returnPath'] === 'string') {
       config.returnPath = parsed['returnPath']
@@ -126,7 +129,6 @@ export function parseGreMatchConfig(raw: string): GreStartConfig | null {
     return config.seat1Deck ||
       config.seat2Deck ||
       config.challengeId ||
-      config.candidateId ||
       config.puzzle ||
       config.matchId
       ? config
@@ -144,7 +146,6 @@ function isGreGameType(value: unknown): value is NonNullable<GreStartConfig['gam
     value === 'oathbreaker' ||
     value === 'puzzle' ||
     value === 'draft' ||
-    value === 'sealed' ||
-    value === 'spectator'
+    value === 'sealed'
   )
 }

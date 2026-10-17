@@ -6,22 +6,12 @@ import forge.web.server.auth.InMemoryWebAuthStore
 import forge.web.server.auth.WebAuthService
 import forge.web.server.cards.CardImageIndex
 import forge.web.server.http.WebServices
-import forge.web.server.match.BrowserGreRelay
-import forge.web.server.match.BrowserGreTransport
-import forge.web.server.match.BrowserMatchLauncher
-import forge.web.server.match.DevPuzzleCandidates
 import forge.web.server.match.MatchReplayStore
-import forge.web.server.match.SpectatorDeck
-import forge.web.server.match.SpectatorDeckPool
-import forge.web.server.match.WebMatchLauncher
 import forge.web.server.match.developmentChallenges
-import leyline.config.EngineSettings
 import leyline.domain.CollationPool
 import leyline.domain.PlayerId
 import leyline.domain.deck.DeckCards
-import leyline.domain.repo.InMemoryCourseRepository
 import leyline.domain.repo.InMemoryDeckRepository
-import leyline.domain.repo.InMemoryDraftSessionRepository
 import leyline.domain.service.CollectionService
 import leyline.domain.service.CourseService
 import leyline.domain.service.DraftService
@@ -32,9 +22,6 @@ import leyline.game.data.AbilityLocalization
 import leyline.game.data.CardData
 import leyline.game.data.CardRepository
 import leyline.game.data.ModalAbilityInfo
-import leyline.game.generator.PuzzleValidation
-import leyline.match.InProcessMatchRuntime
-import leyline.match.PuzzleTrial
 import wotc.mtgo.gre.external.messaging.Messages.CardColor
 import wotc.mtgo.gre.external.messaging.Messages.CardType
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
@@ -48,22 +35,19 @@ internal fun testServices(
     commanderProblem: (DeckCards) -> String? = { null },
     validateCopies: (DeckCards, forge.deck.DeckFormat) -> Unit = { _, _ -> },
     cardImages: CardImageIndex = CardImageIndex.empty(),
-    matchLauncher: WebMatchLauncher? = null,
-    greRelay: BrowserGreRelay? = null,
     replayStore: MatchReplayStore? = null,
-    spectatorDeckPool: SpectatorDeckPool =
-        SpectatorDeckPool(
-            listOf(
-                SpectatorDeck("Goblin Burn", "24 Raging Goblin\n12 Shock\n24 Mountain"),
-                SpectatorDeck("Forest Charge", "24 Llanowar Elves\n12 Giant Growth\n24 Forest"),
-            ),
-        ),
     devToolsEnabled: Boolean = false,
-    devPuzzleCandidates: DevPuzzleCandidates? = null,
 ): WebServices {
     val puzzlesDir = testContentRoot().resolve("data/puzzles")
-    val courses = InMemoryCourseRepository()
-    val drafts = InMemoryDraftSessionRepository()
+    val productDatabase =
+        forge.web.server.persistence.PlayerDatabase.open(
+            forge.web.server.persistence.PlayerDatabasePath(
+                java.nio.file.Files.createTempDirectory("product-api-test").resolve("player.db").toFile(),
+            ),
+        )
+    productDatabase.playerStore.bindCardCatalog(cards)
+    val courses = productDatabase.playerStore
+    val drafts = productDatabase.playerStore.asDraftSessionRepository()
     val courseService =
         CourseService(courses) {
             GeneratedPool(
@@ -73,31 +57,6 @@ internal fun testServices(
             )
         }
     val coordinator = RepositoryMatchCoordinator(PlayerId("web-player"), decks, courseService, drafts)
-    val defaultRelay by lazy {
-        BrowserGreTransport(
-            InProcessMatchRuntime(
-                engineSettings = EngineSettings(),
-                coordinator = coordinator,
-                cardRepository = cards,
-                puzzlesDir = puzzlesDir,
-            ),
-        )
-    }
-    val defaultCandidates by lazy {
-        DevPuzzleCandidates(
-            validate = PuzzleValidation(cards)::validate,
-            runTrial =
-                PuzzleTrial(
-                    InProcessMatchRuntime(
-                        engineSettings = EngineSettings(),
-                        coordinator = coordinator,
-                        cardRepository = cards,
-                        puzzlesDir = puzzlesDir,
-                    ),
-                )::run,
-        )
-    }
-    val candidates = devPuzzleCandidates ?: if (devToolsEnabled) defaultCandidates else null
     return WebServices(
         draftService = DraftService(drafts, StaticDraftDriver, courseService),
         courseService = courseService,
@@ -109,20 +68,9 @@ internal fun testServices(
         validateCopies = validateCopies,
         cardImages = cardImages,
         authService = authService,
-        matchLauncher =
-            matchLauncher
-                ?: BrowserMatchLauncher(
-                    challengeCatalog = developmentChallenges(puzzlesDir),
-                    coordinator = coordinator,
-                    courseService = courseService,
-                    relay = defaultRelay,
-                    devPuzzleCandidates = candidates,
-                ),
-        greRelay = greRelay ?: defaultRelay,
-        spectatorDeckPool = spectatorDeckPool,
+        coursePlay = forge.web.server.limited.CoursePlayService(productDatabase.database, coordinator, courseService, cards),
         challengeCatalog = developmentChallenges(puzzlesDir),
         devToolsEnabled = devToolsEnabled,
-        devPuzzleCandidates = candidates,
         replayStore = replayStore,
     )
 }

@@ -47,7 +47,7 @@ test('numeric acceptance follows visible steps and rejects unreachable amounts',
   await expect(page.locator('[data-prompt="numericInput"]')).toBeVisible()
 })
 
-for (const execution of ['server', 'browser'] as const) {
+for (const execution of ['browser'] as const) {
   for (const count of [0, 2]) {
     test(`Multikicker accepts ${count} payments and continues (${execution})`, async ({
       page,

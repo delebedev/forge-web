@@ -3,7 +3,7 @@ import { test, recordDemos, readyForVideo } from './demo-test'
 import { startScenario } from './gre-scenario'
 import { runGreAcceptanceSteps } from './gre-acceptance'
 
-for (const execution of ['server', 'browser'] as const) {
+for (const execution of ['browser'] as const) {
   test(`modal cancellation preserves resources and permits a repeated-mode retry (${execution})`, async ({
     page,
   }, info) => {

@@ -7,14 +7,11 @@ import { browserWarmupState } from './browser-release'
 import type { BrowserEngineEvent } from './browser-match-source'
 import { BrowserProgressWatchdog } from './browser-progress-watchdog'
 import { greStore } from './gre-store'
-import { abandonGreMatch } from './gre-transport'
 import { reactNavigate } from '@app/router'
 import {
   ANALYTICS_RELEASE,
   trackBrowserLifecycle,
   trackGameRecovery,
-  trackGameExecutionFallback,
-  trackGameLeft,
   type BrowserAnalyticsContext,
   type BrowserFailureDiagnostic,
   type BrowserFailureStage,
@@ -26,12 +23,10 @@ import type { GreGameType, GreStartConfig } from './start'
 /** React reads this store through `snapshot()`/`subscribe()`. */
 export interface GreSessionSnapshot {
   config: GreStartConfig | null
-  isSpectator: boolean
   launchKey: number
   browserPhase: 'idle' | 'preparing' | 'active' | 'recovering' | 'failed' | 'lost'
   browserStatus: string
   browserError: string
-  executionFallback: string
   browserRecoveryAvailable: boolean
   browserRecovered: boolean
 }
@@ -81,9 +76,6 @@ const BROWSER_RECOVERY_TIMEOUT_MS = 240_000
 
 export class GreSessionStore {
   config: GreStartConfig | null
-  get isSpectator(): boolean {
-    return Boolean(this.config?.spectatorMode)
-  }
 
   private launchKey = 0
   private transitionPromise: Promise<boolean> | null = null
@@ -94,7 +86,6 @@ export class GreSessionStore {
   private browserPhase: GreSessionSnapshot['browserPhase'] = 'idle'
   private browserStatus = ''
   private browserError = ''
-  private executionFallback = ''
   private browserStartedAt = 0
   private browserEngineBuild = ''
   private browserLastStage: BrowserFailureStage = 'attempt'
@@ -121,12 +112,10 @@ export class GreSessionStore {
   snapshot(): GreSessionSnapshot {
     return {
       config: this.config,
-      isSpectator: this.isSpectator,
       launchKey: this.launchKey,
       browserPhase: this.browserPhase,
       browserStatus: this.browserStatus,
       browserError: this.browserError,
-      executionFallback: this.executionFallback,
       browserRecoveryAvailable: this.browserRecovery != null,
       browserRecovered: this.browserRecovered,
     }
@@ -143,12 +132,9 @@ export class GreSessionStore {
     }
   }
 
-  start(config: GreStartConfig, navigate = true): void {
+  private begin(config: GreStartConfig, navigate = true): void {
     this.disarmBrowserExit()
     if (this.browserRecoveryController) {
-      this.disposeBrowserEngine()
-    }
-    if (this.config?.execution === 'browser' && config.execution !== 'browser') {
       this.disposeBrowserEngine()
     }
     this.config = config
@@ -158,7 +144,6 @@ export class GreSessionStore {
     this.browserPhase = 'idle'
     this.browserStatus = ''
     this.browserError = ''
-    this.executionFallback = ''
     this.browserEngineBuild = ''
     this.browserLastStage = 'attempt'
     this.launchKey++
@@ -170,15 +155,24 @@ export class GreSessionStore {
     }
   }
 
+  start(config: GreStartConfig, navigate = true): void {
+    this.startBrowser(
+      { ...config, gameType: config.gameType ?? this.inferGameType(config) },
+      navigate,
+    )
+  }
+
   startBrowser(config: GreStartConfig, navigate = true): void {
     if (
       config.gameType !== 'constructed' &&
       config.gameType !== 'commander' &&
-      config.gameType !== 'puzzle'
+      config.gameType !== 'puzzle' &&
+      config.gameType !== 'draft' &&
+      config.gameType !== 'sealed'
     ) {
       throw new Error('Unsupported browser game type')
     }
-    this.start(browserIdentity(config), navigate)
+    this.begin(browserIdentity(config), navigate)
     const context = this.browserContext()
     if (context) {
       this.browserTerminalAttemptId = ''
@@ -195,7 +189,9 @@ export class GreSessionStore {
       config.execution !== 'browser' ||
       (config.gameType !== 'constructed' &&
         config.gameType !== 'commander' &&
-        config.gameType !== 'puzzle') ||
+        config.gameType !== 'puzzle' &&
+        config.gameType !== 'draft' &&
+        config.gameType !== 'sealed') ||
       !config.matchId ||
       !config.attemptId ||
       (config.gameType === 'puzzle'
@@ -249,8 +245,9 @@ export class GreSessionStore {
         config.seat1Deck ?? '',
         config.seat2Deck ?? '',
         config.seed,
-        false,
-        config.gameType,
+        config.gameType === 'draft' || config.gameType === 'sealed'
+          ? 'constructed'
+          : config.gameType,
         config.matchId,
         config.gameType === 'puzzle'
           ? { id: config.challengeId!, text: config.puzzleText! }
@@ -300,42 +297,6 @@ export class GreSessionStore {
     } finally {
       signal?.removeEventListener('abort', abort)
     }
-  }
-
-  fallbackBrowserToServer(config: GreStartConfig, error: unknown): boolean {
-    if (
-      config.execution !== 'browser' ||
-      this.config?.execution !== 'browser' ||
-      (config.gameType !== 'constructed' && config.gameType !== 'commander') ||
-      config.attemptId !== this.config?.attemptId ||
-      this.browserPhase === 'active'
-    ) {
-      return false
-    }
-    const detail = error instanceof BrowserEngineFailure ? error.diagnostic.category : 'worker'
-    const {
-      engineBuild: _engineBuild,
-      matchId: _matchId,
-      execution: _execution,
-      ...serverConfig
-    } = config
-    const context = this.browserContext(config)
-    if (context && this.markBrowserTerminal(context)) {
-      trackBrowserLifecycle('failed', context, {
-        reason: detail,
-        operation: 'start',
-        kind: 'unexpected',
-        lastStage: this.browserLastStage,
-      })
-    }
-    this.start({ ...serverConfig, execution: 'server' }, false)
-    this.executionFallback = 'Browser startup failed. This game is continuing on a server.'
-    trackGameExecutionFallback(
-      'local-startup-failed',
-      detail === 'worker' ? 'worker-startup' : detail,
-    )
-    this.notify()
-    return true
   }
 
   private onBrowserEvent = (event: BrowserEngineEvent): void => {
@@ -465,7 +426,6 @@ export class GreSessionStore {
         config.seat1Deck ?? '',
         config.seat2Deck ?? '',
         config.seed!,
-        false,
         config.gameType as 'constructed' | 'commander',
         config.matchId,
       )
@@ -551,7 +511,7 @@ export class GreSessionStore {
   }
 
   playAgain(): Promise<boolean> {
-    return this.transition(true)
+    return this.transition(!this.config?.coursePlayId)
   }
   leave(): Promise<boolean> {
     return this.transition(false)
@@ -562,7 +522,7 @@ export class GreSessionStore {
       return this.transitionPromise
     }
     const previous = this.config
-    if (restart && (!previous || this.isSpectator)) {
+    if (restart && !previous) {
       return Promise.resolve(false)
     }
     const transition = this.finish(previous, restart)
@@ -584,13 +544,7 @@ export class GreSessionStore {
       return false
     }
     if (restart && previous) {
-      const {
-        matchId: _matchId,
-        wireMatchId: _wireMatchId,
-        attemptId: _attemptId,
-        seed: _seed,
-        ...restartConfig
-      } = previous
+      const { matchId: _matchId, attemptId: _attemptId, seed: _seed, ...restartConfig } = previous
       const config =
         previous.execution === 'browser' ? browserIdentity(restartConfig) : restartConfig
       greStore.clearSession()
@@ -601,7 +555,6 @@ export class GreSessionStore {
       this.browserPhase = 'idle'
       this.browserStatus = ''
       this.browserError = ''
-      this.executionFallback = ''
       this.launchKey++
       saveGreMatchConfig(config)
       if (config.execution === 'browser') {
@@ -640,7 +593,6 @@ export class GreSessionStore {
     this.browserPhase = 'idle'
     this.browserStatus = ''
     this.browserError = ''
-    this.executionFallback = ''
     this.browserEngineBuild = ''
     clearGreMatchConfig()
     this.notify()
@@ -661,46 +613,6 @@ export class GreSessionStore {
         this.disposeBrowserEngine()
       }
       return
-    }
-    const matchId = config.matchId
-    if (
-      !matchId ||
-      matchId !== greStore.currentMatchId ||
-      config.spectatorMode ||
-      greStore.gameOver ||
-      (greStore.connectionClose && greStore.connectionClose.category !== 'transient')
-    ) {
-      return
-    }
-    const gameType = this.configGameType(config)
-    const props = {
-      gameType: gameType ?? 'constructed',
-      format: gameType,
-      matchId,
-      deckId: config.deckId,
-      execution: config.execution ?? 'server',
-      attemptId: config.attemptId,
-      frontendBuild: config.frontendBuild,
-      engineBuild: this.browserEngineBuild || config.engineBuild,
-      seed: config.seed,
-      turn: greStore.turnNumber > 0 ? greStore.turnNumber : undefined,
-      phase: greStore.phaseName,
-    }
-    const retired = await abandonGreMatch(matchId).catch((error: unknown) => {
-      if (trackLeave) {
-        trackGameLeft({ ...props, abandonResult: 'network' })
-      }
-      throw error
-    })
-    if (trackLeave) {
-      trackGameLeft({
-        ...props,
-        abandonResult: retired.ok ? 'success' : 'server',
-        status: retired.status,
-      })
-    }
-    if (!retired.ok) {
-      throw new Error(`Could not retire match (${retired.status})`)
     }
   }
 

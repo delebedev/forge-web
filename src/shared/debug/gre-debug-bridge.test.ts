@@ -14,6 +14,7 @@ Object.defineProperty(globalThis, 'window', {
 })
 
 const { greStore } = await import('@engine/runtime/gre-store')
+const { greSession } = await import('@engine/runtime/gre-session')
 const { installGreDebugBridge } = await import('./gre-debug-bridge')
 
 test('state exposes only the active match and exact decision horizon needed by a browser driver', () => {
@@ -466,19 +467,19 @@ test('installed action wait reports connection loss as failure', async () => {
 })
 
 test('installed start aborts a pending request and returns terminal evidence', async () => {
-  const originalFetch = globalThis.fetch
+  const originalStart = greSession.connectBrowser
   const originalAttach = greStore.attachSource
   let signal: AbortSignal | null = null
   let attachments = 0
-  globalThis.fetch = ((_input: string | URL | Request, init?: RequestInit) =>
-    new Promise<Response>((_resolve, reject) => {
-      signal = init?.signal as AbortSignal
-      signal.addEventListener('abort', () => reject(signal?.reason), { once: true })
-    })) as unknown as typeof fetch
+  greSession.connectBrowser = (_config, abortSignal) =>
+    new Promise<string>((_resolve, reject) => {
+      signal = abortSignal ?? null
+      signal?.addEventListener('abort', () => reject(signal?.reason), { once: true })
+    })
   greStore.attachSource = () => {
     attachments += 1
   }
-  // Leave enough time for the pending fetch to begin before timing out.
+  // Leave enough time for the pending local start to begin before timing out.
   installGreDebugBridge({ startTimeoutMs: 1000, pollMs: 0 })
 
   try {
@@ -490,17 +491,17 @@ test('installed start aborts a pending request and returns terminal evidence', a
     expect(result.after?.connected).toBe(false)
     expect(result.after?.status).toBe('closed')
   } finally {
-    globalThis.fetch = originalFetch
+    greSession.connectBrowser = originalStart
     greStore.attachSource = originalAttach
   }
 })
 
 test('installed start rejects initial state that disconnects before readiness', async () => {
-  const originalStart = greStore.startGame
+  const originalStart = greSession.connectBrowser
   const originalPrompt = greStore.prompt
   const originalConnected = greStore.connected
   const originalStatus = greStore.status
-  greStore.startGame = async () => {
+  greSession.connectBrowser = async () => {
     greStore.prompt = {
       interactionKey: 1,
       kind: 'mulligan',
@@ -523,7 +524,7 @@ test('installed start rejects initial state that disconnects before readiness', 
     expect(result.after?.connected).toBe(false)
     expect(result.after?.status).toBe('closed')
   } finally {
-    greStore.startGame = originalStart
+    greSession.connectBrowser = originalStart
     greStore.prompt = originalPrompt
     greStore.connected = originalConnected
     greStore.status = originalStatus
@@ -531,10 +532,10 @@ test('installed start rejects initial state that disconnects before readiness', 
 })
 
 test('installed start closes a connected socket when readiness times out', async () => {
-  const originalStart = greStore.startGame
+  const originalStart = greSession.connectBrowser
   const originalConnected = greStore.connected
   const originalStatus = greStore.status
-  greStore.startGame = async () => {
+  greSession.connectBrowser = async () => {
     greStore.connected = true
     greStore.status = 'connected'
     return 'match-1'
@@ -548,7 +549,7 @@ test('installed start closes a connected socket when readiness times out', async
     expect(result.after?.status).toBe('closed')
     expect(result.state?.connected).toBe(false)
   } finally {
-    greStore.startGame = originalStart
+    greSession.connectBrowser = originalStart
     greStore.connected = originalConnected
     greStore.status = originalStatus
   }

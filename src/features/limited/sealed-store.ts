@@ -1,4 +1,4 @@
-import { CourseViewSchema, DraftPlayResponseSchema } from '@shared/api/wire-schemas'
+import { CourseViewSchema, CoursePlayResponseSchema } from '@shared/api/wire-schemas'
 import { readJson } from '@shared/api/decoding'
 import type { DraftCard } from '@shared/api/contracts'
 import { apiFetch } from '@shared/api/client'
@@ -9,8 +9,8 @@ export type SealedPhase = 'idle' | 'connecting' | 'deck_build' | 'playing' | 'fi
 
 const DEFAULT_EVENT_NAME = 'Sealed_FDN_20260307'
 
-/** Match handed off to GreStartConfig once the course-linked game is registered server-side. */
-export type SealedMatchLaunch = { matchId: string; wireMatchId: string }
+/** Match handed off to GreStartConfig with an owner-scoped course result receipt. */
+export type SealedMatchLaunch = { coursePlayId: string; seat1Deck: string; seat2Deck: string }
 
 /** React reads this store through `snapshot()`/`subscribe()`. */
 export interface SealedSnapshot {
@@ -170,7 +170,7 @@ class SealedStore {
       if (!playRes.ok) {
         throw new Error(`sealed_play_${playRes.status}`)
       }
-      const launch = await readJson(playRes, DraftPlayResponseSchema)
+      const launch = await readJson(playRes, CoursePlayResponseSchema)
       this.matchLaunch = launch
       this.phase = 'playing'
     } catch (err) {

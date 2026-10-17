@@ -37,11 +37,6 @@ test('changed specs select every case without requiring smoke tags or static tit
     selection('catalog', 'pr', ['e2e/forge-catalog.spec.ts'], () => source),
     ['e2e/forge-catalog.spec.ts'],
   )
-  assert.deepEqual(
-    selection('drain', 'pr', ['e2e/release-drain.spec.ts'], () => source),
-    ['e2e/release-drain.spec.ts'],
-  )
-  assert.deepEqual(selection('drain', 'pr', []), [])
 })
 
 test('full breadth and uncertain inputs never return a narrow selection', () => {
@@ -50,7 +45,7 @@ test('full breadth and uncertain inputs never return a narrow selection', () => 
   assert.throws(() => selection('unknown', 'pr', []), /Unknown/)
   assert.throws(
     () =>
-      selection('drain', 'pr', ['e2e/release-drain.spec.ts'], () => {
+      selection('catalog', 'pr', ['e2e/forge-catalog.spec.ts'], () => {
         throw new Error('deleted source')
       }),
     /deleted source/,
@@ -66,7 +61,7 @@ test('reviewed representatives still exist once in current authored source', () 
   }
 })
 
-test('CLI expands missing history even for drain and preserves child failure', () => {
+test('CLI expands missing history for catalog and preserves child failure', () => {
   const dir = mkdtempSync(join(tmpdir(), 'ci-selection-'))
   try {
     const bun = join(dir, 'bun')
@@ -78,10 +73,10 @@ test('CLI expands missing history even for drain and preserves child failure', (
         encoding: 'utf8',
         env: { ...env, CI_FAKE_STATUS: status },
       })
-    const fallback = invoke(['drain', 'pr', '0'.repeat(40), '--list'])
+    const fallback = invoke(['catalog', 'pr', '0'.repeat(40), '--list'])
     assert.equal(fallback.status, 0)
-    assert.match(fallback.stderr, /Full drain fallback/)
-    assert.match(fallback.stdout, /release-drain/)
+    assert.match(fallback.stderr, /Full catalog fallback/)
+    assert.match(fallback.stdout, /forge-catalog/)
     assert.doesNotMatch(fallback.stdout, /remains in main/)
     assert.equal(invoke(['catalog', 'full', '', '--list'], '7').status, 7)
   } finally {

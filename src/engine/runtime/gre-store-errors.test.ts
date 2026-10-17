@@ -14,7 +14,7 @@ class Source implements GreFrameSource {
   send(): void {}
 }
 
-async function storeWithSource(execution: 'server' | 'browser', journal = false) {
+async function storeWithSource(execution: 'browser', journal = false) {
   Object.defineProperty(globalThis, 'location', {
     configurable: true,
     value: new URL('http://localhost'),
@@ -33,7 +33,7 @@ async function storeWithSource(execution: 'server' | 'browser', journal = false)
   return { store, source }
 }
 
-for (const execution of ['server', 'browser'] as const) {
+for (const execution of ['browser'] as const) {
   test(`${execution} source failures report their cause and phase once`, async () => {
     const report = spyOn(reporting, 'reportGreFailure').mockImplementation(() => {})
     const { store, source } = await storeWithSource(execution)
@@ -54,7 +54,7 @@ for (const execution of ['server', 'browser'] as const) {
 
 test('retired sources cannot report errors against the current match', async () => {
   const report = spyOn(reporting, 'reportGreFailure').mockImplementation(() => {})
-  const { store, source } = await storeWithSource('server')
+  const { store, source } = await storeWithSource('browser')
   try {
     const replacement = new Source()
     store.attachSource(replacement)
@@ -64,7 +64,7 @@ test('retired sources cannot report errors against the current match', async () 
     const cause = new Error('current decode failure')
     replacement.sink.onError(cause, 'decode')
     expect(report.mock.calls).toEqual([
-      [cause, { phase: 'decode', execution: 'server', matchId: 'synthetic-match' }],
+      [cause, { phase: 'decode', execution: 'browser', matchId: 'synthetic-match' }],
     ])
     expect(store.status).toBe('frame decode error')
   } finally {

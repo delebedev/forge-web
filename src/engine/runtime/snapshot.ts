@@ -10,7 +10,7 @@ import type { GameOutcome } from '@engine/state/gre-outcome'
 import type { BoardArrow } from '@engine/state/arrow-view'
 import type { DungeonView } from '@engine/state/dungeon-view'
 import type { GreGameType } from './start'
-import type { GreConnectionClose } from './gre-transport'
+import type { GreConnectionClose } from './gre-connection'
 import type { PresentationHint, PresentationMove } from '@engine/state/presentation-policy'
 import type { GameLogEntry } from '@engine/state/game-log'
 

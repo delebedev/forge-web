@@ -37,7 +37,6 @@ dependencies {
     implementation(libs.ktor.server.content.negotiation)
     implementation(libs.ktor.serialization.kotlinx.json)
     implementation(libs.ktor.server.status.pages)
-    implementation(libs.ktor.server.websockets)
     implementation("io.ktor:ktor-server-forwarded-header:${libs.versions.ktor.get()}")
     implementation(libs.exposed.jdbc)
     implementation(libs.sqlite.jdbc)
@@ -47,7 +46,6 @@ dependencies {
     implementation(libs.sentry.logback)
 
     testImplementation(kotlin("test"))
-    testImplementation("io.ktor:ktor-client-websockets:${libs.versions.ktor.get()}")
     testImplementation(libs.ktor.server.test.host)
     testImplementation(testFixtures("leyline:domain:0"))
 }
@@ -90,9 +88,5 @@ tasks.processResources {
     from(rootProject.layout.projectDirectory.dir("dev/decks")) {
         include("**/*.txt")
         into("starter-decks")
-    }
-    from(rootProject.layout.projectDirectory.dir("dev/spectator-decks")) {
-        include("*.txt")
-        into("spectator-decks")
     }
 }

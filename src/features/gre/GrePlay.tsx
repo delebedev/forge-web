@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { priority } from '@engine/priority/priority'
 import { canRespondOf } from '@engine/priority/priority-derive'
+import { reportCourseResult } from '@engine/runtime/course-result'
 import { greSession } from '@engine/runtime/gre-session'
 import { greStore } from '@engine/runtime/gre-store'
 import { useBoardSnapshot } from '@engine/runtime/hooks'
 import type { GreStartConfig } from '@engine/runtime/start'
-import { GreStartError } from '@engine/runtime/gre-transport'
-import { currentBrowserPreflightFailure } from '@engine/runtime/browser-support'
 import type { CardView } from '@engine/state/gre-state'
 import { authStore } from '@shared/auth/auth'
 import { prepareBugReport, trackBugReportOpen } from '@shared/feedback'
@@ -30,31 +29,9 @@ function isAbortError(error: unknown): boolean {
   )
 }
 
-type LaunchError = {
-  message: string
-  category?: 'capacity' | 'deployment' | 'server'
-  retryAfterSeconds?: number
-}
-
+type LaunchError = { message: string }
 function launchFailure(error: unknown, fallback: string): LaunchError {
-  if (error instanceof GreStartError) {
-    return {
-      message: error.message,
-      category: error.category,
-      retryAfterSeconds: error.retryAfterSeconds,
-    }
-  }
   return { message: error instanceof Error ? error.message : fallback }
-}
-
-function resumeGreGame(config: GreStartConfig, onError: (error: LaunchError | null) => void): void {
-  onError(null)
-  void greStore.resumeGame(config).catch((error: unknown) => {
-    if (isAbortError(error)) {
-      return
-    }
-    onError(launchFailure(error, 'Could not reconnect to the match'))
-  })
 }
 
 export function GrePlay({
@@ -75,7 +52,6 @@ export function GrePlay({
   browserPhase = 'idle',
   browserStatus = '',
   browserError = '',
-  executionFallback = '',
   fullGameHref,
   outcomeExtra,
   backLabel,
@@ -97,7 +73,6 @@ export function GrePlay({
   browserPhase?: 'idle' | 'preparing' | 'active' | 'recovering' | 'failed' | 'lost'
   browserStatus?: string
   browserError?: string
-  executionFallback?: string
   fullGameHref?: string
   outcomeExtra?: ReactNode
   backLabel?: string
@@ -133,12 +108,40 @@ export function GrePlay({
   const priorKnownHandIds = useRef<Set<number>>(new Set())
   const [launchError, setLaunchError] = useState<LaunchError | null>(null)
   const [leaveError, setLeaveError] = useState<string | null>(null)
-  const [retryReady, setRetryReady] = useState(true)
-  const [browserFallbackError, setBrowserFallbackError] = useState<string | null>(null)
-  const [launchAttempt, setLaunchAttempt] = useState(0)
+  const [courseResult, setCourseResult] = useState<{ wins: number; losses: number } | null>(null)
+  const [courseError, setCourseError] = useState('')
+  const [courseRetry, setCourseRetry] = useState(0)
+  useEffect(() => {
+    const id = initialConfig?.coursePlayId
+    const outcome = board.outcome?.viewerResult
+    if (!id || !board.gameOver || !outcome || outcome === 'unknown') {
+      return
+    }
+    let active = true
+    setCourseResult(null)
+    setCourseError('')
+    void reportCourseResult(id, outcome === 'win').then(
+      (course) => {
+        if (active) {
+          setCourseResult(course)
+        }
+      },
+      (error: unknown) => {
+        if (active) {
+          setCourseError(error instanceof Error ? error.message : String(error))
+        }
+      },
+    )
+    return () => {
+      active = false
+    }
+  }, [initialConfig?.coursePlayId, board.gameOver, board.outcome?.viewerResult, courseRetry])
+  const courseUnsaved = !!initialConfig?.coursePlayId && board.gameOver && !courseResult
+  const courseOutcomeUnknown =
+    courseUnsaved && (!board.outcome?.viewerResult || board.outcome.viewerResult === 'unknown')
   const dropZoneElRef = useRef<HTMLElement | null>(null)
   const autoStartSent = useRef<number | null>(null)
-  const puzzle = useMemo(() => new URLSearchParams(location.search).get('puzzle')?.trim() ?? '', [])
+  const puzzle = initialConfig?.puzzleText ?? ''
   const reportContext = greSession.config
   const reportAccountId = authStore.player?.id
   const bugReport = useMemo(() => {
@@ -178,19 +181,18 @@ export function GrePlay({
   ])
 
   async function startGreGame(config: GreStartConfig, signal?: AbortSignal): Promise<void> {
-    if (config.execution === 'browser') {
-      const matchId = await greSession.connectBrowser(config, signal)
-      onMatchStarted?.(matchId)
-      return
-    }
-    const matchId = config.matchId
-      ? await greStore.resumeGame(config, signal)
-      : await greStore.startGame(config, signal)
+    const matchId = await greSession.connectBrowser(config, signal)
     onMatchStarted?.(matchId)
   }
 
   function leaveGame(): void {
     if (!onBackToPlay) {
+      return
+    }
+    if (
+      courseUnsaved &&
+      !window.confirm('This course result has not been saved. Leave without saving it?')
+    ) {
       return
     }
     setLeaveError(null)
@@ -202,32 +204,13 @@ export function GrePlay({
   }
 
   function restartGame(): void {
-    if (!onPlayAgain) {
+    if (!onPlayAgain || courseUnsaved) {
       return
     }
     setLaunchError(null)
     void Promise.resolve(onPlayAgain()).catch((error: unknown) => {
       setLaunchError(launchFailure(error, 'Could not restart the match'))
     })
-  }
-
-  function startBrowserFallback(): void {
-    if (!initialConfig) {
-      return
-    }
-    setBrowserFallbackError(null)
-    try {
-      if (currentBrowserPreflightFailure()) {
-        setBrowserFallbackError('Browser play is no longer available.')
-        return
-      }
-      const { seat1Deck, seat2Deck, deckId, gameType, returnPath } = initialConfig
-      greSession.startBrowser({ seat1Deck, seat2Deck, deckId, gameType, returnPath })
-    } catch (error) {
-      setBrowserFallbackError(
-        error instanceof Error ? error.message : 'Could not start the browser game',
-      )
-    }
   }
 
   useEffect(() => {
@@ -242,39 +225,11 @@ export function GrePlay({
       if (isAbortError(error)) {
         return
       }
-      if (greSession.fallbackBrowserToServer(initialConfig, error)) {
-        return
-      }
       setLaunchError(launchFailure(error, 'Could not start the match'))
     })
     return () => controller.abort()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoStart, initialConfig, launchKey, launchAttempt])
-
-  useEffect(() => {
-    if (
-      (launchError?.category !== 'capacity' && launchError?.category !== 'deployment') ||
-      !launchError.retryAfterSeconds
-    ) {
-      setRetryReady(true)
-      return
-    }
-    setRetryReady(false)
-    const timer = setTimeout(() => setRetryReady(true), launchError.retryAfterSeconds * 1000)
-    return () => clearTimeout(timer)
-  }, [launchError])
-
-  const canOfferBrowserFallback =
-    launchError?.category === 'capacity' &&
-    initialConfig?.execution !== 'browser' &&
-    !spectator &&
-    (initialConfig?.gameType === 'constructed' || initialConfig?.gameType === 'commander')
-
-  const browserFallbackReady = canOfferBrowserFallback && !currentBrowserPreflightFailure()
-
-  useEffect(() => {
-    setBrowserFallbackError(null)
-  }, [canOfferBrowserFallback])
+  }, [autoStart, initialConfig, launchKey])
 
   // Holds the latest values the two mount-only listener effects below need, so
   // registering them doesn't churn on every GRE message (they arrive at a high
@@ -307,34 +262,6 @@ export function GrePlay({
     gameOver: board.gameOver,
     canPass: board.canPass,
     zoneViewerOpen: visibleZoneViewer != null,
-  }
-
-  useEffect(() => {
-    function resumeCurrentMatch() {
-      const { autoStart: shouldAutoStart, initialConfig: config } = latest.current
-      if (!shouldAutoStart || !config?.matchId || document.visibilityState === 'hidden') {
-        return
-      }
-      if (config.execution === 'browser') {
-        return
-      }
-      resumeGreGame(config, setLaunchError)
-    }
-    document.addEventListener('visibilitychange', resumeCurrentMatch)
-    window.addEventListener('pageshow', resumeCurrentMatch)
-    window.addEventListener('focus', resumeCurrentMatch)
-    return () => {
-      document.removeEventListener('visibilitychange', resumeCurrentMatch)
-      window.removeEventListener('pageshow', resumeCurrentMatch)
-      window.removeEventListener('focus', resumeCurrentMatch)
-    }
-  }, [])
-
-  function resumeGame(config = initialConfig): void {
-    if (!config?.matchId) {
-      return
-    }
-    resumeGreGame(config, setLaunchError)
   }
 
   // Keyboard: Space = pass/resolve, E = pass turn. Ignored while typing or when
@@ -404,11 +331,7 @@ export function GrePlay({
   }, [boardInteractions])
 
   function startConfiguredGame(): void {
-    void startGreGame(
-      puzzle
-        ? { puzzle, gameType: 'puzzle' }
-        : { seat1Deck, seat2Deck, spectatorMode: spectator || undefined },
-    )
+    greSession.startBrowser({ seat1Deck, seat2Deck, gameType: 'constructed' })
   }
 
   function openZone(zoneTitle: string, source: ZoneViewerSource): void {
@@ -513,13 +436,6 @@ export function GrePlay({
           </section>
         )}
 
-        {executionFallback && !board.connected && !board.gameOver && (
-          <section className={styles.launchError} role="status">
-            <strong>Continuing on server</strong>
-            <p>{executionFallback}</p>
-          </section>
-        )}
-
         {browserPhase === 'lost' && (
           <section className={styles.launchError} role="alert">
             <strong>Local game ended</strong>
@@ -593,115 +509,23 @@ export function GrePlay({
 
         {launchError && (
           <section className={styles.launchError} role="alert">
-            <strong>
-              {launchError.category === 'deployment'
-                ? 'Forge is getting a quick update'
-                : launchError.category === 'capacity'
-                  ? 'All game slots are busy'
-                  : 'Match could not start'}
-            </strong>
+            <strong>Browser game could not start</strong>
             <p>{launchError.message}</p>
-            {browserFallbackReady && (
-              <p>
-                Play on this device instead. Refreshing or closing this tab ends a browser game.
-              </p>
-            )}
-            {browserFallbackError && <p role="status">{browserFallbackError}</p>}
             <div>
-              {browserFallbackReady && (
-                <button type="button" onClick={startBrowserFallback}>
-                  Start browser game
-                </button>
-              )}
-              <button
-                type="button"
-                disabled={!retryReady}
-                onClick={() => {
-                  if (initialConfig?.execution === 'browser') {
-                    restartGame()
-                    return
-                  }
-                  autoStartSent.current = null
-                  setLaunchAttempt((value) => value + 1)
-                }}
-              >
-                {initialConfig?.execution === 'browser'
-                  ? 'Retry in browser'
-                  : retryReady
-                    ? 'Try again'
-                    : 'Try again shortly'}
+              <button type="button" onClick={restartGame}>
+                Retry in browser
               </button>
-              {launchError.category === 'deployment' && <a href="/">Watch a game</a>}
               {onBackToPlay && (
                 <button type="button" onClick={leaveGame}>
                   Back to Play
                 </button>
               )}
-              {initialConfig?.execution === 'browser' && (
-                <a href={bugReport.url} target="_blank" rel="noreferrer" onClick={bugReport.onOpen}>
-                  Report a problem
-                </a>
-              )}
+              <a href={bugReport.url} target="_blank" rel="noreferrer" onClick={bugReport.onOpen}>
+                Report a problem
+              </a>
             </div>
           </section>
         )}
-
-        {autoStart &&
-          initialConfig?.matchId &&
-          initialConfig.execution !== 'browser' &&
-          !board.connected &&
-          board.status === 'closed' &&
-          !board.gameOver &&
-          !launchError &&
-          board.connectionClose?.category === 'transient' && (
-            <section className={styles.launchError} role="alert">
-              <strong>Connection lost</strong>
-              <p>Reconnect to check whether the match is still available.</p>
-              <div>
-                <button type="button" onClick={() => resumeGame()}>
-                  Reconnect
-                </button>
-              </div>
-            </section>
-          )}
-
-        {autoStart &&
-          initialConfig?.matchId &&
-          initialConfig.execution !== 'browser' &&
-          !board.connected &&
-          board.status === 'closed' &&
-          !board.gameOver &&
-          !launchError &&
-          board.connectionClose &&
-          board.connectionClose.category !== 'transient' && (
-            <section className={styles.launchError} role="alert">
-              <strong>
-                {board.connectionClose.category === 'terminated'
-                  ? 'Match ended unexpectedly'
-                  : board.connectionClose.category === 'completed'
-                    ? 'Match complete'
-                    : board.connectionClose.category === 'abandoned'
-                      ? 'Match ended'
-                      : 'Match unavailable'}
-              </strong>
-              <p>
-                {board.connectionClose.category === 'terminated'
-                  ? 'The game stopped and can’t be rejoined.'
-                  : board.connectionClose.category === 'completed'
-                    ? 'This game has ended.'
-                    : board.connectionClose.category === 'abandoned'
-                      ? 'This match was ended.'
-                      : 'This match can’t be rejoined.'}
-              </p>
-              {onBackToPlay && (
-                <div>
-                  <button type="button" onClick={leaveGame}>
-                    Back to Play
-                  </button>
-                </div>
-              )}
-            </section>
-          )}
 
         {showRecoveryNotice && browserPhase === 'active' && (
           <section className={styles.launchError} role="status">
@@ -744,6 +568,7 @@ export function GrePlay({
             }}
             onBackToPlay={onBackToPlay ? leaveGame : undefined}
             onPlayAgain={onPlayAgain ? restartGame : undefined}
+            playAgainDisabled={courseUnsaved}
             context={
               initialConfig?.label && initialConfig.objective
                 ? {
@@ -769,7 +594,35 @@ export function GrePlay({
                 : undefined
             }
             fullGameHref={fullGameHref}
-            outcomeExtra={outcomeExtra}
+            outcomeExtra={
+              <>
+                {initialConfig?.coursePlayId && board.gameOver && (
+                  <section role={courseError ? 'alert' : 'status'}>
+                    {courseResult ? (
+                      <p>
+                        Course result saved: {courseResult.wins} wins · {courseResult.losses}{' '}
+                        losses.
+                      </p>
+                    ) : courseOutcomeUnknown ? (
+                      <p>
+                        Course result is unavailable because the game outcome is unknown. No result
+                        has been saved.
+                      </p>
+                    ) : courseError ? (
+                      <>
+                        <p>{courseError}</p>
+                        <button type="button" onClick={() => setCourseRetry((n) => n + 1)}>
+                          Retry saving result
+                        </button>
+                      </>
+                    ) : (
+                      <p>Saving course result…</p>
+                    )}
+                  </section>
+                )}
+                {outcomeExtra}
+              </>
+            }
             bugReport={bugReport}
           />
         )}

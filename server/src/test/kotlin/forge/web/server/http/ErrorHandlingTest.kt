@@ -70,24 +70,6 @@ class ErrorHandlingTest {
     }
 
     @Test
-    fun `event sanitization drops routine Ktor ping timeouts`() {
-        val timeout =
-            IOException("Ping timeout").apply {
-                stackTrace =
-                    arrayOf(
-                        StackTraceElement(
-                            "io.ktor.websocket.DefaultWebSocketSessionImpl\$runOrCancelPinger\$1",
-                            "invokeSuspend",
-                            "PingPong.kt",
-                            1,
-                        ),
-                    )
-            }
-
-        assertNull(sanitizeServerErrorEvent(SentryEvent(timeout)))
-    }
-
-    @Test
     fun `event sanitization retains other IO failures`() {
         assertNotNull(sanitizeServerErrorEvent(SentryEvent(IOException("Connection reset"))))
         assertNotNull(sanitizeServerErrorEvent(SentryEvent(IOException("Ping timeout"))))

@@ -1,66 +1,64 @@
-import type { z } from 'zod'
-import {
-  DevPuzzleCandidateValidationResponseSchema,
-  PuzzleTrialResultSchema,
-} from '@shared/api/wire-schemas'
-import { readJson } from '@shared/api/decoding'
-import { apiFetch } from '@shared/api/client'
-import type { components } from '@shared/api/types'
+import { z } from 'zod'
+import { BrowserEngine } from '@engine/runtime/browser-engine'
 
-type Validation = components['schemas']['DevPuzzleCandidateValidationResponse']
-type Trial = components['schemas']['PuzzleTrialResult']
-type Request = (path: string, init?: RequestInit) => Promise<Response>
-const CANDIDATE_REQUEST_TIMEOUT_MS = 60_000
+const ValidationSchema = z.object({
+  status: z.enum(['Loaded', 'Invalid', 'Unsupported', 'EngineFailure']),
+  issues: z.array(z.string()).default([]),
+  name: z.string().nullish(),
+  goal: z.string().nullish(),
+  turns: z.number().nullish(),
+  inputCardCount: z.number().default(0),
+})
+export type CandidateValidation = z.output<typeof ValidationSchema>
+type Validate = (text: string) => Promise<unknown>
 type DraftState = {
   text: string
-  validated: Validation | null
-  trial: Trial | null
-  busy: 'validation' | 'trial' | null
+  validated: CandidateValidation | null
+  busy: boolean
   error: string | null
 }
 
-/** A draft revision owns its validation and trial results independently of live gameplay. */
+async function validateLocally(text: string): Promise<unknown> {
+  const engine = new BrowserEngine(() => {})
+  try {
+    return await engine.validatePuzzle(text)
+  } finally {
+    engine.dispose()
+  }
+}
+
+/** Each revision owns its local validation; edited text cannot inherit a late result. */
 export class CandidateDraft {
-  private state: DraftState = { text: '', validated: null, trial: null, busy: null, error: null }
+  private state: DraftState = { text: '', validated: null, busy: false, error: null }
   private revision = 0
   private listeners = new Set<() => void>()
-  private request: Request
-
-  constructor(request: Request = apiFetch) {
-    this.request = request
+  private readonly validateText: Validate
+  constructor(validateText: Validate = validateLocally) {
+    this.validateText = validateText
   }
-
   snapshot = (): DraftState => this.state
   subscribe = (listener: () => void): (() => void) => {
     this.listeners.add(listener)
     return () => this.listeners.delete(listener)
   }
-
   private publish(patch: Partial<DraftState>): void {
     this.state = { ...this.state, ...patch }
     for (const listener of this.listeners) {
       listener()
     }
   }
-
   edit(text: string): void {
-    this.revision += 1
-    this.publish({ text, validated: null, trial: null, busy: null, error: null })
+    this.revision++
+    this.publish({ text, validated: null, busy: false, error: null })
   }
-
   async validate(): Promise<void> {
     if (!this.state.text.trim() || this.state.busy) {
       return
     }
     const revision = this.revision
-    const text = this.state.text
-    this.publish({ busy: 'validation', validated: null, trial: null, error: null })
+    this.publish({ busy: true, validated: null, error: null })
     try {
-      const validated = await this.post(
-        '/api/dev/puzzle-candidates',
-        DevPuzzleCandidateValidationResponseSchema,
-        { text },
-      )
+      const validated = ValidationSchema.parse(await this.validateText(this.state.text))
       if (revision === this.revision) {
         this.publish({ validated })
       }
@@ -70,56 +68,9 @@ export class CandidateDraft {
       }
     } finally {
       if (revision === this.revision) {
-        this.publish({ busy: null })
+        this.publish({ busy: false })
       }
     }
-  }
-
-  async tryEngine(): Promise<void> {
-    const candidateId = this.state.validated?.candidateId
-    if (!candidateId || this.state.busy) {
-      return
-    }
-    const revision = this.revision
-    this.publish({ busy: 'trial', trial: null, error: null })
-    try {
-      const trial = await this.post(
-        `/api/dev/puzzle-candidates/${encodeURIComponent(candidateId)}/trial`,
-        PuzzleTrialResultSchema,
-      )
-      if (revision === this.revision) {
-        this.publish({ trial })
-      }
-    } catch (error) {
-      if (revision === this.revision) {
-        this.publish({ error: error instanceof Error ? error.message : String(error) })
-      }
-    } finally {
-      if (revision === this.revision) {
-        this.publish({ busy: null })
-      }
-    }
-  }
-
-  private async post<T extends z.ZodType>(
-    path: string,
-    schema: T,
-    body?: unknown,
-  ): Promise<z.output<T>> {
-    const response = await this.request(path, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      signal: AbortSignal.timeout(CANDIDATE_REQUEST_TIMEOUT_MS),
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-    })
-    if (!response.ok) {
-      throw new Error(
-        `Puzzle request failed (${response.status}). Validate again if this candidate expired.`,
-      )
-    }
-    return readJson(response, schema)
   }
 }
-
-/** Keep the current draft and trial visible when returning from its match. */
 export const candidateDraft = new CandidateDraft()

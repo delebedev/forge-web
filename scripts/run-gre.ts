@@ -1,5 +1,5 @@
 /**
- * Runs the GRE acceptance suite against its own Leyline and Vite instances.
+ * Runs the GRE acceptance suite against its own product API and Vite instances.
  *
  * Extra arguments pass through to Playwright, so a single scenario is
  * `bun run gre -- -g "concede shows GRE defeat outcome"`.

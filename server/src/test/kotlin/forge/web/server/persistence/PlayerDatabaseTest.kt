@@ -54,7 +54,7 @@ class PlayerDatabaseTest {
         }
 
         assertTrue(stateDir.isDirectory)
-        assertEquals(listOf("1", "2", "3", "4", "5", "6"), migrationVersions(path.file))
+        assertEquals(listOf("1", "2", "3", "4", "5", "6", "7"), migrationVersions(path.file))
         assertTrue(queryPlan(path.file, "SELECT * FROM decks WHERE player_id = 'p'").contains("USING INDEX decks_player_id"))
         PlayerDatabase.open(path).use { reopened ->
             reopened.playerStore.bindCardCatalog(testCards())
@@ -147,7 +147,7 @@ class PlayerDatabaseTest {
     fun `failed migration rolls back and corrected migration recovers`() {
         val file = File(tempDirectory("failed-migration"), "player.db")
         val migrations = tempDirectory("migration-scripts")
-        val migration = File(migrations, "V7__probe.sql")
+        val migration = File(migrations, "V8__probe.sql")
         migration.writeText("CREATE TABLE migration_probe (id INT); INSERT INTO migration_probe VALUES (1); BROKEN SQL;")
         val locations = arrayOf("classpath:db/migration", "filesystem:${migrations.absolutePath}")
 
