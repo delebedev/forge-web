@@ -253,7 +253,7 @@ test('replay acknowledgement waits for the successful response body', async () =
     const response = new Response(firstUpload ? body : null)
     firstUpload = false
     return response
-  }) as typeof fetch)
+  }) as unknown as typeof fetch)
   try {
     const pending = streamer.flush()
     await new Promise((resolve) => setTimeout(resolve, 0))
