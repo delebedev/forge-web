@@ -1,6 +1,12 @@
 import { expect, test } from 'bun:test'
 import { GreDispatch } from '@engine/runtime/gre-dispatch'
-import { dispatchHost, promptHarness, bindingFor, decodeGre } from './prompt-test-harness'
+import {
+  dispatchHost,
+  promptHarness,
+  encodedPromptHarness,
+  bindingFor,
+  decodeGre,
+} from './prompt-test-harness'
 import { buildGreWrapper, enumValue } from '@engine/wire/gre-proto'
 import type { GreTables, ProtoObject } from '@engine/state/gre-state'
 const search = (msgId = 1) => ({
@@ -214,3 +220,65 @@ for (const [ownerSeatId, heading] of [
     expect(bindingFor(owner, 'search').view.message).toBe(heading)
   })
 }
+
+for (const [ownerSeatId, ownerLabel] of [
+  [1, 'your '],
+  [2, "opponent's "],
+  [0, ''],
+] as const) {
+  for (const [zoneTypes, label] of [
+    [[1, 5], 'library and graveyard'],
+    [[5], 'graveyard'],
+  ] as const) {
+    test(`search heading names ${label} with owner ${ownerSeatId}`, async () => {
+      const { owner, tables } = promptHarness()
+      const zonesToSearch = zoneTypes.map((type, index) => {
+        const zoneId = 22 + index
+        tables.zones.set(zoneId, { zoneId, type, ownerSeatId, objectInstanceIds: [] })
+        return zoneId
+      })
+      owner.applyFamilyRequest({
+        type: await enumValue('GREMessageType', 'SearchReq_695e'),
+        msgId: 1,
+        gameStateId: 10,
+        searchReq: { zonesToSearch, itemsToSearch: [101], itemsSought: [101], maxFind: 1 },
+      })
+      expect(bindingFor(owner, 'search').view.message).toBe(`Search ${ownerLabel}${label}`)
+    })
+  }
+}
+
+test('a mixed-zone search selects a graveyard candidate and sends its exact identity', async () => {
+  const { owner, tables, sent } = encodedPromptHarness()
+  tables.zones.set(22, { zoneId: 22, type: 1, ownerSeatId: 1, objectInstanceIds: [101] })
+  tables.zones.set(23, { zoneId: 23, type: 5, ownerSeatId: 1, objectInstanceIds: [102] })
+  tables.objects.set(101, { instanceId: 101, grpId: 201, zoneId: 22 })
+  tables.objects.set(102, { instanceId: 102, grpId: 202, zoneId: 23 })
+  owner.applyFamilyRequest({
+    type: await enumValue('GREMessageType', 'SearchReq_695e'),
+    msgId: 17,
+    gameStateId: 23,
+    searchReq: {
+      zonesToSearch: [22, 23],
+      itemsToSearch: [101, 102],
+      itemsSought: [101, 102],
+      minFind: 1,
+      maxFind: 1,
+    },
+  })
+  const binding = bindingFor(owner, 'search')
+  expect(binding.view.message).toBe('Search your library and graveyard')
+  expect(binding.view.searchCandidates).toMatchObject([
+    { instanceId: 101, zoneType: 1, sought: true, selected: false },
+    { instanceId: 102, zoneType: 5, sought: true, selected: false },
+  ])
+  expect(binding.controls.toggle(102)).toBe(true)
+  expect(bindingFor(owner, 'search').view.searchCandidates[1]?.selected).toBe(true)
+  expect(await binding.controls.submit()).toBe(true)
+  expect(sent).toHaveLength(1)
+  expect(await decodeGre(sent[0])).toMatchObject({
+    gameStateId: 23,
+    respId: 17,
+    searchResp: { itemsFound: [102] },
+  })
+})
