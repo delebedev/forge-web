@@ -69,6 +69,9 @@ internal data class WebServices(
         StaticData.instance().commonCards.getCard(name)?.rules?.canBeCommander() == true
     },
     val commanderProblem: (DeckCards) -> String? = { deck -> commanderDeckProblem(cardRepository, deck) },
+    val validateCopies: (DeckCards, forge.deck.DeckFormat) -> Unit = { deck, format ->
+        forge.web.server.cards.validateDeckCopies(cardRepository, deck, format)
+    },
     val cardImages: CardImageIndex = CardImageIndex.empty(),
     val matchLauncher: WebMatchLauncher,
     val authService: WebAuthService,
@@ -172,9 +175,22 @@ internal fun Application.installHttpApplication(services: WebServices) {
                 response<CollectionView>()
                 empty(401, 403)
             }
-            installCardRoutes(services.cardRepository, services.cardImages, services.canBeCommander, services.commanderProblem)
+            installCardRoutes(
+                services.cardRepository,
+                services.cardImages,
+                services.canBeCommander,
+                services.commanderProblem,
+                services.validateCopies,
+            )
             installCourseRoutes(services.authService, services.courseService)
-            installDeckRoutes(services.authService, savedDecks, services.cardRepository, services.canBeCommander, services.commanderProblem)
+            installDeckRoutes(
+                services.authService,
+                savedDecks,
+                services.cardRepository,
+                services.canBeCommander,
+                services.commanderProblem,
+                services.validateCopies,
+            )
             installLimitedRoutes(
                 services.authService,
                 services.draftService,

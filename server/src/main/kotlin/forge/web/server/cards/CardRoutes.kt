@@ -28,6 +28,7 @@ internal fun Route.installCardRoutes(
     cardImages: CardImageIndex,
     canBeCommander: (String) -> Boolean,
     commanderProblem: (DeckCards) -> String?,
+    validateCopies: (DeckCards, forge.deck.DeckFormat) -> Unit,
 ) {
     route("/cards") {
         get("/metadata") {
@@ -75,6 +76,7 @@ internal fun Route.installCardRoutes(
                     else -> throw leyline.domain.deck.DecklistException(listOf("Unsupported game format."))
                 }
             validateCommanderCards(cardRepository, cards, canBeCommander, commanderRequired, commanderProblem)
+            validateCopies(cards, deckCopyFormat(request.gameType ?: if (cards.commandZone.isNotEmpty()) "commander" else null))
             call.respond(HttpStatusCode.NoContent)
         }.contract {
             request<ValidateDecklistRequest>()

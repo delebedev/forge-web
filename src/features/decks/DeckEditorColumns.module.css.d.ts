@@ -1,5 +1,6 @@
 declare const styles: {
   readonly "cardEntry": string
+  readonly "cardRow": string
   readonly "cardStack": string
   readonly "cmcCol": string
   readonly "cmcColumns": string
@@ -16,7 +17,8 @@ declare const styles: {
   readonly "landPill": string
   readonly "landPip": string
   readonly "landX": string
-  readonly "warn": string
+  readonly "sectionNote": string
+  readonly "sectionTabs": string
 }
 
 export default styles

@@ -1,14 +1,9 @@
-/**
- * `DeckEditor`'s left pane: mainboard grouped by CMC, plus the basic-land
- * adjuster row. Split out of `DeckEditor.tsx` to keep both files under the
- * file-size budget.
- */
+/** The selected deck section, card movement, and basic-land controls. */
 
 import { parseManaSymbols } from '@shared/cards/mana'
 import {
   LAND_COLORS,
   LAND_PIPS,
-  quantityWarning,
   type CmcBucket,
   type LandName,
   type BasicLandCounts,
@@ -18,10 +13,17 @@ import { cx } from '@shared/react/cx'
 import styles from './DeckEditorColumns.module.css'
 
 import type { LibraryCard } from './deck-value'
+import type { EditableSection } from './deck-editing'
+import { Button } from '@shared/ui/Button'
 
 export function DeckEditorColumns({
   cmcGroups,
   mainboard,
+  section,
+  mainCount,
+  sideCount,
+  onSectionChange,
+  onMoveCard,
   landCounts,
   onRemoveCard,
   onIncrementLand,
@@ -31,6 +33,11 @@ export function DeckEditorColumns({
 }: {
   cmcGroups: CmcBucket[]
   mainboard: LibraryCard[]
+  section: EditableSection
+  mainCount: number
+  sideCount: number
+  onSectionChange: (section: EditableSection) => void
+  onMoveCard: (grpId: number) => void
   landCounts: BasicLandCounts
   onRemoveCard: (grpId: number) => void
   onIncrementLand: (land: LandName) => void
@@ -40,6 +47,29 @@ export function DeckEditorColumns({
 }) {
   return (
     <div className={styles.deckContents}>
+      <div className={styles.sectionTabs} role="group" aria-label="Deck section">
+        <Button
+          size="compact"
+          variant={section === 'mainboard' ? 'primary' : 'secondary'}
+          aria-pressed={section === 'mainboard'}
+          onClick={() => onSectionChange('mainboard')}
+        >
+          Main deck ({mainCount})
+        </Button>
+        <Button
+          size="compact"
+          variant={section === 'sideboard' ? 'primary' : 'secondary'}
+          aria-pressed={section === 'sideboard'}
+          onClick={() => onSectionChange('sideboard')}
+        >
+          Sideboard ({sideCount})
+        </Button>
+      </div>
+      {section === 'sideboard' && (
+        <p className={styles.sectionNote}>
+          Sideboard cards are saved with your deck. Games start with the main deck.
+        </p>
+      )}
       <div className={styles.cmcColumns}>
         {cmcGroups.map((group) => (
           <div key={group.key} className={styles.cmcCol}>
@@ -53,33 +83,35 @@ export function DeckEditorColumns({
                 if (!entry) {
                   return null
                 }
-                const quantity = mainboard
-                  .filter((card) => card.name === entry.name)
-                  .reduce((sum, card) => sum + card.quantity, 0)
-                const warn = quantityWarning(quantity, entry.name)
                 return (
-                  <button
-                    key={card.grpId}
-                    className={cx(styles.cardEntry, warn && styles.warn)}
-                    type="button"
-                    onClick={() => onRemoveCard(entry.grpId)}
-                    onMouseEnter={(e) =>
-                      onCardHover(card, e.currentTarget.getBoundingClientRect().top)
-                    }
-                    onMouseLeave={onCardLeave}
-                  >
-                    <span className={styles.entryName}>{card.name}</span>
-                    <span className={styles.entryMana}>
-                      {parseManaSymbols(card.manaCost ?? '').map((sym, i) => (
-                        <i key={i} className={sym.classes} title={sym.label} />
-                      ))}
-                    </span>
-                    {entry.quantity > 1 && (
-                      <span className={cx(styles.entryQty, warn && styles.warn)}>
-                        x{entry.quantity}
+                  <div key={card.grpId} className={styles.cardRow}>
+                    <button
+                      className={styles.cardEntry}
+                      type="button"
+                      aria-label={`Remove one ${entry.name}`}
+                      onClick={() => onRemoveCard(entry.grpId)}
+                      onMouseEnter={(e) =>
+                        onCardHover(card, e.currentTarget.getBoundingClientRect().top)
+                      }
+                      onMouseLeave={onCardLeave}
+                    >
+                      <span className={styles.entryName}>{card.name}</span>
+                      <span className={styles.entryMana}>
+                        {parseManaSymbols(card.manaCost ?? '').map((sym, i) => (
+                          <i key={i} className={sym.classes} title={sym.label} />
+                        ))}
                       </span>
-                    )}
-                  </button>
+                      <span className={styles.entryQty}>x{entry.quantity}</span>
+                    </button>
+                    <Button
+                      size="compact"
+                      variant="secondary"
+                      aria-label={`Move one ${entry.name} to ${section === 'mainboard' ? 'sideboard' : 'main deck'}`}
+                      onClick={() => onMoveCard(entry.grpId)}
+                    >
+                      → {section === 'mainboard' ? 'Sideboard' : 'Main'}
+                    </Button>
+                  </div>
                 )
               })}
             </div>

@@ -21,8 +21,10 @@ caching of complete card values. List loading deduplicates identities across
 decks and loads bounded batches serially. Known imported metadata remains
 available through lookup failures, and late requests preserve newer fields. The shared import dialog still owns parsing, commander selection, and
 validation. Both import entry points hand its resolved values to the same
-library. The editor preserves sideboard and commander cards while changing the
-main section. Basic-land controls reuse an existing identity or resolve a new
+library. The editor changes the main section and sideboard while preserving
+commander cards. Moving a copy retains its identity and quantity. Saving checks
+combined copy limits through Forge without requiring a complete deck.
+Basic-land controls reuse an existing identity or resolve a new
 one explicitly; saving waits for outstanding additions.
 
 The store observes authentication changes synchronously. Changing account or
