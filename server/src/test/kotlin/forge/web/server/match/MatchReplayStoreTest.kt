@@ -44,6 +44,53 @@ import kotlin.test.assertTrue
 
 class MatchReplayStoreTest {
     @Test
+    fun `limited browser chunks and full uploads preserve format and authenticated owner`() {
+        for (format in listOf("draft", "sealed")) {
+            val root = Files.createTempDirectory("browser-limited-$format").toFile()
+            val store = MatchReplayStore(config(root), testCards(), "abc1234")
+            val bundle = browserBundle(format)
+            val bytes = Json.encodeToString(ReplayBundle.serializer(), bundle).toByteArray()
+
+            assertEquals(1, store.ingestBrowserChunk("account-1", bundle.matchId, 0, bytes))
+            assertEquals(format, assertNotNull(store.export(bundle.matchId)).context?.gameType)
+            assertFailsWith<IllegalArgumentException> {
+                store.ingestBrowser("account-2", bundle.matchId, "${bundle.matchId}:full", bytes)
+            }
+            assertTrue(store.ingestBrowser("account-1", bundle.matchId, "${bundle.matchId}:full", bytes))
+
+            val retained = assertNotNull(MatchReplayStore(config(root), testCards(), "abc1234").export(bundle.matchId))
+            assertEquals("account-1", retained.context?.accountId)
+            assertEquals(format, retained.context?.gameType)
+            assertEquals(listOf(1L), retained.events.map { it.seq })
+            assertEquals(bundle.batches, retained.batches)
+            assertTrue(retained.status.complete)
+        }
+    }
+
+    @Test
+    fun `browser replay uploads reject unsupported formats`() {
+        val root = Files.createTempDirectory("browser-invalid-format").toFile()
+        val store = MatchReplayStore(config(root), testCards(), "abc1234")
+        for (format in listOf("puzzle", "brawl", "oathbreaker", "unknown", "", null)) {
+            val bundle = browserBundle(format)
+            val bytes = Json.encodeToString(ReplayBundle.serializer(), bundle).toByteArray()
+            assertEquals(
+                "Invalid replay format",
+                assertFailsWith<IllegalArgumentException> {
+                    store.ingestBrowserChunk("account-1", bundle.matchId, 0, bytes)
+                }.message,
+            )
+            assertEquals(
+                "Invalid replay format",
+                assertFailsWith<IllegalArgumentException> {
+                    store.ingestBrowser("account-1", bundle.matchId, "${bundle.matchId}:full", bytes)
+                }.message,
+            )
+            assertNull(store.export(bundle.matchId))
+        }
+    }
+
+    @Test
     fun `browser chunks persist during play and retry without duplicating events`() {
         val root = Files.createTempDirectory("browser-chunks").toFile()
         val store = MatchReplayStore(config(root), testCards(), "abc1234")
@@ -391,6 +438,29 @@ class MatchReplayStoreTest {
             assertEquals(HttpStatusCode.OK, response.status)
             assertEquals("no-store", response.headers[HttpHeaders.CacheControl])
         }
+
+    private fun browserBundle(format: String?) =
+        ReplayBundle(
+            version = 2,
+            label = "Browser match",
+            source = "forge-web-browser",
+            viewerSeatId = 1,
+            matchId = "browser-11111111-1111-4111-8111-111111111111",
+            release = "frontend-1",
+            batches = listOf(ReplayBatch(listOf(JsonObject(mapOf("type" to JsonPrimitive(1)))))),
+            cards = emptyMap(),
+            responses = emptyList(),
+            events = listOf(ReplayEvent(1, 0, "inbound", 1, 0)),
+            status = ReplayStatus(true, "completed", false),
+            context =
+                BrowserReplayContext(
+                    execution = "browser",
+                    attemptId = "22222222-2222-4222-8222-222222222222",
+                    matchId = "browser-11111111-1111-4111-8111-111111111111",
+                    gameType = format,
+                    accountId = "untrusted-account",
+                ),
+        )
 
     private fun config(
         root: java.io.File,

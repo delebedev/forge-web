@@ -161,7 +161,7 @@ internal class MatchReplayStore(
         require(context.execution == "browser") { "Invalid replay execution" }
         require(context.matchId == matchId && submitted.matchId == matchId) { "Replay match identity mismatch" }
         require(context.attemptId?.matches(UUID) == true) { "Invalid replay attempt identity" }
-        require(context.gameType in setOf("constructed", "commander")) { "Invalid replay format" }
+        require(context.gameType in BROWSER_REPLAY_FORMATS) { "Invalid replay format" }
         require(submitted.batches.size <= 50_000 && submitted.events.size <= 100_000) { "Replay is too complex" }
         submitted.status.reportId?.let {
             require(artifactId == "$matchId:$it") { "Replay report identity mismatch" }
@@ -207,7 +207,7 @@ internal class MatchReplayStore(
         require(chunk.source == "forge-web-browser" && context.execution == "browser") { "Invalid replay source" }
         require(context.matchId == matchId && chunk.matchId == matchId) { "Replay match identity mismatch" }
         require(context.attemptId?.matches(UUID) == true) { "Invalid replay attempt identity" }
-        require(context.gameType in setOf("constructed", "commander")) { "Invalid replay format" }
+        require(context.gameType in BROWSER_REPLAY_FORMATS) { "Invalid replay format" }
         require(chunk.events.size <= 10_000 && chunk.batches.size <= 10_000) { "Replay chunk is too complex" }
         require(chunk.events.withIndex().all { (index, event) -> event.seq == afterSeq + index + 1 }) {
             "Replay chunk sequence is not contiguous"
@@ -823,6 +823,7 @@ private fun matchId(file: File): String? =
     }
 
 private val MATCH_ID = Regex("[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
+private val BROWSER_REPLAY_FORMATS = setOf("constructed", "commander", "draft", "sealed")
 private val UUID = Regex("[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}", RegexOption.IGNORE_CASE)
 private val BROWSER_MATCH_ID = Regex("browser-${UUID.pattern}", RegexOption.IGNORE_CASE)
 private val REPORT_ID = Regex("[A-Za-z0-9][A-Za-z0-9._:-]{0,99}")
