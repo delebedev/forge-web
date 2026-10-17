@@ -32,8 +32,8 @@ class CoursePlayServiceTest {
             val fixture = fixture(database)
             prepare(fixture.courses)
             val play = fixture.plays.launch(owner, event)
-            assertEquals("40 Mountain", play.seat1Deck)
-            assertEquals("40 Mountain", play.seat2Deck)
+            assertEquals("[Deck]\n40 Mountain\n[Sideboard]", play.seat1Deck)
+            assertEquals("[Deck]\n40 Mountain\n[Sideboard]", play.seat2Deck)
             assertEquals(play, fixture.plays.launch(owner, event))
             assertEquals(1, fixture.plays.report(owner, play.coursePlayId, true).wins)
             assertEquals(1, fixture.plays.report(owner, play.coursePlayId, true).wins)
@@ -88,10 +88,38 @@ class CoursePlayServiceTest {
             )
             val current = fixture.plays.launch(owner, event)
             assertNotEquals(old.coursePlayId, current.coursePlayId)
-            assertEquals("36 Mountain\n4 Lightning Bolt", current.seat1Deck)
+            assertEquals("[Deck]\n36 Mountain\n4 Lightning Bolt\n[Sideboard]", current.seat1Deck)
             assertFailsWith<IllegalArgumentException> { fixture.plays.report(owner, old.coursePlayId, true) }
             assertEquals(0, fixture.courses.getCourse(owner, event)?.wins)
             assertEquals(1, fixture.plays.report(owner, current.coursePlayId, true).wins)
+        }
+    }
+
+    @Test
+    fun `both launch decks retain sideboards and a sideboard edit retires its receipt`() {
+        database().use { database ->
+            val fixture = fixture(database)
+            prepare(fixture.courses)
+            val id = DeckId("sideboard-deck")
+
+            fun submit(quantity: Int) {
+                fixture.courses.setDeck(
+                    owner,
+                    event,
+                    CourseDeck(id, listOf(DeckCard(1, 40)), listOf(DeckCard(2, quantity))),
+                    CourseDeckSummary(id, "Draft deck", 1, "Limited"),
+                )
+            }
+            submit(1)
+            val old = fixture.plays.launch(owner, event)
+            assertEquals("[Deck]\n40 Mountain\n[Sideboard]\n1 Lightning Bolt", old.seat1Deck)
+            assertEquals(old.seat1Deck, old.seat2Deck)
+            submit(2)
+            val current = fixture.plays.launch(owner, event)
+            assertEquals("[Deck]\n40 Mountain\n[Sideboard]\n2 Lightning Bolt", current.seat1Deck)
+            assertNotEquals(old.coursePlayId, current.coursePlayId)
+            assertFailsWith<IllegalArgumentException> { fixture.plays.report(owner, old.coursePlayId, true) }
+            assertEquals(0, fixture.courses.getCourse(owner, event)?.wins)
         }
     }
 

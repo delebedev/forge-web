@@ -49,7 +49,8 @@
     "seo:check": "bun scripts/check-seo.ts",
     "api:check": "node scripts/generate-web-openapi.mjs --check && bun scripts/check-web-contract.ts",
     "chromatic": "chromatic",
-    "build:ci": "bun run challenge:manifest:check && bun run css:types:check && vite build"
+    "build:ci": "bun run challenge:manifest:check && bun run css:types:check && vite build",
+    "challenge:saved:check": "bun scripts/check-saved-challenges.ts"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.12.1",

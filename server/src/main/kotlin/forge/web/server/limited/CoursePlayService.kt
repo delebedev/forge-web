@@ -93,7 +93,21 @@ internal class CoursePlayService(
     }
 
     private fun deckText(deck: DeckCards): String =
-        deck.mainDeck.joinToString("\n") { card ->
-            "${card.quantity} ${requireNotNull(cards.findNameByGrpId(card.grpId)) { "Course card is unavailable" }}"
+        buildString {
+            fun section(
+                name: String,
+                entries: List<leyline.domain.DeckCard>,
+            ) {
+                if (isNotEmpty()) append('\n')
+                append("[$name]")
+                for (card in entries) {
+                    append('\n')
+                    append(card.quantity)
+                    append(' ')
+                    append(requireNotNull(cards.findNameByGrpId(card.grpId)) { "Course card is unavailable" })
+                }
+            }
+            section("Deck", deck.mainDeck)
+            section("Sideboard", deck.sideboard)
         }
 }

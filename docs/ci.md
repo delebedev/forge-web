@@ -39,7 +39,7 @@ catalog-only configuration.
 
 Browser Local combines the validated Java 17 assets with the UI job's tested
 frontend distribution for the generated
-puzzle journey and one bundled combat puzzle. The complete bundled challenge
+saved-puzzle read/play/rating journey and one bundled combat puzzle. The complete bundled challenge
 sweep, daily completion, retry, load recovery and phone checks run in extended
 qualification.
 

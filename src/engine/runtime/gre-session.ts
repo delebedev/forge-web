@@ -511,7 +511,7 @@ export class GreSessionStore {
   }
 
   playAgain(): Promise<boolean> {
-    return this.transition(!this.config?.coursePlayId)
+    return this.transition(!this.config?.coursePlayId || !greStore.gameOver)
   }
   leave(): Promise<boolean> {
     return this.transition(false)

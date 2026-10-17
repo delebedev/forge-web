@@ -596,3 +596,68 @@ it('restores a refreshed browser match as lost instead of starting it again', ()
     }
   }
 })
+
+it('course startup and refresh retry locally with the same receipt, while completed play returns to the course', async () => {
+  const previousStorage = Object.getOwnPropertyDescriptor(globalThis, 'sessionStorage')
+  const values = new Map<string, string>()
+  Object.defineProperty(globalThis, 'sessionStorage', {
+    configurable: true,
+    value: {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => values.set(key, value),
+      removeItem: (key: string) => values.delete(key),
+    },
+  })
+  const navigate = spyOn(router, 'reactNavigate').mockImplementation(() => {})
+  try {
+    for (const failure of ['startup', 'refresh']) {
+      const session = new GreSessionStore(null, () => {
+        throw new Error('Worker unavailable')
+      })
+      session.startBrowser(
+        {
+          gameType: 'draft',
+          coursePlayId: 'pending-receipt',
+          seat1Deck: '40 Mountain',
+          seat2Deck: '40 Forest',
+          returnPath: '/play/limited',
+          seed: 42,
+        },
+        false,
+      )
+      const first = session.config!
+      if (failure === 'startup') {
+        expect(await session.connectBrowser(first).catch((error: unknown) => error)).toMatchObject({
+          message: 'Worker unavailable',
+        })
+        expect(session.snapshot().browserPhase).toBe('failed')
+      } else {
+        session.reload()
+        expect(session.snapshot().browserPhase).toBe('lost')
+      }
+      expect(await session.playAgain()).toBe(true)
+      expect(session.config).toMatchObject({
+        coursePlayId: 'pending-receipt',
+        seat1Deck: '40 Mountain',
+        seat2Deck: '40 Forest',
+      })
+      expect(session.config!.matchId).not.toBe(first.matchId)
+      expect(session.snapshot().browserPhase).toBe('idle')
+      Object.defineProperty(greStore, 'gameOver', { configurable: true, value: true })
+      try {
+        expect(await session.playAgain()).toBe(true)
+        expect(session.config).toBeNull()
+        expect(navigate).toHaveBeenLastCalledWith('/play/limited')
+      } finally {
+        Reflect.deleteProperty(greStore, 'gameOver')
+      }
+    }
+  } finally {
+    navigate.mockRestore()
+    if (previousStorage) {
+      Object.defineProperty(globalThis, 'sessionStorage', previousStorage)
+    } else {
+      Reflect.deleteProperty(globalThis, 'sessionStorage')
+    }
+  }
+})

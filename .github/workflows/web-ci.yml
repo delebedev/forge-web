@@ -246,7 +246,7 @@ jobs:
       - name: Install browser
         run: bun x --bun playwright install --with-deps chromium
       - name: Run Browser Local smoke
-        run: python3 scripts/ci-measure.py browser-local bash -eo pipefail -c 'set -o pipefail; mkdir -p browser-smoke-output; timeout 8m bun run challenge:generated:check 2>&1 | tee browser-smoke-output/smoke.log; timeout 4m bun run challenge:browser:check --smoke 2>&1 | tee browser-smoke-output/curated.log'
+        run: python3 scripts/ci-measure.py browser-local bash -eo pipefail -c 'set -o pipefail; mkdir -p browser-smoke-output; timeout 8m bun run challenge:saved:check 2>&1 | tee browser-smoke-output/smoke.log; timeout 4m bun run challenge:browser:check --smoke 2>&1 | tee browser-smoke-output/curated.log'
       - name: Collect runner memory
         if: ${{ !cancelled() }}
         run: |

@@ -34,6 +34,14 @@ class BrowserDecksTest {
     }
 
     @Test
+    fun `realizes both sections of a local course launch`() {
+        val deck = BrowserDecks.validate("[Deck]\n40 Mountain\n[Sideboard]\n2 Lightning Bolt")
+        assertEquals(40, deck.get(DeckSection.Main).countAll())
+        assertEquals(2, deck.get(DeckSection.Sideboard).countAll())
+        assertEquals("Lightning Bolt", deck.get(DeckSection.Sideboard).toFlatList().first().name)
+    }
+
+    @Test
     fun `rejects blank and all-sideboard decks`() {
         assertContains(assertFailsWith<IllegalArgumentException> { BrowserDecks.validate("  \n") }.message.orEmpty(), "blank")
         assertContains(

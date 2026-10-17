@@ -15,7 +15,7 @@ export type BugReportContext = {
   closeCategory?: GreCloseCategory
   closeCode?: number
   connectionStatus?: 'connected' | 'disconnected'
-  execution?: 'server' | 'browser'
+  execution?: 'browser'
   attemptId?: string
   frontendBuild?: string
   engineBuild?: string

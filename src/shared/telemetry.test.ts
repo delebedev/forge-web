@@ -104,7 +104,7 @@ test('account changes replace native identity and custom event attribution', () 
   trackGameStart({ mode: 'play', gameType: 'constructed', matchId: 'match-1' })
   setAnalyticsAccountId('account-2')
   setAnalyticsAccountId(null)
-  trackGameStart({ mode: 'watch', gameType: 'spectator', matchId: 'match-2' })
+  trackGameStart({ mode: 'play', gameType: 'constructed', matchId: 'match-2' })
 
   expect(identities).toEqual(['account-1', 'account-2', ''])
   expect(events[0]?.data).toMatchObject({ account_id: 'account-1' })

@@ -164,10 +164,10 @@ test('generic errors retain capture-time match context and exit clears the repor
       execution: 'browser',
       engine_build: 'engine-build',
     })
-    setReportingContext({ match_id: 'second', execution: 'server' })
+    setReportingContext({ match_id: 'second', execution: 'browser' })
     expect(Sentry.getIsolationScope().getScopeData().tags).toMatchObject({
       match_id: 'second',
-      execution: 'server',
+      execution: 'browser',
     })
     expect(Sentry.getIsolationScope().getScopeData().tags['engine_build']).toBeUndefined()
     expect(sanitizeReportingEvent(firstEvent).tags?.['match_id']).toBe('first')
@@ -188,7 +188,7 @@ test('gameplay diagnostics retain the original cause once without inventing a tr
     reportGreFailure(error, context)
     expect(capture).toHaveBeenCalledTimes(1)
     expect(capture.mock.calls[0]?.[0]).toBe(error)
-    reportGreFailure(undefined, { ...context, phase: 'transport', execution: 'server' })
+    reportGreFailure(undefined, { ...context, phase: 'transport', execution: 'browser' })
     expect(capture).toHaveBeenCalledTimes(1)
     expect(message).toHaveBeenCalledTimes(1)
   } finally {
@@ -214,7 +214,7 @@ test('late reports for a retired match cannot borrow replacement match versions'
     return 'event'
   })
   try {
-    reportGreFailure(undefined, { phase: 'transport', execution: 'server', matchId: 'old' })
+    reportGreFailure(undefined, { phase: 'transport', execution: 'browser', matchId: 'old' })
     expect(tags['match_id']).toBe('old')
     expect(tags['engine_build']).toBeUndefined()
     expect(tags['replay_ack_seq']).toBeUndefined()
