@@ -74,6 +74,7 @@ fun main(args: Array<String>) {
 }
 
 internal fun Application.installServer(services: WebServices) {
+    monitor.subscribe(ApplicationStopped) { services.replayStore?.close() }
     installHttpApplication(services)
 }
 
