@@ -20,6 +20,7 @@ import forge.web.server.match.developmentChallenges
 import forge.web.server.match.emptyChallenges
 import forge.web.server.persistence.PlayerDatabase
 import io.ktor.server.application.Application
+import io.ktor.server.application.ApplicationStarted
 import io.ktor.server.application.ApplicationStopped
 import io.ktor.server.application.install
 import io.ktor.server.engine.embeddedServer
@@ -74,6 +75,7 @@ fun main(args: Array<String>) {
 }
 
 internal fun Application.installServer(services: WebServices) {
+    monitor.subscribe(ApplicationStarted) { services.replayStore?.startMaintenance() }
     monitor.subscribe(ApplicationStopped) { services.replayStore?.close() }
     installHttpApplication(services)
 }

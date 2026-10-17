@@ -39,13 +39,20 @@ days. Both periods and the 512 MiB total / 32 MiB per-match bounds are
 server-configurable.
 
 Replay storage has one dedicated worker for uploads, operator reads, pinning and
-hourly retention maintenance. Requests suspend while it works, with at most eight
-admitted operations. Saturation returns HTTP 503 with `Retry-After: 10` rather
+retention maintenance. Requests suspend while it works, with at most eight
+admitted requests. Saturation returns HTTP 503 with `Retry-After: 10` rather
 than blocking product HTTP threads. Uploads account for replay, metadata and pin
 growth together without scanning or compacting other journals. Exhausted quota
 rejects delivery explicitly and never evicts a retained or pinned replay.
-Maintenance reconciles on-disk usage in one linear sweep and compacts at most
-16 historical journals per pass. Health reads the last published byte count
+Browser snapshots are gzip-compressed at rest; the per-match limit applies to
+decoded JSON, while total quota counts stored bytes including metadata and pins.
+Operator exports remain ordinary JSON. Plain snapshots remain readable and are
+migrated by maintenance without changing their retention age.
+Maintenance starts in the background at application startup, reconciles on-disk
+usage in one linear sweep and compacts at most 16 journals per pass. While a
+migration backlog remains, passes yield for one second; otherwise they run hourly.
+Unreadable pins preserve their journals rather than permitting expiry. Failed
+replay removal preserves its pin and retention metadata. Health reads the last published byte count
 without joining the worker. The replay directory is exclusively server-owned;
 external changes are reflected at startup or the next maintenance pass.
 
