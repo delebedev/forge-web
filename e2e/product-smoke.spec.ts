@@ -1,8 +1,8 @@
 import type { Page } from '@playwright/test'
 import type { components } from '../src/shared/api/types'
-import { readFileSync } from 'node:fs'
 import { expect, test } from './gre-test'
 import { dailyBrowserChallengePath } from '../src/features/challenges/browser-challenges'
+import { curatedReplay } from '../src/features/replay/curated-replays'
 
 async function signIn(page: Page): Promise<string> {
   const email = `product-${Date.now()}-${Math.random().toString(16).slice(2)}@example.test`
@@ -13,52 +13,56 @@ async function signIn(page: Page): Promise<string> {
   return playerId
 }
 
-function serverStart(page: Page) {
-  return page.getByRole('button', { name: /^(Play on server|Start server game)$/ })
+function localStart(page: Page) {
+  return page.getByRole('button', { name: 'Start game', exact: true })
 }
 
-test('landing page starts a committed public spectator match', async ({ page }) => {
-  const spectatorStart = page.waitForResponse(
-    (response) =>
-      response.request().method() === 'POST' &&
-      response.url().endsWith('/api/public/spectator/start'),
-  )
-  await page.goto('/')
-
-  const response = await spectatorStart
-  expect(response.ok()).toBe(true)
-  const spectator = (await response.json()) as { seat1: { name: string }; seat2: { name: string } }
-  const pool = readFileSync(new URL('../dev/spectator-decks/pool.txt', import.meta.url), 'utf8')
-    .split('\n')
-    .map((name) => name.trim())
-    .filter((name) => name && !name.startsWith('#'))
-  const first = pool.indexOf(spectator.seat1.name)
-  expect(first).toBeGreaterThanOrEqual(0)
-  expect(spectator.seat2.name).toBe(pool[(first + 1) % pool.length])
-  await expect(page).not.toHaveURL(/\/login/)
-  const hand = page.locator('section[data-zone="hand"][data-owner="self"]')
-  await expect(hand.getByRole('button').first()).toBeVisible({ timeout: 30_000 })
-  await expect(hand.getByRole('button').first()).toBeDisabled()
-  await expect(
-    page.locator('[data-zone="hand"][data-owner="opponent"][data-zone-count]'),
-  ).toBeVisible()
-
-  const decks = page.getByRole('region', { name: 'Current spectator decks' })
-  await expect(decks).toContainText(spectator.seat1.name)
-  await expect(decks).toContainText(spectator.seat2.name)
-  await expect(page.getByRole('region', { name: 'Battlefield', exact: true })).toBeVisible({
-    timeout: 30_000,
-  })
+async function waitForLocalBoard(page: Page): Promise<void> {
   await expect
     .poll(
-      async () =>
+      () =>
         page.evaluate(() => {
-          const state = window.__greState()
-          return Boolean(state?.connected && state.gsId > 0)
+          const state = window.__greState?.()
+          return Boolean(state?.connected && state.gsId > 0 && state.hand.length > 0)
         }),
-      { timeout: 30_000 },
+      { timeout: 120_000 },
     )
     .toBe(true)
+}
+
+async function savedConfig(page: Page) {
+  return page.evaluate(
+    () =>
+      JSON.parse(sessionStorage.getItem('forge:gre:lastMatchConfig') ?? '{}') as {
+        seat1Deck?: string
+        seat2Deck?: string
+        gameType?: string
+        execution?: string
+      },
+  )
+}
+
+test('landing shows a public replay without starting an engine', async ({ page }) => {
+  const gameplay: string[] = []
+  page.on('request', (request) => {
+    if (/\/api\/(?:gre|public\/spectator)\/|\/browser-engine\//.test(request.url())) {
+      gameplay.push(request.url())
+    }
+  })
+  await page.goto('/')
+  await expect(page).not.toHaveURL(/\/login/)
+  await expect(page.getByRole('region', { name: 'Continuous gameplay' })).toBeVisible()
+  await expect(
+    page.locator('[data-zone="hand"][data-owner="self"] [data-card]').first(),
+  ).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: /^(Play|Pause|Step back|Step forward)$/ }),
+  ).toHaveCount(0)
+  const turn = await page.locator('[data-board]').getAttribute('data-turn')
+  await expect
+    .poll(() => page.locator('[data-board]').getAttribute('data-turn'), { timeout: 30_000 })
+    .not.toBe(turn)
+  expect(gameplay).toEqual([])
 })
 
 test('constructed setup shell renders with authenticated web user', async ({ page }, testInfo) => {
@@ -111,7 +115,7 @@ test('challenge selection boots the standard puzzle board as guest', async ({ pa
   await expect(page.getByRole('heading', { name: 'Challenges' })).toBeVisible({ timeout: 10_000 })
 })
 
-test('real web GRE path reaches engine', async ({ page, gre }) => {
+test('browser GRE path reaches the local engine', async ({ page, gre }) => {
   await signIn(page)
   await page.goto('/play/game')
   await expect
@@ -127,7 +131,7 @@ test('real web GRE path reaches engine', async ({ page, gre }) => {
   expect(result.state?.connected && result.state.gsId > 0).toBe(true)
 })
 
-test('public navigation preserves the live table through login, About and expansion', async ({
+test('public navigation preserves the replay through login, About and expansion', async ({
   page,
 }) => {
   await page.goto('/')
@@ -150,26 +154,43 @@ test('public navigation preserves the live table through login, About and expans
   )
   expect(await table!.evaluate((node) => node.isConnected)).toBe(true)
   await page.getByRole('link', { name: 'Back to table', exact: true }).click()
-  await page.getByRole('button', { name: 'Expand match', exact: true }).click()
+  await page.getByRole('button', { name: 'Expand game', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Play your next game.' })).toBeHidden()
   expect(await table!.evaluate((node) => node.isConnected)).toBe(true)
   await page.getByRole('button', { name: 'Back to landing', exact: true }).click()
   await expect(page.getByRole('link', { name: 'Play against AI', exact: true })).toBeVisible()
 })
 
-test('spectator failure permits sign-in and can be retried', async ({ page }) => {
-  await page.route('**/api/public/spectator/start', (route) =>
+test('replay download failure does not block sign-in', async ({ page }) => {
+  await page.route('**/replays/*.greplay.json', (route) =>
     route.fulfill({ status: 503, body: '{}' }),
   )
   await page.goto('/')
-  await expect(
-    page.getByText('The live match could not be loaded. You can still sign in to play.'),
-  ).toBeVisible()
+  await expect(page.getByRole('alert')).toContainText(/could not be loaded/)
   await page.getByRole('link', { name: 'Play against AI', exact: true }).click()
   await expect(page.getByTestId('auth-email')).toBeEnabled()
-  await page.unroute('**/api/public/spectator/start')
-  await page.getByRole('button', { name: 'Try again', exact: true }).click()
-  await expect(page.getByRole('region', { name: 'Battlefield', exact: true })).toBeVisible()
+})
+
+test('watching hands the current decks through sign-in to a local game', async ({ page }) => {
+  const sample = curatedReplay('krenko-v-atraxa-v1')!
+  await page.goto(`/watch/${sample.id}`)
+  await page.getByRole('link', { name: 'Play these decks', exact: true }).click()
+  await expect(page.getByTestId('auth-email')).toBeVisible()
+  await page.getByTestId('auth-email').fill(`watch-${Date.now()}@example.test`)
+  await page.getByTestId('auth-start').click()
+  await page.getByTestId('auth-code').fill('123456')
+  await page.getByTestId('auth-verify').click()
+  await expect(page).toHaveURL(`/play/game?replay=${sample.id}`)
+  await expect(page.getByRole('combobox', { name: 'AI opponent' })).toHaveValue('pick')
+  await localStart(page).click()
+  await page.waitForURL(/\/match\/commander$/)
+  expect(await savedConfig(page)).toMatchObject({
+    seat1Deck: sample.seat1Deck.trim(),
+    seat2Deck: sample.seat2Deck.trim(),
+    gameType: 'commander',
+    execution: 'browser',
+  })
+  await waitForLocalBoard(page)
 })
 
 test('lobby selects a ready-made deck and starts a mirrored game', async ({ page }) => {
@@ -178,15 +199,13 @@ test('lobby selects a ready-made deck and starts a mirrored game', async ({ page
   await page.getByRole('button', { name: 'Constructed', exact: true }).click()
   await page.getByRole('button', { name: 'Green Stompy 60 cards' }).click()
   await page.getByRole('combobox', { name: 'AI opponent' }).selectOption('mirror')
-  const launch = page.waitForRequest(
-    (request) => request.method() === 'POST' && request.url().endsWith('/api/gre/start'),
-  )
-  await serverStart(page).click()
-  const body = (await launch).postDataJSON()
+  await localStart(page).click()
+  await page.waitForURL(/\/match\/(?:commander|constructed)$/)
+  const body = await savedConfig(page)
   expect(body.seat1Deck).toContain('Llanowar Elves')
   expect(body.seat2Deck).toBe(body.seat1Deck)
   await expect(page.getByRole('region', { name: 'Battlefield', exact: true })).toBeVisible()
-  await expect.poll(async () => page.evaluate(() => window.__greState()?.connected)).toBe(true)
+  await waitForLocalBoard(page)
   await page.getByRole('button', { name: '← End Match', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'What are you playing?' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Commander', exact: true })).toHaveAttribute(
@@ -221,8 +240,9 @@ test('lobby imports a playable deck into the library and launches it', async ({ 
     'Forest test deck 60 cards',
   )
   await page.getByRole('button', { name: 'Forest test deck 60 cards' }).last().click()
-  await serverStart(page).click()
-  await expect.poll(async () => page.evaluate(() => window.__greState()?.connected)).toBe(true)
+  await localStart(page).click()
+  await page.waitForURL(/\/match\/(?:commander|constructed)$/)
+  await waitForLocalBoard(page)
 })
 
 test('lobby resolves a case-insensitive commander name, persists it and launches Commander', async ({
@@ -249,16 +269,12 @@ test('lobby resolves a case-insensitive commander name, persists it and launches
   await page.getByRole('dialog').screenshot({ path: info.outputPath('commander-import.png') })
   await page.getByRole('button', { name: 'Import and select', exact: true }).click()
   await expect(page.getByText('Imported and saved to your library.', { exact: true })).toBeVisible()
-  const immediateLaunch = page.waitForRequest(
-    (request) => request.method() === 'POST' && request.url().endsWith('/api/gre/start'),
-  )
-  await serverStart(page).click()
-  expect((await immediateLaunch).postDataJSON().seat1Deck).toBe(
+  await localStart(page).click()
+  await page.waitForURL(/\/match\/(?:commander|constructed)$/)
+  expect((await savedConfig(page)).seat1Deck).toBe(
     '[Commander]\n1 Kenrith, the Returned King\n[Deck]\n99 Plains',
   )
-  await expect
-    .poll(async () => page.evaluate(() => window.__greState()?.connected), { timeout: 30000 })
-    .toBe(true)
+  await waitForLocalBoard(page)
   await page.getByRole('button', { name: '← End Match', exact: true }).click()
   const imported = (await (await page.request.get('/api/decks')).json()).find(
     (deck: { name: string }) => deck.name === 'Kenrith',
@@ -282,14 +298,10 @@ test('lobby resolves a case-insensitive commander name, persists it and launches
   await page.goto('/play/game')
   await page.getByRole('button', { name: 'Commander', exact: true }).click()
   await page.getByRole('button', { name: 'Kenrith saved 100 cards', exact: true }).click()
-  const launch = page.waitForRequest(
-    (request) => request.method() === 'POST' && request.url().endsWith('/api/gre/start'),
-  )
-  await serverStart(page).click()
-  expect((await launch).postDataJSON().gameVariant).toBe('commander')
-  await expect
-    .poll(async () => page.evaluate(() => window.__greState()?.connected), { timeout: 30000 })
-    .toBe(true)
+  await localStart(page).click()
+  await page.waitForURL(/\/match\/(?:commander|constructed)$/)
+  expect((await savedConfig(page)).gameType).toBe('commander')
+  await waitForLocalBoard(page)
   await expect(page.getByRole('region', { name: 'Battlefield', exact: true })).toContainText('40')
 })
 
@@ -353,17 +365,12 @@ test('Commander selection waits for detail before launching the saved deck', asy
   await expect(browserStart).toBeEnabled()
   await page.getByRole('button', { name: `${name} 100 cards`, exact: true }).click()
   await expect(browserStart).toBeDisabled()
-  await expect(serverStart(page)).toBeDisabled()
   releaseDeckDetail()
   await expect(page.getByRole('combobox', { name: 'AI opponent' })).toHaveValue('random')
-  const launch = page.waitForRequest(
-    (request) => request.method() === 'POST' && request.url().endsWith('/api/gre/start'),
-  )
-  await serverStart(page).click()
-  expect((await launch).postDataJSON().seat2Deck).toContain('[Commander]')
-  await expect
-    .poll(async () => page.evaluate(() => window.__greState()?.connected), { timeout: 30000 })
-    .toBe(true)
+  await localStart(page).click()
+  await page.waitForURL(/\/match\/(?:commander|constructed)$/)
+  expect((await savedConfig(page)).seat2Deck).toContain('[Commander]')
+  await waitForLocalBoard(page)
   await expect(page.getByRole('region', { name: 'Battlefield', exact: true })).toContainText('40')
   await expect
     .poll(async () => page.evaluate(() => window.__greState()?.hand.length ?? 0))
@@ -400,12 +407,12 @@ test('lobby fits a laptop viewport and imports through a card dialog', async ({ 
   await expect(
     page.getByRole('button', { name: 'Pauper Green Stompy 60 cards', exact: true }),
   ).toHaveAttribute('aria-pressed', 'true')
-  await expect(serverStart(page)).toBeEnabled()
+  await expect(localStart(page)).toBeEnabled()
   await page.getByRole('button', { name: 'Commander', exact: true }).click()
   await expect(
     page.getByRole('button', { name: 'Atraxa - Counter Growth 100 cards', exact: true }),
   ).toHaveAttribute('aria-pressed', 'true')
-  expect(await serverStart(page).evaluate((el) => el.getBoundingClientRect().bottom)).toBeLessThan(
+  expect(await localStart(page).evaluate((el) => el.getBoundingClientRect().bottom)).toBeLessThan(
     720,
   )
   expect(
@@ -427,18 +434,20 @@ test('lobby fits a laptop viewport and imports through a card dialog', async ({ 
   await page.keyboard.press('Escape')
   await expect(page.getByRole('dialog')).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Import a deck', exact: true })).toBeFocused()
-  await serverStart(page).click()
-  await expect.poll(async () => page.evaluate(() => window.__greState()?.connected)).toBe(true)
+  await localStart(page).click()
+  await page.waitForURL(/\/match\/(?:commander|constructed)$/)
+  await waitForLocalBoard(page)
 })
 
-test('return to game resumes a player match and stays hidden after leaving and watching', async ({
+test('return to game resumes a local match and stays hidden after leaving and watching', async ({
   page,
 }) => {
   await signIn(page)
   await page.goto('/play/game')
   await page.getByRole('button', { name: 'Atraxa - Counter Growth 100 cards', exact: true }).click()
-  await serverStart(page).click()
-  await expect.poll(() => page.evaluate(() => window.__greState()?.connected)).toBe(true)
+  await localStart(page).click()
+  await page.waitForURL(/\/match\/(?:commander|constructed)$/)
+  await waitForLocalBoard(page)
   const savedMatchId = () =>
     page.evaluate(
       () => JSON.parse(sessionStorage.getItem('forge:gre:lastMatchConfig') ?? '{}').matchId,
@@ -448,22 +457,17 @@ test('return to game resumes a player match and stays hidden after leaving and w
   await page.goBack()
   await page.getByRole('link', { name: 'Return to game' }).click()
   await expect(page).toHaveURL(/\/match\/commander$/)
-  await expect.poll(() => page.evaluate(() => window.__greState()?.connected)).toBe(true)
+  await waitForLocalBoard(page)
   expect(await savedMatchId()).toBe(matchId)
   await page.getByRole('button', { name: '← End Match', exact: true }).click()
   await expect(page.getByRole('link', { name: 'Return to game' })).toHaveCount(0)
   await page.getByRole('link', { name: 'Forge Web home' }).click()
-  await expect
-    .poll(() => page.evaluate(() => window.__greState()?.connected), { timeout: 30_000 })
-    .toBe(true)
+  await expect(page.getByRole('region', { name: 'Continuous gameplay' })).toBeVisible()
   await page.getByRole('link', { name: 'Play against AI', exact: true }).click()
   await expect(page.getByRole('link', { name: 'Return to game' })).toHaveCount(0)
 })
 
-test('journey telemetry pairs real readiness and actions with measured server launch time', async ({
-  page,
-  gre,
-}) => {
+test('browser telemetry pairs engine readiness with its launch attempt', async ({ page, gre }) => {
   await page.addInitScript(() => {
     const events: { event: string; props: Record<string, unknown> }[] = []
     Object.assign(window, {
@@ -493,60 +497,54 @@ test('journey telemetry pairs real readiness and actions with measured server la
     .poll(
       async () =>
         (await events()).filter(
-          (row) =>
-            row.event === 'journey-result' &&
-            row.props['boundary'] === 'game-start' &&
-            row.props['outcome'] === 'success',
+          (row) => row.event === 'browser-lifecycle' && row.props['stage'] === 'match-started',
         ).length,
     )
     .toBe(1)
-  const kept = await page.evaluate(() => window.__greActWait('keep'))
-  expect(kept.ok, JSON.stringify(kept)).toBe(true)
   const rows = await events()
-  expect(rows.filter((row) => row.props['boundary'] === 'action-response')).toHaveLength(0)
   const ready = rows.find(
-    (row) => row.event === 'journey-result' && row.props['boundary'] === 'game-start',
+    (row) => row.event === 'browser-lifecycle' && row.props['stage'] === 'match-started',
   )!
-  expect(ready.props['server_ms']).toEqual(expect.any(Number))
-  expect(ready.props['duration_ms']).toBeGreaterThanOrEqual(ready.props['server_ms'] as number)
-  for (const row of rows.filter((value) => value.event === 'journey-result')) {
-    expect(
-      rows.filter(
-        (value) =>
-          value.event === 'journey-attempt' &&
-          value.props['operation_id'] === row.props['operation_id'],
-      ),
-    ).toHaveLength(1)
-  }
+  expect(ready.props['duration_ms']).toEqual(expect.any(Number))
+  expect(ready.props['duration_ms']).toBeGreaterThanOrEqual(0)
+  expect(
+    rows.filter(
+      (row) =>
+        row.event === 'browser-lifecycle' &&
+        row.props['stage'] === 'attempt' &&
+        row.props['attempt_id'] === ready.props['attempt_id'],
+    ),
+  ).toHaveLength(1)
 })
 
-test('match launch failure can retry or return to setup', async ({ page }) => {
+test('browser launch failure can retry or return to setup without server fallback', async ({
+  page,
+}) => {
   await signIn(page)
-  let launches = 0
-  await page.route('**/api/gre/start', async (route) => {
-    launches += 1
-    await route.fulfill({ status: 500, body: 'failed' })
+  let manifests = 0
+  const serverRequests: string[] = []
+  page.on('request', (request) => {
+    if (/\/api\/gre\//.test(request.url())) {
+      serverRequests.push(request.url())
+    }
   })
-  await page.addInitScript(() => {
-    sessionStorage.setItem(
-      'forge:gre:lastMatchConfig',
-      JSON.stringify({
-        seat1Deck: '60 Plains',
-        seat2Deck: '60 Plains',
-        gameType: 'constructed',
-        returnPath: '/play/game?tab=recent',
-      }),
-    )
+  await page.route('**/browser-engine/release.json', async (route) => {
+    manifests += 1
+    await route.fulfill({ status: 503, body: '{}' })
   })
-
-  await page.goto('/match/constructed')
-  const alert = page.getByRole('alert')
-  await expect(alert).toContainText('Start game failed: 500')
-  await alert.getByRole('button', { name: 'Try again' }).click()
-  await expect.poll(() => launches).toBe(2)
+  await page.goto('/play/game')
+  await localStart(page).click()
+  await page.waitForURL(/\/match\/(?:commander|constructed)$/)
+  const alert = page.getByRole('alert').filter({ hasText: 'Browser game could not start' })
+  await expect(alert).toContainText('Release manifest download failed (503)')
+  const firstAttempt = manifests
+  await alert.getByRole('button', { name: 'Retry in browser' }).click()
+  await expect.poll(() => manifests).toBeGreaterThan(firstAttempt)
+  await expect(alert).toBeVisible()
   await alert.getByRole('button', { name: 'Back to Play' }).click()
-  await expect(page).toHaveURL(/\/play\/game\?tab=recent$/)
+  await expect(page).toHaveURL(/\/play\/game$/)
   expect(await page.evaluate(() => sessionStorage.getItem('forge:gre:lastMatchConfig'))).toBeNull()
+  expect(serverRequests).toEqual([])
 })
 
 test('failed application preload offers an explicit refresh without looping', async ({
