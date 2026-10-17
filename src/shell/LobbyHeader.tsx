@@ -68,6 +68,9 @@ export function LobbyHeader() {
             {dailyComplete ? 'Done' : 'New'}
           </span>
         </a>
+        <a href="/watch" onClick={follow}>
+          Watch
+        </a>
         <a href="/roadmap" onClick={follow}>
           Roadmap
         </a>

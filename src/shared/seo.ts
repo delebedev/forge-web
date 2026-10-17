@@ -1,4 +1,5 @@
 import { browserChallenge } from '../features/challenges/browser-challenges'
+import { CURATED_REPLAYS, curatedReplay } from '../features/replay/curated-replays'
 
 export const SITE_NAME = 'Forge Web'
 export const SITE_URL = 'https://forgeweb.app'
@@ -18,14 +19,20 @@ export const ROUTE_META: Record<string, PageMeta> = {
   landing: {
     title: `${SITE_NAME} — Play Magic: The Gathering Against AI`,
     description:
-      'Play Magic: The Gathering against AI in your browser for free. Import a Standard or Commander deck, or watch live AI games. No download required.',
+      'Play Magic: The Gathering against AI in your browser for free. Import a Standard or Commander deck, or watch curated match replays.',
     canonical: `${SITE_URL}/`,
   },
   about: {
     title: `About ${SITE_NAME} — Browser MTG Playtesting`,
     description:
-      'Learn about Forge Web: free browser-based Magic: The Gathering playtesting, deck import, and live AI games, powered by the Card-Forge rules engine.',
+      'Learn about Forge Web: free browser-based Magic: The Gathering playtesting, deck import, and match replays, powered by the Card-Forge rules engine.',
     canonical: `${SITE_URL}/about`,
+  },
+  watch: {
+    title: `Watch Match Replays — ${SITE_NAME}`,
+    description:
+      'Watch three full Magic: The Gathering games from opening hands to the final turn, with replay controls and card inspection.',
+    canonical: `${SITE_URL}/watch`,
   },
   roadmap: {
     title: `Roadmap — ${SITE_NAME}`,
@@ -76,14 +83,29 @@ export const ROUTE_META: Record<string, PageMeta> = {
   },
 }
 
-export const PUBLIC_META: Record<string, PageMeta> = Object.fromEntries(
-  [ROUTE_META['landing']!, ROUTE_META['about']!, ROUTE_META['roadmap']!].map((meta) => [
-    new URL(meta.canonical!).pathname,
-    meta,
+export const PUBLIC_META: Record<string, PageMeta> = Object.fromEntries([
+  ...[
+    ROUTE_META['landing']!,
+    ROUTE_META['about']!,
+    ROUTE_META['roadmap']!,
+    ROUTE_META['watch']!,
+  ].map((meta) => [new URL(meta.canonical!).pathname, meta]),
+  ...CURATED_REPLAYS.map((sample) => [
+    `/watch/${sample.id}`,
+    {
+      title: `${sample.title} — Forge Web Replay`,
+      description: sample.description,
+      canonical: `${SITE_URL}/watch/${sample.id}`,
+    },
   ]),
-)
+])
 
 export function pageMeta(routeName: string, params: Record<string, string> = {}): PageMeta {
+  if (routeName === 'watch' && params['replayId']) {
+    return curatedReplay(params['replayId'])
+      ? PUBLIC_META[`/watch/${params['replayId']}`]!
+      : ROUTE_META['not-found']!
+  }
   if (routeName === 'browser-challenge') {
     const challenge = browserChallenge(params['challengeId'] ?? '')
     if (challenge) {

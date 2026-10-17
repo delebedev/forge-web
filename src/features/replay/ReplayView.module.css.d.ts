@@ -12,6 +12,7 @@ declare const styles: {
   readonly "hint": string
   readonly "jump": string
   readonly "jumpActive": string
+  readonly "loading": string
   readonly "mark": string
   readonly "marks": string
   readonly "meta": string

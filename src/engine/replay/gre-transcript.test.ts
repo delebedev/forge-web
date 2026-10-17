@@ -258,3 +258,20 @@ test('the sample transcript is a pure-source bundle that bakes no card data', as
   expect(bundle.cards).toEqual({})
   expect(bundle.source).toBe('simclient')
 })
+
+test('replay card inspection retains rules, ability text and linked faces without a lookup', () => {
+  const bundle = bundleOf([])
+  bundle.cards['7'] = {
+    name: 'Authored card',
+    rulesText: 'Create a token.',
+    loyalty: '3',
+    abilities: { 42: { text: 'Create a token.' } },
+    linkedFaceGrpIds: [8],
+    mechanicHelp: [],
+  }
+  const card = transcriptCardMeta(bundle).get(7)
+  expect(card?.rulesText).toBe('Create a token.')
+  expect(card?.abilities).toEqual({ 42: { text: 'Create a token.' } })
+  expect(card?.linkedFaceGrpIds).toEqual([8])
+  expect(card?.loyalty).toBe('3')
+})

@@ -35,6 +35,7 @@ import {
 } from '@features/gre/board/types'
 import { READ_ONLY_INTERACTIONS } from '@features/gre/board/read-only-interactions'
 import { buildReplayTimeline, nextStackRun, type ReplayTimeline } from './replay-timeline'
+import type { CuratedReplay } from './curated-replays'
 import styles from './ReplayView.module.css'
 
 const EMPTY_POSITION: TranscriptPosition = {
@@ -49,7 +50,7 @@ const EMPTY_TIMELINE: ReplayTimeline = { occupied: [], runs: [] }
 /** Slow enough to read a board between frames; the transport can outrun it. */
 const STEP_MS = 200
 
-export function ReplayView() {
+export function ReplayView({ curated }: { curated?: CuratedReplay }) {
   const [{ store, external }] = useState(() => {
     const store = new GreStore()
     return { store, external: createExternalStore(store) }
@@ -57,6 +58,7 @@ export function ReplayView() {
   const board = useSyncExternalStore(external.subscribe, external.getSnapshot, external.getSnapshot)
 
   const sourceRef = useRef<TranscriptFrameSource | null>(null)
+  const loadGeneration = useRef(0)
   const [position, setPosition] = useState<TranscriptPosition>(EMPTY_POSITION)
   const [timeline, setTimeline] = useState<ReplayTimeline>(EMPTY_TIMELINE)
   const [label, setLabel] = useState('')
@@ -86,6 +88,7 @@ export function ReplayView() {
 
   const load = useCallback(
     async (raw: unknown) => {
+      const generation = ++loadGeneration.current
       try {
         const bundle = parseTranscriptBundle(raw)
         setHoveredCard(null)
@@ -96,6 +99,10 @@ export function ReplayView() {
           onPosition: setPosition,
         })
         await source.ready()
+        if (generation !== loadGeneration.current) {
+          source.stop()
+          return
+        }
         store.setViewerSeat(bundle.viewerSeatId)
         // Replay is where dwell is safe: nothing here can be answered, so holding
         // a frame back cannot delay anybody's decision.
@@ -109,30 +116,52 @@ export function ReplayView() {
         setBundleInfo(bundle)
         setError('')
         setMisses(0)
-        setStarted(false)
+        setStarted(curated != null)
+        if (curated) {
+          const opening = source.frames.findIndex((frame) => {
+            const message = frame.message as { gameStateMessage?: { gameObjects?: unknown[] } }
+            return (message.gameStateMessage?.gameObjects?.length ?? 0) > 0
+          })
+          source.seek(Math.max(opening + 1, 1))
+        }
         setSelectedChoice(null)
       } catch (cause) {
         setError(cause instanceof Error ? cause.message : 'Could not read that transcript')
       }
     },
-    [store],
+    [store, curated],
   )
 
-  // `?src=` makes a replay linkable, which is what lets a screenshot or a bug
-  // report point at an exact transcript instead of describing one.
   useEffect(() => {
-    const src = new URLSearchParams(location.search).get('src')?.trim()
+    const src =
+      curated?.url ??
+      (import.meta.env.DEV ? new URLSearchParams(location.search).get('src')?.trim() : null)
     if (!src) {
       return
     }
-    void fetch(src)
-      .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`${src}: ${res.status}`))))
-      .then(load)
-      .catch((cause: Error) => setError(cause.message))
-  }, [load])
+    const controller = new AbortController()
+    void fetch(src, { signal: controller.signal })
+      .then((response) =>
+        response.ok
+          ? response.json()
+          : Promise.reject(new Error('This replay could not be loaded.')),
+      )
+      .then(async (raw) => {
+        if (!controller.signal.aborted) {
+          await load(raw)
+        }
+      })
+      .catch((cause: Error) => {
+        if (!controller.signal.aborted) {
+          setError(cause.message)
+        }
+      })
+    return () => controller.abort()
+  }, [load, curated])
 
   useEffect(
     () => () => {
+      loadGeneration.current += 1
       sourceRef.current?.stop()
       external.destroy()
     },
@@ -207,7 +236,7 @@ export function ReplayView() {
   const stackHere = timeline.occupied[position.index - 1] === true
 
   return (
-    <main className={styles.stage}>
+    <div className={styles.stage} aria-label="Match replay">
       <Board
         board={board}
         interactive={false}
@@ -232,7 +261,7 @@ export function ReplayView() {
         dropZoneRef={() => {}}
       />
 
-      {!started && (
+      {!started && !curated && (
         <div className={styles.curtain}>
           <div className={styles.card}>
             <p className={styles.eyebrow}>Transcript replay</p>
@@ -368,7 +397,7 @@ export function ReplayView() {
           Turn {board.turnNumber} · {board.stepName || board.phaseName}
         </output>
 
-        {started && (
+        {started && !curated && (
           <label className={styles.file}>
             Load
             <input
@@ -386,7 +415,7 @@ export function ReplayView() {
           values may be read as defaults.
         </p>
       )}
-      {started && bundleInfo?.status && (
+      {started && !curated && bundleInfo?.status && (
         <p
           className={bundleInfo.status.complete ? styles.completeBanner : styles.warning}
           role="status"
@@ -415,7 +444,12 @@ export function ReplayView() {
           </details>
         </aside>
       )}
-    </main>
+      {curated && !loaded && (
+        <p className={styles.loading} role={error ? 'alert' : 'status'}>
+          {error || 'Loading replay…'}
+        </p>
+      )}
+    </div>
   )
 
   function seekToChoice(event: TranscriptEvent): void {

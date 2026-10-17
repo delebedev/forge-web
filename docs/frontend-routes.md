@@ -10,15 +10,17 @@ client-side.
 
 | Path | Component | Auth? | Purpose |
 |---|---|---|---|
-| `/` | `LandingPage` | no | Public homepage, AI-vs-AI spectator feed |
+| `/` | `LandingPage` | no | Public homepage with curated full-game replay |
 | `/about` | `AboutPage` | no | Marketing/info page |
 | `/roadmap` | `RoadmapPage` | no | Curated public feature board and account votes |
-| `/login` | `LoginPage` | no | Login/signup forms, spectator backdrop |
+| `/login` | `LoginPage` | no | Login/signup forms, replay backdrop |
 | `/play/game` | `GameSetupRoute` → `GameSetup` | yes | Constructed setup: deck, format, opponent |
 | `/play/limited` | `LimitedRoute` → `LimitedView` | yes | Draft/sealed mode picker, `?mode=draft\|sealed` |
 | `/challenges` | `ChallengesView` | dev | Curated puzzle browser; production returns 404 |
 | `/challenges/:id` | `ChallengesView` → `GrePlay` | dev | Launch a curated puzzle on the standard match route |
 | `/challenge/:challengeId` | `BrowserChallenge` → `GrePlay` | no | Daily bundled puzzle rotation and shared generated puzzle pool |
+| `/watch` | `CuratedWatch` | no | Curated full-game replays with playback, seeking and inspection |
+| `/watch/:replayId` | `CuratedWatch` | no | Allowlisted static replay; fresh-game deck handoff |
 | `/play/replay` | `ReplayView` | dev | Local operator transcript viewer with completeness and submitted-choice inspection; production returns 404 |
 | `/decks` | `DecksView` | yes | Deck browser: list + detail pane + filters |
 | `/decks/:deckId` | `DecksView` | yes | Auto-select a deck by its stable ID |
@@ -236,3 +238,7 @@ The lobby filters library decks by presence of commandZone and sends that zone
 in the Commander launch list. Browser storage remembers a selection; the account
 database owns saved decks. Five starter lists based on 2025 archetypes
 are provisioned with the ordinary dev seed command.
+
+## Curated watch
+
+The landing table and `/watch` use allowlisted assets from `public/replays/` through `TranscriptFrameSource` and the production board. They do not initialize the browser engine or start a server match. The collection contains three complete games from normal opening hands through a terminal result. Replay labels distinguish playback from a live game. Play/pause, stepping, seeking and card inspection are read-only. `Play these decks` opens `/play/game?replay=<known-id>` for a fresh game using the complete manifest decks. The operator file picker and arbitrary `?src` loading remain development-only at `/play/replay`. Exact deck inputs and provenance live in `dev/replays/README.md`.

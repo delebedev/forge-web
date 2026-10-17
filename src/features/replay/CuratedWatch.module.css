@@ -1,0 +1,14 @@
+.page { height: 100svh; display: flex; flex-direction: column; color: var(--public-text); background: var(--public-bg); }
+.embedded { height: 100%; }
+.viewer { display: flex; flex: 1; flex-direction: column; min-height: 0; padding: 12px 20px 0; }
+.embedded .viewer { padding: 0; }
+.heading, .identity { display: flex; align-items: center; gap: 16px; }
+.heading { justify-content: space-between; flex-wrap: wrap; }
+.label { color: var(--public-accent); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; }
+.picker { display: flex; align-items: center; gap: 10px; color: var(--public-muted); font-size: 12px; }
+.picker select { width: auto; max-width: 240px; min-height: 38px; padding: 7px 10px; }
+.play { color: var(--public-text); font-size: 13px; text-underline-offset: 4px; }
+.play:hover { color: var(--public-accent); }
+.description { margin: 10px 0 12px; color: var(--public-muted); font-size: 13px; }
+.board { flex: 1; min-height: 0; border: 1px solid var(--public-line); border-radius: 4px; overflow: hidden; }
+@media (max-width: 850px) { .identity { gap: 10px; } .picker { font-size: 0; } .picker select { font-size: 13px; } }

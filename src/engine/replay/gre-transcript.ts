@@ -139,6 +139,7 @@ export function transcriptCardMeta(bundle: TranscriptBundle): Map<number, CardMe
       continue
     }
     cards.set(grpId, {
+      ...value,
       grpId,
       name: value.name ?? null,
       manaCost: value.manaCost ?? null,

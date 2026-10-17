@@ -27,6 +27,7 @@ import { GameSetupRoute } from '@features/game-setup/GameSetupRoute'
 import { LimitedRoute } from '@features/limited/LimitedRoute'
 import { MatchRoute } from '@features/gre/MatchRoute'
 import { ReplayView } from '@features/replay/ReplayView'
+import { CuratedWatch } from '@features/replay/CuratedWatch'
 import { useAuthSnapshot } from '@shared/auth/hooks'
 import { REPLAY_ENABLED, SEALED_ENABLED } from '@shared/flags'
 
@@ -47,6 +48,9 @@ export function ShellRoot() {
 
   if (router.route === 'landing' || router.route === 'login' || router.route === 'about') {
     return <LandingPage screen={router.route} login={<LoginPage />} about={<AboutPage />} />
+  }
+  if (router.route === 'watch') {
+    return <CuratedWatch id={router.params['replayId']} />
   }
   if (router.route === 'roadmap') {
     return <RoadmapPage />

@@ -1,0 +1,23 @@
+[
+  {
+    "file": "green-stompy-v-red-burn-v1.greplay.json",
+    "sha256": "9d569e9fe085e14c0540cad23a5ae79d28da0227913abc24f0993b4ee877b097",
+    "bytes": 1001724,
+    "batches": 555,
+    "cards": 26
+  },
+  {
+    "file": "krenko-v-atraxa-v1.greplay.json",
+    "sha256": "5266ee2d1d15d3a57ff38591d1e9f882060c7bdd5df462ebc1e7c88ccfb600de",
+    "bytes": 725790,
+    "batches": 314,
+    "cards": 101
+  },
+  {
+    "file": "lifegain-v-sacrifice-v1.greplay.json",
+    "sha256": "4bd75f6c6aff3f79935839e4129dafdde7159fe3ea5d370dfd788c324167157a",
+    "bytes": 950851,
+    "batches": 515,
+    "cards": 29
+  }
+]
