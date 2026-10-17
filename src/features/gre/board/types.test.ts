@@ -25,26 +25,60 @@ function card(instanceId: number, name: string): CardView {
   }
 }
 
+function viewerBoard(overrides: Partial<Parameters<typeof currentZoneViewer>[1]> = {}) {
+  return {
+    currentMatchId: 'match',
+    libraryTop: null,
+    opponentHand: [],
+    graveyard: [],
+    opponentGraveyard: [],
+    exile: [],
+    opponentExile: [],
+    ...overrides,
+  }
+}
+
+for (const source of ['graveyard', 'opponentGraveyard', 'exile', 'opponentExile'] as const) {
+  test(`${source} viewer follows additions, metadata refresh and removals while open`, () => {
+    const zone: ZoneViewerState = { title: 'Zone', source, matchId: 'match' }
+    const old = card(10, 'Old face')
+    const current = card(10, 'Current face')
+    expect(currentZoneViewer(zone, viewerBoard({ [source]: [old] }))?.cards).toEqual([old])
+    expect(
+      currentZoneViewer(zone, viewerBoard({ [source]: [current, card(11, 'New card')] }))?.cards,
+    ).toEqual([current, card(11, 'New card')])
+    expect(currentZoneViewer(zone, viewerBoard())?.cards).toEqual([])
+  })
+}
+
+test('zone inspection expires on a different match even when object identifiers are reused', () => {
+  const zone: ZoneViewerState = { title: 'Your Graveyard', source: 'graveyard', matchId: 'old' }
+  expect(currentZoneViewer(zone, viewerBoard({ graveyard: [card(10, 'New match')] }))).toBeNull()
+  expect(currentZoneViewer(null, viewerBoard())).toBeNull()
+})
+
 test('library viewer reads current metadata for the same object identity', () => {
   const zone: ZoneViewerState = {
     title: 'Top of your Library',
-    cards: [card(10, 'Card')],
-    source: 'library-top',
+    source: 'libraryTop',
+    matchId: 'match',
+    libraryInstanceId: 10,
   }
   const enriched = card(10, 'Command Tower')
 
-  expect(currentZoneViewer(zone, enriched)?.cards[0]).toBe(enriched)
+  expect(currentZoneViewer(zone, viewerBoard({ libraryTop: enriched }))?.cards[0]).toBe(enriched)
   expect(libraryViewerIdentityChanged(zone, enriched)).toBe(false)
 })
 
 test('library viewer withdraws and clears hover when authorization or identity changes', () => {
   const zone: ZoneViewerState = {
     title: 'Top of your Library',
-    cards: [card(10, 'Command Tower')],
-    source: 'library-top',
+    source: 'libraryTop',
+    matchId: 'match',
+    libraryInstanceId: 10,
   }
 
-  expect(currentZoneViewer(zone, null)).toBeNull()
+  expect(currentZoneViewer(zone, viewerBoard())).toBeNull()
   expect(libraryViewerIdentityChanged(zone, null)).toBe(true)
   expect(libraryViewerIdentityChanged(zone, card(11, 'Forest'))).toBe(true)
 })
@@ -52,12 +86,14 @@ test('library viewer withdraws and clears hover when authorization or identity c
 test('known-hand inspection follows the current permitted inventory, including reset', () => {
   const zone: ZoneViewerState = {
     title: 'Known opponent hand',
-    source: 'opponent-hand',
-    cards: [card(10, 'Old face')],
+    source: 'opponentHand',
+    matchId: 'match',
   }
   const current = card(11, 'Currently visible')
-  expect(currentZoneViewer(zone, null, [current])?.cards).toEqual([current])
-  expect(currentZoneViewer(zone, null, [])).toBeNull()
+  expect(currentZoneViewer(zone, viewerBoard({ opponentHand: [current] }))?.cards).toEqual([
+    current,
+  ])
+  expect(currentZoneViewer(zone, viewerBoard())).toBeNull()
 })
 
 function hoverBoard(opponentHand: CardView[] = [], opponentBattlefield: CardView[] = []) {
