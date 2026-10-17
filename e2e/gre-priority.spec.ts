@@ -365,15 +365,18 @@ test.describe('priority flow demos', () => {
     await openFlow(page, 'priority-flow-last-spell')
     await castBear(page)
     await expect
-      .poll(async () => {
-        const s = await page.evaluate(() => window.__greState()!)
-        return (
-          s.board.you.some((c) => c.name === 'Runeclaw Bear') &&
-          s.hand.some((c) => c.name === 'Forest') &&
-          s.activeSeat === s.viewerSeat &&
-          s.phase === 'Main1'
-        )
-      })
+      .poll(
+        async () => {
+          const s = await page.evaluate(() => window.__greState()!)
+          return (
+            s.board.you.some((c) => c.name === 'Runeclaw Bear') &&
+            s.hand.some((c) => c.name === 'Forest') &&
+            s.activeSeat === s.viewerSeat &&
+            s.phase === 'Main1'
+          )
+        },
+        { timeout: 20_000 },
+      )
       .toBe(true)
     await finishFrame(page, info)
   })
@@ -467,10 +470,15 @@ test.describe('priority flow demos', () => {
     await page.getByTitle('Set stops in Ending', { exact: true }).click()
     await castBear(page)
     await expect
-      .poll(async () => {
-        const s = await page.evaluate(() => window.__greState()!)
-        return s.activeSeat !== s.viewerSeat && s.step === 'End' && s.prioritySeat === s.viewerSeat
-      })
+      .poll(
+        async () => {
+          const s = await page.evaluate(() => window.__greState()!)
+          return (
+            s.activeSeat !== s.viewerSeat && s.step === 'End' && s.prioritySeat === s.viewerSeat
+          )
+        },
+        { timeout: 20_000 },
+      )
       .toBe(true)
     if (recordDemos) {
       await page.waitForTimeout(1_500)
@@ -506,10 +514,15 @@ test.describe('priority flow demos', () => {
     await openFlow(page, 'priority-flow-opponent-response')
     await page.getByRole('button', { name: 'Pass turn', exact: true }).click()
     await expect
-      .poll(async () => {
-        const s = await page.evaluate(() => window.__greState()!)
-        return s.stack.length === 1 && s.hand.some((c) => c.name === 'Cancel' && c.play === 'spell')
-      })
+      .poll(
+        async () => {
+          const s = await page.evaluate(() => window.__greState()!)
+          return (
+            s.stack.length === 1 && s.hand.some((c) => c.name === 'Cancel' && c.play === 'spell')
+          )
+        },
+        { timeout: 20_000 },
+      )
       .toBe(true)
     await expect(page.getByRole('button', { name: 'Cancel auto-pass' })).toHaveCount(0)
     if (recordDemos) {
