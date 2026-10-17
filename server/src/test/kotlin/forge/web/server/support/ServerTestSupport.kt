@@ -46,6 +46,7 @@ internal fun testServices(
     cards: CardRepository = testCards(),
     canBeCommander: (String) -> Boolean = { it == "Lightning Bolt" },
     commanderProblem: (DeckCards) -> String? = { null },
+    validateCopies: (DeckCards, forge.deck.DeckFormat) -> Unit = { _, _ -> },
     cardImages: CardImageIndex = CardImageIndex.empty(),
     matchLauncher: WebMatchLauncher? = null,
     greRelay: BrowserGreRelay? = null,
@@ -105,6 +106,7 @@ internal fun testServices(
         cardRepository = cards,
         canBeCommander = canBeCommander,
         commanderProblem = commanderProblem,
+        validateCopies = validateCopies,
         cardImages = cardImages,
         authService = authService,
         matchLauncher =
