@@ -50,7 +50,9 @@ export function ShellRoot() {
     return <LandingPage screen={router.route} login={<LoginPage />} about={<AboutPage />} />
   }
   if (router.route === 'watch') {
-    return <CuratedWatch id={router.params['replayId']} />
+    return (
+      <CuratedWatch key={router.params['replayId'] ?? 'default'} id={router.params['replayId']} />
+    )
   }
   if (router.route === 'roadmap') {
     return <RoadmapPage />

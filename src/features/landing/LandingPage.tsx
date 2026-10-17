@@ -108,14 +108,14 @@ export function LandingPage({
         </section>
         {showingAbout && about}
         <div className={styles.match} hidden={showingAbout}>
-          <CuratedWatch embedded />
+          <CuratedWatch embedded active={!showingAbout} />
           <button
             className={styles.expand}
             type="button"
             aria-expanded={expanded}
             onClick={() => setExpanded(!expanded)}
           >
-            {expanded ? 'Back to landing' : 'Expand replay'}
+            {expanded ? 'Back to landing' : 'Expand game'}
           </button>
         </div>
       </main>

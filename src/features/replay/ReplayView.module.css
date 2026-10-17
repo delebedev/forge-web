@@ -9,6 +9,8 @@
   padding-bottom: 64px;
 }
 
+.continuous { padding-bottom: 0; }
+
 /* Pre-roll. Covers the board so the first thing you see is what you are about
    to watch, not a half-folded first frame. */
 .curtain {

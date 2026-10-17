@@ -50,7 +50,15 @@ const EMPTY_TIMELINE: ReplayTimeline = { occupied: [], runs: [] }
 /** Slow enough to read a board between frames; the transport can outrun it. */
 const STEP_MS = 200
 
-export function ReplayView({ curated }: { curated?: CuratedReplay }) {
+export function ReplayView({
+  curated,
+  active = true,
+  onComplete,
+}: {
+  curated?: CuratedReplay
+  active?: boolean
+  onComplete?: () => void
+}) {
   const [{ store, external }] = useState(() => {
     const store = new GreStore()
     return { store, external: createExternalStore(store) }
@@ -59,6 +67,10 @@ export function ReplayView({ curated }: { curated?: CuratedReplay }) {
 
   const sourceRef = useRef<TranscriptFrameSource | null>(null)
   const loadGeneration = useRef(0)
+  const playbackActive = useRef(active)
+  playbackActive.current = active
+  const completeCallback = useRef(onComplete)
+  completeCallback.current = onComplete
   const [position, setPosition] = useState<TranscriptPosition>(EMPTY_POSITION)
   const [timeline, setTimeline] = useState<ReplayTimeline>(EMPTY_TIMELINE)
   const [label, setLabel] = useState('')
@@ -94,9 +106,16 @@ export function ReplayView({ curated }: { curated?: CuratedReplay }) {
         setHoveredCard(null)
         setZoneViewer(null)
         sourceRef.current?.stop()
+        let completed = false
         const source = new TranscriptFrameSource(bundle, {
           stepMs: STEP_MS,
-          onPosition: setPosition,
+          onPosition: (next) => {
+            setPosition(next)
+            if (curated && next.total > 0 && next.index >= next.total && !completed) {
+              completed = true
+              completeCallback.current?.()
+            }
+          },
         })
         await source.ready()
         if (generation !== loadGeneration.current) {
@@ -110,7 +129,9 @@ export function ReplayView({ curated }: { curated?: CuratedReplay }) {
         store.seedCardMeta(transcriptCardMeta(bundle))
         store.attachSource(source)
         sourceRef.current = source
-        setTimeline(buildReplayTimeline(transcriptFrames(bundle), await greNormalizer()))
+        if (!curated) {
+          setTimeline(buildReplayTimeline(transcriptFrames(bundle), await greNormalizer()))
+        }
         setLabel(bundle.label)
         setOrigin(bundle.source)
         setBundleInfo(bundle)
@@ -123,6 +144,9 @@ export function ReplayView({ curated }: { curated?: CuratedReplay }) {
             return (message.gameStateMessage?.gameObjects?.length ?? 0) > 0
           })
           source.seek(Math.max(opening + 1, 1))
+          if (playbackActive.current && !document.hidden) {
+            source.play()
+          }
         }
         setSelectedChoice(null)
       } catch (cause) {
@@ -142,9 +166,7 @@ export function ReplayView({ curated }: { curated?: CuratedReplay }) {
     const controller = new AbortController()
     void fetch(src, { signal: controller.signal })
       .then((response) =>
-        response.ok
-          ? response.json()
-          : Promise.reject(new Error('This replay could not be loaded.')),
+        response.ok ? response.json() : Promise.reject(new Error('The game could not be loaded.')),
       )
       .then(async (raw) => {
         if (!controller.signal.aborted) {
@@ -168,6 +190,25 @@ export function ReplayView({ curated }: { curated?: CuratedReplay }) {
     [external],
   )
 
+  useEffect(() => {
+    if (!curated) {
+      return
+    }
+    function updatePlayback() {
+      if (active && !document.hidden) {
+        sourceRef.current?.play()
+      } else {
+        sourceRef.current?.pause()
+      }
+    }
+    updatePlayback()
+    document.addEventListener('visibilitychange', updatePlayback)
+    return () => {
+      document.removeEventListener('visibilitychange', updatePlayback)
+      sourceRef.current?.pause()
+    }
+  }, [curated, active])
+
   // Enum names the descriptor could not match. Zero for a well-formed bundle;
   // anything else means values are being read as something they are not.
   useEffect(() => {
@@ -176,6 +217,9 @@ export function ReplayView({ curated }: { curated?: CuratedReplay }) {
 
   // Quiet the transport during playback while keeping its controls reachable.
   useEffect(() => {
+    if (curated) {
+      return
+    }
     let timer: ReturnType<typeof setTimeout> | null = null
     function wake() {
       setIdle(false)
@@ -194,7 +238,7 @@ export function ReplayView({ curated }: { curated?: CuratedReplay }) {
       window.removeEventListener('pointermove', wake)
       window.removeEventListener('keydown', wake)
     }
-  }, [])
+  }, [curated])
 
   async function onPickFile(file: File | null): Promise<void> {
     if (!file) {
@@ -236,7 +280,10 @@ export function ReplayView({ curated }: { curated?: CuratedReplay }) {
   const stackHere = timeline.occupied[position.index - 1] === true
 
   return (
-    <div className={styles.stage} aria-label="Match replay">
+    <div
+      className={cx(styles.stage, curated && styles.continuous)}
+      aria-label={curated ? 'Game table' : 'Match replay'}
+    >
       <Board
         board={board}
         interactive={false}
@@ -335,81 +382,83 @@ export function ReplayView({ curated }: { curated?: CuratedReplay }) {
         </div>
       )}
 
-      <section
-        className={cx(styles.transport, position.playing && idle && styles.dim)}
-        aria-label="Replay transport"
-      >
-        <button
-          onClick={controls.stepBack}
-          disabled={!loaded || position.index === 0}
-          aria-label="Step back"
+      {!curated && (
+        <section
+          className={cx(styles.transport, position.playing && idle && styles.dim)}
+          aria-label="Replay transport"
         >
-          ◀
-        </button>
-        <button className={styles.primary} onClick={controls.toggle} disabled={!loaded || atEnd}>
-          {position.playing ? 'Pause' : started ? 'Play' : 'Start'}
-        </button>
-        <button
-          onClick={controls.stepForward}
-          disabled={!loaded || atEnd}
-          aria-label="Step forward"
-        >
-          ▶
-        </button>
+          <button
+            onClick={controls.stepBack}
+            disabled={!loaded || position.index === 0}
+            aria-label="Step back"
+          >
+            ◀
+          </button>
+          <button className={styles.primary} onClick={controls.toggle} disabled={!loaded || atEnd}>
+            {position.playing ? 'Pause' : started ? 'Play' : 'Start'}
+          </button>
+          <button
+            onClick={controls.stepForward}
+            disabled={!loaded || atEnd}
+            aria-label="Step forward"
+          >
+            ▶
+          </button>
 
-        <div className={styles.track}>
-          <input
-            className={styles.scrub}
-            type="range"
-            min={0}
-            max={Math.max(position.total, 1)}
-            value={position.index}
-            disabled={!loaded}
-            onChange={(event) => controls.seek(Number(event.currentTarget.value))}
-            aria-label="Scrub"
-          />
-          {/* Where the stack is occupied. Without these the moments worth
-              watching are a fraction of the frames and impossible to find. */}
-          <div className={styles.marks} aria-hidden="true">
-            {timeline.runs.map((run) => (
-              <span
-                key={run.start}
-                className={styles.mark}
-                style={{
-                  left: `${(run.start / Math.max(position.total, 1)) * 100}%`,
-                  width: `${Math.max(((run.end - run.start + 1) / Math.max(position.total, 1)) * 100, 0.5)}%`,
-                }}
-              />
-            ))}
-          </div>
-        </div>
-
-        <button
-          className={cx(styles.jump, stackHere && styles.jumpActive)}
-          onClick={controls.nextStack}
-          disabled={!loaded || timeline.runs.length === 0}
-          title="Jump to the next spell on the stack"
-        >
-          Stack ▸
-        </button>
-
-        <output className={styles.readout}>
-          Turn {board.turnNumber} · {board.stepName || board.phaseName}
-        </output>
-
-        {started && !curated && (
-          <label className={styles.file}>
-            Load
+          <div className={styles.track}>
             <input
-              type="file"
-              accept=".json,.greplay.json"
-              onChange={(event) => void onPickFile(event.currentTarget.files?.[0] ?? null)}
+              className={styles.scrub}
+              type="range"
+              min={0}
+              max={Math.max(position.total, 1)}
+              value={position.index}
+              disabled={!loaded}
+              onChange={(event) => controls.seek(Number(event.currentTarget.value))}
+              aria-label="Scrub"
             />
-          </label>
-        )}
-      </section>
+            {/* Where the stack is occupied. Without these the moments worth
+              watching are a fraction of the frames and impossible to find. */}
+            <div className={styles.marks} aria-hidden="true">
+              {timeline.runs.map((run) => (
+                <span
+                  key={run.start}
+                  className={styles.mark}
+                  style={{
+                    left: `${(run.start / Math.max(position.total, 1)) * 100}%`,
+                    width: `${Math.max(((run.end - run.start + 1) / Math.max(position.total, 1)) * 100, 0.5)}%`,
+                  }}
+                />
+              ))}
+            </div>
+          </div>
 
-      {misses > 0 && (
+          <button
+            className={cx(styles.jump, stackHere && styles.jumpActive)}
+            onClick={controls.nextStack}
+            disabled={!loaded || timeline.runs.length === 0}
+            title="Jump to the next spell on the stack"
+          >
+            Stack ▸
+          </button>
+
+          <output className={styles.readout}>
+            Turn {board.turnNumber} · {board.stepName || board.phaseName}
+          </output>
+
+          {started && !curated && (
+            <label className={styles.file}>
+              Load
+              <input
+                type="file"
+                accept=".json,.greplay.json"
+                onChange={(event) => void onPickFile(event.currentTarget.files?.[0] ?? null)}
+              />
+            </label>
+          )}
+        </section>
+      )}
+
+      {!curated && misses > 0 && (
         <p className={styles.warning} role="status">
           {misses} enum name{misses === 1 ? '' : 's'} in this transcript matched no known value —
           values may be read as defaults.
@@ -446,7 +495,7 @@ export function ReplayView({ curated }: { curated?: CuratedReplay }) {
       )}
       {curated && !loaded && (
         <p className={styles.loading} role={error ? 'alert' : 'status'}>
-          {error || 'Loading replay…'}
+          {error || 'Joining the table…'}
         </p>
       )}
     </div>

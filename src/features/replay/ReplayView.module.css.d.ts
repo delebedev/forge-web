@@ -4,6 +4,7 @@ declare const styles: {
   readonly "choiceInspector": string
   readonly "complete": string
   readonly "completeBanner": string
+  readonly "continuous": string
   readonly "curtain": string
   readonly "dim": string
   readonly "error": string

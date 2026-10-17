@@ -19,19 +19,19 @@ export const ROUTE_META: Record<string, PageMeta> = {
   landing: {
     title: `${SITE_NAME} — Play Magic: The Gathering Against AI`,
     description:
-      'Play Magic: The Gathering against AI in your browser for free. Import a Standard or Commander deck, or watch curated match replays.',
+      'Play Magic: The Gathering against AI in your browser for free. Import a Standard or Commander deck, or watch complete AI games.',
     canonical: `${SITE_URL}/`,
   },
   about: {
     title: `About ${SITE_NAME} — Browser MTG Playtesting`,
     description:
-      'Learn about Forge Web: free browser-based Magic: The Gathering playtesting, deck import, and match replays, powered by the Card-Forge rules engine.',
+      'Learn about Forge Web: free browser-based Magic: The Gathering playtesting, deck import, and complete AI games, powered by the Card-Forge rules engine.',
     canonical: `${SITE_URL}/about`,
   },
   watch: {
-    title: `Watch Match Replays — ${SITE_NAME}`,
+    title: `Watch Games — ${SITE_NAME}`,
     description:
-      'Watch three full Magic: The Gathering games from opening hands to the final turn, with replay controls and card inspection.',
+      'Watch three full Magic: The Gathering games from opening hands to the final turn, with card inspection.',
     canonical: `${SITE_URL}/watch`,
   },
   roadmap: {
@@ -93,7 +93,7 @@ export const PUBLIC_META: Record<string, PageMeta> = Object.fromEntries([
   ...CURATED_REPLAYS.map((sample) => [
     `/watch/${sample.id}`,
     {
-      title: `${sample.title} — Forge Web Replay`,
+      title: `${sample.title} — Forge Web Game`,
       description: sample.description,
       canonical: `${SITE_URL}/watch/${sample.id}`,
     },

@@ -19,7 +19,7 @@ client-side.
 | `/challenges` | `ChallengesView` | dev | Curated puzzle browser; production returns 404 |
 | `/challenges/:id` | `ChallengesView` → `GrePlay` | dev | Launch a curated puzzle on the standard match route |
 | `/challenge/:challengeId` | `BrowserChallenge` → `GrePlay` | no | Daily bundled puzzle rotation and shared generated puzzle pool |
-| `/watch` | `CuratedWatch` | no | Curated full-game replays with playback, seeking and inspection |
+| `/watch` | `CuratedWatch` | no | Curated full-game replays with automatic playback and card inspection |
 | `/watch/:replayId` | `CuratedWatch` | no | Allowlisted static replay; fresh-game deck handoff |
 | `/play/replay` | `ReplayView` | dev | Local operator transcript viewer with completeness and submitted-choice inspection; production returns 404 |
 | `/decks` | `DecksView` | yes | Deck browser: list + detail pane + filters |
@@ -241,4 +241,4 @@ are provisioned with the ordinary dev seed command.
 
 ## Curated watch
 
-The landing table and `/watch` use allowlisted assets from `public/replays/` through `TranscriptFrameSource` and the production board. They do not initialize the browser engine or start a server match. The collection contains three complete games from normal opening hands through a terminal result. Replay labels distinguish playback from a live game. Play/pause, stepping, seeking and card inspection are read-only. `Play these decks` opens `/play/game?replay=<known-id>` for a fresh game using the complete manifest decks. The operator file picker and arbitrary `?src` loading remain development-only at `/play/replay`. Exact deck inputs and provenance live in `dev/replays/README.md`.
+The landing table and `/watch` play allowlisted complete games from `public/replays/` through `TranscriptFrameSource` and the production board. They do not initialize the browser engine or start a server match. Each game starts from normal opening hands and plays through its terminal outcome. After a short result dwell, the next game starts automatically. Public viewing has no playback controls, timeline, picker or live-status claim. Card inspection stays available. Playback and pending rotation pause when the page or table is hidden, and stop on unmount. The current matchup's `Play these decks` link opens `/play/game?replay=<known-id>` for a fresh game using those complete decks. The operator file picker, arbitrary `?src` loading and full playback controls remain development-only at `/play/replay`. Exact deck inputs and provenance live in `dev/replays/README.md`.
