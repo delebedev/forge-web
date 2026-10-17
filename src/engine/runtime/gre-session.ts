@@ -744,6 +744,7 @@ export class GreSessionStore {
       return
     }
     const context = this.browserContext()
+    const replayContext = greStore.reportingContext()
     // Retire streaming before its final failure upload so teardown cannot replace the reason.
     greStore.disconnect()
     if (context && this.markBrowserTerminal(context)) {
@@ -763,7 +764,12 @@ export class GreSessionStore {
       if (diagnostic.snapshot) {
         greStore.retainBrowserFailure(diagnostic.snapshot)
       }
-      reportBrowserFailure(error instanceof Error ? error : new Error(message), diagnostic, context)
+      reportBrowserFailure(
+        error instanceof Error ? error : new Error(message),
+        diagnostic,
+        context,
+        replayContext,
+      )
       void this.uploadBrowserReplay(diagnostic.category)
     }
     this.browserPhase = 'failed'

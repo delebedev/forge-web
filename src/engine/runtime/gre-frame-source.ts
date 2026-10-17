@@ -24,13 +24,15 @@ export type GreFrameBatch = {
   authenticated?: boolean
 }
 
+export type GreFailurePhase = 'decode' | 'apply' | 'transport'
+
 export interface GreFrameSink {
   onOpen(): void
   onBatch(batch: GreFrameBatch): void
   /** Discard folded state and fold again from empty. */
   onReset(): void
   onClose(close?: GreSocketClose): void
-  onError(): void
+  onError(error?: unknown, phase?: GreFailurePhase): void
 }
 
 export interface GreFrameSource {
@@ -55,6 +57,7 @@ export interface GreFrameSource {
 export class SocketFrameSource implements GreFrameSource {
   readonly canSend = true
   private transport: GreTransport | null = null
+  private generation = 0
   private matchId: string
 
   constructor(matchId = '') {
@@ -62,20 +65,26 @@ export class SocketFrameSource implements GreFrameSource {
   }
 
   start(sink: GreFrameSink): void {
+    const generation = ++this.generation
     this.transport = new GreTransport(
       {
         onOpen: () => sink.onOpen(),
         onMessage: (bytes) => {
-          void this.deliver(sink, bytes)
+          void this.deliver(sink, bytes, generation)
         },
         onClose: (close) => sink.onClose(close),
-        onError: () => sink.onError(),
+        onError: () => {
+          if (this.generation === generation) {
+            sink.onError(undefined, 'transport')
+          }
+        },
       },
       this.matchId,
     )
   }
 
   stop(): void {
+    this.generation++
     this.transport?.close()
     this.transport = null
   }
@@ -97,20 +106,33 @@ export class SocketFrameSource implements GreFrameSource {
    * so its bytes still register and the store still publishes. Swallowing it
    * silently would leave the match stalled with no visible cause.
    */
-  private async deliver(sink: GreFrameSink, bytes: Uint8Array): Promise<void> {
+  private async deliver(sink: GreFrameSink, bytes: Uint8Array, generation: number): Promise<void> {
     const byteLength = bytes.byteLength
+    const batch: GreFrameBatch = { byteLength, messages: [] }
+    let failure: { error: unknown; phase: GreFailurePhase } | undefined
     try {
       const wrapper = await decodeMessage('MatchServiceToClientMessage', bytes)
       if (isRecord(wrapper['authenticateResponse'])) {
-        sink.onBatch({ byteLength, messages: [], authenticated: true })
-        return
+        batch.authenticated = true
+      } else {
+        const event = wrapper['greToClientEvent']
+        batch.messages = isRecord(event)
+          ? asArray(event['greToClientMessages']).filter(isRecord)
+          : []
       }
-      const event = wrapper['greToClientEvent']
-      const messages = isRecord(event) ? asArray(event['greToClientMessages']).filter(isRecord) : []
-      sink.onBatch({ byteLength, messages })
-    } catch {
-      sink.onBatch({ byteLength, messages: [] })
-      sink.onError()
+    } catch (error) {
+      failure = { error, phase: 'decode' }
+    }
+    if (this.generation !== generation) {
+      return
+    }
+    try {
+      sink.onBatch(batch)
+    } catch (error) {
+      failure = { error, phase: 'apply' }
+    }
+    if (failure && this.generation === generation) {
+      sink.onError(failure.error, failure.phase)
     }
   }
 }

@@ -83,6 +83,7 @@ import {
   type GameMode,
 } from '@shared/analytics'
 import { telemetry } from '@shared/telemetry'
+import { reportGreFailure, type ReportingMatchContext } from '@shared/reporting'
 
 const META_FETCH_DELAY_MS = 50
 const TURN_MILESTONES = new Set([1, 5, 10, 20])
@@ -949,12 +950,24 @@ export class GreStore {
         this.status = 'closed'
         this.publish()
       },
-      onError: () => {
+      onError: (error, phase = 'transport') => {
         if (this.sourceGeneration !== generation) {
           return
         }
-        this.journey.end('failure', 'transport')
-        this.status = 'websocket error'
+        const execution = this.analyticsContext?.execution ?? 'server'
+        // Browser worker failures already carry their diagnostic through the session owner.
+        if (!(execution === 'browser' && phase === 'transport' && error === undefined)) {
+          reportGreFailure(error, { phase, execution, matchId: this.matchId })
+        }
+        this.journey.end('failure', phase)
+        this.status =
+          phase === 'decode'
+            ? 'frame decode error'
+            : phase === 'apply'
+              ? 'frame apply error'
+              : execution === 'browser'
+                ? 'browser engine error'
+                : 'websocket error'
         this.diagnostics.errorCount += 1
         this.publish()
       },
@@ -996,8 +1009,23 @@ export class GreStore {
     this.browserReplay = recovered?.collector ?? new BrowserReplayCollector(config)
     this.browserReplayStreamer = config.challengeId
       ? null
-      : new BrowserReplayStreamer(this.browserReplay, config.matchId)
+      : new BrowserReplayStreamer(this.browserReplay, config.matchId, fetch, () => this.publish())
     this.attachSource(source, false, !recovered)
+  }
+
+  reportingContext(): ReportingMatchContext | undefined {
+    if (!this.source || !this.matchId) {
+      return undefined
+    }
+    return {
+      ...this.browserReplayStreamer?.diagnostics(),
+      match_id: this.matchId,
+      execution: this.analyticsContext?.execution ?? 'server',
+      backend_release:
+        this.analyticsContext?.execution === 'browser' ? undefined : this.backendRelease,
+      frontend_build: this.analyticsContext?.frontendBuild,
+      engine_build: this.analyticsContext?.engineBuild,
+    }
   }
 
   browserReplaySnapshot() {

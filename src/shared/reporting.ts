@@ -16,10 +16,105 @@ const BROWSER_FAILURE_BUDGET = 3
 const reportedBrowserAttempts = new Set<string>()
 let browserFailureReports = 0
 
+export interface ReportingMatchContext {
+  match_id: string
+  execution: 'server' | 'browser'
+  frontend_build?: string
+  engine_build?: string
+  backend_release?: string
+  replay_state?: string
+  replay_ack_seq?: number
+  replay_failure?: string
+  replay_http_status?: number
+}
+
+const DIAGNOSTIC_REPORT_BUDGET = 10
+let diagnosticReports = 0
+const reportedCauses = new WeakSet<object>()
+
+/** Update the scope before capture; delayed processing keeps the original event's match. */
+export function setReportingContext(context: ReportingMatchContext | undefined): void {
+  try {
+    Sentry.setTags({
+      match_id: context?.match_id,
+      execution: context?.execution,
+      frontend_build: context?.frontend_build,
+      engine_build: context?.engine_build,
+      backend_release: context?.backend_release,
+      replay_state: context?.replay_state,
+      replay_ack_seq: context?.replay_ack_seq,
+      replay_failure: context?.replay_failure,
+      replay_http_status: context?.replay_http_status,
+    })
+  } catch {
+    // Scope updates must never prevent runtime publication.
+  }
+}
+
+export function reportGreFailure(
+  error: unknown,
+  context: {
+    phase: 'decode' | 'apply' | 'transport'
+    execution: 'server' | 'browser'
+    matchId: string
+  },
+): void {
+  reportDiagnostic(error, 'Gameplay frame failed', {
+    failure_category: 'gameplay-frame',
+    failure_phase: context.phase,
+    execution: context.execution,
+    match_id: context.matchId,
+  })
+}
+
+/** Additional caught failures share a page budget and retain one copy of an owned cause. */
+export function reportDiagnostic(
+  error: unknown,
+  message: string,
+  tags: Record<string, string | number>,
+): void {
+  if (
+    diagnosticReports >= DIAGNOSTIC_REPORT_BUDGET ||
+    (error instanceof Error && reportedCauses.has(error))
+  ) {
+    return
+  }
+  diagnosticReports++
+  if (error instanceof Error) {
+    reportedCauses.add(error)
+  }
+  try {
+    Sentry.withScope((scope) => {
+      if (
+        tags['match_id'] &&
+        tags['match_id'] !== Sentry.getIsolationScope().getScopeData().tags['match_id']
+      ) {
+        scope.setTags({
+          engine_build: undefined,
+          backend_release: undefined,
+          replay_state: undefined,
+          replay_ack_seq: undefined,
+          replay_failure: undefined,
+          replay_http_status: undefined,
+        })
+      }
+      scope.setTags(tags)
+      if (error instanceof Error) {
+        Sentry.captureException(error)
+      } else {
+        Sentry.captureMessage(message, 'warning')
+      }
+    })
+  } catch {
+    // Diagnostic delivery must never change gameplay or request handling.
+  }
+}
+
 export function reportBrowserFailure(
   error: unknown,
   diagnostic: BrowserFailureDiagnostic,
   context: BrowserAnalyticsContext,
+  replayContext?: ReportingMatchContext,
 ): void {
   if (
     browserFailureReports >= BROWSER_FAILURE_BUDGET ||
@@ -41,6 +136,10 @@ export function reportBrowserFailure(
         details.failingFrame ?? 'unknown',
       ])
       scope.setTags({
+        replay_state: replayContext?.replay_state,
+        replay_ack_seq: replayContext?.replay_ack_seq,
+        replay_failure: replayContext?.replay_failure,
+        replay_http_status: replayContext?.replay_http_status,
         execution: 'browser',
         ...browserFailureEnvironment(globalThis.navigator?.userAgent ?? ''),
         terminal_exception: details.exceptionClass,

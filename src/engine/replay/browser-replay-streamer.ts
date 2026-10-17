@@ -1,3 +1,4 @@
+import { reportDiagnostic } from '@shared/reporting'
 import type { BrowserReplayCollector } from './browser-replay-collector'
 
 const FLUSH_INTERVAL_MS = 10_000
@@ -5,6 +6,12 @@ const UPLOAD_TIMEOUT_MS = 5_000
 
 /** Best-effort delivery of ordered browser GRE observations; gameplay never awaits it. */
 export class BrowserReplayStreamer {
+  private failure: {
+    replay_failure: 'collection' | 'http' | 'network'
+    replay_http_status?: number
+  } | null = null
+  private acknowledged = false
+  private reportedFailure = false
   private afterSeq = 0
   private batchOffset = 0
   private responseOffset = 0
@@ -18,11 +25,18 @@ export class BrowserReplayStreamer {
   private readonly collector: BrowserReplayCollector
   private readonly matchId: string
   private readonly upload: typeof fetch
+  private readonly onChange: () => void
 
-  constructor(collector: BrowserReplayCollector, matchId: string, upload: typeof fetch = fetch) {
+  constructor(
+    collector: BrowserReplayCollector,
+    matchId: string,
+    upload: typeof fetch = fetch,
+    onChange: () => void = () => {},
+  ) {
     this.collector = collector
     this.matchId = matchId
     this.upload = upload
+    this.onChange = onChange
     this.timer = setInterval(() => {
       void this.flush()
     }, FLUSH_INTERVAL_MS)
@@ -36,6 +50,54 @@ export class BrowserReplayStreamer {
     queueMicrotask(() => {
       void this.flush()
     })
+  }
+
+  diagnostics(): {
+    replay_state: string
+    replay_ack_seq: number
+    replay_failure?: string
+    replay_http_status?: number
+  } {
+    return {
+      replay_state: this.busy
+        ? 'uploading'
+        : this.failure
+          ? 'failed'
+          : this.acknowledged
+            ? 'acknowledged'
+            : 'idle',
+      replay_ack_seq: this.afterSeq,
+      ...(!this.busy ? this.failure : null),
+    }
+  }
+
+  private notify(): void {
+    if (this.stopped) {
+      return
+    }
+    try {
+      this.onChange()
+    } catch {
+      // Reporting subscribers cannot change delivery success or interrupt a retry.
+    }
+  }
+
+  private failed(kind: 'collection' | 'http' | 'network', status?: number): false {
+    this.failure = {
+      replay_failure: kind,
+      ...(status == null ? {} : { replay_http_status: status }),
+    }
+    if (!this.reportedFailure) {
+      this.reportedFailure = true
+      reportDiagnostic(undefined, 'Browser replay delivery failed', {
+        failure_category: 'replay-delivery',
+        execution: 'browser',
+        match_id: this.matchId,
+        replay_ack_seq: this.afterSeq,
+        ...this.failure,
+      })
+    }
+    return false
   }
 
   async flush(reason = 'streaming', reportId?: string): Promise<boolean> {
@@ -58,7 +120,9 @@ export class BrowserReplayStreamer {
         this.reportId,
       )
     } catch {
-      return false
+      const result = this.failed('collection')
+      this.notify()
+      return result
     }
     if (
       !chunk.events?.length &&
@@ -68,6 +132,7 @@ export class BrowserReplayStreamer {
       return true
     }
     this.busy = true
+    this.notify()
     const attemptedReason = this.reason
     try {
       const response = await this.upload.call(
@@ -85,8 +150,10 @@ export class BrowserReplayStreamer {
         },
       )
       if (!response.ok) {
-        return false
+        return this.failed('http', response.status)
       }
+      this.failure = null
+      this.acknowledged = true
       this.afterSeq = chunk.events?.at(-1)?.seq ?? this.afterSeq
       this.batchOffset += chunk.batches.length
       this.responseOffset += chunk.responses?.length ?? 0
@@ -99,9 +166,10 @@ export class BrowserReplayStreamer {
       }
       return true
     } catch {
-      return false
+      return this.failed('network')
     } finally {
       this.busy = false
+      this.notify()
       if (this.reason !== 'streaming' && this.reason !== attemptedReason) {
         void this.flush()
       }
