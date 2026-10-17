@@ -70,17 +70,19 @@ export function ReplayView() {
   const [hoveredCard, setHoveredCard] = useState<CardView | null>(null)
   const [zoneViewer, setZoneViewer] = useState<ZoneViewerState>(null)
   const priorKnownHandIds = useRef<Set<number>>(new Set())
-  const visibleZoneViewer = currentZoneViewer(zoneViewer, board.libraryTop, board.opponentHand)
-  const visibleHoveredCard = currentHandHoveredCard(hoveredCard, priorKnownHandIds.current, board)
+  const visibleZoneViewer = currentZoneViewer(zoneViewer, board)
+  const visibleHoveredCard = zoneViewer
+    ? (visibleZoneViewer?.cards.find((card) => card.instanceId === hoveredCard?.instanceId) ?? null)
+    : currentHandHoveredCard(hoveredCard, priorKnownHandIds.current, board)
   useEffect(() => {
     if (hoveredCard !== visibleHoveredCard) {
       setHoveredCard(visibleHoveredCard)
     }
-    if (zoneViewer?.source === 'opponent-hand' && board.opponentHand.length === 0) {
+    if (zoneViewer && !visibleZoneViewer) {
       setZoneViewer(null)
     }
     priorKnownHandIds.current = new Set(board.opponentHand.map((card) => card.instanceId))
-  }, [board.opponentHand, hoveredCard, visibleHoveredCard, zoneViewer])
+  }, [board.opponentHand, hoveredCard, visibleHoveredCard, visibleZoneViewer, zoneViewer])
 
   const load = useCallback(
     async (raw: unknown) => {
@@ -223,7 +225,9 @@ export function ReplayView() {
         hoveredCard={visibleHoveredCard}
         onHover={setHoveredCard}
         zoneViewer={visibleZoneViewer}
-        onOpenZone={(title, cards, source) => setZoneViewer({ title, cards, source })}
+        onOpenZone={(title, source) =>
+          setZoneViewer({ title, source, matchId: board.currentMatchId })
+        }
         onCloseZone={() => setZoneViewer(null)}
         dropZoneRef={() => {}}
       />

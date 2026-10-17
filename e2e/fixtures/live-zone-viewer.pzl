@@ -1,0 +1,18 @@
+# Relic moves the graveyard inventory to exile while its viewer stays open.
+# Empty AI zones leave resolution deterministic; Bears proves continued play.
+[metadata]
+Name:Live zone viewer
+Goal:Win
+Turns:4
+Difficulty:Easy
+Description:Resolve Relic, inspect the changing graveyard and exile, then cast Grizzly Bears.
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanhand=Grizzly Bears
+humanbattlefield=Relic of Progenitus;Forest;Forest;Forest
+humangraveyard=Walking Corpse
+humanlibrary=Forest;Forest;Forest;Forest;Forest
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain

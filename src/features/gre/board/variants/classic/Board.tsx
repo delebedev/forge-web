@@ -38,7 +38,7 @@ import { PhaseRail } from '../../PhaseRail'
 import { PlayerPlate } from '../../PlayerPlate'
 import { StackPanel } from '../../StackPanel'
 import { ZoneMotionLayer } from '../../ZoneMotionLayer'
-import type { ZoneViewerState } from '../../types'
+import type { ZoneViewerSource } from '../../types'
 import { ZoneViewer } from '../../ZoneViewer'
 import styles from './Board.module.css'
 import '@shared/public-theme.css'
@@ -64,8 +64,8 @@ export type BoardProps = {
   promptBinding?: PromptBinding | null
   hoveredCard: CardView | null
   onHover: (card: CardView | null) => void
-  zoneViewer: ZoneViewerState
-  onOpenZone: (title: string, cards: CardView[], source?: 'library-top' | 'opponent-hand') => void
+  zoneViewer: { title: string; cards: CardView[] } | null
+  onOpenZone: (title: string, source: ZoneViewerSource) => void
   onCloseZone: () => void
   dropZoneRef: (el: HTMLElement | null) => void
   onBackToPlay?: () => void
@@ -619,7 +619,7 @@ export function Board({
           count={board.opponent?.handCount ?? 0}
           known={board.opponentHand}
           onHover={onHover}
-          onInspect={() => onOpenZone('Known opponent hand', board.opponentHand, 'opponent-hand')}
+          onInspect={() => onOpenZone('Known opponent hand', 'opponentHand')}
         />
       </div>
 

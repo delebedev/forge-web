@@ -3,6 +3,7 @@ import type { CardView, PlayerView, TargetCandidate } from '@engine/state/gre-st
 import type { DungeonView } from '@engine/state/dungeon-view'
 import { cx } from '@shared/react/cx'
 import { artCropUrl } from '@shared/cards/scryfall'
+import type { ZoneViewerSource } from './types'
 import styles from './variants/classic/Board.module.css'
 
 export function PlayerPlate({
@@ -43,7 +44,7 @@ export function PlayerPlate({
   waiting?: boolean
   showLifeChange?: boolean
   onTarget?: (target: TargetCandidate) => void
-  onOpenZone: (title: string, cards: CardView[], source?: 'library-top') => void
+  onOpenZone: (title: string, source: ZoneViewerSource) => void
   onHover?: (card: CardView | null) => void
 }) {
   const owner = seat === 'self' ? 'Your' : "Opponent's"
@@ -185,7 +186,7 @@ export function PlayerPlate({
             className={styles.zone}
             data-zone="library"
             data-owner={seat}
-            onClick={() => onOpenZone('Top of your Library', [libraryTop], 'library-top')}
+            onClick={() => onOpenZone('Top of your Library', 'libraryTop')}
             title="Inspect the top of your library"
           >
             <span>{player?.libraryCount ?? 0}</span>
@@ -206,7 +207,9 @@ export function PlayerPlate({
           className={styles.zone}
           data-zone="graveyard"
           data-owner={seat}
-          onClick={() => onOpenZone(`${owner} Graveyard`, graveyard)}
+          onClick={() =>
+            onOpenZone(`${owner} Graveyard`, seat === 'self' ? 'graveyard' : 'opponentGraveyard')
+          }
           title={`${owner} graveyard`}
         >
           <span>{graveyard.length}</span>
@@ -216,7 +219,7 @@ export function PlayerPlate({
           className={styles.zone}
           data-zone="exile"
           data-owner={seat}
-          onClick={() => onOpenZone(`${owner} Exile`, exile)}
+          onClick={() => onOpenZone(`${owner} Exile`, seat === 'self' ? 'exile' : 'opponentExile')}
           title={`${owner} exile`}
         >
           <span>{exile.length}</span>
