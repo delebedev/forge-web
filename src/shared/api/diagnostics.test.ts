@@ -45,7 +45,7 @@ test('expected HTTP outcomes remain quiet', async () => {
 
 test('unknown 503 and unknown routes report without leaking paths or response contents', async () => {
   request.mockResolvedValue(Response.json({ code: 'private-error' }, { status: 503 }))
-  await apiFetch('/api/gre/start', { method: 'POST' })
+  await apiFetch('/api/courses/result', { method: 'POST' })
   request.mockResolvedValue(new Response('private response', { status: 500 }))
   await apiFetch('/private/secret-id?token=private-query')
   await new Promise((resolve) => setTimeout(resolve, 0))
@@ -175,7 +175,7 @@ test('oversized or invalid admission responses remain observable without consumi
       headers: { 'Content-Type': 'application/json', 'X-Backend-Release': 'private-header' },
     })
     request.mockResolvedValue(response)
-    await apiFetch('/api/gre/start', { method: 'POST' })
+    await apiFetch('/api/courses/result', { method: 'POST' })
     expect(await response.text()).toBe(body)
   }
   await new Promise((resolve) => setTimeout(resolve, 0))

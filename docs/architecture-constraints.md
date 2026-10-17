@@ -74,7 +74,6 @@ prompt state visible until the route implements it.
 
 ## Established Patterns
 
-- **One Store ↔ One Transport** — `greStore` owns the GRE WebSocket;
-  `draftStore`/`sealedStore` are REST-only (product course routes), no transport
-  to share.
+- **One Store ↔ One Frame Source** — `greStore` consumes the browser worker or a
+  read-only replay. `draftStore`/`sealedStore` own product course REST state.
 - **Card ID as Identity** — selection sets are `number[]` of card/object IDs.

@@ -14,7 +14,7 @@ describe('reporting event sanitization', () => {
       type: undefined,
       request: {
         method: 'POST',
-        url: 'https://forge.example.test/api/gre/start?playerId=private',
+        url: 'https://forge.example.test/api/courses/result?playerId=private',
         data: { deck: 'private' },
         cookies: { session: 'private' },
         headers: { Authorization: 'private' },
@@ -38,7 +38,7 @@ describe('reporting event sanitization', () => {
     expect(event.extra).toBeUndefined()
     expect(event.request).toEqual({
       method: 'POST',
-      url: 'https://forge.example.test/api/gre/start',
+      url: 'https://forge.example.test/api/courses/result',
     })
     expect(event.breadcrumbs).toEqual([
       {

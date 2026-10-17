@@ -115,8 +115,8 @@ or `failed`), aggregate `warmup_bytes`, and `warmup_duration_ms`. Segment
 Play-to-first-engine-stage duration by warmup and engine build; do not interpret
 requested bytes as transferred bytes when browser HTTP-cache transfer sizes are
 unavailable. The attempt
-identity remains on a server fallback so its eventual game start can be joined
-to the browser attempt. Events never include a decklist, card name, GRE payload,
+identity joins the local game start to its browser attempt. Startup failures remain
+local and explicit. Events never include a decklist, card name, GRE payload,
 or browser error text.
 
 Same-tab recovery starts a fresh attempt with `retry` and `reason=recovery`,
@@ -195,22 +195,14 @@ Umami because they are low volume and support the existing lifecycle views.
   `reconnect_attempt`. This
   also includes first attachment to a preallocated match; it is not evidence of
   an earlier disconnect. A fresh-page join may have unknown backend release.
-- `journey-disconnected`: one event per unexpected socket-loss incident before
+- `journey-disconnected`: one event per unexpected frame-source loss incident before
   game over, including `disconnect_id`, match and release context, bounded
   `close_category`, numeric `close_code`, and `connection_status`. Retry closes
   remain part of the original incident. Intentional leave and explicit match
-  completion do not emit it. A match ended from another attached client is the
-  bounded `abandoned` category and also does not emit a disconnect incident.
-  Arbitrary WebSocket reason text is never sent.
+  completion do not emit it. Arbitrary frame-source error text is never sent.
 
 Report disconnect incidents by distinct `disconnect_id`, affected matches by
 distinct `match_id`, and reconnect attempts separately by `operation_id`.
-Capacity rejections are launch failures with `category=capacity`; count their
-affected accounts/sessions alongside attempts so repeated clicks do not imply
-more affected players. Keep engine termination, unavailable matches, temporary
-transport loss, and unmatched observations separate. Older events without these
-fields remain unclassified rather than being inferred as new incidents.
-
 Observation deadlines are 60 seconds for readiness and 30 seconds for action
 progress. They never abort a request, change priority, or otherwise control the
 match. Disconnects fail pending observations; explicit leave cancels them.

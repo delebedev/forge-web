@@ -166,14 +166,11 @@ course with a pool but no deckId yet (no session WebSocket to reconnect).
 - `decks-store.ts` — account and selection correlation, metadata hydration, committed mutation results
 - `deck-value.ts` — complete deck values and presentation projections
 
-## WS transports
+## Gameplay boundary
 
-The only WebSocket in this app is the GRE match runtime — draft and sealed
-are REST-only (course API), no session WebSocket.
-
-| Endpoint | Owner | Auth | Recovery |
-|---|---|---|---|
-| `/gre?matchId={matchId}` | `greStore` | session cookie | GRE reconnect state (sessionStorage) |
+Gameplay frames stay between the browser worker and `greStore`.
+There is no product gameplay WebSocket. Draft/sealed generation and course
+progress use REST. Static watch streams use saved transcripts.
 
 ## Auth & persistence
 
@@ -189,7 +186,7 @@ are REST-only (course API), no session WebSocket.
 
 | Key | Purpose |
 |---|---|
-| `forge:gre:lastMatchConfig` | Current tab's GRE launch config for refresh resume; cleared when the match is retired |
+| `forge:gre:lastMatchConfig` | Current tab's local launch config; refresh ends the game and offers restart; cleared on retirement |
 
 Draft/sealed deck-building refresh-resume reads course state from
 `GET /api/courses` instead of a stored session ID.
