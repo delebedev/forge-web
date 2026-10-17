@@ -35,10 +35,7 @@ internal fun Route.installReplayOperatorRoutes(store: MatchReplayStore) {
             if (!call.isOperator(store)) return@post call.respond(HttpStatusCode.NotFound)
             val matchId = call.parameters["matchId"].orEmpty()
             val request = call.receive<ReplayPinRequest>()
-            val pinned =
-                runCatching { store.pin(matchId, request.reportId) }.getOrElse {
-                    return@post call.respond(HttpStatusCode.BadRequest, it.message ?: "Invalid pin")
-                }
+            val pinned = store.pin(matchId, request.reportId)
             call.respond(if (pinned) HttpStatusCode.NoContent else HttpStatusCode.NotFound)
         }
     }.excludeContract("operator diagnostics")

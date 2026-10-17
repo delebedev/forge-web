@@ -20,8 +20,6 @@ import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.security.MessageDigest
 import java.time.Clock
-import java.util.concurrent.Executors
-import java.util.concurrent.TimeUnit
 import java.util.zip.GZIPInputStream
 import java.util.zip.GZIPOutputStream
 
@@ -49,7 +47,8 @@ internal data class ReplayStorageHealth(
 internal class MatchReplayStore(
     private val config: MatchReplayConfig,
     private val clock: Clock = Clock.systemUTC(),
-) {
+) : AutoCloseable {
+    private val worker = ReplayWorker()
     private val json =
         Json {
             encodeDefaults = true
@@ -57,7 +56,7 @@ internal class MatchReplayStore(
         }
     private val log = LoggerFactory.getLogger(MatchReplayStore::class.java)
 
-    // ponytail: Health uses the last completed measurement; add independent accounting if immediate freshness is required.
+    // Health observes the last committed measurement without entering the storage worker.
     @Volatile private var lastMeasuredBytesUsed = 0L
 
     init {
@@ -65,17 +64,10 @@ internal class MatchReplayStore(
             require(config.root.isDirectory || config.root.mkdirs()) { "Could not create replay directory" }
         }.onFailure { log.error("Replay storage unavailable (directory={})", config.root.absolutePath, it) }
         lastMeasuredBytesUsed = storageBudgetUsage()
-        Executors.newSingleThreadScheduledExecutor { runnable -> Thread(runnable, "match-replay-expiry").apply { isDaemon = true } }
-            .scheduleWithFixedDelay(
-                {
-                    runCatching { cleanup(maxCompactions = MAX_COMPACTIONS_PER_CLEANUP) }
-                        .onFailure { log.error("Replay cleanup failed", it) }
-                },
-                1,
-                1,
-                TimeUnit.HOURS,
-            )
+        worker.maintain { runCatching { cleanupFiles() }.onFailure { log.error("Replay cleanup failed", it) } }
     }
+
+    override fun close() = worker.close()
 
     fun health(): ReplayStorageHealth =
         ReplayStorageHealth(
@@ -91,8 +83,14 @@ internal class MatchReplayStore(
         )
     }
 
-    @Synchronized
-    fun ingestBrowser(
+    suspend fun ingestBrowser(
+        accountId: String,
+        matchId: String,
+        artifactId: String,
+        body: ByteArray,
+    ): Boolean = worker.submit { ingestBrowserFile(accountId, matchId, artifactId, body) }
+
+    private fun ingestBrowserFile(
         accountId: String,
         matchId: String,
         artifactId: String,
@@ -112,7 +110,6 @@ internal class MatchReplayStore(
         submitted.status.reportId?.let {
             require(artifactId == "$matchId:$it") { "Replay report identity mismatch" }
         }
-        val file = browserReplayFile(matchId)
         val metadata = readBrowserMetadata(matchId)
         require(metadata?.string("accountId") in setOf(null, accountId)) { "Replay belongs to another account" }
         val artifacts = metadata?.get("artifacts") as? JsonArray
@@ -120,26 +117,28 @@ internal class MatchReplayStore(
         val normalized = submitted.copy(context = context.copy(accountId = accountId))
         val encoded = json.encodeToString(ReplayBundle.serializer(), normalized).toByteArray(StandardCharsets.UTF_8)
         require(encoded.size <= config.maxMatchBytes) { "Replay match quota exceeded" }
-        cleanup(requiredBytes = encoded.size.toLong(), maxCompactions = null)
-        val replacing = file.takeIf(File::isFile)?.length() ?: 0
-        require(storageBudgetUsage() - replacing + encoded.size <= config.maxBytes) { "Replay storage quota is exhausted" }
-        writeAtomic(file, encoded)
         val nextArtifacts = artifacts?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull }.orEmpty() + artifactId
-        writeAtomic(
-            browserMetadataFile(matchId),
+        persistBrowser(
+            matchId,
+            encoded,
             buildJsonObject {
                 put("accountId", accountId)
                 put("createdAtMs", metadata?.long("createdAtMs") ?: clock.millis())
                 put("artifacts", JsonArray(nextArtifacts.takeLast(8).map(::JsonPrimitive)))
             }.toString().toByteArray(StandardCharsets.UTF_8),
+            normalized.status.reportId,
         )
-        normalized.status.reportId?.let { pin(matchId, it) }
-        storageBudgetUsage()
         return true
     }
 
-    @Synchronized
-    fun ingestBrowserChunk(
+    suspend fun ingestBrowserChunk(
+        accountId: String,
+        matchId: String,
+        afterSeq: Long,
+        body: ByteArray,
+    ): Long = worker.submit { ingestBrowserChunkFile(accountId, matchId, afterSeq, body) }
+
+    private fun ingestBrowserChunkFile(
         accountId: String,
         matchId: String,
         afterSeq: Long,
@@ -196,29 +195,49 @@ internal class MatchReplayStore(
         require(normalized.events.size <= 100_000 && normalized.batches.size <= 50_000) { "Replay is too complex" }
         val encoded = json.encodeToString(ReplayBundle.serializer(), normalized).toByteArray(StandardCharsets.UTF_8)
         require(encoded.size <= config.maxMatchBytes) { "Replay match quota exceeded" }
-        cleanup(requiredBytes = encoded.size.toLong(), maxCompactions = null)
-        val replacing = file.takeIf(File::isFile)?.length() ?: 0
-        require(storageBudgetUsage() - replacing + encoded.size <= config.maxBytes) { "Replay storage quota is exhausted" }
-        writeAtomic(file, encoded)
-        if (metadata == null) {
-            writeAtomic(
-                browserMetadataFile(matchId),
+        val metadataBytes =
+            if (metadata == null) {
                 buildJsonObject {
                     put("accountId", accountId)
                     put("createdAtMs", clock.millis())
                     put("artifacts", JsonArray(emptyList()))
-                }.toString().toByteArray(StandardCharsets.UTF_8),
-            )
-        }
-        normalized.status.reportId?.let { pin(matchId, it) }
-        storageBudgetUsage()
+                }.toString().toByteArray(StandardCharsets.UTF_8)
+            } else {
+                null
+            }
+        persistBrowser(matchId, encoded, metadataBytes, normalized.status.reportId)
         return normalized.events.lastOrNull()?.seq ?: committedSeq
     }
 
-    @Synchronized
-    fun export(matchId: String): ReplayBundle? {
+    private fun persistBrowser(
+        matchId: String,
+        replay: ByteArray,
+        metadata: ByteArray?,
+        reportId: String?,
+    ) {
+        val writes = mutableMapOf(browserReplayFile(matchId) to replay)
+        metadata?.let { writes[browserMetadataFile(matchId)] = it }
+        reportId?.let { writes[pinFile(matchId)] = pinBytes(it) }
+        val delta = writes.entries.sumOf { (file, bytes) -> bytes.size - file.length() }
+        require(lastMeasuredBytesUsed + delta <= config.maxBytes) { "Replay storage quota is exhausted" }
+        writes.forEach { (file, bytes) -> writeAccounted(file, bytes) }
+    }
+
+    private fun writeAccounted(
+        file: File,
+        bytes: ByteArray,
+    ) {
+        val replacing = file.length()
+        writeAtomic(file, bytes)
+        lastMeasuredBytesUsed += bytes.size - replacing
+    }
+
+    suspend fun export(matchId: String): ReplayBundle? = worker.submit { exportFile(matchId) }
+
+    private fun exportFile(matchId: String): ReplayBundle? {
         requireValidMatchId(matchId)
-        cleanup()
+        val retained = journalFile(matchId) ?: return null
+        if (expired(retained, matchId, clock.millis())) return null
         val browserFile = browserReplayFile(matchId)
         if (browserFile.isFile) {
             val replay = runCatching { json.decodeFromString<ReplayBundle>(browserFile.readText()) }.getOrNull() ?: return null
@@ -287,53 +306,63 @@ internal class MatchReplayStore(
         )
     }
 
-    @Synchronized
-    fun pin(
+    suspend fun pin(
+        matchId: String,
+        reportId: String,
+    ): Boolean = worker.submit { pinFile(matchId, reportId) }
+
+    private fun pinFile(
         matchId: String,
         reportId: String,
     ): Boolean {
         requireValidMatchId(matchId)
         require(reportId.matches(REPORT_ID)) { "reportId must be 1-100 URL-safe characters" }
-        val file = journalFile(matchId) ?: return false
-        val pin =
-            buildJsonObject {
-                put("reportId", reportId)
-                put("pinnedUntilMs", clock.millis() + config.pinnedRetentionDays * DAY_MS)
-            }
-        val encoded = pin.toString().toByteArray(StandardCharsets.UTF_8)
+        if (journalFile(matchId) == null) return false
+        val encoded = pinBytes(reportId)
         val currentPinBytes = pinFile(matchId).takeIf(File::isFile)?.length() ?: 0
         require(
-            storageBudgetUsage() - currentPinBytes + encoded.size <= config.maxBytes,
+            lastMeasuredBytesUsed - currentPinBytes + encoded.size <= config.maxBytes,
         ) { "Replay storage quota is exhausted" }
-        writeAtomic(pinFile(matchId), encoded)
-        storageBudgetUsage()
+        writeAccounted(pinFile(matchId), encoded)
         return true
     }
 
-    @Synchronized
-    internal fun cleanup(
-        requiredBytes: Long? = null,
-        maxCompactions: Int? = MAX_COMPACTIONS_PER_CLEANUP,
-    ) {
+    private fun pinBytes(reportId: String): ByteArray {
+        require(reportId.matches(REPORT_ID)) { "reportId must be 1-100 URL-safe characters" }
+        return buildJsonObject {
+            put("reportId", reportId)
+            put("pinnedUntilMs", clock.millis() + config.pinnedRetentionDays * DAY_MS)
+        }.toString().toByteArray(StandardCharsets.UTF_8)
+    }
+
+    internal suspend fun cleanup() = worker.submit { cleanupFiles() }
+
+    private fun cleanupFiles() {
         val now = clock.millis()
         cleanupTemporaryFiles()
         var compactions = 0
         for (file in replayFiles()) {
-            if (requiredBytes != null && config.maxBytes - storageBudgetUsage() >= requiredBytes) break
             val matchId = matchId(file) ?: continue
-            val created = readCreatedTime(file) ?: file.lastModified()
-            val pinnedUntil = readPin(matchId)?.long("pinnedUntilMs") ?: 0
-            val expires = maxOf(created + config.retentionDays * DAY_MS, pinnedUntil)
-            if (now >= expires) {
+            if (expired(file, matchId, now)) {
                 if (!file.delete()) log.warn("Replay expiry failed (file={})", file.name)
                 pinFile(matchId).delete()
                 browserMetadataFile(matchId).delete()
-            } else if (file.name.endsWith(".ndjson") && (maxCompactions == null || compactions < maxCompactions)) {
+            } else if (file.name.endsWith(".ndjson") && compactions < MAX_COMPACTIONS_PER_CLEANUP) {
                 compress(file, matchId)
                 compactions++
             }
         }
         storageBudgetUsage()
+    }
+
+    private fun expired(
+        file: File,
+        matchId: String,
+        now: Long,
+    ): Boolean {
+        val created = readCreatedTime(file) ?: file.lastModified()
+        val pinnedUntil = readPin(matchId)?.long("pinnedUntilMs") ?: 0
+        return now >= maxOf(created + config.retentionDays * DAY_MS, pinnedUntil)
     }
 
     private fun replayFiles(): List<File> =
@@ -463,11 +492,15 @@ private fun writeAtomic(
     bytes: ByteArray,
 ) {
     val temporary = File(file.parentFile, ".${file.name}.${System.nanoTime()}.tmp")
-    FileOutputStream(temporary).use { output ->
-        output.write(bytes)
-        output.fd.sync()
+    try {
+        FileOutputStream(temporary).use { output ->
+            output.write(bytes)
+            output.fd.sync()
+        }
+        Files.move(temporary.toPath(), file.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+    } finally {
+        temporary.delete()
     }
-    Files.move(temporary.toPath(), file.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
 }
 
 private fun JsonObject.string(key: String) = (get(key) as? JsonPrimitive)?.contentOrNull

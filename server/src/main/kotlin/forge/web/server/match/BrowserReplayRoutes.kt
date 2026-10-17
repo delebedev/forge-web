@@ -47,9 +47,7 @@ internal fun Route.installBrowserReplayRoutes(
                     return@post call.respond(HttpStatusCode.PayloadTooLarge)
                 }
             val matchId = call.parameters["matchId"].orEmpty()
-            val result =
-                runCatching { store.ingestBrowserChunk(player.playerId, matchId, afterSeq, body) }
-                    .getOrElse { return@post call.respond(HttpStatusCode.BadRequest, it.message ?: "Invalid replay chunk") }
+            val result = store.ingestBrowserChunk(player.playerId, matchId, afterSeq, body)
             call.respond(HttpStatusCode.OK, result.toString())
         }
         post {
@@ -68,10 +66,7 @@ internal fun Route.installBrowserReplayRoutes(
                 runCatching { call.receiveBounded(MAX_BROWSER_REPLAY_UPLOAD_BYTES) }.getOrElse {
                     return@post call.respond(HttpStatusCode.PayloadTooLarge)
                 }
-            val result =
-                runCatching { store.ingestBrowser(player.playerId, matchId, artifactId, body) }.getOrElse {
-                    return@post call.respond(HttpStatusCode.BadRequest, it.message ?: "Invalid replay")
-                }
+            val result = store.ingestBrowser(player.playerId, matchId, artifactId, body)
             call.respond(if (result) HttpStatusCode.Created else HttpStatusCode.Conflict)
         }
     }.excludeContract("GRE replay upload")

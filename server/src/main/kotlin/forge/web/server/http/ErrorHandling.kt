@@ -6,6 +6,8 @@ import forge.web.server.auth.UnauthorizedPlayer
 import forge.web.server.auth.WEB_SESSION_COOKIE
 import forge.web.server.auth.WebAuthService
 import forge.web.server.cards.ParseDecklistErrorResponse
+import forge.web.server.match.ReplayStorageBusy
+import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
 import io.ktor.server.application.install
@@ -24,6 +26,10 @@ import org.slf4j.LoggerFactory
 
 internal fun Application.installHttpErrorHandling(auth: WebAuthService) {
     install(StatusPages) {
+        exception<ReplayStorageBusy> { call, cause ->
+            call.response.headers.append(HttpHeaders.RetryAfter, "10")
+            call.respond(HttpStatusCode.ServiceUnavailable, cause.message ?: "Replay storage is busy")
+        }
         exception<leyline.domain.deck.DecklistException> { call, cause ->
             call.application.log.warn("Decklist rejected on {} {}: {}", call.request.local.method.value, call.request.path(), cause.errors)
             call.respond(HttpStatusCode.BadRequest, ParseDecklistErrorResponse(cause.errors))
