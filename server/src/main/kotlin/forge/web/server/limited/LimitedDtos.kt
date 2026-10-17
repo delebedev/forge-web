@@ -40,6 +40,7 @@ data class DraftSessionView(
     val pickNumber: Int,
     val draftPack: List<Int>,
     val pickedCards: List<Int>,
+    val interrupted: Boolean = false,
 )
 
 @Serializable
