@@ -103,6 +103,17 @@ class BrowserDecksTest {
     }
 
     @Test
+    fun `rejects lone Background but preserves its legal pair before browser startup`() {
+        val lone = "[Commander]\n1 Raised by Giants\n[Deck]\n99 Forest"
+        val error = assertFailsWith<IllegalArgumentException> { BrowserDecks.validate(lone, commander = true) }
+        assertContains(error.message.orEmpty(), "Background without")
+        val pair = "[Commander]\n1 Wilson, Refined Grizzly\n1 Raised by Giants\n[Deck]\n98 Forest"
+        assertEquals(2, BrowserDecks.validate(pair, commander = true).getCommanders().size)
+        val single = "[Commander]\n1 Wilson, Refined Grizzly\n[Deck]\n99 Forest"
+        assertEquals(1, BrowserDecks.validate(single, commander = true).getCommanders().size)
+    }
+
+    @Test
     fun `validates Partner pairing and combined identity before browser startup`() {
         val pair = "[Commander]\n1 Rograkh, Son of Rohgahh\n1 Yoshimaru, Ever Faithful\n[Deck]\n"
         val valid = BrowserDecks.validate(pair + "98 Plains", commander = true)

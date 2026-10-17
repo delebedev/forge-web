@@ -23,6 +23,13 @@ class CommanderEligibilityTest {
         )
 
     @Test
+    fun `requires a Choose a Background commander for a Background`() {
+        assertContains(problem("99 Forest", "Raised by Giants").orEmpty(), "Background without")
+        assertNull(problem("98 Forest", "Wilson, Refined Grizzly", "Raised by Giants"))
+        assertNull(problem("99 Forest", "Wilson, Refined Grizzly"))
+    }
+
+    @Test
     fun `uses the combined identity of both commanders`() {
         val pair = arrayOf("Akiri, Line-Slinger", "Thrasios, Triton Hero")
         assertNull(problem("25 Plains\n25 Island\n24 Forest\n24 Mountain", *pair))
