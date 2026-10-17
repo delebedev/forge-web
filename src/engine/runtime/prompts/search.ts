@@ -6,6 +6,8 @@ import { selectionCountInstruction } from '@engine/state/gre-prompt-view'
  * selected IDs; supported grouped requests select within one group at a time.
  */
 import {
+  ZONE_GRAVEYARD,
+  ZONE_LIBRARY,
   asArray,
   asNumber,
   isRecord,
@@ -104,12 +106,15 @@ export function searchPrompt(message: ProtoObject): FamilyRequest {
       owners.length && owners.every((owner) => owner != null && owner > 0 && owner === owners[0])
         ? owners[0]
         : undefined
-    const heading =
-      knownOwner == null
-        ? 'Search library'
-        : knownOwner === context.viewerSeatId
-          ? 'Search your library'
-          : "Search opponent's library"
+    const zoneTypes = new Set(zones.map((id) => context.tables.zones.get(id)?.type))
+    const searchedZones = zoneTypes.has(ZONE_GRAVEYARD)
+      ? zoneTypes.has(ZONE_LIBRARY)
+        ? 'library and graveyard'
+        : 'graveyard'
+      : 'library'
+    const owner =
+      knownOwner == null ? '' : knownOwner === context.viewerSeatId ? 'your ' : "opponent's "
+    const heading = `Search ${owner}${searchedZones}`
     const view: SearchPromptView = {
       kind: 'search',
       interactionKey,
