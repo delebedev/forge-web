@@ -103,27 +103,17 @@ PR workloads; no measured latency saving is claimed before a current burst sampl
 
 ### Runtime scheduling and cancellation
 
-The product runtime lane runs the complete selected `gre-priority` spec
-after product journeys. The Browser cost-choice matrix stays
-in gameplay to avoid moving its repeated initialization into the product lane.
-The gameplay runtime lane runs catalog and all remaining selected GRE specs. Both lanes
-verify the same sealed Browser runtime because each contains Browser Local
-cases. Partitioning happens after representative or changed-file selection;
-changing the relocated spec still runs every regular case in that file.
-Missing relocated files or unknown partition selectors fail CI rather than
-certifying an empty workload. No case moves out of the required gate.
+Product and catalog journeys run in independent jobs. Four GRE jobs use native
+Playwright sharding with `--fully-parallel` to distribute individual selected
+tests across runners. Each job retains `--workers=1`, so browser engines do not
+compete within a runner. Tests have isolated browser contexts and accounts and
+do not require another case to run first.
 
-The full main baseline [37375352185](https://github.com/delebedev/forge-web/actions/runs/37375352185)
-contains 96 GRE cases, partitioned into 30 product-lane and 66 gameplay-lane
-cases with no overlap. Its product/drain test bodies total 151.547 seconds,
-and catalog/GRE bodies total 868.821 seconds. The relocated priority spec accounts
-for 183.826 seconds, projecting 335.373 and 684.995 seconds of test bodies.
-The attempted priority-plus-cost-choice partition in run
-[37383552090](https://github.com/delebedev/forge-web/actions/runs/37383552090)
-hit Browser initialization deadlines and ordinary progression bounds. Those
-failures are retained as measurement evidence, not a speedup claim.
-These are scheduling inputs, not measured improvements: startup, Browser
-initialization and runner ordering also contribute to elapsed time.
+All six runtime jobs verify the same sealed server, frontend and Browser assets.
+Representative and changed-spec selection happens before sharding. A changed
+spec still contributes every regular case, with the existing qualification
+exclusions. The required gate waits for the complete runtime matrix. Artifact
+names include the unique lane, and unknown or inconsistent lane entries fail.
 
 Reporting and the required gate use `!cancelled()` rather than job-level
 `always()`. They remain eligible after test/build failure, so failed jobs still
@@ -135,8 +125,8 @@ Cancelled runs do not produce a successful proof receipt. This follows
 
 ## Build and test pyramid
 
-UI validation runs on the dedicated `forge-web-ui` runner (1 CPU / 3 GiB).
-One `forge-web-heavy` builder prepares pinned Forge dependencies once, then
+UI validation and runtime assembly use separate `ubuntu-latest` hosted runners.
+One builder prepares pinned Forge dependencies once, then
 validates and packages Java 21 server and Java 17 Browser Local distributions.
 Gradle caches task outputs using its tracked input fingerprints. The shared
 Leyline/card-presentation outputs and root Gradle project caches are separated
@@ -145,11 +135,11 @@ can still rerun some shared-module compilation. Browser tests use the same
 pruning setting as the shipped distribution. Root configuration
 caching is enabled; OpenAPI response cleanup keeps no live Project reference.
 CI uses the compiler inside the Gradle process and stops Gradle after assembly.
-Dependency/build caches remain in the heavy runner's dedicated Gradle volume;
-Bun's package cache is shared and installs still enforce `bun.lock`.
+Build and dependency caches remain local to each ephemeral hosted job.
+Bun installs enforce `bun.lock`; the workflow adds no persistent cache.
 
-After UI and builder success, the two heavy runners execute product, gameplay
-and Browser Local lanes. Their distributions are sealed with the tested Git
+After UI and builder success, hosted runners execute product, catalog, four GRE
+shards and Browser Local independently. Their distributions are sealed with the tested Git
 tree, Leyline pin, Java variant, producer run/attempt and every file's SHA-256.
 Consumers
 reject missing, stale, damaged or differently targeted artifacts. Failed-job
@@ -159,8 +149,7 @@ preserve launcher permissions. Product/GRE jobs launch the distribution directly
 with a 1 GiB heap and isolated suite state, without Gradle or Kotlin daemons.
 The product built-page checks reuse the tested UI bundle instead of rebuilding.
 
-A builder co-locates both targets to avoid occupying both heavy slots for build
-setup. This deliberately makes product browser tests wait for Java 17 validation
+A builder co-locates both targets to avoid repeating build setup. This deliberately makes product browser tests wait for Java 17 validation
 too. Reconsider separate builders if measured build time dominates the graph.
 The source and builder jobs run independently; failed source checks prevent all
 engine-backed browser work. Conservative path classification stays in place.
@@ -207,6 +196,6 @@ such. Gradle cached outcomes and repeated OpenAPI export checks are labelled;
 they are not presented as newly executed or unique tests. Extended qualification,
 coverage and historical flake rates are outside this report.
 
-Rollback the workflow and proof logic together; stop routing UI to the small
-runner before retiring it. Keep existing caches and the required `CI gate` name.
+Rollback workflow, selection and proof logic together. Keep the required
+`CI gate` name.
 Production publication still requires successful CI for the exact main SHA.

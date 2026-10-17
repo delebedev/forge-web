@@ -291,9 +291,23 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        lane:
-          - product
-          - gameplay
+        include:
+          - lane: product
+            suite: product
+          - lane: catalog
+            suite: catalog
+          - lane: gre-1
+            suite: gre
+            shard: 1/4
+          - lane: gre-2
+            suite: gre
+            shard: 2/4
+          - lane: gre-3
+            suite: gre
+            shard: 3/4
+          - lane: gre-4
+            suite: gre
+            shard: 4/4
     steps:
       - uses: actions/checkout@v4
         with:
@@ -333,15 +347,27 @@ jobs:
           cp -a ci-runtime/browser-engine public/browser-engine
       - name: Install browser
         run: bun x --bun playwright install --with-deps chromium
-      - name: Run product journeys
-        if: matrix.lane == 'product'
-        run: python3 scripts/ci-measure.py product bash -eo pipefail -c 'node scripts/ci-browser-selection.mjs product "$PROOF_BREADTH" "$BASE_SHA" --workers=1 --output=test-results/product && node scripts/ci-browser-selection.mjs gre "$PROOF_BREADTH" "$BASE_SHA" --ci-partition=product --workers=1 --output=test-results/gre'
+      - name: Run browser journeys
+        env:
+          SUITE: ${{ matrix.suite }}
+          SHARD: ${{ matrix.shard }}
+          LANE: ${{ matrix.lane }}
+        run: |
+          args=()
+          case "$LANE" in
+            product|catalog)
+              [[ "$SUITE" == "$LANE" && -z "$SHARD" ]] || exit 1
+              ;;
+            gre-[1-4])
+              [[ "$SUITE" == gre && "$SHARD" == "${LANE#gre-}/4" ]] || exit 1
+              args+=(--fully-parallel "--shard=$SHARD")
+              ;;
+            *) echo "Unknown runtime lane: $LANE" >&2; exit 1 ;;
+          esac
+          python3 scripts/ci-measure.py "$LANE" node scripts/ci-browser-selection.mjs "$SUITE" "$PROOF_BREADTH" "$BASE_SHA" --workers=1 "--output=test-results/$LANE" "${args[@]}"
       - name: Run curated replay journeys
         if: matrix.lane == 'product'
         run: bun x playwright test -c e2e/curated-replays.config.ts
-      - name: Run gameplay journeys
-        if: matrix.lane == 'gameplay'
-        run: python3 scripts/ci-measure.py gameplay bash -eo pipefail -c 'node scripts/ci-browser-selection.mjs catalog "$PROOF_BREADTH" "$BASE_SHA" --workers=1 --output=test-results/forge-catalog && node scripts/ci-browser-selection.mjs gre "$PROOF_BREADTH" "$BASE_SHA" --ci-partition=gameplay --workers=1 --output=test-results/gre'
       - name: Upload Playwright output
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4

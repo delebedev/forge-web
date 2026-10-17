@@ -9,8 +9,6 @@ import {
   representatives,
   representativeLocations,
   selection,
-  partitionGre,
-  productGreSpecs,
   suites,
 } from './ci-browser-selection.mjs'
 
@@ -79,62 +77,24 @@ test('CLI expands missing history for catalog and preserves child failure', () =
     assert.match(fallback.stdout, /forge-catalog/)
     assert.doesNotMatch(fallback.stdout, /remains in main/)
     assert.equal(invoke(['catalog', 'full', '', '--list'], '7').status, 7)
+    const sharded = invoke(['gre', 'full', '', '--fully-parallel', '--shard=2/4', '--workers=1'])
+    assert.equal(sharded.status, 0)
+    assert.match(sharded.stdout, /--fully-parallel\n--shard=2\/4\n--workers=1/)
+    assert.match(sharded.stdout, /--grep-invert\n@mechanic\|@qualification/)
+    assert.equal(invoke(['gre', 'full', '', '--shard=1/4'], '8').status, 8)
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
 })
 
-test('runtime partitions preserve every full GRE spec exactly once', () => {
-  const product = partitionGre([], 'product')
-  const gameplay = partitionGre([], 'gameplay')
-  assert.deepEqual(product.sort(), [...productGreSpecs].sort())
-  assert.deepEqual(product, ['e2e/gre-priority.spec.ts'])
-  assert.ok(gameplay.includes('e2e/gre-cost-choice.spec.ts'))
-  assert.equal(new Set([...product, ...gameplay]).size, product.length + gameplay.length)
-  const inventory = [...product, ...gameplay]
-  assert.deepEqual(
-    inventory.sort(),
-    readdirSync('e2e')
-      .map((file) => `e2e/${file}`)
-      .filter((file) => suites.gre.test(file))
-      .sort(),
-  )
+test('every registered GRE spec reaches changed-spec selection with representatives', () => {
+  const inventory = readdirSync('e2e')
+    .map((file) => `e2e/${file}`)
+    .filter((file) => suites.gre.test(file))
+  assert.ok(inventory.includes('e2e/gre-priority.spec.ts'))
+  assert.ok(inventory.includes('e2e/gre-play.spec.ts'))
+  assert.ok(inventory.includes('e2e/gre-protection-mixed.spec.ts'))
   for (const file of inventory) {
-    const selected = selection('gre', 'pr', [file])
-    const pieces = [...partitionGre(selected, 'product'), ...partitionGre(selected, 'gameplay')]
-    assert.deepEqual(pieces.sort(), selected.sort())
-    assert.ok(pieces.includes(file), `Changed complete spec omitted: ${file}`)
+    assert.ok(selection('gre', 'pr', [file]).includes(file), `Changed spec omitted: ${file}`)
   }
-  const representativesOnly = selection('gre', 'pr', [])
-  assert.deepEqual(
-    [
-      ...partitionGre(representativesOnly, 'product'),
-      ...partitionGre(representativesOnly, 'gameplay'),
-    ].sort(),
-    representativesOnly.sort(),
-  )
-})
-
-test('gameplay specs reach both changed and full selections', () => {
-  for (const file of [
-    'e2e/gre-library-permissions.spec.ts',
-    'e2e/gre-player-counters.spec.ts',
-    'e2e/gre-mana-payment.spec.ts',
-    'e2e/gre-mulligan.spec.ts',
-    'e2e/gre-proliferate.spec.ts',
-  ]) {
-    const changed = selection('gre', 'pr', [file])
-    assert.ok(changed.includes(file))
-    assert.ok(partitionGre(changed, 'gameplay').includes(file))
-    assert.ok(partitionGre([], 'gameplay').includes(file))
-  }
-})
-
-test('partition omissions and unknown selectors fail rather than certify an empty lane', () => {
-  assert.throws(() => partitionGre([], 'unknown'), /Unknown GRE partition/)
-  assert.throws(() => partitionGre([], 'product', ['e2e/gre-play.spec.ts']), /Missing relocated/)
-  assert.throws(
-    () => partitionGre(['e2e/unregistered.spec.ts'], 'gameplay'),
-    /Unknown GRE selector/,
-  )
 })
