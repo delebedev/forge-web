@@ -45,7 +45,7 @@ class ErrorHandlingTest {
                 setRequest(
                     Request().apply {
                         setMethod("POST")
-                        setUrl("https://forge.example.test/api/gre/start?playerId=private")
+                        setUrl("https://forge.example.test/api/courses/result?playerId=private")
                         setData(mapOf("deck" to "private"))
                         setCookies("session=private")
                         setHeaders(mapOf("Authorization" to "private"))
@@ -62,7 +62,7 @@ class ErrorHandlingTest {
         assertEquals(0, event.extras?.size)
         assertEquals(0, event.breadcrumbs?.size)
         assertEquals("POST", event.request?.method)
-        assertEquals("https://forge.example.test/api/gre/start", event.request?.url)
+        assertEquals("https://forge.example.test/api/courses/result", event.request?.url)
         assertNull(event.request?.data)
         assertNull(event.request?.cookies)
         assertNull(event.request?.headers)

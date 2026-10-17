@@ -1,4 +1,4 @@
-import type { APIResponse, Page } from '@playwright/test'
+import type { Page } from '@playwright/test'
 import { DriverFailure, executeProposal, readGreState } from './executor.ts'
 import type { BrowserGreState, CopilotProposal, DecisionRecord, RunTerminal } from './types.ts'
 
@@ -33,45 +33,6 @@ function isProposal(value: unknown): value is CopilotProposal {
     Array.isArray(proposal['groupAssignments']) &&
     Array.isArray(proposal['responseIds'])
   )
-}
-
-async function responseError(response: APIResponse): Promise<string> {
-  const body = await response.text().catch(() => '')
-  return `Advisor request failed with HTTP ${response.status()}${body ? `: ${body.slice(0, 300)}` : ''}`
-}
-
-export async function requestAdvice(
-  page: Page,
-  matchId: string,
-  timeoutMs: number,
-  observeBackendRelease?: (release: string) => void,
-): Promise<CopilotProposal> {
-  const url = new URL(
-    `/api/dev/matches/${encodeURIComponent(matchId)}/advice`,
-    page.url(),
-  ).toString()
-  const response = await page.context().request.get(url, { timeout: Math.max(1, timeoutMs) })
-  const backendRelease = response.headers()['x-backend-release']
-  if (backendRelease) {
-    observeBackendRelease?.(backendRelease)
-  }
-  if (!response.ok()) {
-    const classification = response.status() === 401 ? 'environment' : 'advisor_unavailable'
-    throw new DriverFailure(classification, await responseError(response), {
-      status: response.status(),
-      matchId,
-    })
-  }
-  const value: unknown = await response.json().catch(() => null)
-  if (!isProposal(value)) {
-    throw new DriverFailure(
-      'advisor_unavailable',
-      'Advisor returned an invalid proposal document',
-      { value },
-    )
-  }
-  const { responses: _responses, ...proposal } = value as CopilotProposal & { responses?: unknown }
-  return proposal
 }
 
 export async function requestBrowserAdvice(
@@ -236,13 +197,9 @@ async function initialState(
 export async function driveMatch(page: Page, options: DriveOptions): Promise<DriveResult> {
   const decisions: DecisionRecord[] = []
   const deadline = Date.now() + options.timeoutMs
-  let observedBackendRelease: string | undefined
   const getAdvice =
     options.getAdvice ??
-    ((currentMatchId: string, timeoutMs: number) =>
-      requestAdvice(page, currentMatchId, timeoutMs, (release) => {
-        observedBackendRelease = release
-      }))
+    ((_matchId: string, timeoutMs: number) => requestBrowserAdvice(page, timeoutMs))
   let consecutiveStalls = 0
   let consecutiveReconsults = 0
   let matchId: string | undefined
@@ -262,7 +219,6 @@ export async function driveMatch(page: Page, options: DriveOptions): Promise<Dri
         return {
           matchId,
           finalState: state,
-          ...(observedBackendRelease ? { observedBackendRelease } : {}),
           decisions,
           terminal,
         }
@@ -274,7 +230,6 @@ export async function driveMatch(page: Page, options: DriveOptions): Promise<Dri
         return {
           matchId,
           finalState: state,
-          ...(observedBackendRelease ? { observedBackendRelease } : {}),
           decisions,
           terminal: {
             kind: 'budget',
@@ -287,7 +242,6 @@ export async function driveMatch(page: Page, options: DriveOptions): Promise<Dri
         return {
           matchId,
           finalState: state,
-          ...(observedBackendRelease ? { observedBackendRelease } : {}),
           decisions,
           terminal: {
             kind: 'budget',
@@ -484,7 +438,6 @@ export async function driveMatch(page: Page, options: DriveOptions): Promise<Dri
     return {
       matchId,
       ...(finalState ? { finalState } : {}),
-      ...(observedBackendRelease ? { observedBackendRelease } : {}),
       decisions,
       terminal: {
         kind:

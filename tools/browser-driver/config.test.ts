@@ -67,7 +67,9 @@ test('configures an ordinary game by visible format and deck identity', () => {
     '--startup-timeout-ms',
     '9000',
   ])
-  expect(result.inputs).toEqual([{ kind: 'ordinary', format: 'commander', deck: 'Blue Control' }])
+  expect(result.inputs).toEqual([
+    { kind: 'ordinary', format: 'commander', deck: 'Blue Control', execution: 'browser' },
+  ])
   expect(result.config.startupTimeoutMs).toBe(9_000)
 })
 
@@ -119,4 +121,11 @@ test('rejects mixed entry modes and unbounded numeric values', () => {
   expect(() => parseArgs(['--puzzle', 'one', '--browser-local'])).toThrow(
     '--browser-local requires --ordinary',
   )
+})
+
+test('ordinary defaults to browser and explicit legacy host options are rejected', () => {
+  expect(parseArgs(['--ordinary']).inputs).toEqual([
+    { kind: 'ordinary', format: 'constructed', execution: 'browser' },
+  ])
+  expect(() => parseArgs(['--ordinary', '--execution', 'server'])).toThrow('Unknown argument')
 })

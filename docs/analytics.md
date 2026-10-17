@@ -48,22 +48,8 @@ truncated prefix leaves an incomplete replay; client-supplied events are not
 proof that the engine accepted a submitted action. Public browser challenges
 do not upload journals.
 
-The server also keeps one aggregate-safe lifecycle row per admitted match in
-`player.db.match_outcomes`. A row contains only the opaque match ID, UTC start
-and end times, backend release, bounded mode, public flag, bounded format, and
-bounded outcome. It contains no player ID, deck, card, or match payload. The
-transport writes the start after admission and records the first terminal
-outcome: `completed`, `explicit_abandon`, `expired`, `launch_failed`,
-`engine_failed`, `deployment_interrupted`, `server_shutdown`, or
-`server_cancelled`. Cleanup and duplicate terminal signals cannot replace that
-first outcome.
-
-On startup, an unfinished row becomes `interrupted_unknown`. Its `ended_at`
-stays null because restart time is not evidence of when the match ended.
-`deployment_interrupted` requires release drain to be active at graceful
-shutdown; an abrupt stop is never inferred to be a deployment or crash. The
-ledger is independent of replay journal retention. Ledger write failures are
-logged and do not interrupt admission, gameplay, or cleanup.
+Historical server lifecycle rows remain stored unchanged. The product no longer
+creates, completes or recovers server match outcomes during startup.
 
 The authenticated player UUID is the stable opaque account identifier. Session
 restore, login, guest creation, logout, and account replacement must update the
@@ -83,10 +69,9 @@ card names.
 | `game-start` | `mode`, `gameType`, `match_id`, optional `format`, `deck_id` |
 | `game-start-failed` | start fields when known, bounded `reason` |
 | `game-complete` | start fields, `result`, `durationSec`, `turn`, `lossReason` |
-| `game-left` | start fields, `phase`, `turn`, bounded `abandon_result`, optional HTTP `status` |
+| `game-left` (historical) | start fields, `phase`, `turn`, bounded `abandon_result`, optional HTTP `status`. Current leave events use `browser-lifecycle` with `stage=left`. |
 | `game-first-action` | start fields, bounded numeric `actionType` |
 | `turn-milestone` | start fields, `turn` in `1`, `5`, `10`, `20` |
-| `game-execution-fallback` | `from=browser`, `to=server`, bounded `reason` (`insecure-context`, `missing-engine-apis`, `missing-required-apis`, or `local-startup-failed`) and optional bounded `detail` for the missing capability or startup subsystem |
 | `game-recovery` | `execution=browser`, opaque match/attempt IDs and browser context, bounded `outcome` (`started`, `succeeded`, `failed`, `cancelled`), terminal `duration_ms` |
 | `deck-paste` | `cardCount`, `inputLength`, `lineCount` |
 | `deck-search` | `queryLength`, bounded `outcome`, optional `resultCount`, `status` |
