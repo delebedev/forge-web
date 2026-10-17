@@ -114,6 +114,8 @@ Representative and changed-spec selection happens before sharding. A changed
 spec still contributes every regular case, with the existing qualification
 exclusions. The required gate waits for the complete runtime matrix. Artifact
 names include the unique lane, and unknown or inconsistent lane entries fail.
+Each runtime job stops after two failed tests and remains failed. Other matrix
+jobs continue, and successful runs execute every selected test.
 
 Reporting and the required gate use `!cancelled()` rather than job-level
 `always()`. They remain eligible after test/build failure, so failed jobs still

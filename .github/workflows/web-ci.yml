@@ -364,10 +364,10 @@ jobs:
               ;;
             *) echo "Unknown runtime lane: $LANE" >&2; exit 1 ;;
           esac
-          python3 scripts/ci-measure.py "$LANE" node scripts/ci-browser-selection.mjs "$SUITE" "$PROOF_BREADTH" "$BASE_SHA" --workers=1 "--output=test-results/$LANE" "${args[@]}"
+          python3 scripts/ci-measure.py "$LANE" node scripts/ci-browser-selection.mjs "$SUITE" "$PROOF_BREADTH" "$BASE_SHA" --workers=1 --max-failures=2 "--output=test-results/$LANE" "${args[@]}"
       - name: Run curated replay journeys
         if: matrix.lane == 'product'
-        run: bun x playwright test -c e2e/curated-replays.config.ts
+        run: bun x playwright test -c e2e/curated-replays.config.ts --max-failures=2
       - name: Upload Playwright output
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4

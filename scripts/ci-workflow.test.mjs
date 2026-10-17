@@ -57,6 +57,8 @@ test('runtime jobs separate product and catalog from four single-worker GRE shar
   assert.equal(new Set(runtime.strategy.matrix.include.map(({ lane }) => lane)).size, 6)
   const upload = runtime.steps.find((step) => step.name === 'Upload Playwright output')
   assert.equal(upload.with.name, 'test-results-runtime-${{ matrix.lane }}')
+  const curated = runtime.steps.find((step) => step.name === 'Run curated replay journeys')
+  assert.match(curated.run, /--max-failures=2/)
   assert.equal(runtime.strategy['fail-fast'], false)
   assert.ok(workflow.jobs.gate.needs.includes('runtime'))
 })
@@ -86,6 +88,7 @@ test('runtime dispatch executes every declared lane and rejects unknown or incon
       const result = invoke(entry)
       assert.equal(result.status, 0, result.stderr)
       assert.match(result.stdout, /--workers=1/)
+      assert.match(result.stdout, /--max-failures=2/)
       assert.ok(result.stdout.includes(`--output=test-results/${entry.lane}`))
       if (entry.suite === 'gre') {
         assert.ok(result.stdout.includes(`--shard=${entry.shard}`))
