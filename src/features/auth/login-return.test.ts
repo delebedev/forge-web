@@ -15,3 +15,12 @@ test('login preserves only the allowlisted replay handoff and roadmap', () => {
     expect(loginReturnPath(path)).toBe('/play/game')
   }
 })
+
+test('inline sign-in preserves the current allowlisted deck handoff', () => {
+  const path = `/play/game?replay=${CURATED_REPLAYS[1]!.id}`
+  expect(loginReturnPath(null, `${path}&next=https://example.test`)).toBe(path)
+  expect(loginReturnPath('/roadmap', path)).toBe('/roadmap')
+  expect(loginReturnPath('https://example.test', path)).toBe('/play/game')
+  expect(loginReturnPath(null, '/play/game?replay=unknown')).toBe('/play/game')
+  expect(loginReturnPath(null, '//example.test')).toBe('/play/game')
+})

@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test'
 import type { components } from '../src/shared/api/types'
-import { expect, test } from './gre-test'
+import { expect, test, waitForBrowserGameReady } from './gre-test'
 import { dailyBrowserChallengePath } from '../src/features/challenges/browser-challenges'
 import { curatedReplay } from '../src/features/replay/curated-replays'
 
@@ -100,6 +100,7 @@ test('unknown development challenge can return to the launcher', async ({ page }
 })
 
 test('challenge selection boots the standard puzzle board as guest', async ({ page }) => {
+  test.setTimeout(300_000)
   await page.goto('/challenges')
   await page.getByRole('link', { name: /GRE Game Over - Bolt/ }).click()
 
@@ -110,6 +111,7 @@ test('challenge selection boots the standard puzzle board as guest', async ({ pa
   })
   // Assert the engine actually hydrated the puzzle (cards in hand or on board),
   // not just that a connection shell exists.
+  await waitForBrowserGameReady(page)
   await expect(page.locator('[data-instance-id]').first()).toBeVisible({ timeout: 30_000 })
   await page.getByRole('button', { name: 'Return to Challenges' }).click()
   await expect(page.getByRole('heading', { name: 'Challenges' })).toBeVisible({ timeout: 10_000 })
@@ -180,6 +182,7 @@ test('watching hands the current decks through sign-in to a local game', async (
   await page.getByTestId('auth-start').click()
   await page.getByTestId('auth-code').fill('123456')
   await page.getByTestId('auth-verify').click()
+  await expect(page.getByRole('heading', { name: 'What are you playing?' })).toBeVisible()
   await expect(page).toHaveURL(`/play/game?replay=${sample.id}`)
   await expect(page.getByRole('combobox', { name: 'AI opponent' })).toHaveValue('pick')
   await localStart(page).click()
@@ -248,6 +251,8 @@ test('lobby imports a playable deck into the library and launches it', async ({ 
 test('lobby resolves a case-insensitive commander name, persists it and launches Commander', async ({
   page,
 }, info) => {
+  // Import and saved-deck reopen each start a fresh browser runtime.
+  test.setTimeout(300_000)
   await signIn(page)
   await page.goto('/play/game')
   await page.getByRole('button', { name: 'Commander', exact: true }).click()

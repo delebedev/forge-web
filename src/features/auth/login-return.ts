@@ -1,6 +1,7 @@
 import { curatedReplay } from '@features/replay/curated-replays'
 
-export function loginReturnPath(value: string | null): string {
+export function loginReturnPath(value: string | null, currentPath: string | null = null): string {
+  value ??= currentPath
   if (value === '/roadmap') {
     return value
   }

@@ -15,7 +15,10 @@ const apiBase = import.meta.env['VITE_WEBDOOR_URL'] ?? location.origin
 export function LoginPage({ preview = false }: { preview?: boolean }) {
   const router = useRouter()
   const auth = useAuthSnapshot()
-  const afterLogin = loginReturnPath(router.query.get('returnTo'))
+  const afterLogin = loginReturnPath(
+    router.query.get('returnTo'),
+    `${router.path}?${router.query.toString()}`,
+  )
 
   useEffect(() => {
     if (!preview && auth.ready && auth.isAuthenticated && !auth.guest) {
