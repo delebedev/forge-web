@@ -126,8 +126,20 @@ test('reuse lookup accepts only successful runs of the merged internal PR head',
           return {
             data: {
               workflow_runs: [
-                { id: 1, head_sha: tree, event: 'pull_request', conclusion: 'failure' },
-                { id: 2, head_sha: tree, event: 'pull_request', conclusion: 'success' },
+                {
+                  id: 1,
+                  head_sha: tree,
+                  event: 'pull_request',
+                  status: 'completed',
+                  conclusion: 'failure',
+                },
+                {
+                  id: 2,
+                  head_sha: tree,
+                  event: 'pull_request',
+                  status: 'completed',
+                  conclusion: 'success',
+                },
               ],
             },
           }
@@ -194,6 +206,7 @@ function stackLookup(overrides = {}) {
                   id: query.head_sha === tree ? 3140 : 3150,
                   head_sha: query.head_sha,
                   event: 'pull_request',
+                  status: 'completed',
                   conclusion: 'success',
                 },
               ],
@@ -205,6 +218,89 @@ function stackLookup(overrides = {}) {
   }
   return { github, queriedHeads }
 }
+
+function unfinishedRunLookup(states) {
+  const { github } = stackLookup()
+  let queries = 0
+  const delays = []
+  github.rest.actions.listWorkflowRuns = async () => {
+    const state = states[Math.min(queries++, states.length - 1)]
+    if (state instanceof Error) {
+      throw state
+    }
+    return {
+      data: {
+        workflow_runs: state.map((run) => ({
+          id: 3150,
+          head_sha: 'c'.repeat(40),
+          event: 'pull_request',
+          ...run,
+        })),
+      },
+    }
+  }
+  return {
+    github,
+    delays,
+    queries: () => queries,
+    sleep: async (delay) => {
+      delays.push(delay)
+    },
+  }
+}
+
+test('reuse waits for an exact unfinished PR run to finish successfully', async () => {
+  const lookup = unfinishedRunLookup([
+    [{ status: 'queued', conclusion: null }],
+    [{ status: 'in_progress', conclusion: null }],
+    [{ status: 'completed', conclusion: 'success' }],
+  ])
+  assert.equal(await findPrRun(lookup.github, context, lookup.sleep), 3150)
+  assert.deepEqual(lookup.delays, [5000, 5000])
+  assert.equal(lookup.queries(), 3)
+})
+
+test('unfinished PR proof lookup falls back after two minutes', async () => {
+  const lookup = unfinishedRunLookup([[{ status: 'in_progress', conclusion: null }]])
+  assert.equal(await findPrRun(lookup.github, context, lookup.sleep), null)
+  assert.equal(lookup.queries(), 25)
+  assert.deepEqual(lookup.delays, Array(24).fill(5000))
+})
+
+test('unsuccessful terminal PR runs cannot authorize reuse or keep waiting', async () => {
+  for (const conclusion of ['failure', 'cancelled', 'timed_out']) {
+    const lookup = unfinishedRunLookup([
+      [{ status: 'in_progress', conclusion: null }],
+      [{ status: 'completed', conclusion }],
+    ])
+    assert.equal(await findPrRun(lookup.github, context, lookup.sleep), null)
+    assert.equal(lookup.queries(), 2)
+    assert.deepEqual(lookup.delays, [5000])
+  }
+})
+
+test('missing or unrelated unfinished runs do not delay full CI fallback', async () => {
+  for (const runs of [
+    [],
+    [{ status: 'in_progress', head_sha: tree }],
+    [{ status: 'in_progress', event: 'push' }],
+    [{ status: 'in_progress', conclusion: 'success' }],
+  ]) {
+    const lookup = unfinishedRunLookup([runs])
+    assert.equal(await findPrRun(lookup.github, context, lookup.sleep), null)
+    assert.equal(lookup.queries(), 1)
+    assert.deepEqual(lookup.delays, [])
+  }
+})
+
+test('run lookup errors cannot authorize proof after waiting', async () => {
+  const lookup = unfinishedRunLookup([
+    [{ status: 'in_progress', conclusion: null }],
+    new Error('Run lookup unavailable'),
+  ])
+  await assert.rejects(findPrRun(lookup.github, context, lookup.sleep), /Run lookup unavailable/)
+  assert.deepEqual(lookup.delays, [5000])
+})
 
 test('merged native stack prefers its validated tip before querying runs', async () => {
   const { github, queriedHeads } = stackLookup()
