@@ -1,4 +1,5 @@
 import type { Page } from '@playwright/test'
+import type { TranscriptBundle } from '../src/engine/replay/gre-transcript'
 import { decodeMessage, enumValue } from '../src/engine/wire/gre-proto'
 export function collectConsoleErrors(page: Page): string[] {
   const errors: string[] = []
@@ -12,50 +13,51 @@ export function collectConsoleErrors(page: Page): string[] {
   return errors
 }
 
-/** Observes outgoing envelopes; callers own scenario actions and response assertions. */
+/** Read the same ordered browser journal used for replay and recovery. */
+export async function readBrowserJournal(page: Page): Promise<TranscriptBundle | null> {
+  return page.evaluate(async () => {
+    const modulePath = '/src/engine/runtime/gre-store.ts'
+    const { greStore } = await import(modulePath)
+    return greStore.browserReplaySnapshot()
+  })
+}
+
+/** Decode native submissions from the current match's ordered browser journal. */
 export async function observeGreResponses(page: Page, field: 'distributionResp' | 'optionalResp') {
   const greType = await enumValue('ClientToMatchServiceMessageType', 'ClientToGremessage')
   const responses: Record<string, unknown>[] = []
-  const decodes: Promise<void>[] = []
-  const errors: unknown[] = []
-  page.on('websocket', (socket) => {
-    if (!socket.url().includes('/gre?')) {
-      return
-    }
-    socket.on('framesent', ({ payload }) => {
-      if (typeof payload === 'string') {
-        return
-      }
-      decodes.push(
-        (async () => {
-          const wrapper = await decodeMessage('ClientToMatchServiceMessage', payload)
-          if (wrapper['clientToMatchServiceMessageType'] !== greType) {
-            return
-          }
-          const response = await decodeMessage(
-            'ClientToGREMessage',
-            wrapper['payload'] as Uint8Array,
-          )
-          if (response[field]) {
-            responses.push(response)
-          }
-        })().catch((error) => {
-          errors.push(error)
-        }),
-      )
-    })
-  })
+  let lastSeq = -1
   return {
     responses,
     settle: async () => {
-      let cursor = 0
-      while (cursor < decodes.length) {
-        const pending = decodes.slice(cursor)
-        cursor = decodes.length
-        await Promise.all(pending)
+      const journal = await readBrowserJournal(page)
+      if (!journal) {
+        throw new Error('Browser response journal is unavailable')
       }
-      if (errors.length) {
-        throw errors[0]
+      if (journal.status?.truncated) {
+        throw new Error('Browser response journal is truncated')
+      }
+      for (const event of journal.events ?? []) {
+        if (event.seq <= lastSeq) {
+          continue
+        }
+        const payload = (event.message as { payload?: string })?.payload
+        if (event.direction === 'inbound' && payload) {
+          const wrapper = await decodeMessage(
+            'ClientToMatchServiceMessage',
+            Buffer.from(payload, 'base64'),
+          )
+          if (wrapper['clientToMatchServiceMessageType'] === greType) {
+            const response = await decodeMessage(
+              'ClientToGREMessage',
+              wrapper['payload'] as Uint8Array,
+            )
+            if (response[field]) {
+              responses.push(response)
+            }
+          }
+        }
+        lastSeq = event.seq
       }
     },
   }

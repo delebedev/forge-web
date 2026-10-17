@@ -1,6 +1,12 @@
 import { writeFileSync } from 'node:fs'
 import type { Page, TestInfo } from '@playwright/test'
-import { authenticateShell, expect, startPuzzleGame, test } from './gre-test'
+import {
+  authenticateShell,
+  expect,
+  startPuzzleGame,
+  test,
+  waitForBrowserGameReady,
+} from './gre-test'
 import { isFamilyPromptScenario } from './gre-prompt-cases'
 import { enumValue } from '../src/engine/wire/gre-proto'
 import {
@@ -228,18 +234,18 @@ test('opening hand mulligan redraws seven and bottoms one after keep', async ({ 
     localStorage.setItem('forge:gre:priority-flag:hideCardArt', 'true'),
   )
   await authenticateShell(page)
-  await page.addInitScript(() =>
-    sessionStorage.setItem(
-      'forge:gre:lastMatchConfig',
-      JSON.stringify({
-        gameType: 'constructed',
-        seat1Deck: '60 Forest',
-        seat2Deck: '60 Forest',
-        seed: 42,
-      }),
-    ),
-  )
-  await page.goto('/match/constructed')
+  await page.goto('/play/game')
+  await page.evaluate(async () => {
+    const modulePath = '/src/engine/runtime/gre-session.ts'
+    const { greSession } = await import(modulePath)
+    greSession.startBrowser({
+      gameType: 'constructed',
+      seat1Deck: '60 Forest',
+      seat2Deck: '60 Forest',
+      seed: 42,
+    })
+  })
+  await waitForBrowserGameReady(page)
   const opening = page.locator('[data-prompt="mulligan"]')
   await expect(opening).toBeVisible()
   await expect(page.locator('[data-zone="hand"][data-owner="self"] [data-card]')).toHaveCount(7)
