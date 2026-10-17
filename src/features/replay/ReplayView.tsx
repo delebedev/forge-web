@@ -241,7 +241,7 @@ export function ReplayView({ curated }: { curated?: CuratedReplay }) {
         board={board}
         interactive={false}
         replay
-        embedded={false}
+        embedded={curated != null}
         interactions={READ_ONLY_INTERACTIONS}
         stops={new Set<string>()}
         canRespond={false}
