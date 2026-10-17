@@ -147,6 +147,7 @@ it('clears a pick error after a successful retry', async () => {
             status: 'Drafting',
             packNumber: 1,
             pickNumber: 1,
+            interrupted: false,
             draftPack: [101],
             pickedCards: [],
           }),
@@ -169,6 +170,7 @@ it('clears a pick error after a successful retry', async () => {
             status: 'Drafting',
             packNumber: 1,
             pickNumber: 2,
+            interrupted: false,
             draftPack: [102],
             pickedCards: [101],
           }),
@@ -185,4 +187,75 @@ it('clears a pick error after a successful retry', async () => {
   await draftStore.pickCard('Card 101')
   expect(draftStore.snapshot().error).toBeNull()
   expect(draftStore.snapshot().pick).toBe(2)
+})
+
+it('preserves interrupted picks until explicit discard and never submits a stale pick', async () => {
+  authStore.setAuthenticated({ id: 'player-1', name: 'Player' })
+  const requests: { path: string; method?: string }[] = []
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const path = String(input)
+    requests.push({ path, method: init?.method })
+    if (path.endsWith('/api/draft/start')) {
+      return Response.json({
+        eventName: 'draft-event',
+        status: 'PickNext',
+        packNumber: 2,
+        pickNumber: 3,
+        draftPack: [201],
+        pickedCards: [202, 202],
+        interrupted: true,
+      })
+    }
+    if (path.includes('/api/public/cards/by-grpids')) {
+      return Response.json({})
+    }
+    if (init?.method === 'DELETE') {
+      return new Response(null, { status: 204 })
+    }
+    throw new Error(`Unexpected request: ${path}`)
+  }) as typeof fetch
+  expect(await draftStore.startDraft('FDN')).toBe(true)
+  expect(draftStore.snapshot().phase).toBe('interrupted')
+  expect(draftStore.snapshot().pool.map((card) => card.grpId)).toEqual([202, 202])
+  await draftStore.pickCard('Card 201')
+  expect(requests.some((request) => request.path.endsWith('/api/draft/pick'))).toBe(false)
+  expect(requests.some((request) => request.method === 'DELETE')).toBe(false)
+  await draftStore.discardDraft()
+  expect(requests.filter((request) => request.method === 'DELETE')).toHaveLength(1)
+  expect(draftStore.snapshot().phase).toBe('idle')
+  expect(draftStore.snapshot().pool).toEqual([])
+})
+
+it('turns a server-restart pick conflict into recovery without losing the saved pool', async () => {
+  authStore.setAuthenticated({ id: 'player-1', name: 'Player' })
+  let picks = 0
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const path = String(input)
+    if (path.endsWith('/api/draft/start')) {
+      return Response.json({
+        eventName: 'draft-event',
+        status: 'PickNext',
+        packNumber: 2,
+        pickNumber: 3,
+        draftPack: [301],
+        pickedCards: [302],
+        interrupted: false,
+      })
+    }
+    if (path.includes('/api/public/cards/by-grpids')) {
+      return Response.json({})
+    }
+    if (path.endsWith('/api/draft/pick')) {
+      picks += 1
+      return new Response('Draft interrupted', { status: 409 })
+    }
+    throw new Error(`Unexpected request: ${path}`)
+  }) as typeof fetch
+  await draftStore.startDraft('FDN')
+  await draftStore.pickCard('Card 301')
+  expect(draftStore.snapshot().phase).toBe('interrupted')
+  expect(draftStore.snapshot().pool.map((card) => card.grpId)).toEqual([302])
+  expect(draftStore.snapshot().error).toBeNull()
+  await draftStore.pickCard('Card 301')
+  expect(picks).toBe(1)
 })

@@ -153,6 +153,21 @@ export function LimitedView({
     setStarting(false)
   }
 
+  async function handleRestartDraft(): Promise<void> {
+    if (starting) {
+      return
+    }
+    setStarting(true)
+    try {
+      await draftStore.discardDraft()
+      if (draftStore.snapshot().phase === 'idle') {
+        await draftStore.startDraft(selectedSetCode)
+      }
+    } finally {
+      setStarting(false)
+    }
+  }
+
   function handleReset(): void {
     if ((mode === 'draft' && draft.submitting) || enteringGame) {
       return
@@ -257,6 +272,27 @@ export function LimitedView({
 
         {error && <div className={styles.errorMsg}>{error}</div>}
       </div>
+    )
+  }
+
+  if (phase === 'interrupted') {
+    return (
+      <section className={styles.setupScreen} aria-label="Interrupted draft">
+        <h2 className={styles.setupTitle}>Draft interrupted</h2>
+        <p className={styles.setupSubtitle}>
+          The server restarted during this draft, so its remaining picks cannot continue. Your
+          picked cards are still saved. Starting a new draft discards this draft and its pool.
+        </p>
+        <ul aria-label="Saved draft pool">
+          {pool.map((card, index) => (
+            <li key={`${card.name}-${index}`}>{card.name}</li>
+          ))}
+        </ul>
+        {error && <p role="alert">{error}</p>}
+        <Button disabled={starting} onClick={() => void handleRestartDraft()}>
+          {starting ? 'Starting draft...' : 'Discard and start new draft'}
+        </Button>
+      </section>
     )
   }
 
