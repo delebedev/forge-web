@@ -5,31 +5,35 @@
 import type { BoardSnapshot } from '@engine/runtime/snapshot'
 import type { CardView } from '@engine/state/gre-state'
 
+export type ZoneViewerSource =
+  'graveyard' | 'opponentGraveyard' | 'exile' | 'opponentExile' | 'libraryTop' | 'opponentHand'
+
 export type ZoneViewerState = {
   title: string
-  cards: CardView[]
-  source?: 'library-top' | 'opponent-hand'
+  source: ZoneViewerSource
+  matchId: string
+  libraryInstanceId?: number
 } | null
 
 export function currentZoneViewer(
   zone: ZoneViewerState,
-  libraryTop: CardView | null | undefined,
-  opponentHand: CardView[] = [],
-): ZoneViewerState {
-  if (zone?.source === 'opponent-hand') {
-    return opponentHand.length ? { ...zone, cards: opponentHand } : null
+  board: Pick<BoardSnapshot, ZoneViewerSource | 'currentMatchId'>,
+): { title: string; cards: CardView[] } | null {
+  if (!zone || zone.matchId !== board.currentMatchId) {
+    return null
   }
-  if (zone?.source !== 'library-top') {
-    return zone
+  if (zone.source === 'libraryTop') {
+    return board.libraryTop ? { title: zone.title, cards: [board.libraryTop] } : null
   }
-  return libraryTop ? { ...zone, cards: [libraryTop] } : null
+  const cards = board[zone.source]
+  return zone.source === 'opponentHand' && !cards.length ? null : { title: zone.title, cards }
 }
 
 export function libraryViewerIdentityChanged(
   zone: ZoneViewerState,
   libraryTop: CardView | null | undefined,
 ): boolean {
-  return zone?.source === 'library-top' && zone.cards[0]?.instanceId !== libraryTop?.instanceId
+  return zone?.source === 'libraryTop' && zone.libraryInstanceId !== libraryTop?.instanceId
 }
 
 export function currentHandHoveredCard(

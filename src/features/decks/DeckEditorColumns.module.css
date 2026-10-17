@@ -9,6 +9,10 @@
   border: 1px solid var(--public-line);
 }
 
+.sectionTabs { display: flex; gap: 8px; }
+.sectionNote { margin: 0; color: var(--public-muted); font-size: 13px; }
+.cardRow { display: flex; align-items: center; gap: 4px; }
+
 .cmcColumns {
   display: flex;
   gap: 0.5rem;
@@ -81,8 +85,6 @@
   min-width: 30px;
   text-align: right;
 }
-
-.entryQty.warn, .cardEntry.warn .entryQty { color: #ff6b6b; }
 
 .landControls {
   display: flex;

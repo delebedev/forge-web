@@ -75,15 +75,17 @@ test('imports, saves, reloads, and searches the same catalog identity', async ({
 
   await dialog.getByRole('textbox', { name: 'Deck name' }).fill('Forge catalog proof')
   await dialog.getByRole('button', { name: 'Open in Editor' }).click()
-  await expect(page.getByRole('button', { name: /^Dead \/\/ Gone.*x3$/ })).toHaveCount(1)
+  const splitEntry = page.getByRole('button', { name: 'Remove one Dead // Gone', exact: true })
+  await expect(splitEntry).toHaveCount(1)
+  await expect(splitEntry).toHaveText(/x3$/)
   await page.getByRole('textbox', { name: 'Search cards', exact: true }).fill(SPLIT_CARD)
   const splitSearch = page.getByRole('button', { name: /^Dead \/\/ Gone.*Instant$/ })
   await expect(splitSearch).toBeVisible()
   await splitSearch.click()
-  const fourCopies = page.getByRole('button', { name: /^Dead \/\/ Gone.*x4$/ })
-  await expect(fourCopies).toBeVisible()
+  await expect(splitEntry).toHaveText(/x4$/)
   await expect(page.getByText('61/60 cards', { exact: true })).toBeVisible()
-  await fourCopies.click()
+  await splitEntry.click()
+  await expect(splitEntry).toHaveText(/x3$/)
   await expect(page.getByText('60/60 cards', { exact: true })).toBeVisible()
   const saveResponse = page.waitForResponse(
     (response) =>
@@ -119,9 +121,11 @@ test('imports, saves, reloads, and searches the same catalog identity', async ({
   await page.getByRole('textbox', { name: 'Search cards', exact: true }).fill(FORGE_CARD)
   const search = (await searchResponse.then((response) => response.json())) as CardSearchResult[]
   expect(search.find((card) => card.name === FORGE_CARD)?.grpId).toBe(parsedCard?.grpId)
-  await expect(page.getByRole('button', { name: new RegExp(FORGE_CARD) }).first()).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: new RegExp(`^${FORGE_CARD}`) }).first(),
+  ).toBeVisible()
   await page
-    .getByRole('button', { name: new RegExp(FORGE_CARD) })
+    .getByRole('button', { name: new RegExp(`^${FORGE_CARD}`) })
     .first()
     .click()
 
@@ -147,7 +151,9 @@ test('imports, saves, reloads, and searches the same catalog identity', async ({
       expectedGrpId,
     )
     await expect(
-      page.getByRole('button', { name: new RegExp(expectedName.replaceAll('/', '\\/')) }).first(),
+      page
+        .getByRole('button', { name: new RegExp(`^${expectedName.replaceAll('/', '\\/')}`) })
+        .first(),
     ).toBeVisible()
   }
 

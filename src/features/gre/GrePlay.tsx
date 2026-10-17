@@ -20,6 +20,7 @@ import {
   currentHandHoveredCard,
   libraryViewerIdentityChanged,
   type ZoneViewerState,
+  type ZoneViewerSource,
 } from './board/types'
 import styles from './GrePlay.module.css'
 
@@ -278,17 +279,19 @@ export function GrePlay({
   // Holds the latest values the two mount-only listener effects below need, so
   // registering them doesn't churn on every GRE message (they arrive at a high
   // rate once a match is live).
-  const visibleZoneViewer = currentZoneViewer(zoneViewer, board.libraryTop, board.opponentHand)
-  const visibleHoveredCard = currentHandHoveredCard(hoveredCard, priorKnownHandIds.current, board)
+  const visibleZoneViewer = currentZoneViewer(zoneViewer, board)
+  const visibleHoveredCard = zoneViewer
+    ? (visibleZoneViewer?.cards.find((card) => card.instanceId === hoveredCard?.instanceId) ?? null)
+    : currentHandHoveredCard(hoveredCard, priorKnownHandIds.current, board)
   useEffect(() => {
     if (hoveredCard !== visibleHoveredCard) {
       setHoveredCard(visibleHoveredCard)
     }
-    if (zoneViewer?.source === 'opponent-hand' && board.opponentHand.length === 0) {
+    if (zoneViewer && !visibleZoneViewer) {
       setZoneViewer(null)
     }
     priorKnownHandIds.current = new Set(board.opponentHand.map((card) => card.instanceId))
-  }, [board.opponentHand, hoveredCard, visibleHoveredCard, zoneViewer])
+  }, [board.opponentHand, hoveredCard, visibleHoveredCard, visibleZoneViewer, zoneViewer])
   const latest = useRef({
     autoStart,
     initialConfig,
@@ -408,24 +411,27 @@ export function GrePlay({
     )
   }
 
-  function openZone(
-    zoneTitle: string,
-    cards: CardView[],
-    source?: 'library-top' | 'opponent-hand',
-  ): void {
-    setZoneViewer({ title: zoneTitle, cards, source })
+  function openZone(zoneTitle: string, source: ZoneViewerSource): void {
+    setZoneViewer({
+      title: zoneTitle,
+      source,
+      matchId: board.currentMatchId,
+      libraryInstanceId: board.libraryTop?.instanceId,
+    })
     setHoveredCard(null)
   }
 
   useEffect(() => {
-    if (zoneViewer?.source !== 'library-top') {
+    if (zoneViewer?.source !== 'libraryTop') {
       return
     }
     if (!libraryViewerIdentityChanged(zoneViewer, board.libraryTop)) {
       return
     }
     setHoveredCard(null)
-    setZoneViewer(board.libraryTop ? { ...zoneViewer, cards: [board.libraryTop] } : null)
+    setZoneViewer(
+      board.libraryTop ? { ...zoneViewer, libraryInstanceId: board.libraryTop.instanceId } : null,
+    )
   }, [board.libraryTop, zoneViewer])
 
   const Container = spectator ? 'div' : 'main'

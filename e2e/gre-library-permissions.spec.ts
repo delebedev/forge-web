@@ -1,7 +1,54 @@
 import { expect, authenticateShell } from './gre-test'
 import { test, recordDemos, readyForVideo } from './demo-test'
 import { startScenario } from './gre-scenario'
-import { loadAcceptanceSuite, runGreAcceptanceSteps } from './gre-acceptance'
+import { activate, loadAcceptanceSuite, runGreAcceptanceSteps } from './gre-acceptance'
+import { castSpell } from './gre-actions'
+
+for (const zone of ['Graveyard', 'Exile'] as const) {
+  test(`open ${zone} viewer follows Relic resolution (browser)`, async ({ page }, info) => {
+    test.setTimeout(180_000)
+    await authenticateShell(page)
+    await startScenario(page, 'live-zone-viewer', 'browser')
+    await page.getByRole('button', { name: 'Board options', exact: true }).click()
+    await page.getByRole('checkbox', { name: 'Hide card art', exact: true }).check()
+    await page.keyboard.press('Escape')
+    readyForVideo.add(page)
+    await page.getByRole('button', { name: 'Full control', exact: true }).click()
+    await activate(page, { card: 'Relic of Progenitus', ability_index: 1 })
+    await page.getByTitle(`Your ${zone.toLowerCase()}`, { exact: true }).click()
+    const viewer = page.getByRole('dialog', { name: new RegExp(`Your ${zone}`) })
+    const corpse = viewer.locator('[data-card="Walking Corpse"]')
+    await expect(corpse).toHaveCount(zone === 'Graveyard' ? 1 : 0)
+    await page.screenshot({ path: info.outputPath('before-resolution.png') })
+    if (recordDemos) {
+      await page.waitForTimeout(1000)
+    }
+    // Advance the engine while the inspection dialog retains pointer focus.
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const state = await page.evaluate(() => window.__greState()!)
+      if (state.counts.you.graveyard === 0) {
+        break
+      }
+      expect((await page.evaluate(() => window.__greActWait('pass'))).ok).toBe(true)
+    }
+    await expect.poll(() => page.evaluate(() => window.__greState()!.counts.you.graveyard)).toBe(0)
+    await page.screenshot({ path: info.outputPath('after-resolution.png') })
+    if (recordDemos) {
+      await page.waitForTimeout(1000)
+    }
+    await expect(corpse).toHaveCount(zone === 'Graveyard' ? 0 : 1)
+    await viewer.getByRole('button', { name: `Close Your ${zone}`, exact: true }).click()
+    await castSpell(page, {
+      card: 'Grizzly Bears',
+      until: { zone_contains: { side: 'ours', zone: 'battlefield', card: 'Grizzly Bears' } },
+    })
+    expect((await page.evaluate(() => window.__greState()!)).diagnostics.errorCount).toBe(0)
+    await page.screenshot({ path: info.outputPath('continued-play.png') })
+    if (recordDemos) {
+      await page.waitForTimeout(1000)
+    }
+  })
+}
 
 for (const execution of ['server', 'browser'] as const) {
   for (const suiteName of ['library-play', 'opposition-search']) {

@@ -10,13 +10,6 @@ export type CmcBucket = { key: string; label: string; cards: IndexedCard[] }
 
 export const BASIC_LAND_NAMES = new Set(['Plains', 'Island', 'Swamp', 'Mountain', 'Forest'])
 export const CMC_BUCKETS = ['0', '1', '2', '3', '4', '5', '6+'] as const
-export const MAX_COPIES = 4
-
-/** Non-basic mainboard entries above the 4-copy constructed limit render as a warning, not an error. */
-export function quantityWarning(qty: number, name: string): boolean {
-  return !BASIC_LAND_NAMES.has(name) && qty > MAX_COPIES
-}
-
 export type LandName = 'Plains' | 'Island' | 'Swamp' | 'Mountain' | 'Forest'
 export const LAND_COLORS: LandName[] = ['Plains', 'Island', 'Swamp', 'Mountain', 'Forest']
 

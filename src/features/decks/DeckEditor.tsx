@@ -1,24 +1,23 @@
 import { DraftCardDtoSchema } from '@shared/api/wire-schemas'
 import { readJson } from '@shared/api/decoding'
-/**
- * Deck-building surface: mainboard/land state, card search, and save/cancel.
- * Split into `DeckEditorColumns` (mainboard + land pane) and
- * `DeckEditorSearchPanel` (card search pane) to stay under the file-size
- * budget — this container owns all state and hands each pane only the props
- * it renders.
- */
+/** Owns the editable main deck and sideboard, card search, and save draft. */
 
 import { useEffect, useRef, useState } from 'react'
 import {
   buildCmcGroups,
   emptyLandCounts,
   BASIC_LAND_NAMES,
-  MAX_COPIES,
   type LandName,
   type IndexedCard,
 } from '@shared/cards/deck-builder'
 import { decksStore } from './decks-store'
-import { libraryCard, type DeckDraft, type LibraryCard } from './deck-value'
+import { libraryCard, type DeckDraft } from './deck-value'
+import {
+  changeCardQuantity,
+  moveDeckCard,
+  type EditableSections,
+  type EditableSection,
+} from './deck-editing'
 import { apiFetch } from '@shared/api/client'
 import { webDraftCards } from '@shared/cards/catalog'
 import { trackDeckSearch } from '@shared/analytics'
@@ -42,10 +41,16 @@ export function DeckEditor({
   onCancel: () => void
 }) {
   const [deckName, setDeckName] = useState(initialDeck.name)
-  const [mainboard, setMainboard] = useState<LibraryCard[]>(() => [...initialDeck.cards])
+  const [sections, setSections] = useState<EditableSections>(() => ({
+    mainboard: [...initialDeck.cards],
+    sideboard: [...initialDeck.sideboard],
+  }))
+  const [section, setSection] = useState<EditableSection>('mainboard')
+  const mainboard = sections.mainboard
+  const activeCards = sections[section]
   const initialCommandZone = initialDeck.commandZone
   const landCounts = emptyLandCounts()
-  for (const card of mainboard) {
+  for (const card of activeCards) {
     if (BASIC_LAND_NAMES.has(card.name)) {
       landCounts[card.name as LandName] += card.quantity
     }
@@ -90,44 +95,26 @@ export function DeckEditor({
   const mainboardCount = mainboard.reduce((s, c) => s + c.quantity, 0)
   const totalCards = mainboardCount + initialCommandZone.reduce((n, c) => n + c.quantity, 0)
 
-  const cmcGroups = buildCmcGroups(mainboard.map((c, i): IndexedCard => ({ ...c, poolIndex: i })))
+  const cmcGroups = buildCmcGroups(activeCards.map((c, i): IndexedCard => ({ ...c, poolIndex: i })))
 
   function addCard(card: DraftCard): void {
-    setMainboard((prev) => {
-      if (
-        !BASIC_LAND_NAMES.has(card.name) &&
-        prev
-          .filter((entry) => entry.name === card.name)
-          .reduce((sum, entry) => sum + entry.quantity, 0) >= MAX_COPIES
-      ) {
-        return prev
-      }
-      const existing = prev.find((c) => c.grpId === card.grpId)
-      if (existing) {
-        return prev.map((c) => (c.grpId === card.grpId ? { ...c, quantity: c.quantity + 1 } : c))
-      }
-      return [...prev, libraryCard(card, 1)]
-    })
+    setSections((prev) => ({
+      ...prev,
+      [section]: changeCardQuantity(prev[section], libraryCard(card, 1), 1),
+    }))
   }
 
   function removeCard(grpId: number): void {
-    setMainboard((prev) => {
-      const idx = prev.findIndex((c) => c.grpId === grpId)
-      if (idx === -1) {
-        return prev
-      }
-      const card = prev[idx]!
-      if (card.quantity > 1) {
-        return prev.map((c, i) => (i === idx ? { ...c, quantity: c.quantity - 1 } : c))
-      }
-      return prev.filter((_, i) => i !== idx)
+    setSections((prev) => {
+      const card = prev[section].find((entry) => entry.grpId === grpId)
+      return card ? { ...prev, [section]: changeCardQuantity(prev[section], card, -1) } : prev
     })
   }
 
   async function incrementLand(land: LandName): Promise<void> {
     setPendingLands((count) => count + 1)
     try {
-      const existing = mainboard.find((card) => card.name === land)
+      const existing = activeCards.find((card) => card.name === land)
       addCard(existing ?? (await decksStore.basicLand(land)))
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : 'Could not add this land.')
@@ -137,7 +124,7 @@ export function DeckEditor({
   }
 
   function decrementLand(land: LandName): void {
-    const card = mainboard.find((card) => card.name === land)
+    const card = activeCards.find((card) => card.name === land)
     if (card) {
       removeCard(card.grpId)
     }
@@ -201,7 +188,12 @@ export function DeckEditor({
     setSaving(true)
     setSaveError(null)
     try {
-      await onSave({ ...initialDeck, name: deckName.trim(), cards: mainboard })
+      await onSave({
+        ...initialDeck,
+        name: deckName.trim(),
+        cards: mainboard,
+        sideboard: sections.sideboard,
+      })
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : 'Could not save your deck.')
     } finally {
@@ -243,7 +235,12 @@ export function DeckEditor({
       <fieldset className={styles.editorBody} disabled={saving}>
         <DeckEditorColumns
           cmcGroups={cmcGroups}
-          mainboard={mainboard}
+          mainboard={activeCards}
+          section={section}
+          mainCount={mainboardCount}
+          sideCount={sections.sideboard.reduce((sum, card) => sum + card.quantity, 0)}
+          onSectionChange={setSection}
+          onMoveCard={(grpId) => setSections((prev) => moveDeckCard(prev, section, grpId))}
           landCounts={landCounts}
           onRemoveCard={removeCard}
           onIncrementLand={(land) => void incrementLand(land)}

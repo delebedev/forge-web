@@ -1,5 +1,80 @@
 import type { Request } from '@playwright/test'
-import { expect, test } from './gre-test'
+import { expect } from './gre-test'
+import { test, readyForVideo, recordDemos } from './demo-test'
+
+test('imported sideboard cards move, edit, save and reopen with their quantities', async ({
+  page,
+}, info) => {
+  const email = `sideboard-edit-${Date.now()}@example.test`
+  await page.request.post('/api/auth/request-code', { data: { email } })
+  expect(
+    (await page.request.post('/api/auth/verify', { data: { email, code: '123456' } })).ok(),
+  ).toBe(true)
+  await page.route('https://cards.scryfall.io/**', (route) => route.fulfill({ status: 204 }))
+  await page.route('**/api/public/cards/image?**', (route) => route.fulfill({ status: 204 }))
+  await page.goto('/decks')
+  await page.getByRole('button', { name: 'Import', exact: true }).click()
+  await page
+    .getByRole('textbox', { name: 'Deck list' })
+    .fill('Deck\n2 Grizzly Bears\n10 Forest\nSideboard\n2 Grizzly Bears\n2 Island')
+  await page.getByRole('button', { name: 'Check deck', exact: true }).click()
+  await page.getByPlaceholder('Deck name...').fill('Sideboard editing')
+  readyForVideo.add(page)
+  if (recordDemos) {
+    await page.waitForTimeout(1000)
+  }
+  await page.getByRole('button', { name: 'Open in Editor', exact: true }).click()
+  await page.screenshot({ path: info.outputPath('imported-editor.png') })
+  await expect(page.getByRole('button', { name: /^Sideboard \(/ })).toBeVisible()
+  await page.getByRole('button', { name: /^Sideboard \(/ }).click()
+  await page
+    .getByRole('button', { name: 'Move one Grizzly Bears to main deck', exact: true })
+    .click()
+  await page.getByRole('button', { name: /^Main deck \(/ }).click()
+  await page.getByRole('button', { name: 'Move one Forest to sideboard', exact: true }).click()
+  await page.getByRole('button', { name: /^Sideboard \(/ }).click()
+  await page.getByRole('button', { name: 'Remove one Island', exact: true }).click()
+  await page.screenshot({ path: info.outputPath('edited-sideboard.png') })
+  if (recordDemos) {
+    await page.waitForTimeout(1000)
+  }
+  await page.getByRole('textbox', { name: 'Search cards', exact: true }).fill('Grizzly Bears')
+  await page.getByRole('button', { name: /^Grizzly Bears/ }).click()
+  await page.getByRole('button', { name: 'Create', exact: true }).click()
+  await expect(page.getByRole('alert')).toContainText('at most 4 copies')
+  await expect(page.getByRole('textbox', { name: 'Deck name', exact: true })).toHaveValue(
+    'Sideboard editing',
+  )
+  await page.screenshot({ path: info.outputPath('copy-limit-error.png') })
+  if (recordDemos) {
+    await page.waitForTimeout(1000)
+  }
+  await page.getByRole('button', { name: 'Remove one Grizzly Bears', exact: true }).click()
+  await page.getByRole('button', { name: 'Create', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Edit', exact: true })).toBeVisible()
+  await page.reload()
+  await page.getByRole('button', { name: 'Edit', exact: true }).click()
+  await expect(
+    page.getByRole('button', { name: 'Remove one Grizzly Bears', exact: true }),
+  ).toContainText('x3')
+  await expect(page.getByRole('button', { name: 'Remove one Forest', exact: true })).toContainText(
+    'x9',
+  )
+  await page.getByRole('button', { name: /^Sideboard \(/ }).click()
+  await expect(
+    page.getByRole('button', { name: 'Remove one Grizzly Bears', exact: true }),
+  ).toContainText('x1')
+  await expect(page.getByRole('button', { name: 'Remove one Forest', exact: true })).toContainText(
+    'x1',
+  )
+  await expect(page.getByRole('button', { name: 'Remove one Island', exact: true })).toContainText(
+    'x1',
+  )
+  await page.screenshot({ path: info.outputPath('reopened-sideboard.png') })
+  if (recordDemos) {
+    await page.waitForTimeout(1000)
+  }
+})
 
 test('deck library import, editing and selection retain their controls at laptop size', async ({
   page,

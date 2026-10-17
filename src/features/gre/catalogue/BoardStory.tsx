@@ -12,7 +12,7 @@ import {
   type BoardViewSnapshot,
 } from '@features/gre/board/board-view'
 import { useBoardView } from '@features/gre/board/BoardSettings'
-import type { ZoneViewerState } from '@features/gre/board/types'
+import { currentZoneViewer, type ZoneViewerState } from '@features/gre/board/types'
 import styles from './BoardStory.module.css'
 
 export type BoardStoryProps = {
@@ -80,8 +80,10 @@ export function BoardStory({
           promptBinding={promptBinding}
           hoveredCard={hoveredCard}
           onHover={setHoveredCard}
-          zoneViewer={zoneViewer}
-          onOpenZone={(title, cards) => setZoneViewer({ title, cards })}
+          zoneViewer={currentZoneViewer(zoneViewer, board)}
+          onOpenZone={(title, source) =>
+            setZoneViewer({ title, source, matchId: board.currentMatchId })
+          }
           onCloseZone={() => setZoneViewer(null)}
           dropZoneRef={() => {}}
           onBackToPlay={() => {}}
