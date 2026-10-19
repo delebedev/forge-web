@@ -350,3 +350,84 @@ test('feedback during a completed retry keeps the immutable prefix and final com
   })
   expect(retired.diagnostics().matches).toBe(0)
 })
+
+function largeBusyCohort(time: Clock, retired: RetiredReplayDeliveries) {
+  return [0, 1].map((index) => {
+    const journal = collector(`growth-${index}`)
+    for (const bytes of [3_000_000, 3_000_000, 3_000_000, 3_000_000, 1_000_000]) {
+      journal.incoming([{ type: 1, payload: 'x'.repeat(bytes) }])
+    }
+    let release!: (response: Response) => void
+    const first = new Promise<Response>((resolve) => {
+      release = resolve
+    })
+    const sent: RequestInit[] = []
+    const streamer = new BrowserReplayStreamer(
+      journal,
+      `growth-${index}`,
+      (async (_url, options) => {
+        sent.push(options!)
+        return sent.length === 1 ? first : new Response(null, { status: 503 })
+      }) as typeof fetch,
+      undefined,
+      time,
+      retired,
+    )
+    streamer.finish('left')
+    return { journal, streamer, release, sent }
+  })
+}
+
+test('a coalesced busy flush rechecks late collector growth and cannot reschedule an eviction', async () => {
+  const time = new Clock()
+  const retired = new RetiredReplayDeliveries()
+  const cohort = largeBusyCohort(time, retired)
+  expect(retired.diagnostics().matches).toBe(2)
+  expect(retired.diagnostics().bytes).toBeLessThanOrEqual(MAX_RETIRED_REPLAY_BYTES)
+  cohort[0]!.journal.incoming([{ type: 2, payload: 'y'.repeat(2_000_000) }])
+  expect(await cohort[0]!.streamer.flush('feedback', 'report-growth')).toBe(false)
+  expect(retired.diagnostics()).toMatchObject({ matches: 1, abandoned: 1 })
+  expect(retired.diagnostics().bytes).toBeLessThanOrEqual(MAX_RETIRED_REPLAY_BYTES)
+  expect(cohort[0]!.sent[0]!.signal!.aborted).toBe(true)
+  for (const item of cohort) {
+    item.release(new Response(null, { status: 503 }))
+  }
+  await Bun.sleep(0)
+  await time.advance(10_000)
+  expect(cohort[0]!.streamer.diagnostics()).toMatchObject({
+    replay_failure: 'abandoned',
+    replay_ack_seq: 0,
+  })
+  expect(cohort[0]!.sent).toHaveLength(1)
+  expect(cohort[1]!.sent).toHaveLength(2)
+  expect(String(cohort[1]!.sent[0]!.body)).toBe(String(cohort[1]!.sent[1]!.body))
+  for (const item of cohort) {
+    item.streamer.abandon()
+  }
+  expect(retired.diagnostics().matches).toBe(0)
+  expect(time.tasks.size).toBe(0)
+})
+
+test('a transient response rechecks unannounced collector growth before scheduling its retry', async () => {
+  const time = new Clock()
+  const retired = new RetiredReplayDeliveries()
+  const cohort = largeBusyCohort(time, retired)
+  cohort[0]!.journal.incoming([{ type: 2, payload: 'y'.repeat(2_000_000) }])
+  for (const item of cohort) {
+    item.release(new Response(null, { status: 503 }))
+  }
+  await Bun.sleep(0)
+  expect(retired.diagnostics()).toMatchObject({ matches: 1, abandoned: 1 })
+  expect(retired.diagnostics().bytes).toBeLessThanOrEqual(MAX_RETIRED_REPLAY_BYTES)
+  expect(cohort[0]!.streamer.diagnostics()).toMatchObject({
+    replay_failure: 'abandoned',
+    replay_ack_seq: 0,
+  })
+  await time.advance(10_000)
+  expect(cohort[0]!.sent).toHaveLength(1)
+  expect(cohort[1]!.sent).toHaveLength(2)
+  for (const item of cohort) {
+    item.streamer.abandon()
+  }
+  expect(time.tasks.size).toBe(0)
+})

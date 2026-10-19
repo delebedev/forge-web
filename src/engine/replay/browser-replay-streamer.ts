@@ -244,7 +244,11 @@ export class BrowserReplayStreamer {
       }
       this.revision++
     }
-    if (this.busy || this.terminal) {
+    if (this.busy) {
+      this.retain()
+      return false
+    }
+    if (this.terminal) {
       return false
     }
     if (this.time.now() > this.finishDeadline) {
@@ -364,6 +368,9 @@ export class BrowserReplayStreamer {
     } finally {
       this.busy = false
       this.notify()
+      if (this.failure || draining) {
+        this.retain()
+      }
       if (this.terminal || (this.stopped && !this.failure && !draining)) {
         this.release()
       } else if (this.failure) {
