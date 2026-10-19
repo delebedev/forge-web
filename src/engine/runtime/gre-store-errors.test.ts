@@ -105,8 +105,10 @@ test('reporting context carries the active match builds and disappears on retire
 test('idle replay failure and recovery update reporting scope without another game frame', async () => {
   const previousFetch = globalThis.fetch
   let status = 503
+  let now = Date.now()
+  const clock = spyOn(Date, 'now').mockImplementation(() => now)
   globalThis.fetch = (async (_input: RequestInfo | URL) =>
-    new Response(null, { status })) as typeof fetch
+    new Response(status === 200 ? '0' : null, { status })) as typeof fetch
   const { store } = await storeWithSource('browser', true)
   const unsubscribe = store.subscribe(() => reporting.setReportingContext(store.reportingContext()))
   try {
@@ -117,6 +119,7 @@ test('idle replay failure and recovery update reporting scope without another ga
       replay_ack_seq: 0,
     })
     status = 200
+    now += 12_000
     expect(await store.uploadBrowserReplay('feedback')).toBe(true)
     expect(Sentry.getIsolationScope().getScopeData().tags).toMatchObject({
       replay_state: 'acknowledged',
@@ -131,5 +134,6 @@ test('idle replay failure and recovery update reporting scope without another ga
     unsubscribe()
     reporting.setReportingContext(undefined)
     globalThis.fetch = previousFetch
+    clock.mockRestore()
   }
 })
