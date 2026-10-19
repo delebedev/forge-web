@@ -1,14 +1,31 @@
 package forge.web.server.match
 
+import forge.web.server.auth.DEV_WEB_AUTH_SECRET
+import forge.web.server.auth.DevEmailSender
+import forge.web.server.auth.InMemoryWebAuthStore
+import forge.web.server.auth.WebAuthService
+import forge.web.server.http.installHttpErrorHandling
 import forge.web.server.installServer
 import forge.web.server.support.testServices
+import io.ktor.client.request.header
+import io.ktor.client.request.post
+import io.ktor.client.request.setBody
+import io.ktor.client.statement.bodyAsText
+import io.ktor.http.HttpHeaders
+import io.ktor.server.application.install
 import io.ktor.server.engine.applicationEnvironment
 import io.ktor.server.engine.connector
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.netty.Netty
+import io.ktor.server.plugins.forwardedheaders.XForwardedHeaders
+import io.ktor.server.routing.route
+import io.ktor.server.routing.routing
+import io.ktor.server.testing.testApplication
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.runBlocking
 import java.io.File
 import java.io.FileFilter
@@ -31,6 +48,72 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 class MatchReplayStoreConcurrencyTest {
+    @Test
+    fun `route backpressure and lost acknowledgements preserve an immutable terminal request across consumer backoff`() =
+        testApplication {
+            var now = 0L
+            val jitter = Random(916)
+            val admission = ReplayAdmission({ now })
+            val auth = WebAuthService(InMemoryWebAuthStore(), DevEmailSender(), DEV_WEB_AUTH_SECRET)
+            val session = assertNotNull(auth.guestSession())
+            val root = ObservedDirectory()
+            val store = MatchReplayStore(MatchReplayConfig(root, "token"))
+            val body = chunk(1_500_000)
+            application {
+                install(XForwardedHeaders)
+                installHttpErrorHandling(auth)
+                routing { route("/api") { installBrowserReplayRoutes(auth, store, admission) } }
+            }
+
+            suspend fun send() =
+                client.post("/api/browser-replays/$MATCH_ID/chunks") {
+                    header(HttpHeaders.Cookie, "web_session=${session.token}")
+                    header("X-Forwarded-For", "198.51.100.1")
+                    header("X-Replay-After-Seq", "0")
+                    setBody(body)
+                }
+            coroutineScope {
+                root.block = true
+                val maintenance = async(start = CoroutineStart.UNDISPATCHED) { store.cleanup() }
+                try {
+                    assertTrue(root.entered.await(5, TimeUnit.SECONDS))
+                    // Cleanup owns one slot. Undispatched reads acquire the remaining slots before suspending.
+                    val reads = List(7) { async(start = CoroutineStart.UNDISPATCHED) { store.export("web-missing") } }
+                    repeat(11) { assertEquals(null, admission.admit(ReplayTraffic.CHUNK, session.player.playerId, "198.51.100.1")) }
+                    val unavailable = send()
+                    assertEquals(503, unavailable.status.value)
+                    assertEquals("10", unavailable.headers[HttpHeaders.RetryAfter])
+                    now += 10_000 + jitter.nextInt(2_000)
+                    // Another match on the same account spends the replenished player token.
+                    assertEquals(null, admission.admit(ReplayTraffic.CHUNK, session.player.playerId, "198.51.100.1"))
+                    val limited = send()
+                    assertEquals(429, limited.status.value)
+                    assertTrue(assertNotNull(limited.headers[HttpHeaders.RetryAfter]).toLong() >= 1)
+                    root.release.countDown()
+                    maintenance.await()
+                    reads.awaitAll()
+                    assertEquals(null, store.export(MATCH_ID))
+                    now += maxOf(20_000, limited.headers[HttpHeaders.RetryAfter]!!.toLong() * 1_000) + jitter.nextInt(2_000)
+                    val committedButUnobserved = send()
+                    assertEquals(200, committedButUnobserved.status.value)
+                    assertEquals("1", committedButUnobserved.bodyAsText())
+                    // An unobserved successful response is retried with the same body and after-sequence.
+                    now += 40_000 + jitter.nextInt(2_000)
+                    val acknowledged = send()
+                    assertEquals(200, acknowledged.status.value)
+                    assertEquals("1", acknowledged.bodyAsText())
+                    val exported = assertNotNull(store.export(MATCH_ID))
+                    assertEquals(listOf(1L), exported.events.map { it.seq })
+                    assertEquals(session.player.playerId, exported.context?.accountId)
+                    println("replay route recovery elapsedMs=$now bytes=${body.size} statuses=503,429,200,200 committedEvents=1")
+                } finally {
+                    root.release.countDown()
+                    maintenance.await()
+                    store.close()
+                }
+            }
+        }
+
     @Test
     fun `concurrent chunk retries have one committed prefix and exact accounting`() =
         runBlocking<Unit> {
