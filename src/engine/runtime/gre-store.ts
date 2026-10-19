@@ -718,6 +718,9 @@ export class GreStore {
         this.submittingActionOwner = null
         this.connected = false
         this.status = 'closed'
+        if (this.state.gameOver) {
+          this.browserReplayStreamer?.finish('completed')
+        }
         this.publish()
       },
       onError: (error, phase = 'transport') => {
@@ -1162,9 +1165,6 @@ export class GreStore {
       if (batch.messages.length > 0) {
         this.browserReplay?.incoming(batch.messages)
         this.browserReplayStreamer?.observed()
-        if (this.state.gameOver) {
-          this.browserReplayStreamer?.finish('completed')
-        }
       }
       if (
         ready &&
@@ -1527,15 +1527,23 @@ export class GreStore {
 
   private async sendCheckpointReq(message: ProtoObject): Promise<void> {
     const generation = this.sourceGeneration
-    const type = await enumValue('ClientMessageType', 'CheckpointReq')
-    const bytes = await buildGreWrapper({
-      type,
-      systemSeatId: this.responseSeatId(),
-      gameStateId: this.gameStateId,
-      respId: asNumber(message['msgId']),
-    })
-    if (this.send(bytes, generation)) {
-      this.log('CheckpointReq: acknowledged game over')
+    const replay = this.browserReplayStreamer
+    try {
+      const type = await enumValue('ClientMessageType', 'CheckpointReq')
+      const bytes = await buildGreWrapper({
+        type,
+        systemSeatId: this.responseSeatId(),
+        gameStateId: this.gameStateId,
+        respId: asNumber(message['msgId']),
+      })
+      if (this.send(bytes, generation)) {
+        this.log('CheckpointReq: acknowledged game over')
+      }
+    } finally {
+      // Completion follows the terminal send attempt, including any retained checkpoint.
+      if (this.sourceGeneration === generation) {
+        replay?.finish('completed')
+      }
     }
   }
 
