@@ -18,6 +18,7 @@ export class BrowserReplayCollector {
   private diagnosticRetained = false
   private readonly config: GreStartConfig
   private readonly maxBytes: number
+  private retainedSize: number | undefined
 
   constructor(config: GreStartConfig, maxBytes = DEFAULT_MAX_BYTES) {
     this.config = config
@@ -37,6 +38,7 @@ export class BrowserReplayCollector {
       seatId: 1,
       batchIndex,
     })
+    this.retainedSize = undefined
   }
 
   outgoing(bytes: Uint8Array): void {
@@ -53,6 +55,7 @@ export class BrowserReplayCollector {
       batchIndex: Math.max(0, this.batches.length - 1),
       message,
     })
+    this.retainedSize = undefined
   }
 
   diagnostic(snapshot: BrowserFailureSnapshot): void {
@@ -68,6 +71,7 @@ export class BrowserReplayCollector {
       batchIndex: Math.max(0, this.batches.length - 1),
       message: snapshot,
     })
+    this.retainedSize = undefined
   }
 
   metadata(values: Iterable<CardMeta>): void {
@@ -76,6 +80,7 @@ export class BrowserReplayCollector {
         continue
       }
       this.cards[String(card.grpId)] = card
+      this.retainedSize = undefined
     }
   }
 
@@ -128,6 +133,19 @@ export class BrowserReplayCollector {
     }
   }
 
+  /** UTF-16 serialized content plus record allowances, not an exact JS heap measurement. */
+  retainedBytes(): number {
+    // Retries reuse this charge until collection changes instead of serializing the prefix again.
+    this.retainedSize ??=
+      2 * JSON.stringify(this.snapshot('retired')).length +
+      64 *
+        (this.events.length +
+          this.batches.length +
+          this.responses.length +
+          Object.keys(this.cards).length)
+    return this.retainedSize
+  }
+
   private reserve(value: unknown): boolean {
     if (this.truncated) {
       return false
@@ -135,6 +153,7 @@ export class BrowserReplayCollector {
     const bytes = new TextEncoder().encode(JSON.stringify(value)).byteLength
     if (this.bytes + bytes > this.maxBytes) {
       this.truncated = true
+      this.retainedSize = undefined
       return false
     }
     this.bytes += bytes

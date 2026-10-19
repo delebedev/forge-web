@@ -1,7 +1,5 @@
 package forge.web.server.match
 
-import forge.web.server.auth.InMemoryRateLimiter
-import forge.web.server.auth.RequestRateLimiter
 import forge.web.server.auth.WebAuthService
 import forge.web.server.auth.authenticatedPlayer
 import forge.web.server.http.excludeContract
@@ -19,21 +17,18 @@ import java.io.ByteArrayOutputStream
 
 internal const val MAX_BROWSER_REPLAY_UPLOAD_BYTES = 4 * 1024 * 1024
 internal const val MAX_BROWSER_REPLAY_CHUNK_BYTES = 4 * 1024 * 1024
-internal const val MAX_BROWSER_REPLAY_UPLOADS_PER_HOUR = 8
-internal const val MAX_BROWSER_REPLAY_UPLOADS_PER_IP_HOUR = 16
-internal const val MAX_BROWSER_REPLAY_UPLOADS_PER_DAY = 64
 
 internal fun Route.installBrowserReplayRoutes(
     auth: WebAuthService,
     store: MatchReplayStore,
-    rateLimiter: RequestRateLimiter = InMemoryRateLimiter(),
+    admission: ReplayAdmission = ReplayAdmission(),
 ) {
     route("/browser-replays/{matchId}") {
         post("/chunks") {
             call.response.headers.append(HttpHeaders.CacheControl, "no-store")
             val player = call.authenticatedPlayer(auth)
-            if (!admitBrowserReplayChunk(rateLimiter, player.playerId, call.request.origin.remoteHost)) {
-                return@post call.respond(HttpStatusCode.TooManyRequests)
+            admission.admit(ReplayTraffic.CHUNK, player.playerId, call.request.origin.remoteHost)?.let {
+                return@post call.rejectReplay(it)
             }
             val afterSeq =
                 call.request.headers["X-Replay-After-Seq"]?.toLongOrNull()
@@ -53,8 +48,8 @@ internal fun Route.installBrowserReplayRoutes(
         post {
             call.response.headers.append(HttpHeaders.CacheControl, "no-store")
             val player = call.authenticatedPlayer(auth)
-            if (!admitBrowserReplay(rateLimiter, player.playerId, call.request.origin.remoteHost)) {
-                return@post call.respond(HttpStatusCode.TooManyRequests)
+            admission.admit(ReplayTraffic.ARTIFACT, player.playerId, call.request.origin.remoteHost)?.let {
+                return@post call.rejectReplay(it)
             }
             val matchId = call.parameters["matchId"].orEmpty()
             val artifactId = call.request.headers["X-Replay-Artifact"].orEmpty()
@@ -72,26 +67,9 @@ internal fun Route.installBrowserReplayRoutes(
     }.excludeContract("GRE replay upload")
 }
 
-internal fun admitBrowserReplay(
-    rateLimiter: RequestRateLimiter,
-    playerId: String,
-    remoteHost: String,
-): Boolean {
-    val hourMs = 60 * 60 * 1000L
-    return rateLimiter.check("browser-replay-player:$playerId", MAX_BROWSER_REPLAY_UPLOADS_PER_HOUR, hourMs) &&
-        rateLimiter.check("browser-replay-ip:$remoteHost", MAX_BROWSER_REPLAY_UPLOADS_PER_IP_HOUR, hourMs) &&
-        rateLimiter.check("browser-replay:global", MAX_BROWSER_REPLAY_UPLOADS_PER_DAY, 24 * hourMs)
-}
-
-internal fun admitBrowserReplayChunk(
-    rateLimiter: RequestRateLimiter,
-    playerId: String,
-    remoteHost: String,
-): Boolean {
-    val hourMs = 60 * 60 * 1000L
-    return rateLimiter.check("browser-replay-chunk-player:$playerId", 600, hourMs) &&
-        rateLimiter.check("browser-replay-chunk-ip:$remoteHost", 1_200, hourMs) &&
-        rateLimiter.check("browser-replay-chunk:global", 20_000, 24 * hourMs)
+private suspend fun io.ktor.server.application.ApplicationCall.rejectReplay(rejection: ReplayAdmissionRejection) {
+    response.headers.append(HttpHeaders.RetryAfter, rejection.retryAfterSeconds.toString())
+    respond(if (rejection.unavailable) HttpStatusCode.ServiceUnavailable else HttpStatusCode.TooManyRequests)
 }
 
 private suspend fun io.ktor.server.application.ApplicationCall.receiveBounded(limit: Int): ByteArray {

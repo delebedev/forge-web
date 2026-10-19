@@ -1,6 +1,5 @@
 package forge.web.server.match
 
-import forge.web.server.auth.InMemoryRateLimiter
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.http.HttpHeaders
@@ -122,22 +121,6 @@ class MatchReplayStoreTest {
             assertEquals(2, exported.batches.size)
             assertTrue(exported.status.complete)
         }
-
-    @Test
-    fun `narrow replay limits do not consume the global budget`() {
-        val limiter = InMemoryRateLimiter()
-
-        repeat(MAX_BROWSER_REPLAY_UPLOADS_PER_IP_HOUR) { index ->
-            assertTrue(admitBrowserReplay(limiter, "player-$index", "shared-ip"))
-        }
-        repeat(MAX_BROWSER_REPLAY_UPLOADS_PER_DAY) { index ->
-            assertFalse(admitBrowserReplay(limiter, "blocked-$index", "shared-ip"))
-        }
-        repeat(MAX_BROWSER_REPLAY_UPLOADS_PER_DAY - MAX_BROWSER_REPLAY_UPLOADS_PER_IP_HOUR) { index ->
-            assertTrue(admitBrowserReplay(limiter, "admitted-$index", "ip-$index"))
-        }
-        assertFalse(admitBrowserReplay(limiter, "global-cap", "fresh-ip"))
-    }
 
     @Test
     fun `browser replay ingestion authenticates ownership deduplicates and exports viewer data`() =

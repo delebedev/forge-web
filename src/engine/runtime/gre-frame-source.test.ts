@@ -718,6 +718,173 @@ test('browser match reaches game over when replay upload fails', async () => {
   }
 })
 
+test('terminal replay completion includes the asynchronous checkpoint after the final game state', async () => {
+  const originalFetch = globalThis.fetch
+  const uploads: {
+    status: number
+    complete: boolean
+    events: { seq: number; direction: string; message?: { payload: string } }[]
+  }[] = []
+  let committedComplete = false
+  let committedSeq = 0
+  globalThis.fetch = (async (_input: RequestInfo | URL, options: RequestInit) => {
+    const chunk = JSON.parse(String(options.body))
+    const status = committedComplete && chunk.events.length ? 400 : 200
+    uploads.push({ status, complete: chunk.status.complete, events: chunk.events })
+    if (status === 400) {
+      return new Response('Replay is already complete', { status })
+    }
+    expect(Number((options.headers as Record<string, string>)['X-Replay-After-Seq'])).toBe(
+      committedSeq,
+    )
+    for (const event of chunk.events) {
+      expect(event.seq).toBe(++committedSeq)
+    }
+    committedComplete ||= chunk.status.complete
+    return new Response(String(committedSeq))
+  }) as typeof fetch
+  const store = await freshStore()
+  const source = new FakeSource()
+  source.canSend = true
+  try {
+    store.connectSource(source, {
+      execution: 'browser',
+      attemptId: '22222222-2222-4222-8222-222222222222',
+      matchId: 'browser-11111111-1111-4111-8111-111111111111',
+      gameType: 'draft',
+      fetchCardMeta: async () => new Map(),
+    })
+    source.sink!.onOpen()
+    source.sink!.onBatch({ byteLength: 1, messages: [fullGameState(1, {})] })
+    await Bun.sleep(0)
+    source.sink!.onBatch({
+      byteLength: 1,
+      messages: [fullGameState(2, { zones: [], gameInfo: { stage: 3, matchState: 3 } })],
+    })
+    expect(store.gameOver).toBe(true)
+    source.sink!.onBatch({
+      byteLength: 1,
+      messages: [{ type: 37, gameStateId: 2, msgId: 32, intermissionReq: {} }],
+    })
+    await Bun.sleep(0)
+    expect(uploads.filter((upload) => upload.status !== 200)).toEqual([])
+    const final = uploads.find((upload) => upload.complete)!
+    expect(final).toBeDefined()
+    const last = final.events.at(-1)!
+    expect(last.direction).toBe('inbound')
+    const wrapper = await decodeMessage(
+      'ClientToMatchServiceMessage',
+      Buffer.from(last.message!.payload, 'base64'),
+    )
+    expect(
+      await decodeMessage('ClientToGREMessage', wrapper['payload'] as Uint8Array),
+    ).toMatchObject({ type: 10, respId: 32 })
+    expect(committedSeq).toBe(store.browserReplaySnapshot()!.events!.at(-1)!.seq)
+  } finally {
+    store.clearSession()
+    globalThis.fetch = originalFetch
+  }
+})
+
+for (const fence of ['closed-checkpoint', 'source-close', 'disconnect'] as const) {
+  test(`terminal replay drains at ${fence} without a successful checkpoint send`, async () => {
+    const originalFetch = globalThis.fetch
+    const uploads: { status: { complete: boolean }; events: { seq: number }[] }[] = []
+    globalThis.fetch = (async (_input: RequestInfo | URL, options: RequestInit) => {
+      const chunk = JSON.parse(String(options.body))
+      uploads.push(chunk)
+      return new Response(
+        String(
+          chunk.events.at(-1)?.seq ??
+            Number((options.headers as Record<string, string>)['X-Replay-After-Seq']),
+        ),
+      )
+    }) as typeof fetch
+    const store = await freshStore()
+    const source = new FakeSource()
+    source.canSend = true
+    try {
+      store.connectSource(source, {
+        execution: 'browser',
+        matchId: 'terminal',
+        gameType: 'constructed',
+        fetchCardMeta: async () => new Map(),
+      })
+      source.sink!.onBatch({
+        byteLength: 1,
+        messages: [fullGameState(1, { zones: [], gameInfo: { stage: 3, matchState: 3 } })],
+      })
+      await Bun.sleep(0)
+      expect(store.gameOver).toBe(true)
+      expect(uploads.every((chunk) => !chunk.status.complete)).toBe(true)
+      source.isOpen = false
+      if (fence === 'closed-checkpoint') {
+        source.sink!.onBatch({
+          byteLength: 1,
+          messages: [{ type: 37, gameStateId: 1, msgId: 32, intermissionReq: {} }],
+        })
+      } else if (fence === 'source-close') {
+        source.sink!.onClose({ code: 1000, reason: 'completed', wasClean: true })
+      } else {
+        store.disconnect()
+      }
+      await Bun.sleep(0)
+      expect(uploads.some((chunk) => chunk.status.complete)).toBe(true)
+      expect(source.sent).toHaveLength(0)
+    } finally {
+      store.clearSession()
+      globalThis.fetch = originalFetch
+    }
+  })
+}
+
+test('an old terminal checkpoint cannot finish a replacement match replay', async () => {
+  const originalFetch = globalThis.fetch
+  const uploads: { matchId: string; status: { complete: boolean }; events: { seq: number }[] }[] =
+    []
+  globalThis.fetch = (async (_input: RequestInfo | URL, options: RequestInit) => {
+    const chunk = JSON.parse(String(options.body))
+    uploads.push(chunk)
+    return new Response(
+      String(
+        chunk.events.at(-1)?.seq ??
+          Number((options.headers as Record<string, string>)['X-Replay-After-Seq']),
+      ),
+    )
+  }) as typeof fetch
+  const store = await freshStore()
+  const oldSource = new FakeSource()
+  oldSource.canSend = true
+  try {
+    store.connectSource(oldSource, {
+      execution: 'browser',
+      matchId: 'old-terminal',
+      fetchCardMeta: async () => new Map(),
+    })
+    oldSource.sink!.onBatch({
+      byteLength: 1,
+      messages: [{ type: 37, gameStateId: 1, msgId: 32, intermissionReq: {} }],
+    })
+    const replacement = new FakeSource()
+    replacement.canSend = true
+    store.connectSource(replacement, {
+      execution: 'browser',
+      matchId: 'replacement',
+      fetchCardMeta: async () => new Map(),
+    })
+    replacement.sink!.onBatch({ byteLength: 1, messages: [fullGameState(1, {})] })
+    await Bun.sleep(0)
+    const current = uploads.filter((chunk) => chunk.matchId === 'replacement')
+    expect(current.length).toBeGreaterThan(0)
+    expect(current.every((chunk) => !chunk.status.complete)).toBe(true)
+    expect(oldSource.sent).toHaveLength(0)
+    expect(store.gameOver).toBe(false)
+  } finally {
+    store.clearSession()
+    globalThis.fetch = originalFetch
+  }
+})
+
 test('metadata from a retired embedded catalog cannot replace the next catalog', async () => {
   const store = await freshStore()
   let resolveOld!: (cards: Map<number, CardMeta>) => void
