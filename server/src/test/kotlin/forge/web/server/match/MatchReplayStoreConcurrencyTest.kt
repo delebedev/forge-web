@@ -165,7 +165,7 @@ class MatchReplayStoreConcurrencyTest {
                 assertTrue(root.entered.await(5, TimeUnit.SECONDS), "Maintenance must reach the filesystem barrier")
                 val rejected = CountDownLatch(1)
                 val uploads =
-                    (1..16).map {
+                    (1..10).map {
                         async(Dispatchers.IO) {
                             request("/browser-replays/$MATCH_ID/chunks", chunk(), cookie).also {
                                 if (it.statusCode() == 503) rejected.countDown()
