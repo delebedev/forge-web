@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from 'react'
 import { computeArrows } from '@engine/state/arrow-view'
-import type { CardView, LegalAction } from '@engine/state/gre-state'
+import type { CardView, LegalAction, PromptView } from '@engine/state/gre-state'
 import type { PresentationMotionKind } from '@engine/state/presentation-policy'
 import { legalActionKey } from '@engine/state/gre-state'
 import type { BoardSnapshot } from '@engine/runtime/snapshot'
@@ -89,6 +89,28 @@ function supportGroupStyle(count: number, availableCqw: number): CSSProperties |
   } as CSSProperties
 }
 
+function selectedBattlefieldIds(prompt: PromptView | null | undefined): number[] {
+  switch (prompt?.kind) {
+    case 'targets':
+      return prompt.candidates
+        .filter((candidate) => candidate.selected)
+        .map((c) => c.targetInstanceId)
+    case 'attackers':
+      return (prompt.attackers ?? []).filter((a) => a.selected).map((a) => a.attackerInstanceId)
+    case 'blockers':
+      return (prompt.blockers ?? []).flatMap((blocker) =>
+        blocker.attackers.some((attacker) => attacker.selected)
+          ? [
+              blocker.blockerInstanceId,
+              ...blocker.attackers.filter((a) => a.selected).map((a) => a.attackerInstanceId),
+            ]
+          : [],
+      )
+    default:
+      return []
+  }
+}
+
 export function Board({
   board,
   interactive,
@@ -130,6 +152,7 @@ export function Board({
   const outcomeDialogRef = useRef<HTMLDialogElement>(null)
   const [actionCard, setActionCard] = useState<CardView | null>(null)
   const motionRootRef = useRef<HTMLElement>(null)
+  const previousSelection = useRef(new Set<number>())
   const visibleStack = visibleStackOf(board)
   const attachments = attachmentsOf([...board.battlefield, ...board.opponentBattlefield])
   const attachedIds = new Set([...attachments.values()].flat().map((card) => card.instanceId))
@@ -297,6 +320,22 @@ export function Board({
       setActionCard(null)
     }
   }, [actionCard, actionChoices.length])
+
+  useEffect(() => {
+    const selected = selectedBattlefieldIds(board.prompt)
+    const added = selected.find((id) => !previousSelection.current.has(id))
+    previousSelection.current = new Set(selected)
+    if (added == null) {
+      return
+    }
+    const card = motionRootRef.current?.querySelector<HTMLElement>(
+      `[data-zone="battlefield"] [data-instance-id="${added}"]`,
+    )
+    const lane = card?.closest<HTMLElement>(`.${styles.lane}`)
+    if (lane && !lane.classList.contains(styles.landLane)) {
+      card?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+    }
+  }, [board.prompt])
 
   return (
     <section
@@ -669,6 +708,7 @@ export function Board({
           className={cx(styles.lane, styles.opponentCreatures)}
           style={creatureLaneStyle(opponentCreatures.length)}
           aria-label="Opponent creatures"
+          tabIndex={opponentCreatures.length > 0 ? 0 : undefined}
           data-zone="battlefield"
           data-owner="opponent"
         >
@@ -694,6 +734,7 @@ export function Board({
           className={styles.lane}
           style={creatureLaneStyle(selfCreatures.length)}
           aria-label="Your creatures"
+          tabIndex={selfCreatures.length > 0 ? 0 : undefined}
           data-zone="battlefield"
           data-owner="self"
         >

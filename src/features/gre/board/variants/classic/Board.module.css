@@ -64,7 +64,16 @@ button.zone:hover small { color: var(--ink); text-decoration: underline; text-un
 .centerBoard.dragging { background: #efeee808; outline: 1px dashed var(--accent); outline-offset: 8px; }
 .centerBoard.dragging::after { content: 'Drop to play'; position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); color: var(--ink); font-size: 14px; pointer-events: none; }
 .lane { position: relative; display: flex; flex: 0 0 auto; justify-content: center; align-items: center; gap: 12px; min-height: var(--board-card-h); min-width: 0; container-type: inline-size; }
-.lane:not(.landLane) { --board-card-w: min(var(--creature-ideal-w), calc((100cqw - (var(--lane-count, 1) - 1) * 12px) / var(--lane-count, 1))); }
+.lane:not(.landLane) {
+  --board-card-w: max(84px, min(var(--creature-ideal-w), calc((100cqw - (var(--lane-count, 1) - 1) * 12px) / var(--lane-count, 1))));
+  justify-content: safe center;
+  overflow-x: auto;
+  padding: 12px 8px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--public-line) transparent;
+  overscroll-behavior-x: contain;
+}
+.lane:not(.landLane):focus-visible { outline: 2px solid var(--public-text); outline-offset: -2px; }
 .landLane { min-height: calc(var(--board-support-card-w) / 1.37); justify-content: space-between; }
 .landGroup, .permanentGroup { --board-card-w: var(--board-support-card-w); display: flex; align-items: center; gap: 10px; max-width: 49%; }
 .supportCompact { --board-card-w: min(var(--board-support-card-w), var(--support-card-max)); display: grid; grid-auto-flow: column; grid-auto-columns: var(--board-card-w); grid-template-rows: repeat(2, calc(var(--board-card-w) / 1.28)); gap: 6px; }
