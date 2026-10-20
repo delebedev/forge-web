@@ -68,11 +68,19 @@ button.zone:hover small { color: var(--ink); text-decoration: underline; text-un
   --board-card-w: max(84px, min(var(--creature-ideal-w), calc((100cqw - (var(--lane-count, 1) - 1) * 12px) / var(--lane-count, 1))));
   justify-content: safe center;
   overflow-x: auto;
-  padding: 12px 8px;
+  /* Keep enlarged cards and their focus outline inside the scrollport. */
+  --creature-paint-block: calc(var(--board-card-h) * .08 + 8px);
+  padding: var(--creature-paint-block) calc(var(--board-card-w) * .08 + 8px);
   scrollbar-width: thin;
   scrollbar-color: var(--public-line) transparent;
   overscroll-behavior-x: contain;
 }
+.lane:not(.landLane):has([data-tapped='true']) {
+  --creature-paint-block: calc(var(--board-card-h) * .22 + 8px);
+  padding-inline: calc(var(--board-card-w) * .16 + 8px);
+}
+.lane:not(.landLane):empty { --creature-paint-block: 12px; }
+.lane:not(.landLane) [data-instance-id] { scroll-margin-inline: calc(var(--board-card-w) * .16 + 8px); }
 .lane:not(.landLane):focus-visible { outline: 2px solid var(--public-text); outline-offset: -2px; }
 .landLane { min-height: calc(var(--board-support-card-w) / 1.37); justify-content: space-between; }
 .landGroup, .permanentGroup { --board-card-w: var(--board-support-card-w); display: flex; align-items: center; gap: 10px; max-width: 49%; }

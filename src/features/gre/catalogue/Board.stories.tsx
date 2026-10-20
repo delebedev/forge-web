@@ -168,14 +168,49 @@ export const DenseCreatures: Story = {
           await expect(bounds.height).toBeGreaterThanOrEqual(44)
           await expect(bounds.left).toBeGreaterThanOrEqual(viewport.left)
           await expect(bounds.right).toBeLessThanOrEqual(viewport.right)
+          await expect(bounds.top).toBeGreaterThanOrEqual(viewport.top + 6)
+          await expect(bounds.bottom).toBeLessThanOrEqual(viewport.bottom - 6)
         })
         await expect(card).toHaveFocus()
         await expect(
           screen.getByRole('complementary', { name: 'Scute Swarm inspection' }),
         ).toBeVisible()
       }
+      lane.focus()
+      for (const card of cards) {
+        await userEvent.tab()
+        await expect(card).toHaveFocus()
+        await waitFor(async () => {
+          const bounds = card.getBoundingClientRect()
+          const viewport = lane.getBoundingClientRect()
+          await expect(bounds.left).toBeGreaterThanOrEqual(viewport.left)
+          await expect(bounds.right).toBeLessThanOrEqual(viewport.right)
+        })
+      }
       cards[0]!.focus()
     }
+    const lane = canvas.getByRole('region', { name: 'Your creatures' })
+    lane.focus()
+    const target = lane.querySelector<HTMLElement>('[data-instance-id]')!
+    await waitFor(async () => {
+      const matrix = new DOMMatrixReadOnly(getComputedStyle(target).transform)
+      await expect(Math.hypot(matrix.a, matrix.b)).toBeCloseTo(1, 3)
+    })
+    const arrow = canvasElement.querySelector<SVGPathElement>('[data-arrow-kind="targetSpec"]')!
+    const previous = arrow.getAttribute('d')
+    lane.scrollLeft += 200
+    await waitFor(async () => {
+      await expect(arrow.getAttribute('d')).not.toBe(previous)
+      const point = arrow
+        .getPointAtLength(arrow.getTotalLength())
+        .matrixTransform(arrow.getScreenCTM()!)
+      const bounds = target.getBoundingClientRect()
+      await expect(point.x).toBeGreaterThanOrEqual(bounds.left - 8)
+      await expect(point.x).toBeLessThanOrEqual(bounds.right + 8)
+      await expect(point.y).toBeGreaterThanOrEqual(bounds.top - 8)
+      await expect(point.y).toBeLessThanOrEqual(bounds.bottom + 8)
+    })
+    lane.scrollLeft = 0
     canvas.getByRole('button', { name: 'Board options' }).focus()
   },
 }

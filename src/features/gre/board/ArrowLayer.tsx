@@ -85,11 +85,13 @@ export function ArrowLayer({ arrows = [] }: { arrows?: Arrow[] }) {
     const ro = new ResizeObserver(run)
     if (board) {
       ro.observe(board)
+      board.addEventListener('scroll', run, true)
     }
     window.addEventListener('resize', run)
     const raf = requestAnimationFrame(run)
     return () => {
       ro.disconnect()
+      board?.removeEventListener('scroll', run, true)
       window.removeEventListener('resize', run)
       cancelAnimationFrame(raf)
     }

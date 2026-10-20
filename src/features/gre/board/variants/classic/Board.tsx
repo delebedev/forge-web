@@ -708,6 +708,11 @@ export function Board({
           className={cx(styles.lane, styles.opponentCreatures)}
           style={creatureLaneStyle(opponentCreatures.length)}
           aria-label="Opponent creatures"
+          onFocus={(event) => {
+            if (event.target !== event.currentTarget) {
+              event.target.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+            }
+          }}
           tabIndex={opponentCreatures.length > 0 ? 0 : undefined}
           data-zone="battlefield"
           data-owner="opponent"
@@ -734,6 +739,11 @@ export function Board({
           className={styles.lane}
           style={creatureLaneStyle(selfCreatures.length)}
           aria-label="Your creatures"
+          onFocus={(event) => {
+            if (event.target !== event.currentTarget) {
+              event.target.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+            }
+          }}
           tabIndex={selfCreatures.length > 0 ? 0 : undefined}
           data-zone="battlefield"
           data-owner="self"
