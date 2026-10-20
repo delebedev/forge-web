@@ -3,6 +3,7 @@ import { expect, fn, screen, userEvent, waitFor, within } from 'storybook/test'
 import type { BoardSnapshot } from '@engine/runtime/snapshot'
 import { BoardStory } from './BoardStory'
 import { crowdedBoard, midgameBoard, type CrowdedVariant } from './fixtures'
+import { denseCreaturesBoard } from './dense-creatures-fixture'
 
 type BoardStoryArgs = {
   board: BoardSnapshot
@@ -134,5 +135,82 @@ export const Crowded: Story = {
           'Can every hand card and stack entry remain reachable, and do dense support lanes compact into two rows? Switch between the two bounded stress cases.',
       },
     },
+  },
+}
+
+export const DenseCreatures: Story = {
+  args: { board: denseCreaturesBoard() },
+  parameters: {
+    controls: { disable: true },
+    docs: {
+      description: {
+        story:
+          'Can each of 64 creatures remain readable and individually inspectable, with keyboard access to both ends of each scrolling row?',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    for (const name of ['Your creatures', 'Opponent creatures']) {
+      const lane = canvas.getByRole('region', { name })
+      const cards = [...lane.querySelectorAll<HTMLElement>('[data-instance-id]')]
+      await expect(cards).toHaveLength(64)
+      await expect(new Set(cards.map((card) => card.dataset['instanceId'])).size).toBe(64)
+      await expect(lane.scrollWidth).toBeGreaterThan(lane.clientWidth)
+      lane.focus()
+      await expect(lane).toHaveFocus()
+      for (const card of [cards[0]!, cards[cards.length - 1]!]) {
+        card.focus()
+        await waitFor(async () => {
+          const bounds = card.getBoundingClientRect()
+          const viewport = lane.getBoundingClientRect()
+          await expect(bounds.width).toBeGreaterThanOrEqual(84)
+          await expect(bounds.height).toBeGreaterThanOrEqual(44)
+          await expect(bounds.left).toBeGreaterThanOrEqual(viewport.left)
+          await expect(bounds.right).toBeLessThanOrEqual(viewport.right)
+          await expect(bounds.top).toBeGreaterThanOrEqual(viewport.top + 6)
+          await expect(bounds.bottom).toBeLessThanOrEqual(viewport.bottom - 6)
+        })
+        await expect(card).toHaveFocus()
+        await expect(
+          screen.getByRole('complementary', { name: 'Scute Swarm inspection' }),
+        ).toBeVisible()
+      }
+      lane.focus()
+      for (const card of cards) {
+        await userEvent.tab()
+        await expect(card).toHaveFocus()
+        await waitFor(async () => {
+          const bounds = card.getBoundingClientRect()
+          const viewport = lane.getBoundingClientRect()
+          await expect(bounds.left).toBeGreaterThanOrEqual(viewport.left)
+          await expect(bounds.right).toBeLessThanOrEqual(viewport.right)
+        })
+      }
+      cards[0]!.focus()
+    }
+    const lane = canvas.getByRole('region', { name: 'Your creatures' })
+    lane.focus()
+    const target = lane.querySelector<HTMLElement>('[data-instance-id]')!
+    await waitFor(async () => {
+      const matrix = new DOMMatrixReadOnly(getComputedStyle(target).transform)
+      await expect(Math.hypot(matrix.a, matrix.b)).toBeCloseTo(1, 3)
+    })
+    const arrow = canvasElement.querySelector<SVGPathElement>('[data-arrow-kind="targetSpec"]')!
+    const previous = arrow.getAttribute('d')
+    lane.scrollLeft += 200
+    await waitFor(async () => {
+      await expect(arrow.getAttribute('d')).not.toBe(previous)
+      const point = arrow
+        .getPointAtLength(arrow.getTotalLength())
+        .matrixTransform(arrow.getScreenCTM()!)
+      const bounds = target.getBoundingClientRect()
+      await expect(point.x).toBeGreaterThanOrEqual(bounds.left - 8)
+      await expect(point.x).toBeLessThanOrEqual(bounds.right + 8)
+      await expect(point.y).toBeGreaterThanOrEqual(bounds.top - 8)
+      await expect(point.y).toBeLessThanOrEqual(bounds.bottom + 8)
+    })
+    lane.scrollLeft = 0
+    canvas.getByRole('button', { name: 'Board options' }).focus()
   },
 }
