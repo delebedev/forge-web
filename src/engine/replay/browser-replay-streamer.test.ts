@@ -1,15 +1,18 @@
-import { afterEach, beforeEach, expect, spyOn, test } from 'bun:test'
+import { afterEach, beforeEach, expect, mock, spyOn, test } from 'bun:test'
 import * as reporting from '@shared/reporting'
+import { fetchGreCardMeta } from '@engine/runtime/gre-card-meta'
 import { BrowserReplayCollector } from './browser-replay-collector'
 import { BrowserReplayStreamer, type ReplayClock } from './browser-replay-streamer'
 import { RetiredReplayDeliveries, retiredReplayDeliveries } from './retired-replay-deliveries'
 
 let retired: RetiredReplayDeliveries
+let reportFailure: ReturnType<typeof mock<typeof reporting.reportDiagnostic>>
 const owned: BrowserReplayStreamer[] = []
 const flushing = new Set<Promise<boolean>>()
 
 beforeEach(() => {
   retired = new RetiredReplayDeliveries()
+  reportFailure = mock<typeof reporting.reportDiagnostic>(() => {})
 })
 
 afterEach(async () => {
@@ -29,7 +32,15 @@ async function drainDeliveries() {
 function createStreamer(
   ...[journal, matchId, upload, onChange, time]: ConstructorParameters<typeof BrowserReplayStreamer>
 ) {
-  const streamer = new BrowserReplayStreamer(journal, matchId, upload, onChange, time, retired)
+  const streamer = new BrowserReplayStreamer(
+    journal,
+    matchId,
+    upload,
+    onChange,
+    time,
+    retired,
+    reportFailure,
+  )
   const flush = streamer.flush.bind(streamer)
   streamer.flush = (...args) => {
     const pending = flush(...args)
@@ -144,7 +155,7 @@ for (const status of [429, 503]) {
       const time = new Clock()
       const sent: RequestInit[] = []
       let available = false
-      const report = spyOn(reporting, 'reportDiagnostic').mockImplementation(() => {})
+      const report = reportFailure
       const streamer = createStreamer(
         journal,
         'browser-test',
@@ -195,11 +206,109 @@ for (const status of [429, 503]) {
         streamer.finish('left')
         await drainDeliveries()
         expect(retired.diagnostics().matches).toBe(0)
-        report.mockRestore()
       }
     })
   }
 }
+
+test('unrelated metadata decoding cannot consume a streamer diagnostic budget', async () => {
+  const report = reportFailure
+  const normalReport = spyOn(reporting, 'reportDiagnostic').mockImplementation(() => {})
+  const body = deferred<unknown>()
+  const reading = deferred<void>()
+  const failure = new SyntaxError('synthetic metadata JSON failure')
+  const response = new Response(null, {
+    headers: { 'X-Backend-Release': '123abcd' },
+  })
+  const parse = spyOn(response, 'json').mockImplementation(() => {
+    reading.resolve()
+    return body.promise
+  })
+  const request = spyOn(globalThis, 'fetch').mockResolvedValue(response)
+  const metadata = fetchGreCardMeta([42]).catch((error: unknown) => error)
+  const journal = collector('reporter-isolation')
+  journal.incoming([{ type: 1 }])
+  const time = new Clock()
+  let uploads = 0
+  const streamer = createStreamer(
+    journal,
+    'reporter-isolation',
+    (async (_input: RequestInfo | URL) =>
+      new Response(null, { status: ++uploads === 1 ? 503 : 429 })) as typeof fetch,
+    undefined,
+    time,
+  )
+  try {
+    await reading.promise
+    expect(await streamer.flush()).toBe(false)
+    expect(report).toHaveBeenCalledTimes(1)
+    body.reject(failure)
+    expect(await metadata).toBe(failure)
+    expect(normalReport).toHaveBeenCalledWith(undefined, 'API response decoding failed', {
+      failure_category: 'api-response',
+      failure_phase: 'json',
+      api_operation: 'GET /api/public/cards/by-grpids',
+      http_status: 200,
+      backend_release: '123abcd',
+    })
+    expect(report).toHaveBeenCalledTimes(1)
+    time.timestamp += 10_000
+    expect(await streamer.flush()).toBe(false)
+    expect(uploads).toBe(2)
+    expect(streamer.diagnostics()).toMatchObject({ replay_http_status: 429 })
+    expect(report).toHaveBeenCalledTimes(1)
+    expect(report.mock.calls[0]).toEqual([
+      undefined,
+      'Browser replay delivery failed',
+      {
+        failure_category: 'replay-delivery',
+        execution: 'browser',
+        match_id: 'reporter-isolation',
+        replay_ack_seq: 0,
+        replay_failure: 'http',
+        replay_http_status: 503,
+      },
+    ])
+  } finally {
+    body.reject(failure)
+    await metadata
+    streamer.abandon()
+    await drainDeliveries()
+    parse.mockRestore()
+    request.mockRestore()
+    normalReport.mockRestore()
+  }
+})
+
+test('the default streamer reporter retains the normal diagnostic arguments', async () => {
+  const normalReport = spyOn(reporting, 'reportDiagnostic').mockImplementation(() => {})
+  const time = new Clock()
+  const journal = collector('default-reporter')
+  journal.incoming([{ type: 1 }])
+  const streamer = new BrowserReplayStreamer(
+    journal,
+    'default-reporter',
+    (async (_input: RequestInfo | URL) => new Response(null, { status: 503 })) as typeof fetch,
+    undefined,
+    time,
+    retired,
+  )
+  owned.push(streamer)
+  try {
+    expect(await streamer.flush()).toBe(false)
+    expect(normalReport).toHaveBeenCalledWith(undefined, 'Browser replay delivery failed', {
+      failure_category: 'replay-delivery',
+      execution: 'browser',
+      match_id: 'default-reporter',
+      replay_ack_seq: 0,
+      replay_failure: 'http',
+      replay_http_status: 503,
+    })
+  } finally {
+    streamer.abandon()
+    normalReport.mockRestore()
+  }
+})
 
 for (const value of ['', 'not-an-ack', '-1', '0', '2', '9007199254740993']) {
   test(`invalid acknowledgement ${JSON.stringify(value)} never advances the prefix`, async () => {
@@ -498,7 +607,7 @@ test('response-body failure retries the immutable request and never leaks except
   const journal = collector()
   journal.incoming([{ type: 1 }])
   const time = new Clock()
-  const report = spyOn(reporting, 'reportDiagnostic').mockImplementation(() => {})
+  const report = reportFailure
   let calls = 0
   const streamer = createStreamer(
     journal,
@@ -528,7 +637,6 @@ test('response-body failure retries the immutable request and never leaks except
   } finally {
     streamer.finish('left')
     await drainDeliveries()
-    report.mockRestore()
   }
 })
 
@@ -538,7 +646,7 @@ test('collection and subscriber failures cannot escape into gameplay or start re
   const chunk = spyOn(journal, 'chunk').mockImplementation(() => {
     throw new Error('private card')
   })
-  const report = spyOn(reporting, 'reportDiagnostic').mockImplementation(() => {})
+  const report = reportFailure
   const streamer = createStreamer(
     journal,
     'browser-test',
@@ -557,7 +665,6 @@ test('collection and subscriber failures cannot escape into gameplay or start re
     streamer.finish('left')
     await drainDeliveries()
     chunk.mockRestore()
-    report.mockRestore()
   }
 })
 
