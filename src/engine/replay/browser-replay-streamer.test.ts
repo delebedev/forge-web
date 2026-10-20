@@ -1,7 +1,45 @@
-import { expect, spyOn, test } from 'bun:test'
+import { afterEach, beforeEach, expect, spyOn, test } from 'bun:test'
 import * as reporting from '@shared/reporting'
 import { BrowserReplayCollector } from './browser-replay-collector'
 import { BrowserReplayStreamer, type ReplayClock } from './browser-replay-streamer'
+import { RetiredReplayDeliveries, retiredReplayDeliveries } from './retired-replay-deliveries'
+
+let retired: RetiredReplayDeliveries
+const owned: BrowserReplayStreamer[] = []
+const flushing = new Set<Promise<boolean>>()
+
+beforeEach(() => {
+  retired = new RetiredReplayDeliveries()
+})
+
+afterEach(async () => {
+  for (const streamer of owned.splice(0)) {
+    streamer.abandon()
+  }
+  await drainDeliveries()
+  expect(retired.diagnostics().matches).toBe(0)
+})
+
+async function drainDeliveries() {
+  while (flushing.size) {
+    await Promise.all([...flushing])
+  }
+}
+
+function createStreamer(
+  ...[journal, matchId, upload, onChange, time]: ConstructorParameters<typeof BrowserReplayStreamer>
+) {
+  const streamer = new BrowserReplayStreamer(journal, matchId, upload, onChange, time, retired)
+  const flush = streamer.flush.bind(streamer)
+  streamer.flush = (...args) => {
+    const pending = flush(...args)
+    flushing.add(pending)
+    void pending.finally(() => flushing.delete(pending))
+    return pending
+  }
+  owned.push(streamer)
+  return streamer
+}
 
 class Clock implements ReplayClock {
   timestamp = Date.parse('2026-10-19T12:00:00Z')
@@ -63,7 +101,7 @@ test('committed-but-response-lost retries the exact body before later observatio
   const time = new Clock()
   journal.incoming([{ type: 1 }])
   const sent: { after: string; body: string }[] = []
-  const streamer = new BrowserReplayStreamer(
+  const streamer = createStreamer(
     journal,
     'browser-test',
     async function (this: unknown, _url, options) {
@@ -107,7 +145,7 @@ for (const status of [429, 503]) {
       const sent: RequestInit[] = []
       let available = false
       const report = spyOn(reporting, 'reportDiagnostic').mockImplementation(() => {})
-      const streamer = new BrowserReplayStreamer(
+      const streamer = createStreamer(
         journal,
         'browser-test',
         (async (_url, options) => {
@@ -155,7 +193,8 @@ for (const status of [429, 503]) {
         expect(streamer.diagnostics().replay_ack_seq).toBe(8)
       } finally {
         streamer.finish('left')
-        await Bun.sleep(0)
+        await drainDeliveries()
+        expect(retired.diagnostics().matches).toBe(0)
         report.mockRestore()
       }
     })
@@ -169,7 +208,7 @@ for (const value of ['', 'not-an-ack', '-1', '0', '2', '9007199254740993']) {
     const time = new Clock()
     let valid = false
     const sent: string[] = []
-    const streamer = new BrowserReplayStreamer(
+    const streamer = createStreamer(
       journal,
       'browser-test',
       (async (_url, options) => {
@@ -198,7 +237,7 @@ test('busy calls coalesce feedback and completion without awaiting diagnostic I/
   const first = deferred<Response>()
   const time = new Clock()
   const sent: RequestInit[] = []
-  const streamer = new BrowserReplayStreamer(
+  const streamer = createStreamer(
     journal,
     'browser-test',
     (async (_url, options) => {
@@ -231,7 +270,7 @@ test('retired matches retry transient final delivery independently, without noti
   let available = false
   const sent: string[] = []
   let notifications = 0
-  const streamer = new BrowserReplayStreamer(
+  const streamer = createStreamer(
     journal,
     'old-match',
     (async (url, options) => {
@@ -248,7 +287,7 @@ test('retired matches retry transient final delivery independently, without noti
   streamer.finish('completed')
   await Bun.sleep(0)
   expect(streamer.diagnostics().replay_ack_seq).toBe(0)
-  const replacement = new BrowserReplayStreamer(
+  const replacement = createStreamer(
     collector('new-match'),
     'new-match',
     undefined,
@@ -267,7 +306,7 @@ test('retired matches retry transient final delivery independently, without noti
 test('final retries expire, obey long guidance, and do not leave an unbounded timer owner', async () => {
   const time = new Clock()
   let calls = 0
-  const streamer = new BrowserReplayStreamer(
+  const streamer = createStreamer(
     collector(),
     'browser-test',
     (async (_input: RequestInfo | URL) => {
@@ -294,7 +333,7 @@ test('a late acknowledgement cannot start more terminal backlog requests past th
     journal.incoming([{ type: 1, payload: 'x'.repeat(2_200_000) }])
   }
   let calls = 0
-  const streamer = new BrowserReplayStreamer(
+  const streamer = createStreamer(
     journal,
     'browser-test',
     (async (_url, options) => {
@@ -319,7 +358,7 @@ test('retry jitter spreads a synchronized cohort without violating the server mi
   let calls = 0
   const journal = collector()
   journal.incoming([{ type: 1 }])
-  const streamer = new BrowserReplayStreamer(
+  const streamer = createStreamer(
     journal,
     'browser-test',
     (async (_input: RequestInfo | URL) => {
@@ -345,7 +384,7 @@ test('transient backoff grows between failures and resets after acknowledgement'
   const time = new Clock()
   let available = false
   let calls = 0
-  const streamer = new BrowserReplayStreamer(
+  const streamer = createStreamer(
     journal,
     'browser-test',
     (async (_url, options) => {
@@ -387,7 +426,7 @@ test('the response body must complete before its numeric acknowledgement is trus
       }
     },
   })
-  const streamer = new BrowserReplayStreamer(
+  const streamer = createStreamer(
     journal,
     'browser-test',
     (async (_input: RequestInfo | URL) => new Response(body)) as typeof fetch,
@@ -410,7 +449,7 @@ test('permanent 413 fails once and retains evidence instead of retrying unchange
   journal.incoming([{ type: 1 }])
   const time = new Clock()
   let calls = 0
-  const streamer = new BrowserReplayStreamer(
+  const streamer = createStreamer(
     journal,
     'browser-test',
     (async (_input: RequestInfo | URL) => {
@@ -434,7 +473,7 @@ test('an indivisible oversized event exposes a payload failure without diagnosti
   journal.incoming([{ type: 1, payload: 'x'.repeat(4 * 1024 * 1024) }])
   const time = new Clock()
   let calls = 0
-  const streamer = new BrowserReplayStreamer(
+  const streamer = createStreamer(
     journal,
     'browser-test',
     (async (_input: RequestInfo | URL) => {
@@ -461,7 +500,7 @@ test('response-body failure retries the immutable request and never leaks except
   const time = new Clock()
   const report = spyOn(reporting, 'reportDiagnostic').mockImplementation(() => {})
   let calls = 0
-  const streamer = new BrowserReplayStreamer(
+  const streamer = createStreamer(
     journal,
     'browser-test',
     (async (_url, options) => {
@@ -488,6 +527,7 @@ test('response-body failure retries the immutable request and never leaks except
     expect(streamer.diagnostics().replay_ack_seq).toBe(1)
   } finally {
     streamer.finish('left')
+    await drainDeliveries()
     report.mockRestore()
   }
 })
@@ -499,7 +539,7 @@ test('collection and subscriber failures cannot escape into gameplay or start re
     throw new Error('private card')
   })
   const report = spyOn(reporting, 'reportDiagnostic').mockImplementation(() => {})
-  const streamer = new BrowserReplayStreamer(
+  const streamer = createStreamer(
     journal,
     'browser-test',
     undefined,
@@ -515,6 +555,7 @@ test('collection and subscriber failures cannot escape into gameplay or start re
     expect(JSON.stringify(report.mock.calls)).not.toContain('private card')
   } finally {
     streamer.finish('left')
+    await drainDeliveries()
     chunk.mockRestore()
     report.mockRestore()
   }
@@ -527,7 +568,7 @@ test('a flush yields ownership after eight chunks and resumes the remaining pref
   }
   const time = new Clock()
   const sent: RequestInit[] = []
-  const streamer = new BrowserReplayStreamer(
+  const streamer = createStreamer(
     journal,
     'browser-test',
     (async (_url, options) => {
@@ -549,4 +590,30 @@ test('a flush yields ownership after eight chunks and resumes the remaining pref
     reportId: 'report-test',
   })
   streamer.finish('completed')
+})
+
+test('fixture retirement evicts only its own deliveries, not the tab owner', async () => {
+  const tabBefore = retiredReplayDeliveries.diagnostics()
+  const time = new Clock()
+  for (let index = 0; index < 3; index++) {
+    const matchId = `fixture-retirement-${index}`
+    const streamer = createStreamer(
+      collector(matchId),
+      matchId,
+      (async (_input: RequestInfo | URL) => new Response(null, { status: 503 })) as typeof fetch,
+      undefined,
+      time,
+    )
+    streamer.finish('left')
+  }
+  await drainDeliveries()
+  expect(retired.diagnostics()).toMatchObject({ matches: 2, abandoned: 1 })
+  expect(retiredReplayDeliveries.diagnostics()).toEqual(tabBefore)
+  for (const streamer of owned) {
+    streamer.abandon()
+  }
+  await drainDeliveries()
+  expect(time.tasks.size).toBe(0)
+  expect(retired.diagnostics().matches).toBe(0)
+  expect(retiredReplayDeliveries.diagnostics()).toEqual(tabBefore)
 })
