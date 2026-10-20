@@ -5,6 +5,7 @@ import { resolve } from 'node:path'
 import { parse } from 'yaml'
 import type { ActionCompletionState } from './action-completion'
 import { completionState, resolveResult } from './gre-action-completion'
+import { clickControl, requestDispatch, type ControlDispatch } from './gre-request-dispatch'
 import {
   ACTION_CAST,
   ACTION_CAST_ADVENTURE,
@@ -367,7 +368,7 @@ async function keepOpeningHandIfPrompt(page: Page): Promise<void> {
   }
 }
 
-async function passUntil(page: Page, raw: Record<string, unknown>): Promise<void> {
+export async function passUntil(page: Page, raw: Record<string, unknown>): Promise<void> {
   const maxPasses = Number(raw['max_passes'] ?? 20)
   const checks = conditions(
     Object.fromEntries(Object.entries(raw).filter(([key]) => key !== 'max_passes')),
@@ -383,7 +384,8 @@ async function passUntil(page: Page, raw: Record<string, unknown>): Promise<void
     await expect
       .poll(async () => (await completionState(page)).lagging, { timeout: 20_000 })
       .toBe(false)
-    const request = (await completionState(page)).request
+    const current = await completionState(page)
+    const request = current.request
     if (
       (!requireFreshPriority || request > submittedRequest) &&
       (await conditionsMet(page, checks, baseline))
@@ -392,8 +394,22 @@ async function passUntil(page: Page, raw: Record<string, unknown>): Promise<void
     }
     if (
       (!requireFreshPriority || passes === 0 || request > submittedRequest) &&
+      request > 0 &&
+      !current.waiting &&
+      !current.terminal &&
+      current.connected &&
       passes < maxPasses &&
-      (await clickPass(page, awaitedPrompts))
+      (await clickPass(
+        page,
+        awaitedPrompts,
+        false,
+        requestDispatch(
+          current,
+          async () =>
+            (!requireFreshPriority || request > submittedRequest) &&
+            (await conditionsMet(page, checks, baseline)),
+        ),
+      ))
     ) {
       submittedRequest = request
       passes += 1
@@ -1219,11 +1235,15 @@ async function clickPass(
   page: Page,
   awaitedPrompts: ReadonlySet<string> = new Set(),
   requireStack = false,
+  dispatch?: ControlDispatch,
 ): Promise<boolean> {
-  if (!awaitedPrompts.has('OptionalActionMessage') && (await satisfyPendingOptionalAction(page))) {
+  if (
+    !awaitedPrompts.has('OptionalActionMessage') &&
+    (await satisfyPendingOptionalAction(page, dispatch))
+  ) {
     return true
   }
-  if (await satisfyVisibleIncidentalPrompt(page, awaitedPrompts)) {
+  if (await satisfyVisibleIncidentalPrompt(page, awaitedPrompts, dispatch)) {
     return true
   }
   const actionScope = page.locator(
@@ -1234,6 +1254,9 @@ async function clickPass(
     .filter({ visible: true })
     .first()
   if (await pass.isEnabled({ timeout: 100 }).catch(() => false)) {
+    if (dispatch) {
+      return dispatch(pass)
+    }
     await pass.click()
     return true
   }
@@ -1245,16 +1268,22 @@ async function clickPass(
   if (!(await passPriority.isEnabled({ timeout: 100 }).catch(() => false))) {
     return false
   }
+  if (dispatch) {
+    return dispatch(passPriority)
+  }
   await passPriority.click()
   return true
 }
 
-async function satisfyPendingOptionalAction(page: Page): Promise<boolean> {
+async function satisfyPendingOptionalAction(
+  page: Page,
+  dispatch: ControlDispatch = clickControl,
+): Promise<boolean> {
   const accept = pendingOptionalActions.get(page)
   if (accept == null) {
     return false
   }
-  if (!(await respondToVisibleOptionalAction(page, accept))) {
+  if (!(await respondToVisibleOptionalAction(page, accept, dispatch))) {
     return false
   }
   pendingOptionalActions.delete(page)
@@ -1266,7 +1295,11 @@ async function waitForPendingOptionalAction(page: Page): Promise<boolean> {
   return satisfyPendingOptionalAction(page)
 }
 
-async function respondToVisibleOptionalAction(page: Page, accept: boolean): Promise<boolean> {
+async function respondToVisibleOptionalAction(
+  page: Page,
+  accept: boolean,
+  dispatch: ControlDispatch = clickControl,
+): Promise<boolean> {
   const target = page
     .locator('[data-prompt]')
     .getByRole('button', { name: accept ? 'Accept' : 'Decline', exact: true })
@@ -1274,7 +1307,9 @@ async function respondToVisibleOptionalAction(page: Page, accept: boolean): Prom
   if (!(await target.isVisible({ timeout: 100 }).catch(() => false))) {
     return false
   }
-  await target.click({ timeout: 1_000 })
+  if (!(await dispatch(target))) {
+    return false
+  }
   await page.waitForTimeout(100)
   return true
 }
@@ -1282,10 +1317,11 @@ async function respondToVisibleOptionalAction(page: Page, accept: boolean): Prom
 async function satisfyVisibleIncidentalPrompt(
   page: Page,
   awaitedPrompts: ReadonlySet<string> = new Set(),
+  dispatch: ControlDispatch = clickControl,
 ): Promise<boolean> {
   if (
     !awaitedPrompts.has('OptionalActionMessage') &&
-    (await respondToVisibleOptionalAction(page, true))
+    (await respondToVisibleOptionalAction(page, true, dispatch))
   ) {
     return true
   }
@@ -1294,40 +1330,28 @@ async function satisfyVisibleIncidentalPrompt(
     !awaitedPrompts.has('DeclareAttackersReq') &&
     (await submitAttackers.isVisible({ timeout: 100 }).catch(() => false))
   ) {
-    return submitAttackers
-      .click({ timeout: 1_000 })
-      .then(() => true)
-      .catch(() => false)
+    return dispatch(submitAttackers).catch(() => false)
   }
   const submitBlockers = page.getByRole('button', { name: 'Submit blockers' })
   if (
     !awaitedPrompts.has('DeclareBlockersReq') &&
     (await submitBlockers.isVisible({ timeout: 100 }).catch(() => false))
   ) {
-    return submitBlockers
-      .click({ timeout: 1_000 })
-      .then(() => true)
-      .catch(() => false)
+    return dispatch(submitBlockers).catch(() => false)
   }
   const assignDamage = page.getByRole('button', { name: 'Assign damage' })
   if (
     !awaitedPrompts.has('AssignDamageReq') &&
     (await assignDamage.isEnabled({ timeout: 100 }).catch(() => false))
   ) {
-    return assignDamage
-      .click({ timeout: 1_000 })
-      .then(() => true)
-      .catch(() => false)
+    return dispatch(assignDamage).catch(() => false)
   }
   const submitGroups = page.getByRole('button', { name: 'Submit groups' })
   if (
     !awaitedPrompts.has('GroupReq') &&
     (await submitGroups.isEnabled({ timeout: 100 }).catch(() => false))
   ) {
-    return submitGroups
-      .click({ timeout: 1_000 })
-      .then(() => true)
-      .catch(() => false)
+    return dispatch(submitGroups).catch(() => false)
   }
   return false
 }
