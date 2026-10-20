@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
-import { expect, within } from 'storybook/test'
+import { expect, userEvent, within } from 'storybook/test'
+import { useState } from 'react'
 import type { CardView, MechanicHelp } from '@engine/state/gre-state'
 import { Card } from './Card'
 import { CardMechanicHelp } from './CardMechanicHelp'
@@ -29,8 +30,46 @@ const ninjutsu: MechanicHelp = {
     'Return an unblocked attacker you control to hand: Put this card onto the battlefield from your hand tapped and attacking.',
 }
 
-type Density = 'single' | 'several' | 'dense'
+const equipCommander: MechanicHelp = {
+  keyword: 'Equip',
+  title: 'Equip',
+  cost: '{3}',
+  description: 'Attach to target commander you control. Activate only as a sorcery.',
+}
+const equipCreature: MechanicHelp = {
+  keyword: 'Equip',
+  title: 'Equip',
+  cost: '{5}',
+  description: 'Attach to target creature you control. Activate only as a sorcery.',
+}
+const vigilance: MechanicHelp = {
+  keyword: 'Vigilance',
+  title: 'Vigilance',
+  description: "Attacking doesn't cause this creature to tap.",
+}
+const repeatedStages = [
+  [equipCommander, equipCreature],
+  [equipCreature, equipCommander],
+  [vigilance, equipCommander, equipCreature],
+  [equipCreature],
+  [equipCommander, equipCreature],
+]
+
+function RepeatedHelp() {
+  const [stage, setStage] = useState(0)
+  return (
+    <div>
+      <CardMechanicHelp items={repeatedStages[stage]!} />
+      <button onClick={() => setStage((stage + 1) % repeatedStages.length)}>
+        Change help entries
+      </button>
+    </div>
+  )
+}
+
+type Density = 'single' | 'several' | 'dense' | 'repeated'
 const itemsByDensity: Record<Density, MechanicHelp[]> = {
+  repeated: [equipCommander, equipCreature],
   single: [ninjutsu],
   several: [
     ninjutsu,
@@ -92,7 +131,7 @@ const meta = {
   parameters: { layout: 'fullscreen', controls: { include: ['density'] } },
   args: { density: 'single' },
   argTypes: {
-    density: { control: 'inline-radio', options: ['single', 'several', 'dense'] },
+    density: { control: 'inline-radio', options: ['single', 'several', 'dense', 'repeated'] },
   },
   render: ({ density }, { globals }) => (
     <div
@@ -114,10 +153,31 @@ const meta = {
             : {}),
         }}
       >
-        <Card card={bitingPalmNinja} variant="preview" actionChrome={false} />
-        <CardMechanicHelp
-          items={itemsByDensity[(globals['mechanicHelpDensity'] as Density | undefined) ?? density]}
+        <Card
+          card={
+            (globals['mechanicHelpDensity'] ?? density) === 'repeated'
+              ? {
+                  ...bitingPalmNinja,
+                  name: "Commander's Plate",
+                  typeLine: 'Legendary Artifact — Equipment',
+                  manaCost: '{1}',
+                  powerToughness: '',
+                  keywords: ['Equip'],
+                }
+              : bitingPalmNinja
+          }
+          variant="preview"
+          actionChrome={false}
         />
+        {(globals['mechanicHelpDensity'] ?? density) === 'repeated' ? (
+          <RepeatedHelp />
+        ) : (
+          <CardMechanicHelp
+            items={
+              itemsByDensity[(globals['mechanicHelpDensity'] as Density | undefined) ?? density]
+            }
+          />
+        )}
       </div>
     </div>
   ),
@@ -128,6 +188,30 @@ type Story = StoryObj<typeof meta>
 
 export const Panel: Story = {
   play: async ({ canvasElement, args, globals }) => {
+    if ((globals['mechanicHelpDensity'] ?? args.density) === 'repeated') {
+      const canvas = within(canvasElement)
+      const help = canvas.getByRole('complementary', { name: 'Card mechanics' })
+      const original = within(help).getAllByRole('heading')
+      for (const [stage, expected] of repeatedStages.entries()) {
+        if (stage > 0) {
+          await userEvent.click(canvas.getByRole('button', { name: 'Change help entries' }))
+        }
+        const headings = within(help).getAllByRole('heading')
+        await expect(headings).toHaveLength(expected.length)
+        for (const [index, item] of expected.entries()) {
+          await expect(help).toHaveTextContent(item.description)
+          if (item === equipCreature) {
+            await expect(headings[index]).toBe(original[1])
+          }
+          if (item === equipCommander && stage < 3) {
+            await expect(headings[index]).toBe(original[0])
+          }
+        }
+      }
+      await expect(within(help).getByLabelText('Cost 3')).toBeVisible()
+      await expect(within(help).getByLabelText('Cost 5')).toBeVisible()
+      return
+    }
     if ((globals['mechanicHelpDensity'] ?? args.density) !== 'dense') {
       return
     }
@@ -143,6 +227,7 @@ export const Panel: Story = {
       modes: {
         desktop: { viewport: { width: 1440, height: 900 }, mechanicHelpDensity: 'single' },
         dense: { viewport: { width: 1440, height: 900 }, mechanicHelpDensity: 'dense' },
+        repeated: { viewport: { width: 1440, height: 900 }, mechanicHelpDensity: 'repeated' },
       },
     },
     docs: {

@@ -9,6 +9,8 @@ import {
 } from '@engine/state/gre-state'
 import type { PromptFamily } from './family'
 
+const PLAYER_SEAT_IDS = new Set([1, 2])
+
 export function damagePrompt(message: ProtoObject): PromptFamily | null {
   const req = message['assignDamageReq']
   if (!isRecord(req)) {
@@ -31,20 +33,21 @@ export function damagePrompt(message: ProtoObject): PromptFamily | null {
     rows.length > 0 &&
     rows.every((row) => {
       const assignments = slots(row)
+      const isDefender = (slot: ProtoObject) => PLAYER_SEAT_IDS.has(asNumber(slot['instanceId']))
+      const damagesDefender = assignments.some((slot) => isDefender(slot) && amount(row, slot) > 0)
       return (
         asNumber(row['instanceId']) > 0 &&
         assignments.length > 0 &&
         assignments.reduce((total, slot) => total + amount(row, slot), 0) ===
           asNumber(row['totalDamage']) &&
-        assignments.every((slot, index) => {
+        assignments.every((slot) => {
           const assigned = amount(row, slot)
           const maximum = asNumber(slot['maxDamage'])
           return (
             asNumber(slot['instanceId']) > 0 &&
             assigned >= 0 &&
             (maximum <= 0 || assigned <= maximum) &&
-            (!assignments.slice(index + 1).some((later) => amount(row, later) > 0) ||
-              assigned >= asNumber(slot['minDamage']))
+            (!damagesDefender || isDefender(slot) || assigned >= asNumber(slot['minDamage']))
           )
         })
       )

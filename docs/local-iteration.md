@@ -204,6 +204,14 @@ bun run gre -- -g 'known opponent hand is inspectable|Multikicker accepts|Krrik 
 
 Set `PRIORITY_DEMO_VIDEO=1` to retain clips with Hide card art enabled.
 
+## Combat damage choices
+
+Damage may be split freely among multiple blocking creatures, including zero on
+one blocker. The draft must assign the attacker's entire damage total. Creature
+rows show lethal thresholds, not unconditional minimum assignments. Assigning
+trample damage to the defender still requires lethal damage on every blocker,
+including the reduced lethal threshold from deathtouch.
+
 ## Phasing
 
 Open `/dev/puzzle/phasing-kaito-cycle`, cast Kaito Shizuki, then pass through the

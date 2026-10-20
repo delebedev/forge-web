@@ -3,7 +3,7 @@ import { expect, test } from 'bun:test'
 import { GreDispatch } from '../gre-dispatch'
 import { dispatchHost, bindingFor, encodedPromptHarness, decodeGre } from './prompt-test-harness'
 import type { ProtoObject } from '@engine/state/gre-state'
-test('damage assignment enforces request ranges and ordered lethal damage', async () => {
+test('damage assignment preserves ranges while allowing free creature splits', async () => {
   const sent: ProtoObject[] = []
   const dispatch = new GreDispatch(
     dispatchHost({
@@ -30,7 +30,7 @@ test('damage assignment enforces request ranges and ordered lethal damage', asyn
       { instanceId: 201, minDamage: 2, maxDamage: 5, assignedDamage: 5 },
     ]),
   )
-  expect(dispatch.prompt).toMatchObject({ kind: 'assignDamage', canSubmit: false })
+  expect(dispatch.prompt).toMatchObject({ kind: 'assignDamage', canSubmit: true })
   await bindingFor(dispatch, 'assignDamage').controls.submit()
 
   dispatch.applyFamilyRequest(
@@ -48,7 +48,7 @@ test('damage assignment enforces request ranges and ordered lethal damage', asyn
       { instanceId: 201, minDamage: 2, maxDamage: 3, assignedDamage: 2 },
     ]),
   )
-  expect(dispatch.prompt).toMatchObject({ kind: 'assignDamage', canSubmit: false })
+  expect(dispatch.prompt).toMatchObject({ kind: 'assignDamage', canSubmit: true })
   await bindingFor(dispatch, 'assignDamage').controls.submit()
 
   dispatch.applyFamilyRequest(
@@ -61,6 +61,36 @@ test('damage assignment enforces request ranges and ordered lethal damage', asyn
   await bindingFor(dispatch, 'assignDamage').controls.submit()
 
   expect(sent).toEqual([
+    {
+      gameStateId: 41,
+      respId: 1,
+      assignDamageResp: {
+        assigners: [
+          {
+            instanceId: 100,
+            assignments: [
+              { instanceId: 200, assignedDamage: 0 },
+              { instanceId: 201, assignedDamage: 5 },
+            ],
+          },
+        ],
+      },
+    },
+    {
+      gameStateId: 43,
+      respId: 3,
+      assignDamageResp: {
+        assigners: [
+          {
+            instanceId: 100,
+            assignments: [
+              { instanceId: 200, assignedDamage: 1 },
+              { instanceId: 201, assignedDamage: 2 },
+            ],
+          },
+        ],
+      },
+    },
     {
       gameStateId: 44,
       respId: 4,
@@ -103,6 +133,86 @@ function damageRequest(msgId = 7): ProtoObject {
       ],
     },
   }
+}
+
+for (const split of [
+  [1, 1],
+  [0, 2],
+  [2, 0],
+]) {
+  test(`two power can be submitted as creature split ${split}`, async () => {
+    const h = encodedPromptHarness()
+    h.owner.applyFamilyRequest({
+      type: 30,
+      msgId: 9,
+      gameStateId: 24,
+      assignDamageReq: {
+        damageAssigners: [
+          {
+            instanceId: 101,
+            totalDamage: 2,
+            assignments: split.map((amount, index) => ({
+              instanceId: 200 + index,
+              minDamage: 2,
+              assignedDamage: amount,
+            })),
+          },
+        ],
+      },
+    })
+    expect(h.owner.prompt?.canSubmit).toBe(true)
+    expect(await bindingFor(h.owner, 'assignDamage').controls.submit()).toBe(true)
+    expect(await decodeGre(h.sent[0])).toMatchObject({
+      assignDamageResp: {
+        assigners: [
+          {
+            instanceId: 101,
+            assignments: split.map((amount, index) => ({
+              instanceId: 200 + index,
+              assignedDamage: amount,
+            })),
+          },
+        ],
+      },
+    })
+  })
+}
+
+for (const { lethal, split, valid } of [
+  { lethal: 2, split: [0, 5, 0], valid: true },
+  { lethal: 2, split: [0, 4, 1], valid: false },
+  { lethal: 2, split: [2, 2, 1], valid: true },
+  { lethal: 1, split: [1, 1, 3], valid: true },
+  { lethal: 1, split: [0, 2, 3], valid: false },
+  { lethal: 2, split: [2, 2, 0], valid: false },
+  { lethal: 2, split: [3, 3, 0], valid: false },
+  { lethal: 2, split: [-1, 6, 0], valid: false },
+]) {
+  test(`trample split ${split} with lethal threshold ${lethal} is ${valid ? 'valid' : 'invalid'}`, async () => {
+    const h = encodedPromptHarness()
+    h.owner.applyFamilyRequest({
+      type: 30,
+      msgId: 9,
+      gameStateId: 24,
+      assignDamageReq: {
+        damageAssigners: [
+          {
+            instanceId: 101,
+            totalDamage: 5,
+            canIgnoreBlockers: true,
+            assignments: [
+              { instanceId: 200, minDamage: lethal, assignedDamage: split[0] },
+              { instanceId: 201, minDamage: lethal, assignedDamage: split[1] },
+              { instanceId: 2, maxDamage: 5 - 2 * lethal, assignedDamage: split[2] },
+            ],
+          },
+        ],
+      },
+    })
+    expect(h.owner.prompt?.canSubmit).toBe(valid)
+    expect(await bindingFor(h.owner, 'assignDamage').controls.submit()).toBe(valid)
+    expect(h.sent).toHaveLength(valid ? 1 : 0)
+  })
 }
 
 test('retained damage candidates edit the latest pair draft with authoritative bounds and ordered codec output', async () => {
