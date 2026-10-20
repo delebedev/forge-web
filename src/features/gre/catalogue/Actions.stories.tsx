@@ -105,16 +105,36 @@ export const ChangingPriority: Story = {
       await expect(card.getBoundingClientRect().x).toBeCloseTo(before[index]!.x, 1)
       await expect(card.getBoundingClientRect().width).toBeCloseTo(before[index]!.width, 1)
     }
-    cards[0]!.focus()
-    await expect(cards[0]).toHaveFocus()
-    await expect(cards[0]!.matches(':focus-visible')).toBe(true)
+    const focusedCard = cards[0]!
+    focusedCard.focus()
     const beginning = canvas.getByTitle('Set stops in Beginning')
     await waitFor(async () => {
+      await expect(focusedCard).toHaveFocus()
+      await expect(focusedCard.matches(':focus-visible')).toBe(true)
+      await expect(
+        focusedCard
+          .getAnimations()
+          .some(
+            (animation) =>
+              animation.playState === 'running' &&
+              'transitionProperty' in animation &&
+              animation.transitionProperty === 'transform',
+          ),
+      ).toBe(false)
+      const beforeFrame = focusedCard.getBoundingClientRect()
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+      const cardRect = focusedCard.getBoundingClientRect()
+      for (const dimension of ['x', 'y', 'width', 'height'] as const) {
+        await expect(cardRect[dimension]).toBeCloseTo(beforeFrame[dimension], 2)
+      }
       const rect = beginning.getBoundingClientRect()
-      const hit = canvasElement.ownerDocument.elementFromPoint(
-        rect.x + rect.width / 2,
-        rect.y + rect.height / 2,
-      )
+      const x = rect.x + rect.width / 2
+      const y = rect.y + rect.height / 2
+      await expect(x).toBeGreaterThan(cardRect.left)
+      await expect(x).toBeLessThan(cardRect.right)
+      await expect(y).toBeGreaterThan(cardRect.top)
+      await expect(y).toBeLessThan(cardRect.bottom)
+      const hit = canvasElement.ownerDocument.elementFromPoint(x, y)
       await expect(hit === beginning || beginning.contains(hit)).toBe(true)
     })
     await userEvent.click(beginning)
