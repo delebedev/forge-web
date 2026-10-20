@@ -1,5 +1,6 @@
 import { READ_ONLY_INTERACTIONS } from '../../read-only-interactions'
 import { attachmentsBoard } from '../../../catalogue/fixtures'
+import { denseCreaturesBoard } from '../../../catalogue/dense-creatures-fixture'
 import { createFixture } from '../../../catalogue/fixture-builder'
 import { counterIcon } from '@shared/cards/mana'
 import { expect, test } from 'bun:test'
@@ -220,6 +221,16 @@ function render(stage: string | null) {
     ),
   )
 }
+
+test('dense creature rows keep every instance and expose keyboard scrolling regions', () => {
+  const board = denseCreaturesBoard()
+  const html = renderBoard(board)
+  expect(html).toMatch(/aria-label="Your creatures" tabindex="0"/)
+  expect(html).toMatch(/aria-label="Opponent creatures" tabindex="0"/)
+  for (const card of [...board.battlefield, ...board.opponentBattlefield]) {
+    expect(html.match(new RegExp(`data-instance-id="${card.instanceId}"`, 'g'))).toHaveLength(1)
+  }
+})
 
 test('standard board shows puzzle context and launcher controls', () => {
   const board = attachmentsBoard('attached')
