@@ -104,6 +104,15 @@ bun run server:check
 bun run runtime:check
 ```
 
+`bun run check` includes every unit test through `bun run test`. The replay
+lifecycle file runs exactly once in a separate Bun process with
+`BUN_JSC_useConcurrentJIT=false`; its strict weak-reference assertions are unchanged.
+Bun 1.3.11 reproduces extra native-rooted collectors with concurrent JIT enabled,
+but the exact native retaining mechanism is unresolved. The isolated process
+keeps JIT enabled and compilation synchronous. Ordinary tests and production keep
+their default JIT settings. Ordinary results are preserved in
+`test-results/unit/junit.xml` before the isolated run writes `test-results/junit.xml`.
+
 ## License
 
 Original Forge Web source is [GPL-3.0-only](LICENSE). Dependencies, fonts,
