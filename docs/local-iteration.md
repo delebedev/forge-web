@@ -170,6 +170,14 @@ must not interrupt the opponent turn. With two Islands, it must offer a response
 at upkeep. `opponent cycling priority` browser checks compare the web settings
 with the engine's native defaults and retain the decoded engine emissions.
 
+## Library reordering and optional shuffle
+
+Optional shuffles after library reordering show **Shuffle the library?** with
+Accept and Decline. Decline retains the chosen order; accepting leaves the
+shuffle to the engine before resolution continues. The seeded Ponder branches
+exercise actual pointer choices, draw identity, card conservation and continued
+play with `bun run gre -- e2e/gre-optional-shuffle.spec.ts`.
+
 ## Top-library casting
 
 Cards with a legal library action appear beside the hand with a `TOP` source

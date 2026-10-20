@@ -74,6 +74,24 @@ test('optional action presentation hydrates without changing response identity',
 })
 
 for (const accept of [true, false]) {
+  test(`optional shuffle ${accept} labels the branch and sends the matching outcome`, async () => {
+    const { owner, sent } = encodedPromptHarness()
+    owner.applyFamilyRequest({ ...request(), prompt: { promptId: 7221 } })
+    expect(owner.prompt).toMatchObject({
+      message: 'Shuffle the library?',
+      result: 'Accept to shuffle. Decline to keep the chosen order.',
+    })
+    expect(await bindingFor(owner, 'optionalAction').controls.respond(accept)).toBe(true)
+    expect(await decodeGre(sent[0]!)).toMatchObject({
+      gameStateId: 40,
+      respId: 7,
+      optionalResp: {
+        response: await enumValue('OptionResponse', accept ? 'AllowYes' : 'CancelNo'),
+      },
+    })
+    expect(owner.prompt).toBeNull()
+  })
+
   test(`optional ${accept} encodes descriptor-owned outcome and retires`, async () => {
     const { owner, sent } = encodedPromptHarness()
     owner.applyFamilyRequest({
