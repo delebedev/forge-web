@@ -2,6 +2,7 @@ import { asArray, asNumber, isRecord, type ProtoObject } from '@engine/state/gre
 import type { FamilyRequest } from './family'
 
 export const CARD_NAME_INPUT_LIMIT = 512
+const NON_LOCALIZED_STRING = 1
 
 /** Web compatibility input. Forge validates the submitted name on its engine thread. */
 export function cardNamePrompt(message: ProtoObject): FamilyRequest {
@@ -10,7 +11,7 @@ export function cardNamePrompt(message: ProtoObject): FamilyRequest {
   const parameters = asArray(prompt['parameters']).filter(isRecord)
   const text = (name: string) => {
     const parameter = parameters.find(
-      (p) => p['parameterName'] === name && asNumber(p['type']) === 6,
+      (p) => p['parameterName'] === name && asNumber(p['type']) === NON_LOCALIZED_STRING,
     )
     return typeof parameter?.['stringValue'] === 'string' ? parameter['stringValue'] : ''
   }

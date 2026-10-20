@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
 import { bindingFor, decodeGre, encodedPromptHarness, promptHarness } from './prompt-test-harness'
-import { enumValue } from '@engine/wire/gre-proto'
+import { decodeMessage, encodeMessage, enumValue } from '@engine/wire/gre-proto'
 
 const request = (msgId = 7, error = '') => ({
   type: 58,
@@ -9,16 +9,24 @@ const request = (msgId = 7, error = '') => ({
   stringInputReq: { sourceId: 101 },
   prompt: {
     parameters: [
-      { parameterName: 'choiceKind', type: 6, stringValue: 'cardName' },
-      { parameterName: 'instruction', type: 6, stringValue: 'Choose a card name.' },
-      { parameterName: 'validationError', type: 6, stringValue: error },
+      { parameterName: 'choiceKind', type: 1, stringValue: 'cardName' },
+      { parameterName: 'instruction', type: 1, stringValue: 'Choose a card name.' },
+      { parameterName: 'validationError', type: 1, stringValue: error },
     ],
   },
 })
 
 test('card name requires nonempty text and encodes one correlated explicit answer', async () => {
+  expect(await enumValue('ParameterType', 'NonLocalizedString')).toBe(1)
   const { owner, sent, observed } = encodedPromptHarness()
-  owner.applyFamilyRequest(request())
+  const incoming = request()
+  incoming.type = await enumValue('GREMessageType', 'StringInputReq_695e')
+  for (const parameter of incoming.prompt.parameters) {
+    parameter.type = await enumValue('ParameterType', 'NonLocalizedString')
+  }
+  owner.applyFamilyRequest(
+    await decodeMessage('GREToClientMessage', await encodeMessage('GREToClientMessage', incoming)),
+  )
   const bound = bindingFor(owner, 'cardNameInput')
   expect(bound.view.canSubmit).toBe(false)
   expect(await bound.controls.submit()).toBe(false)
