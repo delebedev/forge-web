@@ -28,6 +28,7 @@ import type {
   ModalOptionCandidate,
   GreTables,
   NumericPromptView,
+  CardNamePromptView,
   DistributionPromptView,
   GroupPromptView,
   OrderPromptView,
@@ -69,6 +70,7 @@ export type FamilyView =
   | SelectionPromptView
   | CastingPromptView
   | NumericPromptView
+  | CardNamePromptView
   | SearchPromptView
   | GroupPromptView
   | OrderPromptView
@@ -89,6 +91,10 @@ export type TargetControls = {
 }
 export type NumericControls = {
   adjust(direction: -1 | 1): boolean
+  submit(): Promise<boolean>
+}
+export type CardNameControls = {
+  edit(value: string): boolean
   submit(): Promise<boolean>
 }
 export type SearchControls = {
@@ -152,6 +158,7 @@ export type PromptBinding =
   | { kind: 'group'; view: GroupPromptView; controls: GroupControls | null }
   | { kind: 'order'; view: OrderPromptView; controls: OrderControls | null }
   | { kind: 'numericInput'; view: NumericPromptView; controls: NumericControls | null }
+  | { kind: 'cardNameInput'; view: CardNamePromptView; controls: CardNameControls | null }
   | { kind: 'search'; view: SearchPromptView; controls: SearchControls | null }
 
 export type PromptContext = {

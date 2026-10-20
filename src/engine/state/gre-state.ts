@@ -444,6 +444,12 @@ export type CastingPromptView = PromptPresentation & {
   castingOptions: CastingOptionCandidate[]
 }
 
+export type CardNamePromptView = PromptPresentation & {
+  kind: 'cardNameInput'
+  value: string
+  validationError: string
+}
+
 export type NumericPromptView = PromptPresentation & {
   kind: 'numericInput'
   numericValue: number
@@ -498,6 +504,7 @@ export type PromptView =
   | SelectionPromptView
   | CastingPromptView
   | NumericPromptView
+  | CardNamePromptView
   | SearchPromptView
   | GroupPromptView
   | OrderPromptView

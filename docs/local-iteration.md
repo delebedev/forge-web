@@ -204,6 +204,15 @@ bun run gre -- -g 'known opponent hand is inspectable|Multikicker accepts|Krrik 
 
 Set `PRIORITY_DEMO_VIDEO=1` to retain clips with Hide card art enabled.
 
+## Card names
+
+Mandatory card-name decisions expose a labelled text field and **Name card**.
+Empty input cannot submit. Forge validates the exact named face and re-prompts
+for unknown or disallowed names without a default selection. The `card-name`
+acceptance suite exercises a finite Demonic Consultation library through found
+and absent names, followed by a land play. This string-input envelope is a Web
+compatibility route; native-client presentation has not been verified.
+
 ## Combat damage choices
 
 Damage may be split freely among multiple blocking creatures, including zero on

@@ -13,6 +13,7 @@ import { OrderPrompt } from './OrderPrompt'
 import { GroupPrompt } from './GroupPrompt'
 import type { PromptBinding } from '@engine/runtime/prompts/family'
 import { NumericPrompt } from './NumericPrompt'
+import { CardNamePrompt } from './CardNamePrompt'
 import { SearchPrompt } from './SearchPrompt'
 import { useEffect, useId, useRef } from 'react'
 import type { CardView, PromptView } from '@engine/state/gre-state'
@@ -139,6 +140,13 @@ export function PromptDock({
           cards={cards}
           controls={
             binding?.kind === 'selectN' && binding.view === prompt ? binding.controls : null
+          }
+        />
+      ) : prompt.kind === 'cardNameInput' ? (
+        <CardNamePrompt
+          view={prompt}
+          controls={
+            binding?.kind === 'cardNameInput' && binding.view === prompt ? binding.controls : null
           }
         />
       ) : prompt.kind === 'numericInput' ? (
