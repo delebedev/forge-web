@@ -39,9 +39,8 @@ export function DamagePrompt({
                   <div>
                     <span>{assignment.name}</span>{' '}
                     <small>
-                      min {assignment.minDamage || 0}
+                      {assignment.isDefender ? 'defender' : `lethal ${assignment.minDamage || 0}`}
                       {assignment.maxDamage ? ` · max ${assignment.maxDamage}` : ''}
-                      {assignment.isDefender ? ' · defender' : ''}
                     </small>
                   </div>
                   <div className={styles.damageControls}>

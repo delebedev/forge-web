@@ -3,6 +3,7 @@ import { expect, test } from 'bun:test'
 import { bindingFor, promptHarness } from '@engine/runtime/prompts/prompt-test-harness'
 import { DamagePrompt } from './DamagePrompt'
 import { buttons } from './prompt-renderer-test-helpers'
+import { renderToStaticMarkup } from 'react-dom/server'
 
 test('damage renderer edits exact pairs from retained callbacks and gates invalid, waiting and read-only submission', async () => {
   const h = promptHarness()
@@ -53,4 +54,33 @@ test('damage renderer edits exact pairs from retained callbacks and gates invali
       (button) => button.props.disabled,
     ),
   ).toBe(true)
+})
+
+test('damage rows label lethal thresholds without claiming an unconditional minimum', () => {
+  const h = promptHarness()
+  h.tables.objects.set(103, { instanceId: 103, grpId: 203 })
+  h.owner.applyFamilyRequest({
+    type: 30,
+    msgId: 7,
+    gameStateId: 8,
+    assignDamageReq: {
+      damageAssigners: [
+        {
+          instanceId: 101,
+          totalDamage: 2,
+          assignments: [
+            { instanceId: 102, minDamage: 2, assignedDamage: 1 },
+            { instanceId: 103, minDamage: 2, assignedDamage: 1 },
+          ],
+        },
+      ],
+    },
+  })
+  const b = bindingFor(h.owner, 'assignDamage')
+  const html = renderToStaticMarkup(<DamagePrompt view={b.view} controls={b.controls} />)
+  expect(html.match(/lethal 2/g)).toHaveLength(2)
+  expect(html).not.toContain('min 2')
+  expect(buttons(DamagePrompt({ view: b.view, controls: b.controls })).at(-1)!.props.disabled).toBe(
+    false,
+  )
 })
