@@ -7,11 +7,12 @@ export async function startScenario(
   page: Page,
   name: string,
   execution: 'browser' = 'browser',
+  seed?: number,
 ): Promise<void> {
   const text = readFileSync(new URL(`fixtures/${name}.pzl`, import.meta.url), 'utf8')
   await page.goto('/play/game?traffic=smoke')
   await page.evaluate(
-    async ({ execution, name, text }) => {
+    async ({ execution, name, text, seed }) => {
       const modulePath = '/src/engine/runtime/gre-session.ts'
       const { greSession } = await import(modulePath)
       const config = {
@@ -20,10 +21,11 @@ export async function startScenario(
         returnPath: '/play/game',
         challengeId: name,
         puzzleText: text,
+        ...(seed === undefined ? {} : { seed }),
       }
       greSession.startBrowser(config)
     },
-    { execution, name, text },
+    { execution, name, text, seed },
   )
   await page.waitForURL(/\/match\/puzzle/, { timeout: 20_000 })
   await waitForBrowserGameReady(page)

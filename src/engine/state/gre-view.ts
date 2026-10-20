@@ -27,6 +27,7 @@ const CARD_MECHANIC_ZONE_TRANSFER = 22
 const CARD_MECHANIC_EXPLORE = 46
 const CARD_MECHANIC_MUTATE = 49
 const CARD_MECHANIC_PUT_TOP_OR_BOTTOM = 52
+const OPTIONAL_SHUFFLE_PROMPT = 7221
 
 export function optionalActionPresentation(
   message: ProtoObject,
@@ -50,6 +51,14 @@ export function optionalActionPresentation(
     .map((id) => objectLabel(id, tables, cardMeta, 'Card'))[0]
   const subject = optionalActionSubject(recipientName || sourceName)
   const actionTypes = asArray(request['optionalActionTypes']).map(asNumber)
+
+  const prompt = isRecord(message['prompt']) ? message['prompt'] : null
+  if (asNumber(prompt?.['promptId']) === OPTIONAL_SHUFFLE_PROMPT) {
+    return {
+      title: 'Shuffle the library?',
+      detail: 'Accept to shuffle. Decline to keep the chosen order.',
+    }
+  }
 
   const paymentCost = nonLocalizedCostText(message)
   if (paymentCost) {

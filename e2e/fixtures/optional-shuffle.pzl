@@ -1,0 +1,23 @@
+# Design Narrative
+# Mechanic: Reorder three known cards, choose whether to shuffle, then draw.
+# Forcing: Ponder is the only spell; distinct library cards expose order preservation.
+# AI behavior: No opposing hand or board decisions compete with resolution.
+# Failure modes: Missing choice, wrong draw, unwanted shuffle, or stale priority fails the flow.
+# Card roles: Ponder offers the branch; Island pays; Swamp proves continued play; six basics identify the library.
+# Protocol path: OrderReq, optional shuffle decision, draw, and fresh legal actions.
+[metadata]
+Name:Optional library shuffle
+Goal:Survive
+Turns:4
+Difficulty:Easy
+Description:Reorder the library, choose whether to shuffle, and continue playing.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanhand=Ponder;Swamp
+humanbattlefield=Island
+humanlibrary=Forest;Mountain;Plains;Swamp;Island;Wastes
+ailibrary=Island;Island;Island;Island
