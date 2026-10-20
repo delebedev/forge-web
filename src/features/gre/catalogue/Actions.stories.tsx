@@ -1,7 +1,9 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, fn, userEvent, within } from 'storybook/test'
+import { useState } from 'react'
 import { BoardStory } from './BoardStory'
 import { outsideHandBoard } from './fixtures'
+import styles from './BoardStory.module.css'
 
 const meta = {
   title: 'Gameplay/Actions',
@@ -51,5 +53,65 @@ export const OutsideTheHand: Story = {
         (action) => action.label === 'Cast Bramble Familiar (Adventure alternate) from exile',
       ),
     )
+  },
+}
+
+function ChangingAvailability({
+  onLegalAction,
+}: {
+  onLegalAction: typeof meta.args.onLegalAction
+}) {
+  const [available, setAvailable] = useState(true)
+  const [board] = useState(outsideHandBoard)
+  const displayed = available
+    ? board
+    : {
+        ...board,
+        canPass: false,
+        prioritySeatId: board.opponentSeatId,
+        legalActions: [],
+        nonHandActionCards: [],
+      }
+  return (
+    <>
+      <BoardStory board={displayed} onLegalAction={onLegalAction} />
+      <div className={styles.fixtureControls}>
+        <button onClick={() => setAvailable(!available)}>
+          {available ? 'Opponent priority' : 'Your priority'}
+        </button>
+      </div>
+    </>
+  )
+}
+
+export const ChangingPriority: Story = {
+  args: { board: outsideHandBoard() },
+  render: ({ onLegalAction }) => <ChangingAvailability onLegalAction={onLegalAction} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const hand = canvas.getByRole('region', { name: 'Your hand: 2 cards' })
+    const cards = [...hand.querySelectorAll<HTMLElement>('[data-instance-id]')]
+    const before = cards.map((card) => card.getBoundingClientRect())
+    await userEvent.click(canvas.getByRole('button', { name: /^Opponent priority$/ }))
+    await expect(canvas.queryByRole('region', { name: 'Cards outside your hand' })).toBeNull()
+    for (const [index, card] of cards.entries()) {
+      await expect(card.isConnected).toBe(true)
+      await expect(card.getBoundingClientRect().x).toBeCloseTo(before[index]!.x, 1)
+      await expect(card.getBoundingClientRect().width).toBeCloseTo(before[index]!.width, 1)
+    }
+    await userEvent.click(canvas.getByRole('button', { name: /^Your priority$/ }))
+    await expect(canvas.getByRole('region', { name: 'Cards outside your hand' })).toBeVisible()
+    for (const [index, card] of cards.entries()) {
+      await expect(card.getBoundingClientRect().x).toBeCloseTo(before[index]!.x, 1)
+      await expect(card.getBoundingClientRect().width).toBeCloseTo(before[index]!.width, 1)
+    }
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Do hand cards keep their positions when outside-hand offers retire and return with priority?',
+      },
+    },
   },
 }
