@@ -65,6 +65,7 @@ export class BrowserReplayStreamer {
   private onChange: (() => void) | null
   private readonly time: ReplayClock
   private readonly retired: RetiredReplayDeliveries
+  private readonly report: typeof reportDiagnostic
 
   constructor(
     collector: BrowserReplayCollector,
@@ -73,6 +74,7 @@ export class BrowserReplayStreamer {
     onChange: () => void = () => {},
     time: ReplayClock = clock,
     retired: RetiredReplayDeliveries = retiredReplayDeliveries,
+    report: typeof reportDiagnostic = reportDiagnostic,
   ) {
     this.collector = collector
     this.collection = new WeakRef(collector)
@@ -81,6 +83,7 @@ export class BrowserReplayStreamer {
     this.onChange = onChange
     this.time = time
     this.retired = retired
+    this.report = report
     this.schedule(FLUSH_INTERVAL_MS)
   }
 
@@ -151,7 +154,7 @@ export class BrowserReplayStreamer {
     }
     if (!this.reportedFailure) {
       this.reportedFailure = true
-      reportDiagnostic(undefined, 'Browser replay delivery failed', {
+      this.report(undefined, 'Browser replay delivery failed', {
         failure_category: 'replay-delivery',
         execution: 'browser',
         match_id: this.matchId,
