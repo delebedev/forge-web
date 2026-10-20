@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
-import { expect, fn, userEvent, within } from 'storybook/test'
+import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { useState } from 'react'
 import { BoardStory } from './BoardStory'
 import { outsideHandBoard } from './fixtures'
@@ -105,6 +105,20 @@ export const ChangingPriority: Story = {
       await expect(card.getBoundingClientRect().x).toBeCloseTo(before[index]!.x, 1)
       await expect(card.getBoundingClientRect().width).toBeCloseTo(before[index]!.width, 1)
     }
+    cards[0]!.focus()
+    await expect(cards[0]).toHaveFocus()
+    await expect(cards[0]!.matches(':focus-visible')).toBe(true)
+    const beginning = canvas.getByTitle('Set stops in Beginning')
+    await waitFor(async () => {
+      const rect = beginning.getBoundingClientRect()
+      const hit = canvasElement.ownerDocument.elementFromPoint(
+        rect.x + rect.width / 2,
+        rect.y + rect.height / 2,
+      )
+      await expect(hit === beginning || beginning.contains(hit)).toBe(true)
+    })
+    await userEvent.click(beginning)
+    await expect(canvas.getByRole('button', { name: 'Your Upkeep stop' })).toBeVisible()
   },
   parameters: {
     docs: {

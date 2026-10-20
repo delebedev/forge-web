@@ -77,7 +77,8 @@ button.zone:hover small { color: var(--ink); text-decoration: underline; text-un
 .handShelf { position: absolute; right: 240px; bottom: -14px; left: 240px; display: flex; justify-content: center; pointer-events: none; }
 .handShelf > * { pointer-events: auto; }
 /* Legal offers change with priority; their lane must not resize the hand. */
-.handGroup { display: grid; grid-template-columns: minmax(0, 1fr) min(250px, 24cqw); align-items: end; width: min(100%, 980px); min-width: 0; }
+/* Card elevation stays inside the hand, below phase controls and decisions. */
+.handGroup { isolation: isolate; display: grid; grid-template-columns: minmax(0, 1fr) min(250px, 24cqw); align-items: end; width: min(100%, 980px); min-width: 0; }
 .dragGhost { position: fixed; z-index: 999; transform: translate(-50%, -55%) rotate(-4deg); pointer-events: none; filter: drop-shadow(0 16px 24px #0007); }
 .attachmentGroup { position: relative; flex: 0 0 auto; width: var(--board-card-w); }
 .attachmentSlot { position: relative; height: clamp(22px, calc(var(--board-card-w) * .19), 36px); }
