@@ -1,5 +1,83 @@
 import { authenticateShell, expect } from './gre-test'
 import { recordDemos, readyForVideo, test } from './demo-test'
+import { readBrowserJournal } from './gre-browser-observations'
+import { resolveTo } from './gre-actions'
+
+test('Commander with a chosen companion reaches its opening hand and plays a land', async ({
+  page,
+  gre: _gre,
+}, info) => {
+  test.setTimeout(300_000)
+  await authenticateShell(page)
+  await page.goto('/play/game?traffic=smoke')
+  await page.evaluate(async () => {
+    const viewPath = '/src/features/gre/board/board-view.ts'
+    const { boardView } = await import(viewPath)
+    boardView.setHideCardArt(true)
+    const modulePath = '/src/engine/runtime/gre-session.ts'
+    const { greSession } = await import(modulePath)
+    const deck = '[Commander]\n1 Ayli, Eternal Pilgrim\n[Deck]\n99 Plains'
+    greSession.startBrowser({
+      gameType: 'commander',
+      seat1Deck: `${deck}\n[Sideboard]\n1 Lurrus of the Dream-Den`,
+      seat2Deck: deck,
+      seed: 42,
+    })
+  })
+  await page.waitForURL(/\/match\/commander/)
+  readyForVideo.add(page)
+  const startupError = page
+    .getByRole('alert')
+    .filter({ hasText: /Browser game (could not start|stopped)/ })
+  const opening = page.locator('[data-prompt="mulligan"]')
+  await expect
+    .poll(async () => (await opening.isVisible()) || (await startupError.isVisible()), {
+      timeout: 240_000,
+    })
+    .toBe(true)
+  await expect(startupError).toBeHidden()
+  const started = await page.evaluate(() => window.__greState()!)
+  await info.attach('startup-state', {
+    body: JSON.stringify(started, null, 2),
+    contentType: 'application/json',
+  })
+  expect(started.diagnostics.errorCount).toBe(0)
+  expect(started.counts.you.sideboard).toBe(1)
+  await expect(page.locator('[data-board]')).toHaveAttribute('data-card-art', 'off')
+  const hand = page.locator('[data-zone="hand"][data-owner="self"] [data-card]')
+  await expect(opening).toBeVisible()
+  await expect(hand).toHaveCount(7)
+  await page.screenshot({ path: info.outputPath('companion-opening.png') })
+  await opening.getByRole('button', { name: 'Keep hand', exact: true }).click()
+  await expect(opening).toBeHidden()
+  const land = page
+    .locator('[data-zone="hand"][data-owner="self"] [data-card="Plains"][data-action-types~="3"]')
+    .first()
+  await expect(land).toBeVisible()
+  await resolveTo(
+    page,
+    { zone_contains: { side: 'ours', zone: 'battlefield', card: 'Plains' }, stack_empty: true },
+    () => land.click(),
+  )
+  await expect(
+    page.locator('[data-zone="battlefield"][data-owner="self"] [data-card="Plains"]'),
+  ).toHaveCount(1)
+  const continued = await page.evaluate(() => window.__greState()!)
+  expect(continued.connected).toBe(true)
+  expect(continued.presentationLagging).toBe(false)
+  expect(continued.horizon?.kind).toBe('actions')
+  expect(continued.diagnostics.errorCount).toBe(0)
+  await info.attach('continued-state', {
+    body: JSON.stringify(continued, null, 2),
+    contentType: 'application/json',
+  })
+  await info.attach('startup-journal', {
+    body: JSON.stringify(await readBrowserJournal(page)),
+    contentType: 'application/json',
+  })
+  await page.mouse.move(1200, 400)
+  await page.screenshot({ path: info.outputPath('companion-ready-land.png') })
+})
 
 for (const execution of ['browser'] as const) {
   test(`Commander free mulligan keeps seven before a later bottom choice (${execution})`, async ({
