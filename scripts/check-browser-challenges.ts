@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { chromium, devices, expect, type Page } from '@playwright/test'
 import { preview } from 'vite'
+import { browserSmokeDiagnostics } from './browser-smoke-diagnostics'
 import {
   BROWSER_CHALLENGES,
   browserChallengePath,
@@ -9,8 +10,14 @@ import {
 } from '../src/features/challenges/browser-challenges'
 
 // Exercise the built static site without a login or game server.
+const diagnostics = process.argv.includes('--smoke')
+  ? browserSmokeDiagnostics('browser-smoke-output')
+  : undefined
+diagnostics?.stage('preview:start')
 const server = await preview({ preview: { host: '127.0.0.1', port: 0, strictPort: true } })
+diagnostics?.stage('browser:launch')
 const browser = await chromium.launch({ channel: 'chromium' })
+diagnostics?.stage('assets:verify', { browser: browser.version() })
 const base = server.resolvedUrls!.local[0]!
 const releaseResponse = await fetch(new URL('/browser-engine/release.json', base))
 assert.equal(releaseResponse.status, 200)
@@ -23,9 +30,12 @@ for (const challenge of BROWSER_CHALLENGES) {
 }
 
 async function open(page: Page, id: string): Promise<void> {
+  diagnostics?.stage('navigation:start', { id })
   const response = await page.goto(new URL(browserChallengePath(id), base).href)
+  diagnostics?.stage('navigation:response', { status: response?.status() })
   assert.equal(response?.status(), 200)
   await expect(page.locator('[data-board][data-turn="1"]')).toBeVisible({ timeout: 240_000 })
+  diagnostics?.stage('board:ready')
   const turns = BROWSER_CHALLENGES.find((challenge) => challenge.id === id)?.turns ?? 1
   await expect(page.getByRole('region', { name: 'Puzzle objective' })).toContainText(
     `${turns} turn${turns === 1 ? '' : 's'} remaining`,
@@ -33,11 +43,14 @@ async function open(page: Page, id: string): Promise<void> {
 }
 
 async function cast(page: Page, card: string, target: string): Promise<void> {
+  diagnostics?.stage('cast:start', { card, target })
   await page
     .locator('[data-zone="hand"][data-owner="self"]')
     .getByRole('button', { name: `Cast ${card}` })
     .click()
+  diagnostics?.stage('cast:submitted', { card })
   await page.locator('[data-prompt]').getByRole('button', { name: target, exact: true }).click()
+  diagnostics?.stage('target:submitted', { target })
 }
 
 async function castWithoutTarget(page: Page, card: string): Promise<void> {
@@ -58,6 +71,7 @@ async function attackWithAll(page: Page): Promise<void> {
 }
 
 async function victory(page: Page): Promise<void> {
+  diagnostics?.stage('victory:wait')
   await expect(page.getByRole('dialog').getByRole('heading', { name: 'Victory' })).toBeVisible({
     timeout: 60_000,
   })
@@ -65,6 +79,7 @@ async function victory(page: Page): Promise<void> {
   await expect(
     page.getByRole('dialog').getByRole('link', { name: 'Play a full game' }),
   ).toHaveAttribute('href', '/play/game')
+  diagnostics?.stage('victory:confirmed')
 }
 
 async function solve(page: Page, id: string): Promise<void> {
@@ -72,11 +87,14 @@ async function solve(page: Page, id: string): Promise<void> {
     await cast(page, 'Lightning Bolt', 'Opponent')
   } else if (id === 'grow-for-lethal-v1') {
     await cast(page, 'Giant Growth', 'Grizzly Bears')
+    diagnostics?.stage('attackers:wait')
     await expect(page.locator('[data-prompt]')).toContainText('Declare attackers', {
       timeout: 30_000,
     })
     await page.locator('[data-prompt] [data-option-index]').first().click()
+    diagnostics?.stage('attacker:selected')
     await page.getByRole('button', { name: 'Submit attackers' }).click()
+    diagnostics?.stage('attackers:submitted')
   } else if (id === 'clear-the-way-v1') {
     await cast(page, 'Pacifism', 'Wall of Omens')
     await attackWithAll(page)
@@ -208,14 +226,22 @@ try {
   if (process.argv.includes('--smoke')) {
     const context = await browser.newContext()
     const page = await context.newPage()
+    diagnostics?.attach(page)
     await open(page, 'grow-for-lethal-v1')
     await solve(page, 'grow-for-lethal-v1')
+    diagnostics?.stage('context:close')
     await context.close()
+    diagnostics?.stage('complete')
     console.log('Browser-local cast, creature target, combat, and victory passed.')
   } else {
     await qualify()
   }
+} catch (error) {
+  diagnostics?.error(error)
+  await diagnostics?.capture('failure')
+  throw error
 } finally {
+  diagnostics?.close()
   await browser.close()
   await server.httpServer.close()
 }

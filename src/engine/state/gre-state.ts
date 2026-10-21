@@ -46,6 +46,9 @@ export type CardView = {
   counters?: CardCounter[]
   tapped: boolean
   attacking: boolean
+  /** Confirmed combat state, absent until blockers have been declared. */
+  blocked?: boolean
+  blocking?: number[]
   playableLand: boolean
   playableSpell: boolean
   playableActivation: boolean
@@ -288,6 +291,8 @@ export type GameObject = {
   power?: { value?: number }
   toughness?: { value?: number }
   attackState?: number
+  blockState?: number
+  blockInfo?: { attackerIds?: number[] }
   visibility?: number
   viewers?: number[]
 }
@@ -584,6 +589,9 @@ export const ACTION_CAST_LEFT_ROOM = 22
 export const ACTION_CAST_RIGHT_ROOM = 23
 export const ACTION_CAST_OMEN = 24
 export const ATTACK_STATE_ATTACKING = 2
+export const BLOCK_STATE_BLOCKING = 2
+export const BLOCK_STATE_BLOCKED = 3
+export const BLOCK_STATE_UNBLOCKED = 4
 const ANNOTATION_REVEALED_CARD_DELETED = 60
 const ANNOTATION_DESIGNATION = 45
 const DESIGNATION_TYPE_COMMANDER = 1
@@ -1636,6 +1644,16 @@ function cardView(
     faceDown: object.isFacedown === true,
     tapped: object.isTapped === true,
     attacking: object.attackState === ATTACK_STATE_ATTACKING,
+    blocked:
+      object.blockState === BLOCK_STATE_BLOCKED
+        ? true
+        : object.blockState === BLOCK_STATE_UNBLOCKED
+          ? false
+          : undefined,
+    blocking:
+      object.blockState === BLOCK_STATE_BLOCKING
+        ? (object.blockInfo?.attackerIds ?? [])
+        : undefined,
     playableLand: actions.some(
       (a) => a.actionType === ACTION_PLAY && a.instanceId === object.instanceId,
     ),

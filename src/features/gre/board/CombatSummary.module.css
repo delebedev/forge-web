@@ -1,0 +1,6 @@
+.summary { flex: 0 1 auto; overflow-y: auto; color: var(--ink); }
+.summary h2 { margin: 0 0 12px; padding-bottom: 12px; border-bottom: 1px solid var(--public-line); font: 500 13px var(--public-body); }
+.summary ul { display: grid; gap: 12px; list-style: none; margin: 0; padding: 0; }
+.summary li { display: grid; gap: 3px; overflow-wrap: anywhere; }
+.summary strong { font: 500 14px/1.4 var(--public-body); }
+.summary span { color: var(--muted); font: 12px/1.4 var(--public-body); }
