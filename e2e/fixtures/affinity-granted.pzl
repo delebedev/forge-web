@@ -1,0 +1,23 @@
+# Mechanic: battlefield Mycosynth Golem grants affinity to a different artifact creature.
+# Forcing: two artifacts reduce Juggernaut from four generic to two, exactly the available mana.
+# AI behavior: no hand or battlefield, so no opposing choices affect payment.
+# Failure modes: missing offer rejects the reduced-cost cast; wrong payment or a hang fails the probe.
+# Card roles: Golem grants affinity, Ornithopter fixes the artifact count, Juggernaut consumes mana.
+# Protocol path: Cast offer and response, ManaPaid, battlefield resolution, then continued land play.
+# Paired with: affinity-without-golem.pzl and affinity-without-golem-payable.pzl.
+[metadata]
+Name:Granted artifact affinity
+Goal:Survive
+Turns:5
+Difficulty:Easy
+Description:Cast Juggernaut for two mana with two artifacts, then play Forest.
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanbattlefield=Mycosynth Golem;Ornithopter;Island;Island
+# The uncast Ornithopter retains a legal action after Forest, preventing empty-priority auto-pass.
+humanhand=Juggernaut;Forest;Ornithopter
+humanlibrary=Forest;Forest;Forest;Forest;Forest
+ailibrary=Forest;Forest;Forest;Forest;Forest
