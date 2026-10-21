@@ -1,0 +1,23 @@
+# Mechanic: artifacts alone do not grant affinity to Juggernaut.
+# Forcing: the same two-artifact count, but two mana cannot pay the four-generic spell.
+# AI behavior: no hand or battlefield, so no opposing choices affect the offer.
+# Failure modes: an offered Juggernaut would admit an unaffordable cast; a hang fails continuation.
+# Card roles: two Ornithopters hold artifact count constant, Juggernaut checks affordability.
+# Protocol path: absent active Cast, preserved hand, then continued land play.
+# Paired with: affinity-granted.pzl and affinity-without-golem-payable.pzl.
+[metadata]
+Name:No granted affinity at two mana
+Goal:Survive
+Turns:5
+Difficulty:Easy
+Description:Keep Juggernaut uncastable without Golem, then play Forest.
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanbattlefield=Ornithopter;Ornithopter;Island;Island
+# The uncast Ornithopter retains a legal action after Forest, preventing empty-priority auto-pass.
+humanhand=Juggernaut;Forest;Ornithopter
+humanlibrary=Forest;Forest;Forest;Forest;Forest
+ailibrary=Forest;Forest;Forest;Forest;Forest

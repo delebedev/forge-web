@@ -161,7 +161,7 @@ const reactChallengeBase = makeSmokeConfig({
 const greBase = makeSmokeConfig({
   name: 'gre',
   testMatch:
-    /gre-(?:play|prompts|optional-shuffle|mulligan|recovery|priority|sounds|cost-choice|equip-cost|repeatable-cost|alternate-life-cost|modal-cancel|search-owner|library-permissions|partner-decks|known-opponent-hand|warp|player-counters|mana-payment|protection-mixed|proliferate)\.spec\.ts/,
+    /gre-(?:play|prompts|optional-shuffle|mulligan|recovery|priority|sounds|cost-choice|affinity-cost|equip-cost|repeatable-cost|alternate-life-cost|modal-cancel|search-owner|library-permissions|partner-decks|known-opponent-hand|warp|player-counters|mana-payment|protection-mixed|proliferate)\.spec\.ts/,
   // Managed runs serve the app from Vite rather than a built bundle, so the
   // first scenarios absorb on-demand transforms on top of engine warmup.
   timeout: 90_000,
