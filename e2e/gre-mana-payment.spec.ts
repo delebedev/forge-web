@@ -3,6 +3,81 @@ import { authenticateShell, expect } from './gre-test'
 import { test, recordDemos, readyForVideo } from './demo-test'
 import { startScenario } from './gre-scenario'
 import { runGreAcceptanceSteps } from './gre-acceptance'
+import { readBrowserJournal } from './gre-browser-observations'
+import { asArray, asNumber, isRecord } from '../src/engine/state/gre-state'
+import { enumValue } from '../src/engine/wire/gre-proto'
+
+test('Elder manual mana activation produces both colors and funds a spell', async ({
+  page,
+}, info) => {
+  test.setTimeout(300_000)
+  await page.addInitScript(() =>
+    localStorage.setItem('forge:gre:priority-flag:hideCardArt', 'true'),
+  )
+  await authenticateShell(page, 'elder-mana')
+  const releaseResponse = await page.request.get('/browser-engine/release.json')
+  expect(releaseResponse.ok()).toBe(true)
+  const release = (await releaseResponse.json()) as { releaseId: string }
+  await startScenario(page, 'faeburrow-mana', 'browser', 42)
+  await expect(page.locator('[data-board]')).toHaveAttribute('data-card-art', 'off')
+  await runGreAcceptanceSteps(page, { steps: [], headless: { full_control: true } })
+  readyForVideo.add(page)
+  const elder = page.locator(
+    '[data-zone="battlefield"][data-owner="self"] [data-card="Faeburrow Elder"]',
+  )
+  await expect(elder).toBeVisible()
+  await expect(elder).not.toHaveAttribute('data-tapped', 'true')
+  await expect(elder).toHaveAttribute('data-action-types', /(?:^| )4(?: |$)/)
+  await page.screenshot({ path: info.outputPath('elder-mana-available.png') })
+  await elder.click()
+  const chooser = page.getByRole('dialog', { name: 'Choose an action for Faeburrow Elder' })
+  if (await chooser.isVisible({ timeout: 250 }).catch(() => false)) {
+    await chooser.locator('[data-action-type="4"]').click()
+  }
+  await expect(elder).toHaveAttribute('data-tapped', 'true')
+  const paid = await readBrowserJournal(page)
+  expect(paid?.context?.engineBuild).toBe(release.releaseId)
+  const players = paid!.batches
+    .flatMap((batch) => batch.messages)
+    .filter(isRecord)
+    .map((message) => message['gameStateMessage'])
+    .filter(isRecord)
+    .flatMap((state) => asArray(state['players']).filter(isRecord))
+    .filter((player) => player['systemSeatNumber'] === 1)
+  const pool = asArray(players.at(-1)?.['manaPool']).filter(isRecord)
+  const white = await enumValue('ManaColor', 'White_afc9')
+  const green = await enumValue('ManaColor', 'Green_afc9')
+  expect(pool.map((mana) => [asNumber(mana['color']), asNumber(mana['count'])]).sort()).toEqual(
+    [
+      [white, 1],
+      [green, 1],
+    ].sort(),
+  )
+  writeFileSync(info.outputPath('after-manual-mana.json'), JSON.stringify(paid))
+  await page.screenshot({ path: info.outputPath('elder-tapped.png') })
+  await runGreAcceptanceSteps(page, {
+    steps: [
+      { cast: 'Watchwolf' },
+      { resolve_stack: {} },
+      {
+        expect: {
+          all: [
+            { zone_contains: { side: 'ours', zone: 'battlefield', card: 'Watchwolf' } },
+            { stack_empty: true },
+          ],
+        },
+      },
+    ],
+  })
+  writeFileSync(
+    info.outputPath('elder-journal.json'),
+    JSON.stringify(await readBrowserJournal(page)),
+  )
+  await page.screenshot({ path: info.outputPath('watchwolf-resolved.png') })
+  if (recordDemos) {
+    await page.waitForTimeout(1500)
+  }
+})
 
 test('browser AI pays for Arena with three lands and resolves its upkeep', async ({
   page,
