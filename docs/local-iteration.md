@@ -228,6 +228,13 @@ compatibility route; native-client presentation has not been verified.
 
 ## Combat damage choices
 
+After blockers are declared, the board keeps the confirmed attacker/blocker links
+and a named combat summary visible through combat responses. These are public
+assignments, not the defender's unsubmitted choices. Sacrificing an attacker
+removes its links without changing the remaining combat or priority rules.
+The authored `gre-combat-assignments` browser check covers inspection, a legal
+pre-damage sacrifice and continued play after combat.
+
 Damage may be split freely among multiple blocking creatures, including zero on
 one blocker. The draft must assign the attacker's entire damage total. Creature
 rows show lethal thresholds, not unconditional minimum assignments. Assigning
