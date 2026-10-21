@@ -28,6 +28,9 @@ for (const scenario of [
     writeFileSync(info.outputPath('served-release.json'), JSON.stringify(release))
     await startScenario(page, scenario.name, 'browser', 42)
     await expect(page.locator('[data-board]')).toHaveAttribute('data-card-art', 'off')
+    await expect(
+      page.locator('[data-zone="hand"][data-owner="self"] [data-card="Juggernaut"]'),
+    ).toBeVisible()
     readyForVideo.add(page)
     const offered = await page.evaluate(async () => {
       const path = '/src/engine/runtime/gre-store.ts'
