@@ -122,6 +122,12 @@ test('full games rotate after the outcome, pause while hidden, and stop on unmou
   )
   await expect.poll(() => requests).toEqual([first.url, next.url])
   await page.getByRole('link', { name: 'Play against AI' }).click()
+  await expect(page.getByRole('heading', { name: 'Sign in to play.' })).toBeVisible()
+  // Sign-in owns another replay table; leave it too before asserting no replay owner remains.
+  await page.getByRole('link', { name: 'Roadmap', exact: true }).click()
+  await expect(page).toHaveURL(/\/roadmap$/)
+  await expect(page.getByRole('region', { name: 'Continuous gameplay' })).toHaveCount(0)
+  await expect(page.getByRole('main', { name: 'Continuous gameplay' })).toHaveCount(0)
   const afterUnmount = requests.length
   await page.clock.runFor(frames * 200 + 4_000)
   expect(requests).toHaveLength(afterUnmount)

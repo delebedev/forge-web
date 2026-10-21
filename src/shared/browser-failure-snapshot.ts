@@ -23,6 +23,155 @@ export type BrowserFailureSnapshot = {
   heapUsed?: number
   heapTotal?: number
   heapMax?: number
+  initialization?: InitializationObservation
+}
+
+export type InitializationObservation = {
+  commandId: number
+  generation: number
+  releaseId: string
+  budgetMs: number
+  hostElapsedMs?: number
+  nominalBudgetRemainingMs?: number
+  marks: {
+    stage: string
+    workerElapsedMs: number
+    hostElapsedMs: number
+    nominalBudgetRemainingMs: number
+  }[]
+  resources?: {
+    started: number
+    completed: number
+    firstFailure?: { path: string; kind: string; status?: number; workerElapsedMs: number }
+    completedHosted: { path: string; status?: number; workerStartMs: number; durationMs: number }[]
+    truncated: boolean
+  }
+}
+
+export const INITIALIZATION_STAGES = [
+  'initializing',
+  'jars-ready',
+  'library-return',
+  'facade-ready',
+]
+const MAX_HOSTED_RESOURCES = 8
+
+/** Only product asset paths and the selected hosted runtime, never arbitrary URLs. */
+function resourcePath(value: unknown, hosted: boolean): string | undefined {
+  if (typeof value !== 'string' || value.length > 2048) {
+    return
+  }
+  try {
+    const url = new URL(
+      value,
+      hosted ? 'https://cjrtnc.leaningtech.com/' : 'https://assets.invalid/',
+    )
+    if (
+      hosted
+        ? url.origin !== 'https://cjrtnc.leaningtech.com'
+        : url.origin !== 'https://assets.invalid'
+    ) {
+      return
+    }
+    const path = url.pathname
+    if (path.length > 240 || !/^\/[a-zA-Z0-9_./-]+$/.test(path)) {
+      return
+    }
+    if (hosted ? !path.startsWith('/4.3/') : !/^\/(web|lib|catalog)\//.test(path)) {
+      return
+    }
+    return path
+  } catch {
+    return
+  }
+}
+
+function initializationObservation(value: unknown): InitializationObservation | undefined {
+  if (!record(value)) {
+    return
+  }
+  const { commandId, generation, budgetMs, releaseId } = value
+  if (
+    integer(commandId) === undefined ||
+    integer(generation) === undefined ||
+    integer(budgetMs) === undefined ||
+    typeof releaseId !== 'string' ||
+    !/^[a-zA-Z0-9_-]{1,80}$/.test(releaseId)
+  ) {
+    return
+  }
+  const result: InitializationObservation = {
+    commandId: commandId as number,
+    generation: generation as number,
+    budgetMs: budgetMs as number,
+    releaseId,
+    hostElapsedMs: integer(value['hostElapsedMs']),
+    nominalBudgetRemainingMs: integer(value['nominalBudgetRemainingMs']),
+    marks: Array.isArray(value['marks'])
+      ? value['marks']
+          .filter(record)
+          .slice(0, 4)
+          .filter(
+            (m) =>
+              typeof m['stage'] === 'string' &&
+              INITIALIZATION_STAGES.includes(m['stage']) &&
+              integer(m['workerElapsedMs']) !== undefined &&
+              integer(m['hostElapsedMs']) !== undefined &&
+              integer(m['nominalBudgetRemainingMs']) !== undefined,
+          )
+          .map((m) => ({
+            stage: String(m['stage']),
+            workerElapsedMs: m['workerElapsedMs'] as number,
+            hostElapsedMs: m['hostElapsedMs'] as number,
+            nominalBudgetRemainingMs: m['nominalBudgetRemainingMs'] as number,
+          }))
+      : [],
+  }
+  const resources = value['resources']
+  if (record(resources)) {
+    const rows = Array.isArray(resources['completedHosted']) ? resources['completedHosted'] : []
+    result.resources = {
+      started: integer(resources['started']) ?? 0,
+      completed: integer(resources['completed']) ?? 0,
+      completedHosted: rows
+        .slice(0, MAX_HOSTED_RESOURCES)
+        .filter(record)
+        .flatMap((row) => {
+          const path = resourcePath(row['path'], true)
+          if (
+            !path ||
+            integer(row['workerStartMs']) === undefined ||
+            integer(row['durationMs']) === undefined
+          ) {
+            return []
+          }
+          const status = integer(row['status'])
+          return [
+            {
+              path,
+              status: status && status >= 100 && status <= 599 ? status : undefined,
+              workerStartMs: row['workerStartMs'] as number,
+              durationMs: row['durationMs'] as number,
+            },
+          ]
+        }),
+      truncated: resources['truncated'] === true || rows.length > MAX_HOSTED_RESOURCES,
+    }
+    const failure = resources['firstFailure']
+    if (record(failure)) {
+      const path = resourcePath(failure['path'], false)
+      if (path && integer(failure['workerElapsedMs']) !== undefined) {
+        const status = integer(failure['status'])
+        result.resources.firstFailure = {
+          path,
+          kind: allowed(failure['kind'], ['manifest', 'fetch', 'http', 'integrity', 'decode']),
+          status: status && status >= 100 && status <= 599 ? status : undefined,
+          workerElapsedMs: failure['workerElapsedMs'] as number,
+        }
+      }
+    }
+  }
+  return result
 }
 
 const MAX_COMMANDS = 32
@@ -39,6 +188,7 @@ export function sanitizeBrowserFailureSnapshot(value: unknown): BrowserFailureSn
     return undefined
   }
   const result: BrowserFailureSnapshot = {
+    initialization: initializationObservation(value['initialization']),
     runtime:
       value['runtime'] === 'available'
         ? 'available'

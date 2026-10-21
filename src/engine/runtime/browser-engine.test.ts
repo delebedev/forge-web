@@ -5,6 +5,7 @@ import { BrowserMatchSource, type BrowserEngineEvent } from './browser-match-sou
 import { BrowserDiagnostics } from './browser-diagnostics'
 import { BrowserEngine, BrowserEngineFailure } from './browser-engine'
 import type { BrowserRelease } from './browser-release'
+import { sanitizeBrowserFailureSnapshot } from '@shared/browser-failure-snapshot'
 
 type WorkerCommand = { type: string; id?: number; [key: string]: unknown }
 
@@ -19,6 +20,7 @@ class FakeWorker {
   failNextClose = false
   failNextInitialize = false
   respondDiagnostic = true
+  diagnosticRequests = 0
   respondHeartbeat = true
   throwHeartbeat = false
   emitCommandStart = true
@@ -28,6 +30,7 @@ class FakeWorker {
 
   postMessage(command: WorkerCommand): void {
     if (command.type === 'failure-diagnostic') {
+      this.diagnosticRequests += 1
       if (!this.respondDiagnostic) {
         return
       }
@@ -1121,3 +1124,163 @@ it('active input correlation survives a saturated metadata command buffer', asyn
   history.output([{ type: 12, gameStateId: 179, msgId: 188 }])
   expect(history.snapshot().lastOutput).toMatchObject({ type: 12, gameStateId: 179, msgId: 188 })
 })
+
+it('keeps initialization clocks separate, rejects stale attribution and resets cached marks', () => {
+  const history = new BrowserDiagnostics()
+  history.initialize(7, 3, 'test-release', 1)
+  history.command(7, 'initialize', 'start')
+  const mark = (stage: string, workerElapsedMs: number, commandId = 7, generation = 3) =>
+    history.initializeMark(stage, { commandId, generation, workerElapsedMs })
+  mark('initializing', 0, 6)
+  mark('initializing', 0, 7, 2)
+  expect(history.snapshot(undefined, true).initialization!.marks).toHaveLength(0)
+  mark('initializing', 0)
+  mark('jars-ready', 90000)
+  mark('jars-ready', 90001)
+  mark('library-return', 80000)
+  mark('library-return', 90001)
+  mark('facade-ready', 90002)
+  const snapshot = history.snapshot({ runtime: 'timed-out' }, true)
+  expect(snapshot.initialization!.marks.map((m) => m.stage)).toEqual([
+    'initializing',
+    'jars-ready',
+    'library-return',
+    'facade-ready',
+  ])
+  expect(snapshot.initialization!.marks[1].hostElapsedMs).toBeLessThan(90000)
+  expect(snapshot.initialization!.marks[1].workerElapsedMs).toBe(90000)
+  expect(history.snapshot().initialization).toBeUndefined()
+  expect(
+    history.snapshot(
+      { initializationResources: { commandId: 6, generation: 3, started: 999 } },
+      true,
+    ).initialization!.resources,
+  ).toBeUndefined()
+  history.reset()
+  expect(history.snapshot(undefined, true).initialization).toBeUndefined()
+  history.initialize(8, 4, 'next-release', 180000)
+  mark('initializing', 0)
+  expect(history.snapshot(undefined, true).initialization!.marks).toHaveLength(0)
+  history.command(8, 'initialize', 'start')
+  history.initializeMark('initializing', { commandId: 8, generation: 4, workerElapsedMs: 0 })
+  history.command(8, 'initialize', 'reply')
+  expect(history.snapshot(undefined, true).initialization).toBeUndefined()
+})
+
+it('bounds and sanitizes initialization resources through repeated reporting sanitization', () => {
+  const snapshot = sanitizeBrowserFailureSnapshot({
+    runtime: 'unavailable',
+    initialization: {
+      commandId: 7,
+      generation: 3,
+      releaseId: 'test-release',
+      budgetMs: 180000,
+      marks: [],
+      resources: {
+        started: 5,
+        completed: 4,
+        firstFailure: {
+          path: '/lib/test.jar?token=secret#private',
+          kind: 'http',
+          status: 503,
+          workerElapsedMs: 1,
+        },
+        completedHosted: Array.from({ length: 10 }, () => ({
+          path: 'https://user:secret@cjrtnc.leaningtech.com/4.3/runtime.wasm?token=private#secret',
+          status: 0,
+          workerStartMs: 100,
+          durationMs: 5,
+        })),
+        arbitrary: 'private payload',
+      },
+    },
+  })!
+  expect(snapshot.initialization!.resources!.completedHosted).toHaveLength(8)
+  expect(snapshot.initialization!.resources!.truncated).toBe(true)
+  expect(snapshot.initialization!.resources!.firstFailure).toMatchObject({
+    path: '/lib/test.jar',
+    kind: 'http',
+    status: 503,
+  })
+  expect(snapshot.initialization!.resources!.completedHosted[0]).toMatchObject({
+    path: '/4.3/runtime.wasm',
+    status: undefined,
+  })
+  expect(JSON.stringify(snapshot)).not.toMatch(/secret|private|user|token|arbitrary/)
+  expect(sanitizeBrowserFailureSnapshot(snapshot)).toEqual(snapshot)
+  expect(JSON.stringify(snapshot).length).toBeLessThan(5000)
+  const invalid = sanitizeBrowserFailureSnapshot({
+    initialization: {
+      ...snapshot.initialization,
+      resources: {
+        completedHosted: [
+          { path: 'https://evil.invalid/4.3/x', workerStartMs: 1, durationMs: 1 },
+          { path: '/%FF', workerStartMs: 1, durationMs: 1 },
+        ],
+      },
+    },
+  })!
+  expect(invalid.initialization!.resources!.completedHosted).toEqual([])
+})
+
+for (const libraryReturned of [false, true]) {
+  it(`falls back to cached initialization marks ${libraryReturned ? 'after' : 'before'} library return with the unchanged one-second diagnostic wait`, async () => {
+    const worker = new FakeWorker()
+    worker.respond = false
+    worker.respondDiagnostic = false
+    const events: BrowserEngineEvent[] = []
+    const engine = new BrowserEngine(
+      (e) => events.push(e),
+      () => worker as unknown as Worker,
+      { initializationTimeoutMs: 20 },
+    )
+    const start = engine
+      .createMatch('private deck', 'b', 42)
+      .catch((e) => e as BrowserEngineFailure)
+    await wait(5)
+    const command = worker.commands.find((c) => c.type === 'initialize')!
+    for (const [stage, elapsed] of [
+      ['initializing', 0],
+      ['jars-ready', 10],
+      ['library-return', 11],
+    ] as const) {
+      if (stage === 'library-return' && !libraryReturned) {
+        continue
+      }
+      worker.emit({
+        event: stage,
+        data: {
+          commandId: command.id,
+          generation: command['generation'],
+          workerElapsedMs: elapsed,
+        },
+        at: 999999,
+      })
+    }
+    await wait(50)
+    expect(worker.terminated).toBe(false)
+    expect(events.filter((e) => e.event === 'error')).toHaveLength(0)
+    const error = (await start) as BrowserEngineFailure
+    expect(error.diagnostic.snapshot).toMatchObject({
+      runtime: 'timed-out',
+      initialization: {
+        commandId: command.id,
+        generation: 1,
+        budgetMs: 20,
+        nominalBudgetRemainingMs: 0,
+      },
+    })
+    expect(error.diagnostic.snapshot!.initialization!.marks.map((m) => m.stage)).toEqual([
+      'initializing',
+      'jars-ready',
+      ...(libraryReturned ? ['library-return'] : []),
+    ])
+    expect(error.diagnostic.snapshot!.initialization!.hostElapsedMs).toBeGreaterThanOrEqual(1000)
+    expect(error.diagnostic.snapshot!.initialization!.resources).toBeUndefined()
+    expect(events.filter((e) => e.event === 'error')).toHaveLength(1)
+    expect(worker.commands.filter((c) => c.type === 'initialize')).toHaveLength(1)
+    expect(worker.diagnosticRequests).toBe(1)
+    expect(worker.terminated).toBe(true)
+    engine.dispose()
+  })
+}

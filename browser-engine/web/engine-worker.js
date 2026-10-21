@@ -14,7 +14,62 @@ let activeMatchId = null
 let commandError = null
 let release
 let cardImages
-const report = (event, data) => postMessage({ event, data, at: performance.now() })
+let initializationObservation
+const MAX_HOSTED_RESOURCES = 8
+const initializeElapsed = () =>
+  Math.max(0, Math.round(performance.now() - initializationObservation.origin))
+function initializationResources() {
+  if (!initializationObservation) {
+    return undefined
+  }
+  const completedHosted = []
+  let truncated = false
+  try {
+    // Completed entries only. Hidden cross-origin status is unknown, not success.
+    for (const entry of performance.getEntriesByType('resource')) {
+      const url = new URL(entry.name)
+      if (
+        url.origin !== 'https://cjrtnc.leaningtech.com' ||
+        !url.pathname.startsWith(`/${runtimeVersion}/`) ||
+        url.pathname.length > 240 ||
+        !/^\/[a-zA-Z0-9_./-]+$/.test(url.pathname)
+      ) {
+        continue
+      }
+      if (completedHosted.length === MAX_HOSTED_RESOURCES) {
+        truncated = true
+        break
+      }
+      completedHosted.push({
+        path: url.pathname,
+        status: entry.responseStatus > 0 ? entry.responseStatus : undefined,
+        workerStartMs: Math.max(0, Math.round(entry.startTime)),
+        durationMs: Math.max(0, Math.round(entry.duration)),
+      })
+    }
+  } catch {
+    /* Resource Timing is optional and may hide cross-origin details. */
+  }
+  const { commandId, generation, started, completed, firstFailure } = initializationObservation
+  return { commandId, generation, started, completed, firstFailure, completedHosted, truncated }
+}
+const report = (event, data) =>
+  postMessage({
+    event,
+    data:
+      event === 'failure-diagnostic'
+        ? { ...data, initializationResources: initializationResources() }
+        : data,
+    at: performance.now(),
+  })
+function initializeMark(event, data = {}) {
+  report(event, {
+    ...data,
+    commandId: initializationObservation.commandId,
+    generation: initializationObservation.generation,
+    workerElapsedMs: initializeElapsed(),
+  })
+}
 report('worker-online', { runtimeReady: !runtimeLoadError, runtimeVersion })
 
 async function digest(bytes) {
@@ -23,15 +78,47 @@ async function digest(bytes) {
 }
 
 async function releaseAsset(path, decompressGzip = false) {
+  const observation = initializationObservation
+  if (observation) {
+    observation.started++
+  }
+  const diagnosticPath = `/${path}`
+  const failure = {
+    path:
+      diagnosticPath.length <= 240 && /^\/(web|lib|catalog)\/[a-zA-Z0-9_./-]+$/.test(diagnosticPath)
+        ? diagnosticPath
+        : undefined,
+    kind: 'manifest',
+    workerElapsedMs: 0,
+  }
+  try {
+    const bytes = await loadReleaseAsset(path, decompressGzip, failure)
+    if (observation) {
+      observation.completed++
+    }
+    return bytes
+  } catch (error) {
+    if (observation && !observation.firstFailure) {
+      observation.firstFailure = { ...failure, workerElapsedMs: initializeElapsed() }
+    }
+    throw error
+  }
+}
+
+async function loadReleaseAsset(path, decompressGzip, failure) {
   const expected = release.assets.find((asset) => asset.path === path)
   if (!expected) {
     throw new Error(`Release asset is missing: ${path}`)
   }
+  failure.kind = 'fetch'
   const response = await fetch(expected.url)
   if (!response.ok) {
+    failure.kind = 'http'
+    failure.status = response.status
     throw new Error(`Asset download failed: ${path} (${response.status})`)
   }
   const bytes = new Uint8Array(await response.arrayBuffer())
+  failure.kind = 'integrity'
   const actual = await digest(bytes)
   const stored = bytes.byteLength === expected.bytes && actual === expected.sha256
   const delivered =
@@ -39,9 +126,11 @@ async function releaseAsset(path, decompressGzip = false) {
     bytes.byteLength === expected.contentBytes &&
     actual === expected.contentSha256
   if (!stored && !delivered) {
+    failure.kind = 'integrity'
     throw new Error(`Release asset mismatch: ${path}. Refresh and retry.`)
   }
   if (decompressGzip && stored) {
+    failure.kind = 'decode'
     const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))
     return new Uint8Array(await new Response(stream).arrayBuffer())
   }
@@ -97,10 +186,17 @@ async function dispatch(data, enqueuedAt) {
     let result
     switch (data.type) {
       case 'initialize': {
+        initializationObservation = {
+          commandId: data.id,
+          generation: data.generation,
+          origin: performance.now(),
+          started: 0,
+          completed: 0,
+        }
+        initializeMark('initializing')
         if (runtimeLoadError) {
           throw new Error(runtimeLoadError)
         }
-        report('initializing')
         release = data.release
         if (release?.schemaVersion !== 2 || !Array.isArray(release.assets)) {
           throw new Error('Release manifest is incompatible. Refresh and retry.')
@@ -154,10 +250,11 @@ async function dispatch(data, enqueuedAt) {
             return path
           }),
         )
-        report('jars-ready', { count: jars.length, bytes: jarBytes })
+        initializeMark('jars-ready', { count: jars.length, bytes: jarBytes })
         const library = await cheerpjRunLibrary(classpath.join(':'))
+        initializeMark('library-return')
         runtime = await library.forge.web.browser.BrowserRuntime
-        report('facade-ready')
+        initializeMark('facade-ready')
         const manifest = await releaseJson('catalog/manifest.json')
         report('catalog-download-start', {
           bytes:
