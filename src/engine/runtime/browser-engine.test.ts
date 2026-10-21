@@ -16,6 +16,7 @@ class FakeWorker {
   terminated = false
   respond = true
   failNextStart = false
+  keywordCoverage: unknown = undefined
   failNextClose = false
   failNextInitialize = false
   respondDiagnostic = true
@@ -92,7 +93,10 @@ class FakeWorker {
       }
       const result =
         command.type === 'start'
-          ? { matchId: String(command['matchId'] ?? `match-${++this.matches}`) }
+          ? {
+              matchId: String(command['matchId'] ?? `match-${++this.matches}`),
+              effectiveKeywordCoverage: this.keywordCoverage,
+            }
           : undefined
       this.emit({ event: 'reply', data: { id: command.id, result }, at: 0 })
     })
@@ -213,6 +217,23 @@ async function stateFrame(worker: Pick<FakeWorker, 'emit'>, matchId: string, gam
 }
 
 describe('BrowserEngine', () => {
+  it('binds explicit keyword coverage to one match generation and falls back for an old runtime', async () => {
+    const worker = new FakeWorker()
+    const engine = engineWith(worker)
+    worker.keywordCoverage = ['Flying']
+    const first = await engine.createMatch('deck 1', 'deck 2', 42)
+    expect(first.source.effectiveKeywordCoverage).toEqual(['Flying'])
+    worker.keywordCoverage = undefined
+    const next = await engine.createMatch('deck 1', 'deck 2', 42)
+    expect(first.source.effectiveKeywordCoverage).toBeUndefined()
+    expect(next.source.effectiveKeywordCoverage).toBeUndefined()
+    worker.keywordCoverage = 'Flying'
+    const malformed = await engine.createMatch('deck 1', 'deck 2', 42)
+    expect(malformed.source.effectiveKeywordCoverage).toBeUndefined()
+    engine.dispose()
+    expect(malformed.source.effectiveKeywordCoverage).toBeUndefined()
+  })
+
   it('sends the fixed puzzle content to the worker and reuses it on a warm retry', async () => {
     const worker = new FakeWorker()
     const engine = engineWith(worker)
