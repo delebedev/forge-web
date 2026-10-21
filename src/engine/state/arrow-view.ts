@@ -1,3 +1,5 @@
+import type { CombatGroup } from './combat-view'
+
 export type BoardArrow = {
   id: string
   kind: 'combat' | 'targetSpec'
@@ -9,6 +11,7 @@ export function computeArrows(
   promptKind: string | undefined,
   declaredAttackers: Set<number>,
   blockAssignments: { blocker: number; attacker: number }[],
+  confirmed: CombatGroup[] = [],
 ): BoardArrow[] {
   if (promptKind === 'attackers') {
     return [...declaredAttackers].map((iid) => ({
@@ -26,5 +29,12 @@ export function computeArrows(
       to: String(b.attacker),
     }))
   }
-  return []
+  return confirmed.flatMap(({ attacker, blockers }) =>
+    blockers.map((blocker) => ({
+      id: `combat-block-${blocker.instanceId}-${attacker.instanceId}`,
+      kind: 'combat' as const,
+      from: String(blocker.instanceId),
+      to: String(attacker.instanceId),
+    })),
+  )
 }

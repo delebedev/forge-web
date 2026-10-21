@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from 'react'
 import { computeArrows } from '@engine/state/arrow-view'
+import { combatGroups } from '@engine/state/combat-view'
 import type { CardView, LegalAction, PromptView } from '@engine/state/gre-state'
 import type { PresentationMotionKind } from '@engine/state/presentation-policy'
 import { legalActionKey } from '@engine/state/gre-state'
@@ -31,6 +32,7 @@ import {
 import type { BoardInteractions } from '../../board-interactions'
 import { Card } from '../../Card'
 import { CardPreview } from '../../CardPreview'
+import { CombatSummary } from '../../CombatSummary'
 import { HandFan } from '../../HandFan'
 import { NonHandActionRail, nonHandActionEntries } from '../../NonHandActionRail'
 import { OppHandFan } from '../../OppHandFan'
@@ -190,11 +192,13 @@ export function Board({
                   : String(candidate.targetInstanceId),
           }))
       : []
+  const combat = combatGroups([...board.battlefield, ...board.opponentBattlefield])
   const arrows = [
     ...computeArrows(
       board.prompt?.kind,
       interactions.declaredAttackers,
       interactions.blockAssignments,
+      combat,
     ),
     ...board.targetArrows,
     ...selectedTargets,
@@ -344,6 +348,7 @@ export function Board({
       data-replay={replay}
       data-decision={showPrompt ? board.prompt?.kind : undefined}
       data-has-stack={!view.hideStack && board.stack.length > 0}
+      data-has-combat={combat.length > 0}
       data-has-priority={inputEnabled && board.canPass}
       style={
         {
@@ -844,6 +849,7 @@ export function Board({
       <ArrowLayer arrows={arrows} />
 
       <div className={styles.decisionColumn}>
+        <CombatSummary groups={combat} />
         {!view.hideStack && (
           <StackPanel
             cards={board.stack}
