@@ -8,6 +8,18 @@ import YAML from 'yaml'
 
 const workflow = YAML.parse(readFileSync('.github/workflows/web-ci.yml', 'utf8'))
 
+test('curated smoke retains observations after a timeout without changing its workload budget', () => {
+  const steps = workflow.jobs['browser-local'].steps
+  const run = steps.find((step) => step.name === 'Run Browser Local smoke').run
+  assert.match(run, /timeout 4m bun run challenge:browser:check --smoke/)
+  const upload = steps.find((step) => step.name === 'Upload Browser Local output')
+  assert.equal(upload.if, '${{ !cancelled() }}')
+  assert.ok(upload.with.path.split('\n').includes('browser-smoke-output/'))
+  const driver = readFileSync('scripts/check-browser-challenges.ts', 'utf8')
+  assert.match(driver, /browserSmokeDiagnostics\('browser-smoke-output'\)/)
+  assert.match(driver, /toBeVisible\(\{ timeout: 240_000 \}\)/)
+})
+
 test('report and gate remain eligible after failure but stop on workflow cancellation', () => {
   assert.equal(workflow.jobs.gate.if, '${{ !cancelled() }}')
   assert.equal(
