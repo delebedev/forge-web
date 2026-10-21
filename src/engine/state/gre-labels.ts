@@ -69,6 +69,8 @@ export function greMessageTypeLabel(type: number): string {
       return 'ChooseStartingPlayerReq'
     case 43:
       return 'NumericInputReq'
+    case 58:
+      return 'StringInputReq'
     case 44:
       return 'SearchReq'
     case 45:

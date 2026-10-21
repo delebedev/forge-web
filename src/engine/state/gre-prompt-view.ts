@@ -15,6 +15,7 @@ const KIND_HEADINGS: Record<string, string> = {
   replacement: 'Choose what happens first',
   optionalAction: 'Optional action',
   numericInput: 'Choose X',
+  cardNameInput: 'Choose a card name',
   mulligan: 'Your opening hand',
 }
 

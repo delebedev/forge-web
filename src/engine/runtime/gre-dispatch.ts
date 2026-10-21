@@ -9,6 +9,7 @@ import { castingPrompt } from './prompts/casting'
 import { replacementPrompt } from './prompts/replacement'
 import { optionalActionPrompt } from './prompts/optional-action'
 import { numericPrompt } from './prompts/numeric'
+import { cardNamePrompt } from './prompts/card-name'
 import { searchPrompt } from './prompts/search'
 import { groupPrompt } from './prompts/group'
 import { orderPrompt } from './prompts/order'
@@ -124,6 +125,9 @@ export class GreDispatch {
         break
       case 43:
         model = numericPrompt(message)
+        break
+      case 58:
+        model = cardNamePrompt(message)
         break
       case 11:
         model = groupPrompt(message)

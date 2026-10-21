@@ -1274,6 +1274,9 @@ export class GreStore {
       case 43:
         this.dispatch.applyFamilyRequest(message)
         break
+      case 58:
+        this.dispatch.applyFamilyRequest(message)
+        break
       case 34:
         this.dispatch.applyFamilyRequest(message)
         break

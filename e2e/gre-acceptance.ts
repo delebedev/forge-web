@@ -281,6 +281,9 @@ export async function runGreAcceptanceSteps(
       case 'numeric_input':
         await numericInput(page, value)
         break
+      case 'name_card':
+        await nameCard(page, value)
+        break
       case 'optional_action':
         await optionalAction(page, value as { accept: boolean })
         break
@@ -684,6 +687,7 @@ const PROMPT_HEADINGS: Record<string, string | RegExp> = {
   SelectNReq: 'Choose options',
   PayCostsReq: 'Pay costs',
   NumericInputReq: 'Choose X',
+  StringInputReq: 'Choose a card name',
   OptionalActionMessage: 'Optional action',
   CastingTimeOptionsReq: 'Choose how to cast',
 }
@@ -839,6 +843,18 @@ async function staticChoice(page: Page, spec: { id: number }): Promise<void> {
   await expect(submit).toBeEnabled({ timeout: 5_000 })
   await submit.click()
   settledStaticChoice.set(page, true)
+}
+
+export async function nameCard(page: Page, value: unknown): Promise<void> {
+  if (typeof value !== 'string' || !value.trim()) {
+    throw new Error('name_card requires a card name')
+  }
+  const prompt = page.locator('[data-prompt="cardNameInput"]')
+  await expect(prompt).toBeVisible({ timeout: 20_000 })
+  await prompt.getByRole('textbox', { name: 'Card name', exact: true }).fill(value)
+  const submit = prompt.getByRole('button', { name: 'Name card', exact: true })
+  await expect(submit).toBeEnabled()
+  await submit.click()
 }
 
 export async function numericInput(page: Page, value: unknown): Promise<void> {
