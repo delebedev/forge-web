@@ -1,0 +1,16 @@
+[metadata]
+Name:Faeburrow Elder mana
+Goal:Win
+Turns:3
+Difficulty:Easy
+Description:Activate an untapped Elder and spend its green and white mana on Watchwolf.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanbattlefield=Faeburrow Elder
+humanhand=Watchwolf
+humanlibrary=Forest;Forest;Forest;Forest;Forest
+ailibrary=Plains;Plains;Plains;Plains;Plains
