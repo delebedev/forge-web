@@ -1,0 +1,23 @@
+# Mechanic: Juggernaut without granted affinity costs its full four generic.
+# Forcing: two artifacts and four basic Islands provide exactly its unreduced cost.
+# AI behavior: no hand or battlefield, so no opposing choices affect payment.
+# Failure modes: discounted payment or a missing cast fails; a hang fails continuation.
+# Card roles: two Ornithopters fix artifact count, Juggernaut consumes four mana.
+# Protocol path: Cast offer and response, four ManaPaid rows, resolution and continued land play.
+# Paired with: affinity-granted.pzl and affinity-without-golem.pzl.
+[metadata]
+Name:No granted affinity at four mana
+Goal:Survive
+Turns:5
+Difficulty:Easy
+Description:Cast Juggernaut for four mana without Golem, then play Forest.
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanbattlefield=Ornithopter;Ornithopter;Island;Island;Island;Island
+# The uncast Ornithopter retains a legal action after Forest, preventing empty-priority auto-pass.
+humanhand=Juggernaut;Forest;Ornithopter
+humanlibrary=Forest;Forest;Forest;Forest;Forest
+ailibrary=Forest;Forest;Forest;Forest;Forest

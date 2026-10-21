@@ -212,6 +212,11 @@ bun run gre -- -g 'known opponent hand is inspectable|Multikicker accepts|Krrik 
 
 Set `PRIORITY_DEMO_VIDEO=1` to retain clips with Hide card art enabled.
 
+Granted artifact affinity is covered by `bun run gre -- e2e/gre-affinity-cost.spec.ts`.
+The authored pair checks the offered cost and actual mana consumed by another
+artifact creature with Mycosynth Golem, plus unavailable and fully payable
+no-Golem controls. Every branch continues through a visible land play.
+
 ## Card names
 
 Mandatory card-name decisions expose a labelled text field and **Name card**.
