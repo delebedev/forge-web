@@ -92,12 +92,12 @@ internal class ResendEmailSender(
 
 internal data class AuthRateLimitConfig(
     val enabled: Boolean = true,
-    val loginLimit: Int = 10,
+    val loginLimit: Int = 5,
     val loginWindowMs: Long = 60_000,
-    val ipLimit: Int = 100,
-    val globalLimit: Int = 1_000,
-    val hourlyIpLimit: Int = 100,
-    val hourlyGlobalLimit: Int = 1_000,
+    val ipLimit: Int = 20,
+    val globalLimit: Int = 100,
+    val hourlyIpLimit: Int = 20,
+    val hourlyGlobalLimit: Int = 100,
 ) {
     companion object {
         fun disabled(): AuthRateLimitConfig = AuthRateLimitConfig(enabled = false)
@@ -110,10 +110,12 @@ internal class InMemoryRateLimiter(
     private val nowMs: () -> Long = { System.nanoTime() / 1_000_000 },
     private val maxKeys: Int = 4_096,
 ) {
-    private data class Window(val expiresAt: Long, var count: Int)
+    private data class Window(val startedAt: Long, val durationMs: Long, var count: Int) {
+        fun expired(now: Long): Boolean = now - startedAt >= durationMs
+    }
 
     private val windows = mutableMapOf<String, Window>()
-    private var nextPruneMs = Long.MIN_VALUE
+    private var lastPruneMs: Long? = null
 
     init {
         require(maxKeys > 0)
@@ -123,18 +125,19 @@ internal class InMemoryRateLimiter(
     fun check(vararg budgets: AuthRateBudget): Boolean {
         require(budgets.all { it.limit > 0 && it.windowMs > 0 })
         val now = nowMs()
-        if (now >= nextPruneMs) {
-            windows.entries.removeIf { it.value.expiresAt <= now }
-            nextPruneMs = now + 1_000
+        val lastPrune = lastPruneMs
+        if (lastPrune == null || now - lastPrune >= 1_000) {
+            windows.entries.removeIf { it.value.expired(now) }
+            lastPruneMs = now
         }
-        if (budgets.any { budget -> windows[budget.key]?.let { it.expiresAt > now && it.count >= budget.limit } == true }) {
+        if (budgets.any { budget -> windows[budget.key]?.let { !it.expired(now) && it.count >= budget.limit } == true }) {
             return false
         }
         // Keep active identities on saturation; evicting them would reset their allowance.
         if (windows.size + budgets.count { it.key !in windows } > maxKeys) return false
         budgets.forEach { budget ->
-            val window = windows[budget.key]?.takeIf { it.expiresAt > now }
-            if (window == null) windows[budget.key] = Window(now + budget.windowMs, 1) else window.count++
+            val window = windows[budget.key]?.takeUnless { it.expired(now) }
+            if (window == null) windows[budget.key] = Window(now, budget.windowMs, 1) else window.count++
         }
         return true
     }

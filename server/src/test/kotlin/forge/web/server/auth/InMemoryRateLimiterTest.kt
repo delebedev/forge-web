@@ -9,6 +9,16 @@ import kotlin.test.assertTrue
 
 class InMemoryRateLimiterTest {
     @Test
+    fun `maximum positive duration cannot overflow into an expired allowance`() {
+        var now = 100L
+        val limiter = InMemoryRateLimiter(nowMs = { now })
+        assertTrue(limiter.check("long-window", 1, Long.MAX_VALUE))
+        assertFalse(limiter.check("long-window", 1, Long.MAX_VALUE))
+        now += 1_000
+        assertFalse(limiter.check("long-window", 1, Long.MAX_VALUE))
+    }
+
+    @Test
     fun `a rejected identity cannot spend the remaining global allowance`() {
         val limiter = InMemoryRateLimiter(nowMs = { 0 })
         val global = AuthRateBudget("global", 3, 1_000)

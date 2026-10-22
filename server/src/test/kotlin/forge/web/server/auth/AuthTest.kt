@@ -181,17 +181,18 @@ class AuthTest {
                         InMemoryRateLimiter(nowMs = {
                             now
                         }),
-                    rateLimitConfig = AuthRateLimitConfig(loginLimit = 2),
+                    rateLimitConfig = AuthRateLimitConfig(),
                     clock = clock,
                 )
-            assertEquals(StartLoginResult.Sent, service.requestCode("player@example.test", "one"))
-            now = 60_000
-            assertEquals(StartLoginResult.Sent, service.requestCode("player@example.test", "two"))
-            now = 120_000
-            assertEquals(StartLoginResult.RateLimited, service.requestCode("player@example.test", "three"))
-            assertEquals(2, sender.sent.size)
+            repeat(5) {
+                now = it * 60_000L
+                assertEquals(StartLoginResult.Sent, service.requestCode("player@example.test", "ip-$it"))
+            }
+            now = 300_000
+            assertEquals(StartLoginResult.RateLimited, service.requestCode("player@example.test", "new-ip"))
+            assertEquals(5, sender.sent.size)
             now = 3_600_000
-            assertEquals(StartLoginResult.Sent, service.requestCode("player@example.test", "four"))
+            assertEquals(StartLoginResult.Sent, service.requestCode("player@example.test", "last-ip"))
         }
 
     @Test
@@ -205,12 +206,16 @@ class AuthTest {
                     rateLimitConfig = AuthRateLimitConfig(),
                     fixedLoginCode = "123456",
                 )
+            val tokens = mutableListOf<String>()
             repeat(20) {
                 val email = "player-$it@example.test"
                 assertEquals(StartLoginResult.Sent, service.requestCode(email, "shared-ip"))
                 val verified = assertIs<VerifyLoginResult.Success>(service.verify(email, "123456", "shared-ip"))
+                tokens.add(verified.token)
                 assertEquals(verified.player, service.validate(verified.token))
             }
+            assertEquals(StartLoginResult.RateLimited, service.requestCode("one-more@example.test", "shared-ip"))
+            tokens.forEach { assertNotNull(service.validate(it)) }
         }
 
     @Test

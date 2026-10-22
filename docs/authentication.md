@@ -22,21 +22,25 @@ Defaults per action:
 
 | Action | Per email / minute | Per IP / minute | Global / minute | Per email / hour | Per IP / hour | Global / hour |
 |---|---:|---:|---:|---:|---:|---:|
-| Request code | 10 | 100 | 1,000 | 10 | 100 | 1,000 |
-| Verify code | 10 | 100 | 1,000 | — | — | — |
-| Create guest | — | 10 | 1,000 | — | 100 | 1,000 |
+| Request code | 5 | 20 | 100 | 5 | 20 | 100 |
+| Verify code | 5 | 20 | 100 | — | — | — |
+| Create guest | — | 5 | 100 | — | 20 | 100 |
 
-These are generous shared-IP allowances, not per-browser quotas. Cooldown,
+These are small-service shared-IP allowances, not per-browser quotas. Cooldown,
 failed-send and invalid-code attempts also count. An exhausted allowance returns
 429 without creating a challenge, sending mail, or creating a guest. Invalid email
 shape or excessive length returns 400 before persistence or sending. Verification
 also bounds code length. Surrounding whitespace and email case are normalized.
 
-`LEYLINE_WEB_RATE_LIMIT` and `LEYLINE_WEB_RATE_LIMIT_WINDOW_MS` retain their defaults
-of 10 and 60,000. They control the short email and guest-IP allowances; the rate
+`LEYLINE_WEB_RATE_LIMIT` and `LEYLINE_WEB_RATE_LIMIT_WINDOW_MS` default to
+5 and 60,000. They control the short email and guest-IP allowances; the rate
 limit value also controls the hourly email allowance. Aggregate defaults are owned
 by `AuthRateLimitConfig`. `LEYLINE_WEB_RATE_LIMIT_ENABLED=false` disables all these
 budgets for controlled development/tests, not public deployment.
+
+Managed browser suites disable budgets explicitly on their disposable fixed-code
+test server because fixture traffic is not a normal user workload. Enabled-budget
+behavior is covered by the backend fake-clock and real loopback HTTP tests.
 
 Budget admission is atomic: a limiter-rejected request spends none of the other
 allowances, so an already-throttled caller cannot exhaust the global budget.
