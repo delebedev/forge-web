@@ -6,7 +6,9 @@ import forge.web.server.persistence.playerDatabaseDataSource
 import kotlinx.coroutines.runBlocking
 import org.jetbrains.exposed.v1.jdbc.Database
 import java.nio.file.Files
+import java.time.Clock
 import java.time.Instant
+import java.time.ZoneOffset
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -21,6 +23,196 @@ import kotlin.test.assertTrue
 private const val TEST_SECRET = "a-32-char-secret-for-tests-0123456789"
 
 class AuthTest {
+    @Test
+    fun `hourly guest IP budget survives minute expiry without creating more players`() {
+        var now = 0L
+        var players = 0
+        val store =
+            object : WebAuthStore by InMemoryWebAuthStore() {
+                override fun findOrCreatePlayer(
+                    email: String,
+                    onCreate: (WebPlayer) -> Unit,
+                ): WebPlayer {
+                    players++
+                    return WebPlayer("guest-$players", email)
+                }
+            }
+        val service =
+            WebAuthService(
+                store,
+                DevEmailSender(),
+                TEST_SECRET,
+                rateLimiter =
+                    InMemoryRateLimiter(nowMs = {
+                        now
+                    }),
+                rateLimitConfig = AuthRateLimitConfig(hourlyIpLimit = 2),
+            )
+        assertNotNull(service.guestSession("shared"))
+        now = 60_000
+        assertNotNull(service.guestSession("shared"))
+        now = 120_000
+        assertNull(service.guestSession("shared"))
+        assertEquals(2, players)
+        assertNotNull(service.guestSession("other"))
+        now = 3_600_000
+        assertNotNull(service.guestSession("shared"))
+    }
+
+    @Test
+    fun `hourly global guest budget follows rotating addresses but not other actions`() =
+        runBlocking {
+            var now = 0L
+            val service =
+                WebAuthService(
+                    InMemoryWebAuthStore(),
+                    DevEmailSender(),
+                    TEST_SECRET,
+                    rateLimiter =
+                        InMemoryRateLimiter(nowMs = {
+                            now
+                        }),
+                    rateLimitConfig = AuthRateLimitConfig(hourlyGlobalLimit = 2),
+                )
+            repeat(2) {
+                now += 60_000
+                assertNotNull(service.guestSession("ip-$it"))
+            }
+            now += 60_000
+            assertNull(service.guestSession("new-ip"))
+            assertEquals(StartLoginResult.Sent, service.requestCode("player@example.test", "new-ip"))
+        }
+
+    @Test
+    fun `excessive code length does not consume the challenge`() =
+        runBlocking {
+            val service = WebAuthService(InMemoryWebAuthStore(), DevEmailSender(), TEST_SECRET, fixedLoginCode = "123456")
+            assertEquals(StartLoginResult.Sent, service.requestCode("player@example.test"))
+            repeat(MAX_AUTH_ATTEMPTS + 1) {
+                assertEquals(VerifyLoginResult.InvalidOrExpired, service.verify("player@example.test", "0".repeat(33)))
+            }
+            assertIs<VerifyLoginResult.Success>(service.verify("player@example.test", "123456"))
+        }
+
+    @Test
+    fun `invalid email input never reaches persistence or the sender`() =
+        runBlocking {
+            val sender = RecordingEmailSender()
+            var writes = 0
+            val store =
+                object : WebAuthStore by InMemoryWebAuthStore() {
+                    override fun startChallenge(
+                        challenge: WebLoginChallenge,
+                        resendCooldownSeconds: Long,
+                        now: Instant,
+                    ): ChallengeStartResult {
+                        writes++
+                        error("Unexpected challenge write")
+                    }
+                }
+            val service = WebAuthService(store, sender, TEST_SECRET)
+            for (email in listOf(
+                "",
+                "no-at",
+                "a@@example.test",
+                "a b@example.test",
+                "a\u0000@example.test",
+                "a@localhost",
+                "x".repeat(65) + "@example.test",
+                "x".repeat(321),
+            )) {
+                assertFailsWith<IllegalArgumentException> { service.requestCode(email) }
+                assertFailsWith<IllegalArgumentException> { service.verify(email, "123456") }
+            }
+            assertEquals(0, writes)
+            assertTrue(sender.sent.isEmpty())
+        }
+
+    @Test
+    fun `rotating emails does not bypass the IP budget and rejected requests send nothing`() =
+        runBlocking {
+            val sender = RecordingEmailSender()
+            val service = WebAuthService(InMemoryWebAuthStore(), sender, TEST_SECRET, rateLimitConfig = AuthRateLimitConfig(ipLimit = 2))
+            repeat(2) { assertEquals(StartLoginResult.Sent, service.requestCode("user-$it@example.test", "shared-ip")) }
+            assertEquals(StartLoginResult.RateLimited, service.requestCode("third@example.test", "shared-ip"))
+            assertEquals(2, sender.sent.size)
+            assertEquals(StartLoginResult.Sent, service.requestCode("other@example.test", "other-ip"))
+        }
+
+    @Test
+    fun `rotating both email and IP cannot bypass the global budget`() =
+        runBlocking {
+            val sender = RecordingEmailSender()
+            val service =
+                WebAuthService(InMemoryWebAuthStore(), sender, TEST_SECRET, rateLimitConfig = AuthRateLimitConfig(globalLimit = 2))
+            repeat(2) { assertEquals(StartLoginResult.Sent, service.requestCode("user-$it@example.test", "ip-$it")) }
+            assertEquals(StartLoginResult.RateLimited, service.requestCode("third@example.test", "third-ip"))
+            assertEquals(2, sender.sent.size)
+        }
+
+    @Test
+    fun `verification email budget follows the normalized email across IPs`() {
+        val service =
+            WebAuthService(InMemoryWebAuthStore(), DevEmailSender(), TEST_SECRET, rateLimitConfig = AuthRateLimitConfig(loginLimit = 2))
+        assertEquals(VerifyLoginResult.InvalidOrExpired, service.verify(" Player@Example.Test ", "123456", "one"))
+        assertEquals(VerifyLoginResult.InvalidOrExpired, service.verify("player@example.test", "123456", "two"))
+        assertEquals(VerifyLoginResult.RateLimited, service.verify("player@example.test", "123456", "three"))
+    }
+
+    @Test
+    fun `hourly email budget survives minute expiry and recovers with the fake clock`() =
+        runBlocking {
+            var now = 0L
+            val clock =
+                object : Clock() {
+                    override fun getZone() = ZoneOffset.UTC
+
+                    override fun withZone(zone: java.time.ZoneId): Clock = this
+
+                    override fun instant(): Instant = Instant.ofEpochMilli(now)
+                }
+            val sender = RecordingEmailSender()
+            val service =
+                WebAuthService(
+                    InMemoryWebAuthStore(),
+                    sender,
+                    TEST_SECRET,
+                    rateLimiter =
+                        InMemoryRateLimiter(nowMs = {
+                            now
+                        }),
+                    rateLimitConfig = AuthRateLimitConfig(loginLimit = 2),
+                    clock = clock,
+                )
+            assertEquals(StartLoginResult.Sent, service.requestCode("player@example.test", "one"))
+            now = 60_000
+            assertEquals(StartLoginResult.Sent, service.requestCode("player@example.test", "two"))
+            now = 120_000
+            assertEquals(StartLoginResult.RateLimited, service.requestCode("player@example.test", "three"))
+            assertEquals(2, sender.sent.size)
+            now = 3_600_000
+            assertEquals(StartLoginResult.Sent, service.requestCode("player@example.test", "four"))
+        }
+
+    @Test
+    fun `twenty ordinary logins behind one IP retain independent allowances`() =
+        runBlocking {
+            val service =
+                WebAuthService(
+                    InMemoryWebAuthStore(),
+                    DevEmailSender(),
+                    TEST_SECRET,
+                    rateLimitConfig = AuthRateLimitConfig(),
+                    fixedLoginCode = "123456",
+                )
+            repeat(20) {
+                val email = "player-$it@example.test"
+                assertEquals(StartLoginResult.Sent, service.requestCode(email, "shared-ip"))
+                val verified = assertIs<VerifyLoginResult.Success>(service.verify(email, "123456", "shared-ip"))
+                assertEquals(verified.player, service.validate(verified.token))
+            }
+        }
+
     @Test
     fun `guest sessions obey the configured rate limit`() {
         val service =
@@ -196,5 +388,13 @@ private fun session(
 private object FailingEmailSender : EmailSender {
     override suspend fun sendLoginCode(input: LoginCodeEmail) {
         error("email unavailable")
+    }
+}
+
+private class RecordingEmailSender : EmailSender {
+    val sent = mutableListOf<LoginCodeEmail>()
+
+    override suspend fun sendLoginCode(input: LoginCodeEmail) {
+        sent.add(input)
     }
 }
