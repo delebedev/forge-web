@@ -14,6 +14,9 @@ dependencyResolutionManagement {
     versionCatalogs {
         create("libs") {
             from(files("leyline/gradle/libs.versions.toml"))
+            // Product runtime patches do not require an engine catalog release.
+            version("logback", "1.6.5")
+            version("netty", "4.2.17.Final")
         }
     }
 }

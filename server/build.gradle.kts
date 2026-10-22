@@ -34,6 +34,7 @@ dependencies {
     implementation(libs.tomlkt)
     implementation("io.ktor:ktor-server-routing-openapi:${libs.versions.ktor.get()}")
     implementation(libs.ktor.server.netty)
+    implementation(platform(libs.netty.bom))
     implementation(libs.ktor.server.content.negotiation)
     implementation(libs.ktor.serialization.kotlinx.json)
     implementation(libs.ktor.server.status.pages)
