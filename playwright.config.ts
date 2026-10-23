@@ -87,7 +87,7 @@ function makeSmokeConfig({
     ? 'bash scripts/run-ci-server.sh'
     : './leyline/gradlew :server:run'
   const serverLog = `/tmp/forge-web-${name}-${webPort}-${process.pid}-web.log`
-  const webCommand = `bash -lc 'set -o pipefail; ${cardDb}LEYLINE_WEB_PORT=${webPort} LEYLINE_WEB_LOGIN_CODE=123456 LEYLINE_WEB_ALLOW_FIXED_LOGIN_CODE=true LEYLINE_WEB_DEV_TOOLS=true LEYLINE_WEB_AUTH_SECRET=forge-web-${name}-test-secret-1234567890 LEYLINE_WEB_REPLAY_OPERATOR_TOKEN=forge-web-${name}-operator-secret-1234567890 LEYLINE_PATHS_STATE="${stateDir}" ${serverCommand} 2>&1 | tee ${serverLog} >&2'`
+  const webCommand = `bash -lc 'set -o pipefail; ${cardDb}LEYLINE_WEB_PORT=${webPort} LEYLINE_WEB_LOGIN_CODE=123456 LEYLINE_WEB_ALLOW_FIXED_LOGIN_CODE=true LEYLINE_WEB_RATE_LIMIT_ENABLED=false LEYLINE_WEB_DEV_TOOLS=true LEYLINE_WEB_AUTH_SECRET=forge-web-${name}-test-secret-1234567890 LEYLINE_WEB_REPLAY_OPERATOR_TOKEN=forge-web-${name}-operator-secret-1234567890 LEYLINE_PATHS_STATE="${stateDir}" ${serverCommand} 2>&1 | tee ${serverLog} >&2'`
 
   return defineConfig({
     metadata: { serverLog },

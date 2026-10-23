@@ -302,7 +302,7 @@ export class BrowserEngine implements BrowserMatchHost {
         if (!this.worker) {
           this.createWorker(this.recycleReason, release)
         }
-        return this.request('initialize', { release })
+        return this.request('initialize', { release, generation: this.generation })
       })
       .then(() => undefined)
       .catch(async (error: unknown) => {
@@ -437,10 +437,14 @@ export class BrowserEngine implements BrowserMatchHost {
         this.diagnosticReply({ runtime: 'unavailable' })
       }
     })
-    const snapshot = this.history.snapshot({
-      ...(isRecord(runtime) ? runtime : {}),
-      runtimeVersion: this.runtimeVersion,
-    })
+    const snapshot = this.history.snapshot(
+      {
+        ...(isRecord(runtime) ? runtime : {}),
+        runtimeVersion: this.runtimeVersion,
+      },
+      error instanceof BrowserEngineFailure &&
+        ['initialize', 'worker-load'].includes(error.diagnostic.operation),
+    )
     if (error instanceof BrowserEngineFailure) {
       Object.assign(snapshot, {
         commandId: error.diagnostic.commandId,
@@ -480,6 +484,7 @@ export class BrowserEngine implements BrowserMatchHost {
       this.receiveMatchError(data)
       return
     }
+    this.history.initializeMark(data.event, data.data)
     this.recordStage(data)
     this.onEvent(data)
     if (data.event === 'reply' && isRecord(data.data)) {
@@ -643,6 +648,14 @@ export class BrowserEngine implements BrowserMatchHost {
     }
     const { id, promise } = this.commands.enqueue(type)
     this.history.command(id, type, 'enqueue')
+    if (type === 'initialize') {
+      this.history.initialize(
+        id,
+        this.generation,
+        this.releaseId,
+        this.policy.initializationTimeoutMs,
+      )
+    }
     if (input) {
       void this.history.input(id, input)
     }
@@ -699,7 +712,10 @@ export class BrowserEngine implements BrowserMatchHost {
         operation,
         kind,
         lastStage: this.lastStage,
-        snapshot: this.history.snapshot(),
+        snapshot: this.history.snapshot(
+          undefined,
+          operation === 'initialize' || operation === 'worker-load',
+        ),
         ...detail,
       },
       cause === undefined ? undefined : { cause },
