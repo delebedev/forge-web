@@ -1,0 +1,18 @@
+[metadata]
+Name:Archetype effective flying
+Goal:Demo
+Turns:3
+Difficulty:Easy
+Description:Inspect opposing flying and remove its suppressing source.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=40
+AILife=40
+removesummoningsickness=true
+humanbattlefield=Archetype of Imagination;Aminatou, Veil Piercer;Healer's Hawk;Forest;Forest
+humanhand=Naturalize;Ornithopter;Plains
+humanlibrary=Plains;Plains;Plains
+aibattlefield=Atraxa, Praetors' Voice;Vorinclex
+ailibrary=Forest;Forest;Forest

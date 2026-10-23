@@ -34,6 +34,7 @@ import { hasPlayOf } from '@engine/priority/priority-derive'
  */
 
 class FakeSource implements GreFrameSource {
+  effectiveKeywordCoverage?: readonly string[]
   canSend: boolean = false
   sink: GreFrameSink | null = null
   isOpen = true
@@ -66,6 +67,42 @@ async function freshStore() {
   const { GreStore } = await import('./gre-store')
   return new GreStore()
 }
+
+test('effective keyword authority survives reset but not source retirement or replacement', async () => {
+  const store = await freshStore()
+  const source = new FakeSource()
+  source.effectiveKeywordCoverage = ['Flying']
+  store.seedCardMeta(
+    new Map([
+      [
+        100,
+        {
+          grpId: 100,
+          name: 'Synthetic flyer',
+          keywords: ['Flying'],
+          abilities: { 300123: { text: 'Flying', keyword: 'Flying' } },
+        },
+      ],
+    ]),
+  )
+  store.attachSource(source)
+  const frame = fullGameState(1, {
+    zones: [{ ...BATTLEFIELD_ZONE, objectInstanceIds: [101] }],
+    gameObjects: [{ instanceId: 101, grpId: 100, controllerSeatId: 1 }],
+  })
+  source.sink!.onBatch({ byteLength: 0, messages: [frame] })
+  expect(store.battlefield[0]?.keywords).not.toContain('Flying')
+  source.sink!.onReset()
+  source.sink!.onBatch({ byteLength: 0, messages: [frame] })
+  expect(store.battlefield[0]?.keywords).not.toContain('Flying')
+  source.stop()
+  expect(store.battlefield[0]?.keywords).toContain('Flying')
+  const old = new FakeSource()
+  store.attachSource(old)
+  old.sink!.onBatch({ byteLength: 0, messages: [frame] })
+  expect(store.battlefield[0]?.keywords).toContain('Flying')
+  store.disconnect()
+})
 
 test('a batch folds every message it carries and publishes exactly once', async () => {
   const store = await freshStore()
@@ -1756,6 +1793,94 @@ test('GRE completion emits one result when normal game-over frames repeat', asyn
     globalThis.fetch = originalFetch
     analytics.restore()
   }
+})
+
+test('omitted combat echo objects retain Flying while re-prompts alone drive provisional attacker and blocker selection', async () => {
+  const store = await freshStore()
+  const source = new FakeSource()
+  source.effectiveKeywordCoverage = ['Flying']
+  source.canSend = true
+  store.seedCardMeta(new Map([[10, { grpId: 10, name: 'Granted flyer', keywords: [] }]]))
+  store.attachSource(source)
+  source.sink!.onBatch({
+    byteLength: 0,
+    messages: [
+      fullGameState(1, {
+        zones: [{ ...BATTLEFIELD_ZONE, objectInstanceIds: [100, 101] }],
+        gameObjects: [
+          {
+            instanceId: 100,
+            grpId: 10,
+            zoneId: 28,
+            controllerSeatId: 1,
+            uniqueAbilities: [{ id: 61, grpId: 8 }],
+          },
+          { instanceId: 101, grpId: 11, zoneId: 28, controllerSeatId: 2 },
+        ],
+        persistentAnnotations: [
+          {
+            id: 1,
+            type: [9, 51],
+            affectedIds: [100],
+            details: [{ key: 'grpid', valueInt32: [8] }],
+          },
+        ],
+      }),
+    ],
+  })
+  let sequence = 2
+  for (const selected of [true, false, true, false]) {
+    source.sink!.onBatch({
+      byteLength: 0,
+      messages: [
+        diffGameState(sequence, { gameObjects: [] }),
+        {
+          type: 26,
+          msgId: sequence++,
+          gameStateId: sequence,
+          declareAttackersReq: {
+            canSubmitAttackers: true,
+            attackers: [
+              {
+                attackerInstanceId: 100,
+                legalDamageRecipients: [{ type: 1, playerSystemSeatId: 2 }],
+                ...(selected
+                  ? { selectedDamageRecipient: { type: 1, playerSystemSeatId: 2 } }
+                  : {}),
+              },
+            ],
+          },
+        },
+      ],
+    })
+    expect(viewFor(store.snapshot(), 'attackers').attackers?.[0]?.selected).toBe(selected)
+    expect(store.battlefield[0]?.keywords).toContain('Flying')
+    source.sink!.onBatch({
+      byteLength: 0,
+      messages: [
+        diffGameState(sequence, { gameObjects: [] }),
+        {
+          type: 28,
+          msgId: sequence++,
+          gameStateId: sequence,
+          declareBlockersReq: {
+            blockers: [
+              {
+                blockerInstanceId: 100,
+                attackerInstanceIds: [101],
+                selectedAttackerInstanceIds: selected ? [101] : [],
+              },
+            ],
+          },
+        },
+      ],
+    })
+    expect(viewFor(store.snapshot(), 'blockers').blockers?.[0]?.attackers[0]?.selected).toBe(
+      selected,
+    )
+    expect(store.battlefield[0]?.keywords).toContain('Flying')
+  }
+  store.disconnect()
 })
 
 test('prompt controls omit phased-out target and combat candidates and restore their raw offers', async () => {

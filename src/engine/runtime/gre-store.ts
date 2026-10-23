@@ -373,6 +373,7 @@ export class GreStore {
     current: GameState
     cardMeta: Map<number, CardMeta>
     gated: boolean
+    coverage: readonly string[] | undefined
     value: BoardProjection
   } | null = null
   private reducedMotionQuery: MediaQueryList | null = null
@@ -385,34 +386,45 @@ export class GreStore {
     const state = this.shownState()
     const cached = this.projectionCache
     const gated = this.submittingActionOwner != null || this.presentingStackAbility()
+    const coverage = this.source?.isOpen ? this.source.effectiveKeywordCoverage : undefined
     if (
       cached &&
       cached.state === state &&
       cached.current === this.state &&
       cached.cardMeta === this.cardMeta &&
-      cached.gated === gated
+      cached.gated === gated &&
+      cached.coverage === coverage
     ) {
       return cached.value
     }
-    const value = buildBoardProjection(state, this.cardMeta, gated, this.state)
-    this.projectionCache = { state, current: this.state, cardMeta: this.cardMeta, gated, value }
+    const value = buildBoardProjection(state, this.cardMeta, gated, this.state, coverage)
+    this.projectionCache = {
+      state,
+      current: this.state,
+      cardMeta: this.cardMeta,
+      gated,
+      coverage,
+      value,
+    }
     return value
   }
 
   /** The newest read-model. Priority and response logic must never use the lagging display projection. */
   private authoritativeProjection(): BoardProjection {
     const gated = this.submittingActionOwner != null
+    const coverage = this.source?.isOpen ? this.source.effectiveKeywordCoverage : undefined
     const cached = this.projectionCache
     if (
       cached &&
       cached.state === this.state &&
       cached.current === this.state &&
       cached.cardMeta === this.cardMeta &&
-      cached.gated === gated
+      cached.gated === gated &&
+      cached.coverage === coverage
     ) {
       return cached.value
     }
-    return buildBoardProjection(this.state, this.cardMeta, gated, this.state)
+    return buildBoardProjection(this.state, this.cardMeta, gated, this.state, coverage)
   }
 
   /** The state the board draws: the cursor's step, or the newest if it is level. */
