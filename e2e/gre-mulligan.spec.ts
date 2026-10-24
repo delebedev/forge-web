@@ -82,6 +82,7 @@ test('Commander with a chosen companion reaches its opening hand and plays a lan
 for (const execution of ['browser'] as const) {
   test(`Commander free mulligan keeps seven before a later bottom choice (${execution})`, async ({
     page,
+    gre: _gre,
   }, info) => {
     test.setTimeout(300_000)
     await authenticateShell(page)
@@ -100,11 +101,17 @@ for (const execution of ['browser'] as const) {
       greSession.startBrowser(config)
     }, execution)
     await page.waitForURL(/\/match\/commander/)
-    await expect
-      .poll(() => page.evaluate(() => window.__greState?.()?.connected), { timeout: 240_000 })
-      .toBe(true)
-    const hand = page.locator('[data-zone="hand"][data-owner="self"] [data-card]')
     const opening = page.locator('[data-prompt="mulligan"]')
+    const startupError = page
+      .getByRole('alert')
+      .filter({ hasText: /Browser game (could not start|stopped)/ })
+    await expect
+      .poll(async () => (await opening.isVisible()) || (await startupError.isVisible()), {
+        timeout: 240_000,
+      })
+      .toBe(true)
+    await expect(startupError).toBeHidden()
+    const hand = page.locator('[data-zone="hand"][data-owner="self"] [data-card]')
     await expect(opening).toBeVisible()
     await expect(opening).toContainText('1 free mulligan available')
     expect(await page.evaluate(() => window.__greState()!.matchId)).toMatch(/^browser-/)
