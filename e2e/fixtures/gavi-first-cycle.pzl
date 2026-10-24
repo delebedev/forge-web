@@ -1,0 +1,15 @@
+[metadata]
+Name:First cycling alternative cost
+Goal:Survive
+Turns:4
+Difficulty:Tutorial
+Description:Use the first cycling alternative and retain normal costs thereafter.
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanbattlefield=Gavi, Nest Warden
+humanhand=Miscalculation;Remote Isle;Ornithopter
+humanlibrary=Forest;Island;Mountain;Forest;Island;Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
