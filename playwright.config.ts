@@ -202,7 +202,8 @@ const transportPort = managedPorts(
 const managedConfigs: Record<string, PlaywrightTestConfig> = {
   transport: defineConfig({
     testDir: './e2e',
-    testMatch: /(?:(?:gre-prompt|draft)-transport|match-route|course-result)\.spec\.ts/,
+    testMatch:
+      /(?:(?:gre-prompt|gre-static-choice|draft)-transport|match-route|course-result)\.spec\.ts/,
     timeout: 30_000,
     retries: 0,
     use: {
