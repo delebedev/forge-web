@@ -1,6 +1,7 @@
 import { writeFileSync } from 'node:fs'
-import { test, readyForVideo } from './demo-test'
+import { test, readyForVideo, recordDemos } from './demo-test'
 import { runGreAcceptanceSteps } from './gre-acceptance'
+import { resolveTo } from './gre-actions'
 import { readBrowserJournal } from './gre-browser-observations'
 import { startScenario } from './gre-scenario'
 import { authenticateShell, expect } from './gre-test'
@@ -54,27 +55,35 @@ for (const choice of ['no-mana-free', 'mana-free', 'mana-paid'] as const) {
     }
     const chosen = offers[paidMana && !choosePaid ? 1 : 0]!
     await page.screenshot({ path: info.outputPath('first-cycle-offered.png') })
-    await runGreAcceptanceSteps(page, {
-      steps: [
-        {
-          activate: {
-            card: 'Miscalculation',
-            zone: 'hand',
-            ability_index: paidMana && !choosePaid ? 1 : 0,
-          },
-        },
-        { resolve_stack: {} },
-        {
-          expect: {
-            all: [
-              { zone_contains: { side: 'ours', zone: 'graveyard', card: 'Miscalculation' } },
-              { zone_contains: { side: 'ours', zone: 'hand', card: 'Forest' } },
-              { stack_empty: true },
-            ],
-          },
-        },
-      ],
-    })
+    await resolveTo(
+      page,
+      {
+        all: [
+          { zone_contains: { side: 'ours', zone: 'graveyard', card: 'Miscalculation' } },
+          { zone_contains: { side: 'ours', zone: 'hand', card: 'Forest' } },
+          { stack_empty: true },
+        ],
+      },
+      async () => {
+        await page
+          .locator(`[data-zone="hand"][data-owner="self"] [data-instance-id="${iid}"]`)
+          .click()
+        if (paidMana) {
+          const chooser = page.getByRole('dialog', { name: 'Choose an action for Miscalculation' })
+          await expect(chooser).toBeVisible()
+          const buttons = chooser.locator('[data-action-type="2"]')
+          await expect(buttons).toHaveCount(2)
+          expect(await buttons.nth(0).getAttribute('data-action-key')).not.toBe(
+            await buttons.nth(1).getAttribute('data-action-key'),
+          )
+          await page.screenshot({ path: info.outputPath('distinct-activation-chooser.png') })
+          if (recordDemos) {
+            await page.waitForTimeout(1200)
+          }
+          await buttons.nth(choosePaid ? 0 : 1).click()
+        }
+      },
+    )
     const afterFirst = await page.evaluate(() => window.__greState()!)
     expect(afterFirst.counts.you.library).toBe(5)
     expect(afterFirst.counts.you.graveyard).toBe(1)
@@ -87,6 +96,9 @@ for (const choice of ['no-mana-free', 'mana-free', 'mana-paid'] as const) {
       'Remote Isle',
     ])
     await page.screenshot({ path: info.outputPath('first-cycle-discard-draw.png') })
+    if (recordDemos) {
+      await page.waitForTimeout(1200)
+    }
     if (paidMana && !choosePaid) {
       await runGreAcceptanceSteps(page, {
         steps: [
@@ -177,5 +189,8 @@ for (const choice of ['no-mana-free', 'mana-free', 'mana-paid'] as const) {
       JSON.stringify({ choice, before, afterFirst, finalState }),
     )
     await page.screenshot({ path: info.outputPath('continued-play.png') })
+    if (recordDemos) {
+      await page.waitForTimeout(1200)
+    }
   })
 }
