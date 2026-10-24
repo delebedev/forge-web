@@ -115,6 +115,49 @@ test('static choices do not inspect an unrelated card with the same numeric id',
   expect(html).not.toContain('<img')
 })
 
+test('only nonempty all-static named lists offer a filter without changing selection constraints', () => {
+  const candidate = {
+    interactionKey: 31,
+    instanceId: 17,
+    grpId: 0,
+    name: 'Elf',
+    zoneType: 0,
+    selected: true,
+    staticChoice: true,
+    weight: 2,
+  }
+  const view: SelectionPromptView = {
+    interactionKey: 31,
+    kind: 'selectN',
+    message: 'PayCostsReq',
+    minSelect: 2,
+    maxSelect: 3,
+    canSubmit: false,
+    selectNCandidates: [candidate],
+  }
+  const render = (candidates = view.selectNCandidates, waiting = false, bound = controls) =>
+    renderToStaticMarkup(
+      <SelectionPrompt
+        view={{ ...view, selectNCandidates: candidates, waiting }}
+        cards={[]}
+        controls={bound}
+      />,
+    )
+  const html = render()
+  expect(html).toContain('Filter choices')
+  expect(html).toContain('data-choice-id="17"')
+  expect(html).toContain('aria-pressed="true"')
+  expect(html).toContain('Elf · 2 toward total')
+  expect(html).toContain('disabled="">Submit selection')
+  expect(render([])).not.toContain('Filter choices')
+  expect(render([{ ...candidate, staticChoice: false }])).not.toContain('Filter choices')
+  expect(render([candidate, { ...candidate, instanceId: 18, staticChoice: false }])).not.toContain(
+    'Filter choices',
+  )
+  expect(render([{ ...candidate, name: ' ' }])).not.toContain('Filter choices')
+  expect(render([candidate], true)).toContain('disabled="">Submit selection')
+})
+
 test('real bound selection gestures project drafts and keep read-only and waiting controls inert', () => {
   const host = promptHarness()
   host.owner.applyFamilyRequest({
