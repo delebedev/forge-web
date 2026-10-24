@@ -21,6 +21,11 @@ for (const choice of ['no-mana-free', 'mana-free', 'mana-paid'] as const) {
     expect(response.ok()).toBe(true)
     const release = await response.json()
     await startScenario(page, paidMana ? 'gavi-paid-cycle' : 'gavi-first-cycle', 'browser', 42)
+    const openingHand = page.locator('[data-zone="hand"][data-owner="self"] [data-card]')
+    await expect(openingHand).toHaveCount(3)
+    await expect(
+      page.locator('[data-zone="hand"][data-owner="self"] [data-card="Miscalculation"]'),
+    ).toBeVisible()
     readyForVideo.add(page)
     const before = await page.evaluate(() => window.__greState()!)
     const iid = before.hand.find((card) => card.name === 'Miscalculation')!.iid
