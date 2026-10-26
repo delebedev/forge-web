@@ -1065,7 +1065,11 @@ export function deriveLegalActions(
           manaColor,
           label: `${view.label} (${manaColorLabel(manaColor)})`,
         }))
-      : [view]
+      : [
+          colors.length === 1
+            ? { ...view, label: `${view.label} (${manaColorLabel(colors[0]!)})` }
+            : view,
+        ]
   })
 }
 

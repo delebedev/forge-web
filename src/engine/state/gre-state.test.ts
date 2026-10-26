@@ -1280,6 +1280,49 @@ test('mana alternatives have distinct exact actions while simultaneous output st
   expect(selectManaAction(multipleSelections)).toBe(multipleSelections)
 })
 
+test('separate single-color mana offers keep exact identities and distinguish colors', () => {
+  const actions = [1, 2].map((color) => ({
+    actionType: 4,
+    instanceId: 100,
+    grpId: 10,
+    abilityGrpId: 1000 + color,
+    uniqueAbilityId: 50,
+    manaPaymentOptions: [{ mana: [{ color, count: 1, srcInstanceId: 100 }] }],
+    manaSelections: [{ instanceId: 100, selectionCount: 1, options: [{ selectedColor: color }] }],
+  }))
+  const metadata = new Map([[10, { grpId: 10, name: 'Prairie Stream' }]])
+  const original = structuredClone(actions)
+  const views = deriveLegalActions(actions, emptyTables(), metadata)
+  const withoutSelections = deriveLegalActions(
+    actions.map((action) => ({ ...action, manaSelections: [] })),
+    emptyTables(),
+    metadata,
+  )
+  expect(views.map(legalActionKey)).toEqual(withoutSelections.map(legalActionKey))
+  expect(views.map((view) => view.label)).toEqual([
+    'Use Prairie Stream (White)',
+    'Use Prairie Stream (Blue)',
+  ])
+  for (const [index, action] of actions.entries()) {
+    const view = views[index]!
+    expect(view).not.toHaveProperty('manaColor')
+    expect(view).toMatchObject({
+      actionType: action.actionType,
+      instanceId: action.instanceId,
+      abilityGrpId: action.abilityGrpId,
+      uniqueAbilityId: action.uniqueAbilityId,
+    })
+    expect(selectManaAction(action, view.manaColor)).toBe(action)
+  }
+  expect(actions).toEqual(original)
+  const meaningful = new Map([
+    [10, { grpId: 10, name: 'Prairie Stream', abilities: { 1001: { text: 'Add {W}.' } } }],
+  ])
+  expect(deriveLegalActions(actions, emptyTables(), meaningful)[0]!.label).toBe(
+    'Prairie Stream — Add {W}. (White)',
+  )
+})
+
 test('mana action labels retain ability text and the source-card fallback', () => {
   const actions = [
     { actionType: 4, instanceId: 100, grpId: 10, abilityGrpId: 401 },
