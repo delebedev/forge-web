@@ -92,7 +92,7 @@ jobs:
     name: UI (TypeScript)
     needs: changes
     if: needs.changes.outputs.run-tests == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - name: Setup Node
@@ -216,7 +216,7 @@ jobs:
       - changes
       - ui
       - server
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
@@ -286,7 +286,7 @@ jobs:
       - ui
       - server
     if: needs.changes.outputs.run-tests == 'true' && needs.changes.outputs.kind == 'full'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     strategy:
       fail-fast: false
