@@ -83,9 +83,10 @@ for (const accept of [true, false]) {
           ],
         })
         await expect(
-          page
-            .locator('[data-prompt]')
-            .getByRole('heading', { name: 'Select targets', exact: true }),
+          page.getByRole('region', {
+            name: 'Choose a target for Kitt Kanto, Mayhem Diva',
+            exact: true,
+          }),
         ).toBeVisible()
         const afterPayment = await page.evaluate(() => window.__greState()!)
         expect(afterPayment.activeSeat).toBe(afterPayment.viewerSeat)
@@ -136,8 +137,10 @@ for (const accept of [true, false]) {
           gameStateId: payment['gameStateId'],
           respId: payment['msgId'],
         })
-        const ids = (paid['effectCostResp'] as Record<string, unknown>)['costSelection']
-        expect(asArray(ids)).toEqual(
+        const paidSelection = (paid['effectCostResp'] as Record<string, unknown>)[
+          'costSelection'
+        ] as Record<string, unknown>
+        expect(asArray(paidSelection['ids'])).toEqual(
           afterPayment.board.you
             .filter((card) => ['Walking Corpse', 'Coral Merfolk'].includes(card.name))
             .map((card) => card.iid),
