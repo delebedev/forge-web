@@ -109,6 +109,7 @@ for (const accept of [true, false]) {
                 battlefield_stats: { side: 'ours', card: 'Grizzly Bears', power: 4, toughness: 4 },
               },
             },
+            { pass_until: { prompt: 'DeclareAttackersReq', max_passes: 8 } },
           ],
         })
         await page.screenshot({ path: info.outputPath('boost-resolved.png') })
