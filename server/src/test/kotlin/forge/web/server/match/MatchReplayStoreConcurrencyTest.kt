@@ -140,7 +140,7 @@ class MatchReplayStoreConcurrencyTest {
                 val root = ObservedDirectory()
                 RandomAccessFile(root.resolve("retained.bin"), "rw").use { it.setLength(QUOTA - replayBytes) }
                 MatchReplayStore(MatchReplayConfig(root, "token")).use { store ->
-                    assertFailsWith<IllegalArgumentException> {
+                    assertFailsWith<ReplayStorageCapacityExceeded> {
                         if (full) {
                             store.ingestBrowser("account", MATCH_ID, "$MATCH_ID:report", body)
                         } else {
@@ -182,11 +182,11 @@ class MatchReplayStoreConcurrencyTest {
                 repeat(3) {
                     assertEquals(
                         "Replay storage quota is exhausted",
-                        assertFailsWith<IllegalArgumentException> {
+                        assertFailsWith<ReplayStorageCapacityExceeded> {
                             store.ingestBrowserChunk("account", MATCH_ID, 0, chunk())
                         }.message,
                     )
-                    assertFailsWith<IllegalArgumentException> {
+                    assertFailsWith<ReplayStorageCapacityExceeded> {
                         store.ingestBrowser("account", MATCH_ID, "$MATCH_ID:full", chunk())
                     }
                 }
@@ -277,8 +277,12 @@ class MatchReplayStoreConcurrencyTest {
                 root.release.countDown()
                 cleanup.await()
                 val results = uploads.awaitAll()
-                assertTrue(results.all { it.statusCode() in setOf(400, 503) })
-                assertTrue(results.any { it.statusCode() == 400 && it.body().contains("quota is exhausted") })
+                assertTrue(results.all { it.statusCode() == 503 })
+                assertTrue(
+                    results.any {
+                        it.body().contains("quota is exhausted") && it.headers().firstValue("retry-after").orElseThrow() == "60"
+                    },
+                )
                 assertEquals("report", assertNotNull(store.export("historical-0")).status.reportId)
                 assertEquals(root.listFiles()!!.sumOf(File::length), store.health().bytesUsed)
                 assertTrue(store.health().bytesUsed <= QUOTA)
