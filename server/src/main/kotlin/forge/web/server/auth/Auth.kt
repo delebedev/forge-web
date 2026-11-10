@@ -8,6 +8,7 @@ import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.security.SecureRandom
+import java.time.Clock
 import java.time.Instant
 import java.util.Base64
 import java.util.UUID
@@ -16,6 +17,7 @@ import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 
 private val SIX_DIGIT_CODE = Regex("^[0-9]{6}$")
+private val EMAIL_ADDRESS = Regex("^[^@<>]{1,64}@[^@<>]+\\.[^@<>]+$")
 
 internal const val WEB_SESSION_COOKIE = "web_session"
 internal const val WEB_SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60
@@ -90,36 +92,52 @@ internal class ResendEmailSender(
 
 internal data class AuthRateLimitConfig(
     val enabled: Boolean = true,
-    val loginLimit: Int = 10,
+    val loginLimit: Int = 5,
     val loginWindowMs: Long = 60_000,
+    val ipLimit: Int = 20,
+    val globalLimit: Int = 100,
+    val hourlyIpLimit: Int = 20,
+    val hourlyGlobalLimit: Int = 100,
 ) {
     companion object {
         fun disabled(): AuthRateLimitConfig = AuthRateLimitConfig(enabled = false)
     }
 }
 
-internal interface RequestRateLimiter {
-    fun check(
-        key: String,
-        limit: Int,
-        windowMs: Long,
-    ): Boolean
-}
+internal data class AuthRateBudget(val key: String, val limit: Int, val windowMs: Long)
 
-internal class InMemoryRateLimiter : RequestRateLimiter {
-    private val windows = ConcurrentHashMap<String, MutableList<Long>>()
+internal class InMemoryRateLimiter(
+    private val nowMs: () -> Long = { System.nanoTime() / 1_000_000 },
+    private val maxKeys: Int = 4_096,
+) {
+    private data class Window(val startedAt: Long, val durationMs: Long, var count: Int) {
+        fun expired(now: Long): Boolean = now - startedAt >= durationMs
+    }
 
-    override fun check(
-        key: String,
-        limit: Int,
-        windowMs: Long,
-    ): Boolean {
-        val now = System.currentTimeMillis()
-        val timestamps = windows.computeIfAbsent(key) { mutableListOf() }
-        synchronized(timestamps) {
-            timestamps.removeAll { it < now - windowMs }
-            if (timestamps.size >= limit) return false
-            timestamps.add(now)
+    private val windows = mutableMapOf<String, Window>()
+    private var lastPruneMs: Long? = null
+
+    init {
+        require(maxKeys > 0)
+    }
+
+    @Synchronized
+    fun check(vararg budgets: AuthRateBudget): Boolean {
+        require(budgets.all { it.limit > 0 && it.windowMs > 0 })
+        val now = nowMs()
+        val lastPrune = lastPruneMs
+        if (lastPrune == null || now - lastPrune >= 1_000) {
+            windows.entries.removeIf { it.value.expired(now) }
+            lastPruneMs = now
+        }
+        if (budgets.any { budget -> windows[budget.key]?.let { !it.expired(now) && it.count >= budget.limit } == true }) {
+            return false
+        }
+        // Keep active identities on saturation; evicting them would reset their allowance.
+        if (windows.size + budgets.count { it.key !in windows } > maxKeys) return false
+        budgets.forEach { budget ->
+            val window = windows[budget.key]?.takeUnless { it.expired(now) }
+            if (window == null) windows[budget.key] = Window(now, budget.windowMs, 1) else window.count++
         }
         return true
     }
@@ -226,10 +244,11 @@ class WebAuthService internal constructor(
     private val store: WebAuthStore,
     private val emailSender: EmailSender,
     private val secret: String,
-    private val rateLimiter: RequestRateLimiter = InMemoryRateLimiter(),
+    private val rateLimiter: InMemoryRateLimiter = InMemoryRateLimiter(),
     private val rateLimitConfig: AuthRateLimitConfig = AuthRateLimitConfig.disabled(),
     private val fixedLoginCode: String? = null,
     private val onPlayerCreated: (WebPlayer) -> Unit = {},
+    private val clock: Clock = Clock.systemUTC(),
 ) {
     private val random = SecureRandom()
 
@@ -238,10 +257,10 @@ class WebAuthService internal constructor(
         ip: String? = null,
         userAgent: String? = null,
     ): StartLoginResult {
-        if (!allow("login:${normalizeEmail(email)}:${ip.orEmpty()}")) return StartLoginResult.RateLimited
-        val normalized = normalizeEmail(email)
+        val normalized = validatedEmail(email)
+        if (!allow("login", normalized, ip, persistent = true)) return StartLoginResult.RateLimited
         val code = fixedLoginCode?.takeIf(SIX_DIGIT_CODE::matches) ?: (random.nextInt(900_000) + 100_000).toString()
-        val now = Instant.now()
+        val now = clock.instant()
         val id = UUID.randomUUID().toString()
         val challenge =
             WebLoginChallenge(
@@ -261,7 +280,7 @@ class WebAuthService internal constructor(
             emailSender.sendLoginCode(LoginCodeEmail(normalized, code, LOGIN_CODE_MINUTES, "web-login/$id"))
             StartLoginResult.Sent
         } catch (_: Exception) {
-            store.consumeChallenge(normalized, hashLoginCode(normalized, code), Instant.now())
+            store.consumeChallenge(normalized, hashLoginCode(normalized, code), clock.instant())
             StartLoginResult.EmailSendFailed
         }
     }
@@ -272,10 +291,11 @@ class WebAuthService internal constructor(
         ip: String? = null,
         userAgent: String? = null,
     ): VerifyLoginResult {
-        if (!allow("verify:${normalizeEmail(email)}:${ip.orEmpty()}")) return VerifyLoginResult.RateLimited
-        val normalized = normalizeEmail(email)
+        val normalized = validatedEmail(email)
+        if (code.length > 32) return VerifyLoginResult.InvalidOrExpired
+        if (!allow("verify", normalized, ip)) return VerifyLoginResult.RateLimited
         if (!SIX_DIGIT_CODE.matches(code.trim())) return VerifyLoginResult.InvalidOrExpired
-        when (store.consumeChallenge(normalized, hashLoginCode(normalized, code.trim()), Instant.now())) {
+        when (store.consumeChallenge(normalized, hashLoginCode(normalized, code.trim()), clock.instant())) {
             ChallengeConsumeResult.Accepted -> Unit
             ChallengeConsumeResult.InvalidOrExpired -> return VerifyLoginResult.InvalidOrExpired
             ChallengeConsumeResult.TooManyAttempts -> return VerifyLoginResult.TooManyAttempts
@@ -287,18 +307,18 @@ class WebAuthService internal constructor(
         ip: String? = null,
         userAgent: String? = null,
     ): VerifyLoginResult.Success? {
-        if (!allow("guest:${ip.orEmpty()}")) return null
+        if (!allow("guest", null, ip, persistent = true)) return null
         val player = store.findOrCreatePlayer("guest-${UUID.randomUUID()}@$GUEST_EMAIL_DOMAIN")
         return createSession(player, ip, userAgent)
     }
 
     fun validate(token: String?): WebPlayer? =
-        token?.takeIf { it.isNotBlank() }?.let { store.findSession(hashSessionToken(it), Instant.now()) }
+        token?.takeIf { it.isNotBlank() }?.let { store.findSession(hashSessionToken(it), clock.instant()) }
 
     fun findPlayer(playerId: String): WebPlayer? = store.findPlayer(playerId)
 
     fun logout(token: String) {
-        token.takeIf { it.isNotBlank() }?.let { store.revokeSession(hashSessionToken(it), Instant.now()) }
+        token.takeIf { it.isNotBlank() }?.let { store.revokeSession(hashSessionToken(it), clock.instant()) }
     }
 
     private fun createSession(
@@ -307,7 +327,7 @@ class WebAuthService internal constructor(
         userAgent: String?,
     ): VerifyLoginResult.Success {
         val token = generateToken()
-        val now = Instant.now()
+        val now = clock.instant()
         store.saveSession(
             WebSession(
                 id = UUID.randomUUID().toString(),
@@ -324,8 +344,31 @@ class WebAuthService internal constructor(
         return VerifyLoginResult.Success(token, player)
     }
 
-    private fun allow(key: String): Boolean =
-        !rateLimitConfig.enabled || rateLimiter.check(key, rateLimitConfig.loginLimit, rateLimitConfig.loginWindowMs)
+    private fun allow(
+        action: String,
+        email: String?,
+        ip: String?,
+        persistent: Boolean = false,
+    ): Boolean {
+        if (!rateLimitConfig.enabled) return true
+        val config = rateLimitConfig
+        val address = hashOpaque(ip.orEmpty())
+        val budgets =
+            mutableListOf(
+                AuthRateBudget("$action:global", config.globalLimit, config.loginWindowMs),
+                AuthRateBudget("$action:ip:$address", if (email == null) config.loginLimit else config.ipLimit, config.loginWindowMs),
+            )
+        if (persistent) {
+            budgets.add(AuthRateBudget("$action:hour:global", config.hourlyGlobalLimit, 3_600_000))
+            budgets.add(AuthRateBudget("$action:hour:ip:$address", config.hourlyIpLimit, 3_600_000))
+        }
+        if (email != null) {
+            val identity = hashOpaque(email)
+            budgets.add(AuthRateBudget("$action:email:$identity", config.loginLimit, config.loginWindowMs))
+            if (persistent) budgets.add(AuthRateBudget("$action:hour:email:$identity", config.loginLimit, 3_600_000))
+        }
+        return rateLimiter.check(*budgets.toTypedArray())
+    }
 
     private fun generateToken(): String {
         val bytes = ByteArray(32)
@@ -350,3 +393,14 @@ class WebAuthService internal constructor(
 }
 
 internal fun normalizeEmail(value: String): String = value.trim().lowercase()
+
+private fun validatedEmail(value: String): String {
+    require(value.length <= 320) { "Invalid email address" }
+    val normalized = normalizeEmail(value)
+    require(
+        normalized.length <= 254 &&
+            normalized.none { it.isWhitespace() || it.isISOControl() } &&
+            EMAIL_ADDRESS.matches(normalized),
+    ) { "Invalid email address" }
+    return normalized
+}

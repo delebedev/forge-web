@@ -1,4 +1,5 @@
 import { isRecord } from '@engine/state/gre-state'
+import { effectiveKeywordCoverage } from '@engine/state/effective-keywords'
 import type {
   BrowserFailureCategory,
   BrowserFailureDiagnostic,
@@ -280,7 +281,11 @@ export class BrowserEngine implements BrowserMatchHost {
       throw new Error('Browser match identity mismatch')
     }
     this.lastStage = 'match-started'
-    const source = new BrowserMatchSource(this, launch['matchId'])
+    const source = new BrowserMatchSource(
+      this,
+      launch['matchId'],
+      effectiveKeywordCoverage(launch['effectiveKeywordCoverage']),
+    )
     this.currentSource = source
     this.lastGameStateId = 0
     this.startHeartbeat(this.worker!)

@@ -249,6 +249,21 @@ class ServerTest {
         }
 
     @Test
+    fun `malformed email is a client error on both authentication routes`() =
+        testApplication {
+            application { installServer(testServices()) }
+            for (path in listOf("request-code", "verify")) {
+                val response =
+                    client.post("/api/auth/$path") {
+                        contentType(ContentType.Application.Json)
+                        setBody("""{"email":"not-an-email","code":"123456"}""")
+                    }
+                assertEquals(HttpStatusCode.BadRequest, response.status)
+                assertEquals("Invalid email address", response.bodyAsText())
+            }
+        }
+
+    @Test
     fun `serves the product OpenAPI contract`() =
         testApplication {
             application { installServer(testServices()) }

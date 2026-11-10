@@ -3,6 +3,27 @@ import { managedPorts } from './lib/playwright-ports'
 import { playwrightEnv } from './lib/playwright-env'
 
 describe('managed Playwright ports', () => {
+  test('disposable fixed-code browser servers explicitly disable production abuse budgets', async () => {
+    const previous = process.env['FORGE_WEB_PLAYWRIGHT_SUITE']
+    try {
+      process.env['FORGE_WEB_PLAYWRIGHT_SUITE'] = 'product'
+      const { default: config } = await import('../playwright.config')
+      const servers = config.webServer
+      expect(Array.isArray(servers)).toBe(true)
+      if (!Array.isArray(servers)) {
+        throw new Error('Expected managed test servers')
+      }
+      expect(servers[0]?.command).toContain('LEYLINE_WEB_ALLOW_FIXED_LOGIN_CODE=true')
+      expect(servers[0]?.command).toContain('LEYLINE_WEB_RATE_LIMIT_ENABLED=false')
+    } finally {
+      if (previous === undefined) {
+        delete process.env['FORGE_WEB_PLAYWRIGHT_SUITE']
+      } else {
+        process.env['FORGE_WEB_PLAYWRIGHT_SUITE'] = previous
+      }
+    }
+  })
+
   test('retains defaults and supports a separate complete stack', () => {
     const defaults = { frontend: 15174, backend: 15184, preview: 15164 }
     expect(managedPorts(defaults, {})).toEqual(defaults)

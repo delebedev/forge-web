@@ -5,7 +5,148 @@ import { startScenario } from './gre-scenario'
 import { runGreAcceptanceSteps } from './gre-acceptance'
 import { readBrowserJournal } from './gre-browser-observations'
 import { asArray, asNumber, isRecord } from '../src/engine/state/gre-state'
-import { enumValue } from '../src/engine/wire/gre-proto'
+import { decodeMessage, enumValue } from '../src/engine/wire/gre-proto'
+
+// Separate mono-color offers must remain distinguishable without rewriting their payloads.
+for (const [color, name] of [
+  [1, 'White'],
+  [2, 'Blue'],
+] as const) {
+  test(`Prairie Stream chooses ${name} with its original mana action`, async ({ page }, info) => {
+    test.setTimeout(300_000)
+    await page.addInitScript(() =>
+      localStorage.setItem('forge:gre:priority-flag:hideCardArt', 'true'),
+    )
+    await authenticateShell(page, 'prairie-mana')
+    const response = await page.request.get('/browser-engine/release.json')
+    expect(response.ok()).toBe(true)
+    const release = await response.json()
+    await startScenario(page, 'prairie-mana', 'browser', 42)
+    await expect(page.locator('[data-board]')).toHaveAttribute('data-card-art', 'off')
+    await runGreAcceptanceSteps(page, { steps: [], headless: { full_control: true } })
+    const land = page.locator(
+      '[data-zone="battlefield"][data-owner="self"] [data-card="Prairie Stream"]',
+    )
+    await expect(land).toBeVisible()
+    await expect(land).toHaveAttribute('data-action-types', /(?:^| )4(?: |$)/)
+    const iid = Number(await land.getAttribute('data-instance-id'))
+    const before = await readBrowserJournal(page)
+    const openingPlayers = before!.batches
+      .flatMap((batch) => batch.messages)
+      .filter(isRecord)
+      .map((message) => message['gameStateMessage'])
+      .filter(isRecord)
+      .flatMap((state) => asArray(state['players']).filter(isRecord))
+      .filter((player) => player['systemSeatNumber'] === 1)
+    expect(asArray(openingPlayers.at(-1)?.['manaPool'])).toEqual([])
+    const latest = before!.batches
+      .flatMap((batch) => batch.messages)
+      .filter(isRecord)
+      .map((message) => message['actionsAvailableReq'])
+      .filter(isRecord)
+      .at(-1)!
+    const offers = asArray(latest['actions'])
+      .filter(isRecord)
+      .filter((action) => action['actionType'] === 4 && action['instanceId'] === iid)
+    expect(offers).toHaveLength(2)
+    const chosen = offers.find((action) =>
+      asArray(action['manaPaymentOptions']).some(
+        (option) =>
+          isRecord(option) &&
+          asArray(option['mana']).some((mana) => isRecord(mana) && mana['color'] === color),
+      ),
+    )!
+    expect(chosen).toBeDefined()
+    readyForVideo.add(page)
+    await land.click()
+    const chooser = page.getByRole('dialog', { name: 'Choose an action for Prairie Stream' })
+    await expect(chooser).toBeVisible()
+    const buttons = chooser.locator('[data-action-type="4"]')
+    await expect(buttons).toHaveCount(2)
+    const labels = await buttons.allTextContents()
+    const keys = await buttons.evaluateAll((nodes) =>
+      nodes.map((node) => node.getAttribute('data-action-key')),
+    )
+    await page.screenshot({ path: info.outputPath('prairie-chooser.png') })
+    writeFileSync(
+      info.outputPath('offered-actions.json'),
+      JSON.stringify({ offers, chosen, labels, keys }),
+    )
+    writeFileSync(info.outputPath('served-release.json'), JSON.stringify(release))
+    expect(new Set(keys).size).toBe(2)
+    await expect(
+      chooser.getByRole('button', { name: 'Use Prairie Stream (White)', exact: true }),
+    ).toBeVisible()
+    await expect(
+      chooser.getByRole('button', { name: 'Use Prairie Stream (Blue)', exact: true }),
+    ).toBeVisible()
+    if (recordDemos) {
+      await page.waitForTimeout(1200)
+    }
+    await chooser.getByRole('button', { name: `Use Prairie Stream (${name})`, exact: true }).click()
+    await expect(land).toHaveAttribute('data-tapped', 'true')
+    const paid = await readBrowserJournal(page)
+    expect(paid!.context?.engineBuild).toBe(release.releaseId)
+    const players = paid!.batches
+      .flatMap((batch) => batch.messages)
+      .filter(isRecord)
+      .map((message) => message['gameStateMessage'])
+      .filter(isRecord)
+      .flatMap((state) => asArray(state['players']).filter(isRecord))
+      .filter((player) => player['systemSeatNumber'] === 1)
+    expect(
+      asArray(players.at(-1)?.['manaPool'])
+        .filter(isRecord)
+        .map((mana) => [mana['color'], mana['count']]),
+    ).toEqual([[color, 1]])
+    const submitted: Record<string, unknown>[] = []
+    const greType = await enumValue('ClientToMatchServiceMessageType', 'ClientToGremessage')
+    for (const entry of paid!.responses ?? []) {
+      if (!isRecord(entry) || typeof entry['payload'] !== 'string') {
+        continue
+      }
+      const wrapper = await decodeMessage(
+        'ClientToMatchServiceMessage',
+        Buffer.from(entry['payload'], 'base64'),
+      )
+      if (wrapper['clientToMatchServiceMessageType'] !== greType) {
+        continue
+      }
+      const decoded = await decodeMessage('ClientToGREMessage', wrapper['payload'] as Uint8Array)
+      if (isRecord(decoded['performActionResp'])) {
+        submitted.push(...asArray(decoded['performActionResp']['actions']).filter(isRecord))
+      }
+    }
+    const activation = submitted.filter(
+      (action) => action['actionType'] === 4 && action['instanceId'] === iid,
+    )
+    expect(activation).toHaveLength(1)
+    expect(activation[0]).toMatchObject(chosen)
+    await page.screenshot({ path: info.outputPath('prairie-tapped.png') })
+    writeFileSync(
+      info.outputPath('mana-result.json'),
+      JSON.stringify({ offers, chosen, activation, players }),
+    )
+    await runGreAcceptanceSteps(page, {
+      steps: [
+        { cast: 'Ornithopter' },
+        { resolve_stack: {} },
+        { expect: { zone_contains: { side: 'ours', zone: 'battlefield', card: 'Ornithopter' } } },
+      ],
+    })
+    const final = await page.evaluate(() => window.__greState()!)
+    expect(final.diagnostics.errorCount).toBe(0)
+    writeFileSync(
+      info.outputPath('prairie-journal.json'),
+      JSON.stringify(await readBrowserJournal(page)),
+    )
+    writeFileSync(info.outputPath('prairie-outcome.json'), JSON.stringify(final))
+    await page.screenshot({ path: info.outputPath('continued-play.png') })
+    if (recordDemos) {
+      await page.waitForTimeout(1200)
+    }
+  })
+}
 
 test('Elder manual mana activation produces both colors and funds a spell', async ({
   page,

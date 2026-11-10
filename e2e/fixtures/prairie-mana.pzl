@@ -1,0 +1,24 @@
+# Mechanic: distinguish the two separate mono-color mana activations.
+# Forcing: Prairie Stream is the only mana source; select white or blue explicitly.
+# AI behavior: no opposing permanents or hand, and no turn advance is needed.
+# Failure modes: equal labels fail before input; wrong pool or identity fails after input.
+# Card roles: Prairie Stream supplies mana; Ornithopter proves continued play.
+# Libraries prevent decking. Life totals do not affect the observed path.
+# Protocol path: ActivateMana actions, PerformActionResp, player mana pool update.
+# The browser assertions, not the puzzle win condition, define success.
+[metadata]
+Name:Prairie Stream mana choices
+Goal:Win
+Turns:3
+Difficulty:Easy
+Description:Choose white or blue from Prairie Stream, then cast Ornithopter.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanbattlefield=Prairie Stream
+humanhand=Ornithopter
+humanlibrary=Forest;Forest;Forest;Forest;Forest
+ailibrary=Plains;Plains;Plains;Plains;Plains

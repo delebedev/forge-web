@@ -127,8 +127,9 @@ test('runtime dispatch executes every declared lane and rejects unknown or incon
 test('untrusted checks use hosted runners with no workflow write permission and always trigger', () => {
   assert.equal(workflow.on.pull_request, null)
   assert.deepEqual(workflow.permissions, { actions: 'read', contents: 'read' })
-  for (const job of Object.values(workflow.jobs)) {
-    assert.equal(job['runs-on'], 'ubuntu-latest')
+  for (const [name, job] of Object.entries(workflow.jobs)) {
+    const browserJob = ['ui', 'browser-local', 'runtime'].includes(name)
+    assert.equal(job['runs-on'], browserJob ? 'ubuntu-24.04' : 'ubuntu-latest')
   }
   assert.match(workflow.jobs.report.if, /head.repo.full_name == github.repository/)
 })

@@ -39,7 +39,7 @@ class ServerConfigTest {
         assertEquals(8080, config.web.port)
         assertEquals("127.0.0.1", config.web.host)
         assertEquals("web-player", config.web.playerId)
-        assertEquals(10, config.web.rateLimit)
+        assertEquals(5, config.web.rateLimit)
         assertTrue(config.web.rateLimitEnabled)
         assertFalse(config.web.devTools)
         assertEquals("forge", config.engine.draft.picker)

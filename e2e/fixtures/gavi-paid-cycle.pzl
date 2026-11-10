@@ -1,0 +1,15 @@
+[metadata]
+Name:First cycling alternative cost
+Goal:Survive
+Turns:4
+Difficulty:Tutorial
+Description:Distinguish the free first ability from the normal paid second cycling.
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanbattlefield=Gavi, Nest Warden;Island;Island
+humanhand=Miscalculation;Remote Isle;Ornithopter
+humanlibrary=Forest;Mountain;Plains;Forest;Island;Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain

@@ -34,6 +34,8 @@ export interface GreFrameSink {
 }
 
 export interface GreFrameSource {
+  /** Absent on old/native/replay sources; scoped to this source generation. */
+  readonly effectiveKeywordCoverage?: readonly string[]
   start(sink: GreFrameSink): void
   stop(): void
   readonly isOpen: boolean

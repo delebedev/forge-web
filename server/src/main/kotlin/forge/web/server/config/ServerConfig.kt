@@ -92,7 +92,7 @@ internal data class WebSettings(
     @SerialName("resend_api_key") val resendApiKey: String = "",
     @SerialName("resend_from") val resendFrom: String = "login@localhost",
     @SerialName("rate_limit_enabled") val rateLimitEnabled: Boolean = true,
-    @SerialName("rate_limit") val rateLimit: Int = 10,
+    @SerialName("rate_limit") val rateLimit: Int = 5,
     @SerialName("rate_limit_window_ms") val rateLimitWindowMs: Long = 60_000,
     @SerialName("replay_operator_token") val replayOperatorToken: String = "",
     @SerialName("replay_retention_days") val replayRetentionDays: Int = 7,

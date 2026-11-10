@@ -1,23 +1,73 @@
+import { useState } from 'react'
 import type { CardView, SelectionPromptView } from '@engine/state/gre-state'
 import type { SelectionControls } from '@engine/runtime/prompts/family'
+import { TextField } from '@shared/ui/Field'
 import { ChoiceLabel } from './ChoiceLabel'
 import { cx } from '@shared/react/cx'
 import styles from './PromptDock.module.css'
 
-export function SelectionPrompt({
-  view,
-  controls,
-  cards,
-}: {
+type SelectionPromptProps = {
   view: SelectionPromptView
   controls: SelectionControls | null
   cards: CardView[]
-}) {
+}
+
+export function SelectionPrompt(props: SelectionPromptProps) {
+  const { view } = props
+  const filterable =
+    view.selectNCandidates.length > 0 &&
+    view.selectNCandidates.every((candidate) => candidate.staticChoice && candidate.name.trim())
+  return filterable ? (
+    <StaticSelectionPrompt key={view.interactionKey} {...props} />
+  ) : (
+    SelectionContents({ ...props, candidates: view.selectNCandidates })
+  )
+}
+
+function StaticSelectionPrompt(props: SelectionPromptProps) {
+  const [query, setQuery] = useState('')
+  const match = query.trim().toLowerCase()
+  const candidates = props.view.selectNCandidates.filter((candidate) =>
+    candidate.name.toLowerCase().includes(match),
+  )
+  return (
+    <>
+      <div className={styles.choiceFilter}>
+        <label>
+          Filter choices
+          <TextField
+            type="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </label>
+        {query && (
+          <button className={styles.target} onClick={() => setQuery('')}>
+            Clear filter
+          </button>
+        )}
+      </div>
+      <SelectionContents {...props} candidates={candidates} />
+    </>
+  )
+}
+
+function SelectionContents({
+  view,
+  controls,
+  cards,
+  candidates,
+}: SelectionPromptProps & { candidates: SelectionPromptView['selectNCandidates'] }) {
   return (
     <>
       <div className={styles.promptBody}>
         <div className={styles.targetList}>
-          {view.selectNCandidates.map((candidate) => (
+          {candidates.length === 0 && view.selectNCandidates.length > 0 && (
+            <p role="status" className={styles.selectionHint}>
+              No matching choices. Clear the filter to see all choices.
+            </p>
+          )}
+          {candidates.map((candidate) => (
             <button
               key={candidate.instanceId}
               className={cx(styles.target, candidate.selected && styles.selected)}

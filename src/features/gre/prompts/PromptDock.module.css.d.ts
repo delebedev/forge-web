@@ -2,6 +2,7 @@ declare const styles: {
   readonly "blockerGroup": string
   readonly "blockerList": string
   readonly "choiceArt": string
+  readonly "choiceFilter": string
   readonly "choiceState": string
   readonly "damageAssigner": string
   readonly "damageControls": string

@@ -1,4 +1,5 @@
 import { enumName } from '@engine/wire/gre-proto'
+import { effectiveFlying, reconcileEffectiveFlying } from './effective-keywords'
 import {
   annotationHasType,
   asArray,
@@ -8,6 +9,7 @@ import {
   type CardMeta,
   type CardView,
   type MechanicHelp,
+  type GameObject,
   type ProtoObject,
 } from './gre-state'
 
@@ -30,6 +32,8 @@ const GRANTED_KEYWORDS = new Map([
 export function permanentState(
   annotations: Iterable<ProtoObject>,
   cardMeta: ReadonlyMap<number, CardMeta>,
+  objects?: ReadonlyMap<number, GameObject>,
+  coverage?: readonly string[],
 ): (card: CardView) => CardView {
   const persistent = [...annotations]
   const keywordNames = new Map(GRANTED_KEYWORDS)
@@ -104,25 +108,31 @@ export function permanentState(
       }
     }
   }
-  return (card) => ({
-    ...card,
-    attachedTo: attachments.get(card.instanceId),
-    counters: counters.get(card.instanceId) ?? [],
-    keywords: [...new Set([...(card.keywords ?? []), ...(keywords.get(card.instanceId) ?? [])])],
-    grantedKeywords: [...(keywords.get(card.instanceId) ?? [])],
-    mechanicHelp: [
-      ...(card.mechanicHelp ?? []),
-      ...[...(keywords.get(card.instanceId) ?? [])]
-        .filter((name) => !card.mechanicHelp?.some((item) => item.keyword === name))
-        .flatMap((name) => keywordHelp.get(name) ?? []),
-    ],
-    classLevel: classLevels.get(card.instanceId),
-    solved: solved.has(card.instanceId),
-    roomDoors: card.roomDoors?.map((door, index) => ({
-      ...door,
-      unlocked: unlockedRoomDoors.get(card.instanceId)?.has(index) === true,
-    })),
-  })
+  return (card) =>
+    reconcileEffectiveFlying(
+      {
+        ...card,
+        attachedTo: attachments.get(card.instanceId),
+        counters: counters.get(card.instanceId) ?? [],
+        keywords: [
+          ...new Set([...(card.keywords ?? []), ...(keywords.get(card.instanceId) ?? [])]),
+        ],
+        grantedKeywords: [...(keywords.get(card.instanceId) ?? [])],
+        mechanicHelp: [
+          ...(card.mechanicHelp ?? []),
+          ...[...(keywords.get(card.instanceId) ?? [])]
+            .filter((name) => !card.mechanicHelp?.some((item) => item.keyword === name))
+            .flatMap((name) => keywordHelp.get(name) ?? []),
+        ],
+        classLevel: classLevels.get(card.instanceId),
+        solved: solved.has(card.instanceId),
+        roomDoors: card.roomDoors?.map((door, index) => ({
+          ...door,
+          unlocked: unlockedRoomDoors.get(card.instanceId)?.has(index) === true,
+        })),
+      },
+      effectiveFlying(objects?.get(card.instanceId), cardMeta.get(card.grpId), coverage),
+    )
 }
 
 export function counterTotals(annotations: Iterable<ProtoObject>): Map<number, CardCounter[]> {

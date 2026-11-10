@@ -352,7 +352,10 @@ test('supported prompt chrome keeps protocol identity data-only', () => {
   expect(html).toContain('aria-hidden="true">✓</small>')
   expect(html).toContain('>Unavailable</small>')
   expect(html).not.toContain('aria-hidden="true">Unavailable</small>')
-  expect(html).not.toContain('<input')
+  const fields = html.match(/<input\b[^>]*>/g) ?? []
+  expect(fields).toHaveLength(1)
+  expect(fields[0]).toContain('type="search"')
+  expect(html).toContain('<label>Filter choices<input')
 })
 
 test('waiting generic prompts disable every choice and submit control', () => {

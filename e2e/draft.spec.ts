@@ -1,5 +1,6 @@
 import type { Page } from '@playwright/test'
 import { expect, test } from './gre-test'
+import { completionState } from './gre-action-completion'
 
 test.setTimeout(360_000)
 
@@ -102,14 +103,41 @@ test('drafts a deck and enters a playable pod match', async ({ page }, testInfo)
   await expect(keep).toBeVisible({ timeout: 30_000 })
   await keep.click()
   const pass = page.getByRole('button', { name: /^(Pass|Resolve)$/ }).first()
-  await expect(pass).toBeEnabled({ timeout: 20_000 })
+  const choice = page.getByRole('region', { name: 'Choose options', exact: true })
+  await expect
+    .poll(
+      async () =>
+        (await choice.isVisible()) || (await pass.isEnabled({ timeout: 100 }).catch(() => false)),
+      {
+        timeout: 20_000,
+      },
+    )
+    .toBe(true)
   await expect(page.getByText('Catching up...')).not.toBeVisible({ timeout: 20_000 })
   await page.screenshot({ path: testInfo.outputPath('draft-match.png') })
-  const gameStateBeforePass = await page.evaluate(() => window.__greState()!.gsId)
-  await pass.click()
+  const before = await completionState(page)
+  if (await choice.isVisible()) {
+    // An unplayable random opening can auto-pass to the cleanup discard.
+    await expect(page.getByRole('status', { name: 'Match status' })).toContainText('Cleanup')
+    await choice.getByRole('button').first().click()
+    await choice.getByRole('button', { name: 'Submit selection', exact: true }).click()
+  } else {
+    await pass.click()
+  }
   await expect
-    .poll(() => page.evaluate(() => window.__greState()!.gsId), { timeout: 20_000 })
-    .toBeGreaterThan(gameStateBeforePass)
+    .poll(
+      async () => {
+        const after = await completionState(page)
+        return (
+          after.request > before.request &&
+          after.decision !== before.decision &&
+          !after.waiting &&
+          !after.lagging
+        )
+      },
+      { timeout: 20_000 },
+    )
+    .toBe(true)
   await expect(page.getByText('Catching up...')).not.toBeVisible({ timeout: 20_000 })
   expect(await page.evaluate(() => window.__greState()!.matchId)).toMatch(/^browser-/)
   await expect
