@@ -66,7 +66,7 @@ class MatchReplayStoreCompressionTest {
             val original = legacy(root, bundle)
             root.resolve("retained.bin").writeBytes(ByteArray(64 * 1024 - original.length().toInt()))
             MatchReplayStore(MatchReplayConfig(root, "token", maxBytes = 64 * 1024, maxMatchBytes = 64 * 1024)).use { store ->
-                assertFailsWith<IllegalArgumentException> {
+                assertFailsWith<ReplayStorageCapacityExceeded> {
                     store.ingestBrowserChunk("account", bundle.matchId, 1, bytes(bundle(1, seq = 2)))
                 }
                 store.cleanup()
