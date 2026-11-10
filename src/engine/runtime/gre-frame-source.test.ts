@@ -403,6 +403,52 @@ test('non-hand action cards use current zones and the offered face while the boa
   expect(response['performActionResp']).toEqual({ actions: [actions[0]] })
 })
 
+test('an inspected opponent-owned face-down exile spell retains its exact cast action', async () => {
+  const store = await freshStore()
+  const source = new FakeSource()
+  source.canSend = true
+  store.attachSource(source)
+  store.seedCardMeta(
+    new Map([[8, { grpId: 8, name: 'Centaur Courser', power: '3', toughness: '3' }]]),
+  )
+  source.sink!.onBatch({
+    byteLength: 0,
+    messages: [
+      fullGameState(71, {
+        zones: [{ ...EXILE_ZONE, ownerSeatId: 0, objectInstanceIds: [101] }],
+        gameObjects: [
+          {
+            instanceId: 101,
+            grpId: 8,
+            ownerSeatId: 2,
+            controllerSeatId: 2,
+            zoneId: EXILE_ZONE.zoneId,
+            visibility: 2,
+            viewers: [1],
+            isFacedown: true,
+            overlayGrpId: 3,
+          },
+        ],
+      }),
+    ],
+  })
+  const action = { actionType: 1, instanceId: 101, grpId: 8, shouldStop: true }
+  source.sink!.onBatch({ byteLength: 0, messages: [availableActions(71, 72, [action])] })
+  const entries = store.snapshot().nonHandActionCards
+  expect(entries).toHaveLength(1)
+  expect(entries[0]!.card).toMatchObject({
+    name: 'Centaur Courser',
+    controllerSeatId: 2,
+    faceDown: true,
+    powerToughness: '3/3',
+  })
+  expect(entries[0]!.action.zoneType).toBe(ZONE_EXILE)
+  await store.performLegalAction(entries[0]!.action)
+  const wrapper = await decodeMessage('ClientToMatchServiceMessage', source.sent.at(-1)!)
+  const response = await decodeMessage('ClientToGREMessage', expectBytes(wrapper['payload']))
+  expect(response['performActionResp']).toEqual({ actions: [action] })
+})
+
 test('an emblem-only full state fetches creator metadata and publishes its effect', async () => {
   const store = await freshStore()
   const source = new FakeSource()
