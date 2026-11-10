@@ -258,19 +258,17 @@ demoTest(
     ).toBeVisible()
     readyForVideo.add(page)
     await page.screenshot({ path: testInfo.outputPath('subability-choice.png') })
-    await runSteps(page, [
-      { modal_choice: { index: 0 } },
-      { pass_until: { prompt: 'OptionalActionMessage' } },
-    ])
+    await runGreAcceptanceSteps(page, {
+      steps: [{ modal_choice: { index: 0 } }, { pass_until: { prompt: 'OptionalActionMessage' } }],
+    })
     expect((await page.evaluate(() => window.__greState()!)).counts.you.exile).toBe(1)
     await resolveTo(
       page,
       { zone_contains: { side: 'ours', zone: 'graveyard', card: 'Dance with Calamity' } },
       () =>
-        runSteps(page, [
-          { optional_action: { accept: false } },
-          { optional_action: { accept: false } },
-        ]),
+        runGreAcceptanceSteps(page, {
+          steps: [{ optional_action: { accept: false } }, { optional_action: { accept: false } }],
+        }),
     )
     const state = await page.evaluate(() => window.__greState()!)
     expect(state.connected).toBe(true)
