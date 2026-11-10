@@ -42,7 +42,12 @@ internal fun Route.installBrowserReplayRoutes(
                     return@post call.respond(HttpStatusCode.PayloadTooLarge)
                 }
             val matchId = call.parameters["matchId"].orEmpty()
-            val result = store.ingestBrowserChunk(player.playerId, matchId, afterSeq, body)
+            val result =
+                try {
+                    store.ingestBrowserChunk(player.playerId, matchId, afterSeq, body)
+                } catch (cause: ReplayStorageCapacityExceeded) {
+                    return@post call.rejectReplayCapacity(cause)
+                }
             call.respond(HttpStatusCode.OK, result.toString())
         }
         post {
@@ -61,10 +66,20 @@ internal fun Route.installBrowserReplayRoutes(
                 runCatching { call.receiveBounded(MAX_BROWSER_REPLAY_UPLOAD_BYTES) }.getOrElse {
                     return@post call.respond(HttpStatusCode.PayloadTooLarge)
                 }
-            val result = store.ingestBrowser(player.playerId, matchId, artifactId, body)
+            val result =
+                try {
+                    store.ingestBrowser(player.playerId, matchId, artifactId, body)
+                } catch (cause: ReplayStorageCapacityExceeded) {
+                    return@post call.rejectReplayCapacity(cause)
+                }
             call.respond(if (result) HttpStatusCode.Created else HttpStatusCode.Conflict)
         }
     }.excludeContract("GRE replay upload")
+}
+
+private suspend fun io.ktor.server.application.ApplicationCall.rejectReplayCapacity(cause: ReplayStorageCapacityExceeded) {
+    response.headers.append(HttpHeaders.RetryAfter, "60")
+    respond(HttpStatusCode.ServiceUnavailable, cause.message ?: "Replay storage is full")
 }
 
 private suspend fun io.ktor.server.application.ApplicationCall.rejectReplay(rejection: ReplayAdmissionRejection) {

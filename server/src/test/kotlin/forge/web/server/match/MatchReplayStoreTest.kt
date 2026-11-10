@@ -23,6 +23,7 @@ import java.time.ZoneId
 import java.util.Base64
 import java.util.Random
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
@@ -31,6 +32,39 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class MatchReplayStoreTest {
+    @Test
+    fun `full storage acknowledges committed retries but preserves all files when rejecting new events`() =
+        runBlocking<Unit> {
+            val root = Files.createTempDirectory("replay-capacity-prefix").toFile()
+            MatchReplayStore(config(root, maxBytes = 64 * 1024, maxMatchBytes = 64 * 1024)).use { store ->
+                val first = browserBundle("commander").copy(status = ReplayStatus(false, "feedback", false, "report-1"))
+                val body = Json.encodeToString(ReplayBundle.serializer(), first).toByteArray()
+                assertEquals(1, store.ingestBrowserChunk("account-1", first.matchId, 0, body))
+                root.resolve("retained.bin").writeBytes(ByteArray((64 * 1024 - store.health().bytesUsed).toInt()))
+                store.cleanup()
+                val before = root.listFiles()!!.associate { it.name to it.readBytes() }
+                assertEquals(64L * 1024, store.health().bytesUsed)
+                assertEquals(1, store.ingestBrowserChunk("account-1", first.matchId, 0, body))
+                val next =
+                    first.copy(events = listOf(first.events.single().copy(seq = 2)), status = first.status.copy(reportId = "report-2"))
+                assertFailsWith<ReplayStorageCapacityExceeded> {
+                    store.ingestBrowserChunk(
+                        "account-1",
+                        first.matchId,
+                        1,
+                        Json.encodeToString(ReplayBundle.serializer(), next).toByteArray(),
+                    )
+                }
+                assertEquals(before.keys, root.listFiles()!!.map { it.name }.toSet())
+                before.forEach { (name, bytes) -> assertContentEquals(bytes, root.resolve(name).readBytes(), name) }
+                assertEquals(64L * 1024, store.health().bytesUsed)
+                val retained = assertNotNull(store.export(first.matchId))
+                assertEquals(listOf(1L), retained.events.map { it.seq })
+                assertEquals("report-1", retained.status.reportId)
+                assertEquals("account-1", retained.context?.accountId)
+            }
+        }
+
     @Test
     fun `limited browser chunks and full uploads preserve format and authenticated owner`() =
         runBlocking<Unit> {
@@ -271,7 +305,7 @@ class MatchReplayStoreTest {
             assertTrue(bytes.size < 64 * 1024)
             assertEquals(
                 "Replay storage quota is exhausted",
-                assertFailsWith<IllegalArgumentException> {
+                assertFailsWith<ReplayStorageCapacityExceeded> {
                     store.ingestBrowser("account-1", bundle.matchId, "${bundle.matchId}:full", bytes)
                 }.message,
             )
