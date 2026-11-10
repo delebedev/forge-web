@@ -19,6 +19,9 @@ import io.ktor.server.routing.routing
 import io.ktor.server.testing.testApplication
 import io.ktor.utils.io.ByteReadChannel
 import java.nio.file.Files
+import java.time.Clock
+import java.time.Instant
+import java.time.ZoneId
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -26,6 +29,80 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 class BrowserReplayRoutesTest {
+    @Test
+    fun `total capacity rejection retries identical commander chunk after retention cleanup`() =
+        testApplication {
+            val root = Files.createTempDirectory("replay-capacity-route").toFile()
+            val retained = root.resolve("old.ndjson")
+            val header = """{"kind":"header","timeMs":0}
+"""
+            retained.writeText(header + " ".repeat(64 * 1024 - header.length))
+            var now = Instant.EPOCH
+            val clock =
+                object : Clock() {
+                    override fun getZone(): ZoneId = ZoneId.of("UTC")
+
+                    override fun withZone(zone: ZoneId): Clock = this
+
+                    override fun instant(): Instant = now
+                }
+            val store = MatchReplayStore(MatchReplayConfig(root, "token", maxBytes = 64 * 1024, maxMatchBytes = 64 * 1024), clock)
+            val auth = auth()
+            val session = assertNotNull(auth.guestSession())
+            val id = "browser-11111111-1111-4111-8111-111111111111"
+            val body = assertNotNull(javaClass.getResource("/replay/commander-first-chunk.json")).readText()
+            application {
+                installHttpErrorHandling(auth)
+                routing { route("/api") { installBrowserReplayRoutes(auth, store) } }
+            }
+
+            suspend fun send(payload: String = body) =
+                client.post("/api/browser-replays/$id/chunks") {
+                    header(HttpHeaders.Cookie, "web_session=${session.token}")
+                    header("X-Replay-After-Seq", "0")
+                    setBody(payload)
+                }
+
+            suspend fun artifact() =
+                client.post("/api/browser-replays/$id") {
+                    header(HttpHeaders.Cookie, "web_session=${session.token}")
+                    header("X-Replay-Artifact", "$id:feedback")
+                    setBody(body)
+                }
+            try {
+                val blocked = send()
+                assertEquals(HttpStatusCode.ServiceUnavailable, blocked.status, blocked.bodyAsText())
+                assertEquals("60", blocked.headers[HttpHeaders.RetryAfter])
+                assertEquals("no-store", blocked.headers[HttpHeaders.CacheControl])
+                assertEquals("Replay storage quota is exhausted", blocked.bodyAsText())
+                val artifactBlocked = artifact()
+                assertEquals(HttpStatusCode.ServiceUnavailable, artifactBlocked.status)
+                assertEquals("60", artifactBlocked.headers[HttpHeaders.RetryAfter])
+                assertEquals(null, store.export(id))
+                assertEquals(listOf("old.ndjson"), root.listFiles()!!.map { it.name })
+                assertEquals(64L * 1024, store.health().bytesUsed)
+                assertEquals(HttpStatusCode.BadRequest, send(body.replace("commander", "unknown")).status)
+                now = now.plusSeconds(8 * 86_400)
+                store.cleanup()
+                assertTrue(!retained.exists())
+                val accepted = send()
+                assertEquals(HttpStatusCode.OK, accepted.status, accepted.bodyAsText())
+                assertEquals("2", accepted.bodyAsText())
+                assertEquals("2", send().bodyAsText(), "Identical uncertain-commit retry is idempotent")
+                val exported = assertNotNull(store.export(id))
+                assertEquals(listOf(1L, 2L), exported.events.map { it.seq })
+                assertEquals(1, exported.batches.size)
+                assertEquals(1, exported.responses.size)
+                assertEquals("commander", exported.context?.gameType)
+                assertEquals(session.player.playerId, exported.context?.accountId)
+                assertTrue(!exported.status.complete)
+                assertEquals(HttpStatusCode.Created, artifact().status)
+                assertEquals(HttpStatusCode.Conflict, artifact().status)
+            } finally {
+                store.close()
+            }
+        }
+
     @Test
     fun `trusted forwarded addresses distinguish independent players sharing the edge connection`() {
         for (trustForwarding in listOf(false, true)) {
