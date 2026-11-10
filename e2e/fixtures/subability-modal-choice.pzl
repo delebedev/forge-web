@@ -1,0 +1,25 @@
+# Design Narrative
+# Mechanic: Discover named GenericChoice modes reached through SubAbility.
+# Forcing: Casting Dance with Calamity must publish its two real choices.
+# AI behavior: No opposing permanents or hand cards affect resolution.
+# Failure modes: Missing catalog modes terminate the match; successful decline
+# leaves one exiled card, the resolved sorcery in the graveyard, and priority.
+# Card roles: Eight Mountains pay for Dance; identical library Ornithopters make
+# the shuffled first exile deterministic. The hand Ornithopter keeps priority live.
+# Protocol path: Cast, CastingTimeOptionsReq, Repeat optional, Play optional, priority.
+[metadata]
+Name:Subability modal choice
+Goal:Survive
+Turns:5
+Difficulty:Easy
+Description:Exile one card with Dance with Calamity, stop repeating, then decline to cast it.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanhand=Dance with Calamity;Ornithopter
+humanbattlefield=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humanlibrary=Ornithopter;Ornithopter;Ornithopter;Ornithopter;Ornithopter
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
