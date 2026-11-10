@@ -279,6 +279,46 @@ class PresentationTest {
         }
 
     @Test
+    fun `common import headings retain zones and omit maybeboard cards`() =
+        testApplication {
+            application { installServer(testServices()) }
+            val text =
+                """
+                Commander:
+                1 Lightning Bolt
+                [Mainboard]:
+                Lands
+                2 Mountain
+                Sideboard:
+                [Instants]
+                3 Lightning Bolt
+                Maybeboard
+                1 Not In Catalog
+                """.trimIndent()
+            val request = Json.encodeToString(mapOf("text" to text))
+            val imported =
+                client.post("/api/cards/parse-decklist") {
+                    contentType(ContentType.Application.Json)
+                    setBody(request)
+                }
+
+            assertEquals(200, imported.status.value)
+            val body = Json.decodeFromString<ParseDecklistResponse>(imported.bodyAsText())
+            assertEquals(listOf(1 to 2), body.mainboard.map { it.grpId to it.quantity })
+            assertEquals(listOf(2 to 3), body.sideboard.map { it.grpId to it.quantity })
+            assertEquals(listOf(2 to 1), body.commandZone.map { it.grpId to it.quantity })
+
+            for (invalid in listOf("[Collection]\n1 Mountain", "Mainboard:\n0 Mountain")) {
+                val rejected =
+                    client.post("/api/cards/parse-decklist") {
+                        contentType(ContentType.Application.Json)
+                        setBody(Json.encodeToString(mapOf("text" to invalid)))
+                    }
+                assertEquals(400, rejected.status.value)
+            }
+        }
+
+    @Test
     fun `catalog aliases search and import through the primary identity`() =
         testApplication {
             val delegate = testCards()
