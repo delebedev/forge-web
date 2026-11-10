@@ -237,6 +237,52 @@ demoTest('browser Outpost Siege choice resolves and play continues', async ({ pa
 })
 
 demoTest(
+  'browser subability choice exiles one card and declines casting without closing',
+  async ({ page }, testInfo) => {
+    demoTest.setTimeout(240_000)
+    await page.addInitScript(() =>
+      localStorage.setItem('forge:gre:priority-flag:hideCardArt', 'true'),
+    )
+    await authenticate(page)
+    await startScenario(page, 'subability-modal-choice', 'browser', 42)
+    const release = await (await page.request.get('/browser-engine/release.json')).json()
+    writeFileSync(testInfo.outputPath('served-release.json'), JSON.stringify(release))
+    await runSteps(page, [
+      { cast: 'Dance with Calamity' },
+      { pass_until: { prompt: 'CastingTimeOptionsReq' } },
+    ])
+    const prompt = page.locator('[data-prompt]')
+    await expect(prompt.getByRole('button', { name: /As many times as you choose/ })).toBeVisible()
+    await expect(
+      prompt.getByRole('button', { name: /you may cast any number of spells/ }),
+    ).toBeVisible()
+    readyForVideo.add(page)
+    await page.screenshot({ path: testInfo.outputPath('subability-choice.png') })
+    await runGreAcceptanceSteps(page, {
+      steps: [{ modal_choice: { index: 0 } }, { pass_until: { prompt: 'OptionalActionMessage' } }],
+    })
+    expect((await page.evaluate(() => window.__greState()!)).counts.you.exile).toBe(1)
+    await resolveTo(
+      page,
+      { zone_contains: { side: 'ours', zone: 'graveyard', card: 'Dance with Calamity' } },
+      () =>
+        runGreAcceptanceSteps(page, {
+          steps: [{ optional_action: { accept: false } }, { optional_action: { accept: false } }],
+        }),
+    )
+    const state = await page.evaluate(() => window.__greState()!)
+    expect(state.connected).toBe(true)
+    expect(state.horizon?.kind).toBe('actions')
+    expect(state.counts.you.exile).toBe(1)
+    expect(state.counts.you.library).toBe(4)
+    expect(state.stack).toEqual([])
+    expect(state.diagnostics.errorCount).toBe(0)
+    await attachState(testInfo, 'subability-continued', state)
+    await page.screenshot({ path: testInfo.outputPath('subability-continued.png') })
+  },
+)
+
+demoTest(
   'browser Zodiark skips zero sacrifices and continues to combat',
   async ({ page }, testInfo) => {
     demoTest.setTimeout(120_000)
