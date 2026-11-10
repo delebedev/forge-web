@@ -66,6 +66,12 @@ truncated prefix leaves an incomplete replay; client-supplied events are not
 proof that the engine accepted a submitted action. Public browser challenges
 do not upload journals.
 
+Total storage capacity rejection returns 503 with a 60-second `Retry-After`,
+so the existing bounded delivery retry can recover when retention frees space.
+Per-match limits and invalid payload, ownership, or sequence rejections remain
+permanent. Capacity rejection does not evict retained journals or acknowledge
+uncommitted events.
+
 Historical server lifecycle rows remain stored unchanged. The product no longer
 creates, completes or recovers server match outcomes during startup.
 

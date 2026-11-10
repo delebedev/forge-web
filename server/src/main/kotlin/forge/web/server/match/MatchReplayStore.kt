@@ -37,6 +37,8 @@ internal data class ReplayStorageHealth(
     val maxBytes: Long,
 )
 
+internal class ReplayStorageCapacityExceeded : IllegalStateException("Replay storage quota is exhausted")
+
 internal class MatchReplayStore(
     private val config: MatchReplayConfig,
     private val clock: Clock = Clock.systemUTC(),
@@ -225,7 +227,7 @@ internal class MatchReplayStore(
         reportId?.let { writes[pinFile(matchId)] = pinBytes(it) }
         // The legacy copy occupies quota until its removal succeeds.
         val delta = writes.entries.sumOf { (file, bytes) -> bytes.size - file.length() }
-        require(lastMeasuredBytesUsed + delta <= config.maxBytes) { "Replay storage quota is exhausted" }
+        if (lastMeasuredBytesUsed + delta > config.maxBytes) throw ReplayStorageCapacityExceeded()
         var committed = false
         try {
             writes.forEach { (file, bytes) ->
