@@ -193,7 +193,7 @@ export function Card({
           ))}
         </span>
       )}
-      {!card.faceDown && card.powerToughness && (
+      {card.powerToughness && (
         <span className={styles.tilePt} data-pt={card.powerToughness}>
           {card.powerToughness}
         </span>
@@ -237,7 +237,7 @@ export function Card({
       {showFullText && !card.faceDown && card.typeLine && (
         <span className={styles.rulesText}>{card.typeLine}</span>
       )}
-      {!card.faceDown && card.powerToughness && (
+      {card.powerToughness && (
         <span className={styles.pt} data-pt={card.powerToughness}>
           {card.powerToughness}
         </span>
