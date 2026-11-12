@@ -42,6 +42,28 @@ async function checkpoint(page: Page, info: TestInfo, label: string) {
   }
 }
 
+async function playForestAndContinue(page: Page) {
+  const before = (await visibleBoard(page)).self.filter(
+    (card) => card.name === 'Forest' && !card.faceDown,
+  ).length
+  await runGreAcceptanceSteps(page, {
+    steps: [{ play_land: 'Forest' }, { expect: { priority: 'ours' } }],
+  })
+  await expect
+    .poll(
+      async () =>
+        (await visibleBoard(page)).self.filter((card) => card.name === 'Forest' && !card.faceDown)
+          .length,
+    )
+    .toBe(before + 1)
+  await expect(
+    page
+      .getByRole('region', { name: 'Your lands', exact: true })
+      .locator('[data-card="Forest"]')
+      .first(),
+  ).toBeVisible()
+}
+
 test('manifested lands and morphed enchantments use public creature lanes without printed types', async ({
   page,
 }, info) => {
@@ -81,9 +103,7 @@ test('manifested lands and morphed enchantments use public creature lanes withou
   await expect(creatures.locator('[data-card="Grizzly Bears"]')).toBeVisible()
   await checkpoint(page, info, 'morphed-enchantment-creature')
 
-  await runGreAcceptanceSteps(page, {
-    steps: [{ play_land: 'Forest' }, { expect: { priority: 'ours' } }],
-  })
+  await playForestAndContinue(page)
   await checkpoint(page, info, 'face-down-creatures-and-land-play')
 })
 
@@ -124,9 +144,7 @@ test('Yedora returns a face-down noncreature Forest without printed creature sta
       .locator(`[data-instance-id="${forest.instanceId}"]`),
   ).toHaveCount(0)
   await expect(page.locator(`[data-instance-id="${forest.instanceId}"] [data-pt]`)).toHaveCount(0)
-  await runGreAcceptanceSteps(page, {
-    steps: [{ play_land: 'Forest' }, { expect: { priority: 'ours' } }],
-  })
+  await playForestAndContinue(page)
   await checkpoint(page, info, 'face-down-noncreature-and-land-play')
 })
 
@@ -194,9 +212,7 @@ test('a donated manifested land conceals its identity then restores the opponent
       .getByRole('region', { name: 'Opponent creatures', exact: true })
       .locator('[data-card="Grizzly Bears"]'),
   ).toBeVisible()
-  await runGreAcceptanceSteps(page, {
-    steps: [{ play_land: 'Forest' }, { expect: { priority: 'ours' } }],
-  })
+  await playForestAndContinue(page)
   await checkpoint(page, info, 'face-up-restoration-and-land-play')
 })
 
@@ -250,8 +266,6 @@ test('an offered public grant on a manifested land creates its token through the
     tapped: true,
   })
   expect(after.filter((card) => card.powerToughness === '1/1')).toHaveLength(1)
-  await runGreAcceptanceSteps(page, {
-    steps: [{ play_land: 'Forest' }, { expect: { priority: 'ours' } }],
-  })
+  await playForestAndContinue(page)
   await checkpoint(page, info, 'public-grant-token-and-land-play')
 })

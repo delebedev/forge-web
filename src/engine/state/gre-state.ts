@@ -763,12 +763,15 @@ export function cardsInZone(
         phasedOut ? [] : actions,
         cardMeta,
         source?.type === GAME_OBJECT_TYPE_EMBLEM ? source.objectSourceGrpId : source?.grpId,
+        zoneType,
       )
       if (view && phasedOut) {
         view.phasedOut = true
       }
       if (view && source && object?.type === GAME_OBJECT_TYPE_ABILITY) {
-        view.sourceCard = cardView(source, [], cardMeta) ?? undefined
+        view.sourceCard =
+          cardView(source, [], cardMeta, undefined, objectZoneType(source.instanceId, tables)) ??
+          undefined
       }
       return view
     })
@@ -789,7 +792,9 @@ export function visibleLibraryTop(
   if (!object) {
     return null
   }
-  return objectVisibleToViewer(object, viewerSeatId) ? cardView(object, actions, cardMeta) : null
+  return objectVisibleToViewer(object, viewerSeatId)
+    ? cardView(object, actions, cardMeta, undefined, ZONE_LIBRARY)
+    : null
 }
 
 function objectVisibleToViewer(object: GameObject, viewerSeatId: number): boolean {
@@ -1616,6 +1621,7 @@ function cardView(
   actions: Action[],
   cardMeta: Map<number, CardMeta>,
   sourceGrpId?: number,
+  zoneType?: number,
 ): CardView | null {
   if (!object) {
     return null
@@ -1639,7 +1645,7 @@ function cardView(
     setCode: meta?.setCode ?? undefined,
     rarity: meta?.rarity ?? undefined,
     manaCost: meta?.manaCost ?? '',
-    powerToughness: powerToughness(object, meta),
+    powerToughness: powerToughness(object, meta, zoneType),
     loyalty: meta?.loyalty ?? undefined,
     defense: meta?.defense ?? undefined,
     faceLayout: meta?.faceLayout ?? undefined,
@@ -1766,7 +1772,13 @@ export function cardViewForAction(
     return null
   }
   const grpId = action.grpId ?? object.grpId ?? 0
-  const view = cardView({ ...object, grpId }, [action], cardMeta)
+  const view = cardView(
+    { ...object, grpId },
+    [action],
+    cardMeta,
+    undefined,
+    objectZoneType(object.instanceId, tables),
+  )
   // An offered exile cast describes the inspected spell, not a concealed permanent.
   if (
     view &&
@@ -1807,8 +1819,14 @@ function currentTypeLine(object: GameObject, meta: CardMeta | undefined): string
   return types && subtypes ? `${types} — ${subtypes}` : types || subtypes
 }
 
-function powerToughness(object: GameObject, meta: CardMeta | undefined): string {
-  if (object.cardTypes != null && !object.cardTypes.includes(CARD_TYPE_CREATURE)) {
+function powerToughness(object: GameObject, meta: CardMeta | undefined, zoneType?: number): string {
+  const printedVehicle =
+    zoneType !== ZONE_BATTLEFIELD && !object.isFacedown && /\bVehicle\b/i.test(meta?.subtypes ?? '')
+  if (
+    object.cardTypes != null &&
+    !object.cardTypes.includes(CARD_TYPE_CREATURE) &&
+    !printedVehicle
+  ) {
     return ''
   }
   const power = wrappedNumber(object.power)
