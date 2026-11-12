@@ -199,3 +199,59 @@ test('a donated manifested land conceals its identity then restores the opponent
   })
   await checkpoint(page, info, 'face-up-restoration-and-land-play')
 })
+
+test('an offered public grant on a manifested land creates its token through the exact card action', async ({
+  page,
+}, info) => {
+  test.setTimeout(180000)
+  await prepare(page, 'facedown-granted-action')
+  await castSpell(page, {
+    card: 'Soul Summons',
+    until: { zone_count: { side: 'ours', zone: 'battlefield', count: 10 } },
+  })
+  const concealed = (await visibleBoard(page)).self.find((card) => card.faceDown)!
+  await resolveTo(
+    page,
+    { zone_count: { side: 'ours', zone: 'battlefield', count: 11 } },
+    async () => {
+      await cast(page, { type: 'cast', card: 'Presence of Gond' })
+      await page.locator(`[data-prompt] [data-instance-id="${concealed.instanceId}"]`).click()
+    },
+  )
+  const offered = await page.evaluate(async (iid) => {
+    const path = '/src/engine/runtime/gre-store.ts'
+    const { greStore } = await import(path)
+    return greStore
+      .snapshot()
+      .legalActions.filter(
+        (action: { instanceId: number; actionType: number }) =>
+          action.instanceId === iid && action.actionType === 2,
+      )
+  }, concealed.instanceId)
+  expect(offered).toHaveLength(1)
+  expect(offered[0].uniqueAbilityId).toBeGreaterThan(0)
+  await info.attach('selected-public-grant', {
+    body: JSON.stringify(offered),
+    contentType: 'application/json',
+  })
+  await resolveTo(
+    page,
+    { zone_count: { side: 'ours', zone: 'battlefield', count: 12 } },
+    async () => {
+      await page
+        .getByRole('region', { name: 'Your creatures', exact: true })
+        .locator(`[data-instance-id="${concealed.instanceId}"]`)
+        .click()
+    },
+  )
+  const after = (await visibleBoard(page)).self
+  expect(after.find((card) => card.instanceId === concealed.instanceId)).toMatchObject({
+    faceDown: true,
+    tapped: true,
+  })
+  expect(after.filter((card) => card.powerToughness === '1/1')).toHaveLength(1)
+  await runGreAcceptanceSteps(page, {
+    steps: [{ play_land: 'Forest' }, { expect: { priority: 'ours' } }],
+  })
+  await checkpoint(page, info, 'public-grant-token-and-land-play')
+})
