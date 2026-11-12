@@ -288,6 +288,9 @@ export type GameObject = {
   controllerSeatId?: number
   isTapped?: boolean
   isFacedown?: boolean
+  cardTypes?: number[]
+  superTypes?: number[]
+  subtypes?: number[]
   power?: { value?: number }
   toughness?: { value?: number }
   attackState?: number
@@ -605,6 +608,7 @@ export const ANNOTATION_OBJECT_ID_CHANGED = 13
  * situation from a card whose metadata has not arrived yet.
  */
 export const GAME_OBJECT_TYPE_ABILITY = 3
+const CARD_TYPE_CREATURE = 2
 export const GAME_OBJECT_TYPE_EMBLEM = 4
 export const GAME_OBJECT_TYPE_TRIGGER_HOLDER = 9
 export const GAME_OBJECT_TYPE_CARD = 1
@@ -1631,7 +1635,7 @@ function cardView(
       meta?.name ??
       sourceMeta?.name ??
       (object.type === GAME_OBJECT_TYPE_ABILITY ? 'Ability' : 'Card'),
-    typeLine: object.type === GAME_OBJECT_TYPE_ABILITY ? 'Ability' : typeLine(meta),
+    typeLine: object.type === GAME_OBJECT_TYPE_ABILITY ? 'Ability' : currentTypeLine(object, meta),
     setCode: meta?.setCode ?? undefined,
     rarity: meta?.rarity ?? undefined,
     manaCost: meta?.manaCost ?? '',
@@ -1668,7 +1672,7 @@ function cardView(
       (a) => a.actionType === ACTION_ACTIVATE && a.instanceId === object.instanceId,
     ),
     controllerSeatId: object.controllerSeatId ?? object.ownerSeatId ?? 0,
-    keywords: meta?.keywords ?? [],
+    keywords: object.isFacedown ? [] : (meta?.keywords ?? []),
     mechanicHelp: meta?.mechanicHelp ?? [],
     roomDoors: isRoom(meta)
       ? linkedFaces?.slice(0, 2).map((face) => {
@@ -1762,7 +1766,18 @@ export function cardViewForAction(
     return null
   }
   const grpId = action.grpId ?? object.grpId ?? 0
-  return cardView({ ...object, grpId }, [action], cardMeta)
+  const view = cardView({ ...object, grpId }, [action], cardMeta)
+  // An offered exile cast describes the inspected spell, not a concealed permanent.
+  if (
+    view &&
+    action.actionType === ACTION_CAST &&
+    objectZoneType(object.instanceId, tables) === ZONE_EXILE
+  ) {
+    const inspected = { ...object, isFacedown: false }
+    view.typeLine = currentTypeLine(inspected, cardMeta.get(grpId))
+    view.powerToughness = powerToughness(inspected, cardMeta.get(grpId))
+  }
+  return view
 }
 
 function typeLine(meta: CardMeta | undefined): string {
@@ -1774,11 +1789,35 @@ function typeLine(meta: CardMeta | undefined): string {
   return types || subtypes
 }
 
+/** Live public characteristics take precedence over the underlying printed face. */
+function currentTypeLine(object: GameObject, meta: CardMeta | undefined): string {
+  if (object.cardTypes == null) {
+    return object.isFacedown ? '' : typeLine(meta)
+  }
+  const names = (kind: string, values: number[] = []) =>
+    values
+      .map((value) => enumName(kind, value))
+      .filter((name) => name != null)
+      .map(displayEnumName)
+  const types = [
+    ...names('SuperType', object.superTypes),
+    ...names('CardType', object.cardTypes),
+  ].join(' ')
+  const subtypes = names('SubType', object.subtypes).join(' ')
+  return types && subtypes ? `${types} — ${subtypes}` : types || subtypes
+}
+
 function powerToughness(object: GameObject, meta: CardMeta | undefined): string {
+  if (object.cardTypes != null && !object.cardTypes.includes(CARD_TYPE_CREATURE)) {
+    return ''
+  }
   const power = wrappedNumber(object.power)
   const toughness = wrappedNumber(object.toughness)
   if (power != null || toughness != null) {
     return `${power ?? ''}/${toughness ?? ''}`
+  }
+  if (object.isFacedown) {
+    return ''
   }
   if (!meta?.power && !meta?.toughness) {
     return ''

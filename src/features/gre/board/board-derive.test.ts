@@ -97,6 +97,15 @@ test('artifact creatures stay with the creatures', () => {
   expect(lanes.permanents).toHaveLength(0)
 })
 
+test('printed basic-land names cannot override current creature types', () => {
+  const creature = permanent('Forest', { typeLine: 'Creature', faceDown: true })
+  const forest = permanent('Grizzly Bears', { typeLine: 'Land — Forest', faceDown: true })
+  const lanes = lanesOf([creature, forest])
+  expect(lanes.creatures).toEqual([creature])
+  expect(lanes.lands).toEqual([forest])
+  expect(lanes.permanents).toEqual([])
+})
+
 test('noncreature permanents sort away from lands and creatures', () => {
   const lanes = lanesOf([
     permanent('Forest'),

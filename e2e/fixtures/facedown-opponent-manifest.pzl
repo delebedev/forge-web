@@ -1,0 +1,16 @@
+[metadata]
+Name:Opponent face-down identity
+Goal:Survive
+Turns:5
+Difficulty:Easy
+Description:Manifest a land, Donate it to the opponent, reveal it with Break Open, then play a land.
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanbattlefield=Plains;Plains;Plains;Plains;Island;Island;Island;Island;Mountain;Mountain;Mountain;Mountain
+humanhand=Soul Summons;Donate;Break Open;Forest;Ornithopter
+humanlibrary=Island;Forest;Forest;Forest;Forest
+aibattlefield=Grizzly Bears
+ailibrary=Island;Swamp;Swamp;Swamp;Swamp
