@@ -27,6 +27,7 @@ import {
   attackCandidateView,
   blockCandidateView,
   cardsInZone,
+  cardViewForAction,
   damageAssignerCandidateView,
   groupCandidateView,
   groupSpecView,
@@ -48,6 +49,148 @@ import {
 function emptyTables(): GreTables {
   return { objects: new Map(), zones: new Map(), players: new Map() }
 }
+
+test('current face-down types replace printed land and enchantment characteristics', () => {
+  const tables = applyGsmToTables(emptyTables(), {
+    zones: [{ zoneId: 28, type: ZONE_BATTLEFIELD, objectInstanceIds: [100, 101] }],
+    gameObjects: [
+      {
+        instanceId: 100,
+        grpId: 10,
+        zoneId: 28,
+        ownerSeatId: 1,
+        cardTypes: [2],
+        isFacedown: true,
+        power: { value: 2 },
+        toughness: { value: 2 },
+      },
+      {
+        instanceId: 101,
+        grpId: 11,
+        zoneId: 28,
+        ownerSeatId: 1,
+        cardTypes: [2],
+        isFacedown: true,
+        power: { value: 2 },
+        toughness: { value: 2 },
+      },
+    ],
+  })
+  const meta = new Map<number, CardMeta>([
+    [10, { grpId: 10, name: 'Forest', types: 'Basic Land', subtypes: 'Forest' }],
+    [11, { grpId: 11, name: 'Lumithread Field', types: 'Enchantment' }],
+  ])
+  const cards = cardsInZone(tables, ZONE_BATTLEFIELD, 1, [], meta)
+  expect(cards.map((card) => card.typeLine)).toEqual(['Creature', 'Creature'])
+  expect(cards.map((card) => card.powerToughness)).toEqual(['2/2', '2/2'])
+})
+
+test('a face-down noncreature uses public land types without printed creature stats', () => {
+  const tables = applyGsmToTables(emptyTables(), {
+    zones: [{ zoneId: 28, type: ZONE_BATTLEFIELD, objectInstanceIds: [100] }],
+    gameObjects: [
+      {
+        instanceId: 100,
+        grpId: 10,
+        zoneId: 28,
+        ownerSeatId: 1,
+        cardTypes: [5],
+        subtypes: [29],
+        isFacedown: true,
+      },
+    ],
+  })
+  const meta = new Map<number, CardMeta>([
+    [
+      10,
+      {
+        grpId: 10,
+        name: 'Grizzly Bears',
+        types: 'Creature',
+        subtypes: 'Bear',
+        power: '2',
+        toughness: '2',
+      },
+    ],
+  ])
+  const card = cardsInZone(tables, ZONE_BATTLEFIELD, 1, [], meta)[0]!
+  expect(card.typeLine).toBe('Land — Forest')
+  expect(card.powerToughness).toBe('')
+})
+
+test('face-up refresh restores current types and older metadata-only objects remain readable', () => {
+  let tables = applyGsmToTables(emptyTables(), {
+    zones: [{ zoneId: 28, type: ZONE_BATTLEFIELD, objectInstanceIds: [100, 101] }],
+    gameObjects: [
+      {
+        instanceId: 100,
+        grpId: 10,
+        zoneId: 28,
+        ownerSeatId: 1,
+        cardTypes: [2],
+        isFacedown: true,
+        power: { value: 2 },
+        toughness: { value: 2 },
+      },
+      { instanceId: 101, grpId: 11, zoneId: 28, ownerSeatId: 1 },
+    ],
+  })
+  const meta = new Map<number, CardMeta>([
+    [10, { grpId: 10, name: 'Lumithread Field', types: 'Enchantment' }],
+    [11, { grpId: 11, name: 'Forest', types: 'Basic Land', subtypes: 'Forest' }],
+  ])
+  tables = applyGsmToTables(tables, {
+    gameObjects: [{ instanceId: 100, grpId: 10, zoneId: 28, ownerSeatId: 1, cardTypes: [3] }],
+  })
+  const cards = cardsInZone(tables, ZONE_BATTLEFIELD, 1, [], meta)
+  expect(cards[0]).toMatchObject({ typeLine: 'Enchantment', faceDown: false, powerToughness: '' })
+  expect(cards[1]?.typeLine).toBe('Basic Land — Forest')
+})
+
+test('Vehicle inspection keeps printed stats while battlefield stats follow creature state', () => {
+  const tables = applyGsmToTables(emptyTables(), {
+    zones: [
+      { zoneId: 31, type: ZONE_HAND, ownerSeatId: 1, objectInstanceIds: [100] },
+      { zoneId: 27, type: ZONE_STACK, objectInstanceIds: [101] },
+      { zoneId: 28, type: ZONE_BATTLEFIELD, objectInstanceIds: [102, 103] },
+    ],
+    gameObjects: [
+      { instanceId: 100, grpId: 10, zoneId: 31, ownerSeatId: 1, cardTypes: [1] },
+      { instanceId: 101, grpId: 10, zoneId: 27, ownerSeatId: 1, cardTypes: [1] },
+      { instanceId: 102, grpId: 10, zoneId: 28, ownerSeatId: 1, cardTypes: [1] },
+      {
+        instanceId: 103,
+        grpId: 10,
+        zoneId: 28,
+        ownerSeatId: 1,
+        cardTypes: [1, 2],
+        power: { value: 6 },
+        toughness: { value: 6 },
+      },
+    ],
+  })
+  const meta = new Map<number, CardMeta>([
+    [
+      10,
+      {
+        grpId: 10,
+        name: 'Test Vehicle',
+        types: 'Artifact',
+        subtypes: 'Vehicle',
+        power: '3',
+        toughness: '3',
+      },
+    ],
+  ])
+  expect(cardsInZone(tables, ZONE_HAND, 1, [], meta)[0]?.powerToughness).toBe('3/3')
+  expect(cardsInZone(tables, ZONE_STACK, 1, [], meta)[0]?.powerToughness).toBe('3/3')
+  expect(
+    cardViewForAction({ instanceId: 100, actionType: ACTION_CAST }, tables, meta)?.powerToughness,
+  ).toBe('3/3')
+  expect(
+    cardsInZone(tables, ZONE_BATTLEFIELD, 1, [], meta).map((card) => card.powerToughness),
+  ).toEqual(['', '6/6'])
+})
 
 test('Full GSM builds opening hand selectors', () => {
   const tables = applyGsmToTables(emptyTables(), {

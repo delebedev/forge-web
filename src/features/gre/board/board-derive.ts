@@ -7,10 +7,8 @@
 import type { CardView } from '@engine/state/gre-state'
 import type { BoardSnapshot } from '@engine/runtime/snapshot'
 
-const BASIC_LAND_NAMES = new Set(['Plains', 'Island', 'Swamp', 'Mountain', 'Forest', 'Wastes'])
-
 export function isLand(card: CardView): boolean {
-  return /\bland\b/i.test(card.typeLine ?? '') || BASIC_LAND_NAMES.has(card.name)
+  return /\bland\b/i.test(card.typeLine ?? '')
 }
 
 /** Artifact creatures count: they attack and block, so they lane with creatures. */
