@@ -1844,7 +1844,8 @@ function powerToughness(object: GameObject, meta: CardMeta | undefined, zoneType
 }
 
 function wrappedNumber(value: { value?: number } | undefined): number | null {
-  return typeof value?.value === 'number' ? value.value : null
+  // A present protobuf wrapper can omit its default zero scalar.
+  return value == null ? null : (value.value ?? 0)
 }
 
 function actionLabel(
