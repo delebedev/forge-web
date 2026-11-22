@@ -1072,6 +1072,34 @@ test('Card selectors prefer dynamic power and toughness over card metadata', () 
   ).toBe('2/3')
 })
 
+test.each([
+  ['zero power', { power: {}, toughness: { value: 2 } }, undefined, '0/2'],
+  ['zero toughness', { power: { value: 2 }, toughness: {} }, undefined, '2/0'],
+  ['both zero', { power: {}, toughness: {} }, undefined, '0/0'],
+  ['explicit zero', { power: { value: 0 }, toughness: { value: 0 } }, undefined, '0/0'],
+  ['negative values', { power: { value: -1 }, toughness: { value: -2 } }, undefined, '-1/-2'],
+  ['missing values', {}, undefined, ''],
+  ['metadata fallback', {}, { grpId: 900, power: '3', toughness: '4' }, '3/4'],
+  ['zero metadata fallback', {}, { grpId: 900, power: '0', toughness: '0' }, '0/0'],
+  [
+    'zero overrides metadata',
+    { power: {}, toughness: {} },
+    { grpId: 900, power: '3', toughness: '4' },
+    '0/0',
+  ],
+  ['missing toughness stays missing', { power: {} }, { grpId: 900, toughness: '4' }, '0/'],
+  ['missing power stays missing', { toughness: {} }, { grpId: 900, power: '3' }, '/0'],
+] as const)('Card selectors preserve numeric wrapper presence: %s', (_, stats, meta, expected) => {
+  const tables = applyGsmToTables(emptyTables(), {
+    zones: [{ zoneId: 20, type: ZONE_BATTLEFIELD, objectInstanceIds: [500] }],
+    gameObjects: [{ instanceId: 500, grpId: 900, zoneId: 20, ownerSeatId: 1, ...stats }],
+  })
+  expect(
+    cardsInZone(tables, ZONE_BATTLEFIELD, 1, [], new Map(meta ? [[900, meta]] : []))[0]
+      ?.powerToughness,
+  ).toBe(expected)
+})
+
 test('stack abilities use source card metadata without changing ability identity', () => {
   const tables = applyGsmToTables(emptyTables(), {
     zones: [{ zoneId: 40, type: ZONE_STACK, ownerSeatId: 0, objectInstanceIds: [301] }],
