@@ -29,3 +29,23 @@ requests. A rebalanced card renders its original illustration beside rebalanced
 face copy. A missing indexed identity remains playable without an image. The
 standalone browser build contains the same verified asset and needs no product
 server for image lookup.
+
+## Refresh
+
+`scripts/build-card-image-index.py` regenerates
+`server/src/main/resources/card-images.sqlite` from Scryfall's public
+`oracle-cards` bulk data. Run it when a set releases and its cards have no
+image:
+
+```bash
+python3 scripts/build-card-image-index.py
+python3 -m unittest scripts/test_build_card_image_index.py
+bun run browser:assets
+```
+
+One `(name, is_token)` artwork identity per card name, newest printing first,
+with face names indexed as well. `metadata` records the bulk file's URI and
+`updated_at` alongside the schema version, so a stale index is traceable. The
+file stays around 6 MB; regenerating after a set release adds a few hundred
+rows, and a five-fold jump means the generator indexed something it should not
+have.

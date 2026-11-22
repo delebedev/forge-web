@@ -95,6 +95,18 @@ class CardProjectorTest {
     }
 
     @Test
+    fun `split face identity is not a token`() {
+        val parent = assertNotNull(cards.findGrpIdByName("Fire // Ice"))
+        val faces = cards.findLinkedFaces(parent)
+        assertTrue(faces.isNotEmpty())
+        for (face in faces) {
+            val meta = cards.cardPresentation(face)
+            assertEquals(cards.findNameByGrpId(face), meta.name)
+            assertFalse(meta.isToken, meta.name.orEmpty())
+        }
+    }
+
+    @Test
     fun `inspected linked face retains its own rules and layout`() {
         val front = cards.cardPresentation(assertNotNull(cards.findGrpIdByName("Delver of Secrets")))
         val back = cards.cardPresentation(assertNotNull(cards.findGrpIdByNameAnyFace("Insectile Aberration")))

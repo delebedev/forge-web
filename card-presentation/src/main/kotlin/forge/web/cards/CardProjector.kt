@@ -19,12 +19,11 @@ fun CardRepository.cardPresentation(
 ): GreCardMetaDto {
     val data = findByGrpId(grpId)
     val name = findNameByGrpId(grpId)
-    val isToken =
-        name != null && (
-            name.endsWith(" Token") ||
-                (this is ForgeCardRepository && findGrpIdByNameAnyFace(name) != grpId) ||
-                (findTokenGrpIdByName(name) == grpId && findGrpIdByName(name) != grpId)
-        )
+    // A token identity is a distinct catalog identity for a token name. Name
+    // resolution cannot stand in for it: a split or modal face whose name has no
+    // unique parent resolves to no card at all, and copying a spell reuses the
+    // printed card's identity.
+    val isToken = name != null && (name.endsWith(" Token") || findTokenGrpIdByName(name) == grpId)
     // Catalog identities represent definitions, so use Forge's preferred printing for display.
     val printing =
         if (this is ForgeCardRepository && !isToken) {
