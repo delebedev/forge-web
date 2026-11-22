@@ -61,9 +61,11 @@ valid review.
 - **State ownership.** A second writer for a store field, a component that
   launches games or sends frames itself, or a GRE mutation that does not
   publish through the external-store boundary.
-- **Twins that drift.** One side of a matched pair changes without the other:
-  encode and decode, request and response, the Kotlin HTTP contract and its
-  generated client types, the table model and its migration.
+- **Twins that drift.** A change breaks the contract a matched pair shares and
+  leaves the counterpart behind: encode and decode, request and response, the
+  Kotlin HTTP contract and its generated client types, the table model and its
+  migration. A one-sided change that keeps or restores the shared contract is
+  fine.
 - **Unsafe persistence.** An edited migration that may already have run, or a
   schema change without its new migration.
 - **Privacy and public content.** Credentials, customer identifiers, personal
@@ -145,6 +147,7 @@ simpler or harder to change if the next hundred changes followed this pattern.
   unintended change.
 - Generated or third-party content: `src/shared/api/types.ts`,
   `src/shared/api/wire-schemas.ts`, `src/engine/generated/`,
-  `*.module.css.d.ts`, `bun.lock`, and `leyline/` submodule internals (review
-  only the pin change and its stated reason).
+  `*.module.css.d.ts`, and `leyline/` submodule internals (review only the pin
+  change and its stated reason). Review `bun.lock` only for dependency changes
+  the manifest does not explain.
 - Who or what wrote the code. Judge the change, not its authorship.
