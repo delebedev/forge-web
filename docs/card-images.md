@@ -63,11 +63,19 @@ bun run browser:assets
 `bun run cards:index` downloads the current Oracle bulk file, streams it, and
 rewrites `server/src/main/resources/card-images.sqlite` atomically. To reuse an
 already-downloaded file instead of downloading again, pass `--input` with a
-`.jsonl.gz` bulk file or a JSON array of Oracle cards:
+`.jsonl.gz` bulk file or a JSON array of Oracle cards, plus the export's own
+publication date:
 
 ```bash
-bun scripts/build-card-image-index.ts --input /path/oracle-cards.jsonl.gz
+bun scripts/build-card-image-index.ts --input /path/oracle-cards-20261122220157.jsonl.gz \
+  --source-updated-at 2026-11-22T22:01:57.207+00:00
 ```
+
+A local copy's mtime says when the file was written, not when Scryfall published
+it, so `--source-updated-at` is required with `--input`. Take it from
+`api.scryfall.com/bulk-data/oracle-cards` (`updated_at`) or from the bulk file's
+own filename; never from a copy made today of an older export. `--source-uri`
+records the Scryfall download URI when it differs from the local path.
 
 `bun run browser:assets` then rebuilds the browser catalog, image map and
 release manifest from the new file.

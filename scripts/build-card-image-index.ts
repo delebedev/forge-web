@@ -7,7 +7,7 @@
  * [docs/card-images.md](../docs/card-images.md).
  */
 import { Database } from 'bun:sqlite'
-import { mkdirSync, readFileSync, renameSync, rmSync, statSync } from 'node:fs'
+import { mkdirSync, readFileSync, renameSync, rmSync } from 'node:fs'
 import { createReadStream } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { createInterface } from 'node:readline'
@@ -196,6 +196,14 @@ function option(name: string): string | undefined {
   return index === -1 ? undefined : process.argv[index + 1]
 }
 
+function requireOption(name: string, companion: string): string {
+  const value = option(name)
+  if (value === undefined) {
+    throw new Error(`${name} is required with ${companion}`)
+  }
+  return value
+}
+
 /** A local bulk file is either gzip-compressed JSON Lines or a JSON array. */
 function localCards(path: string): Iterable<unknown> | AsyncIterable<unknown> {
   if (path.endsWith('.gz')) {
@@ -234,8 +242,10 @@ async function main(): Promise<void> {
     cards = jsonLines(Readable.from(response.body as AsyncIterable<Uint8Array>))
   } else {
     const path = resolve(input)
-    sourceUri = path
-    sourceUpdatedAt = statSync(path).mtime.toISOString().replace('Z', '+00:00')
+    // A local copy's mtime says when it was written, not when Scryfall published
+    // it, so the export's own date has to be supplied rather than inferred.
+    sourceUpdatedAt = requireOption('--source-updated-at', '--input')
+    sourceUri = option('--source-uri') ?? path
     cards = localCards(path)
   }
 
