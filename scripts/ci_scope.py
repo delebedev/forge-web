@@ -8,8 +8,14 @@ ASSET_SUFFIXES = {'.css', '.svg', '.png', '.jpg', '.jpeg', '.webp', '.gif', '.ic
                   '.woff', '.woff2', '.ttf', '.otf', '.eot'}
 
 
+# Markdown that a build, test or release step reads stays on the full path.
+MARKDOWN_INPUTS = ('scripts/', 'src/', 'public/')
+
+
 def ui_only(path):
     if path.startswith(('docs/', '.storybook/')):
+        return True
+    if path.endswith('.md') and not path.startswith(MARKDOWN_INPUTS):
         return True
     if path.startswith('src/') and path.endswith(('.d.ts', '.test.ts', '.test.tsx',
                                                 '.stories.ts', '.stories.tsx')):
