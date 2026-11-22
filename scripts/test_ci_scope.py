@@ -11,7 +11,8 @@ class CiScopeTest(unittest.TestCase):
         for path in ['src/ui/Board.module.css', 'src/ui/Board.module.css.d.ts',
                      'src/engine/runtime/gre-store.test.ts', 'src/ui/Board.stories.tsx',
                      'src/shared/Card.test.tsx', 'public/icon.svg', 'docs/architecture.md',
-                     '.storybook/preview.ts']:
+                     '.storybook/preview.ts', 'README.md', 'e2e/AGENTS.md',
+                     '.github/pull_request_template.md']:
             with self.subTest(path=path):
                 self.assertEqual('web', ci_scope.classify_paths([path]))
         for path in ['src/engine/runtime/gre-store.ts', 'src/browser-engine/main.tsx',
@@ -19,7 +20,8 @@ class CiScopeTest(unittest.TestCase):
                      'src/new-feature.ts', 'public/challenges/bolt.pzl',
                      'public/browser-engine/release.json', 'browser-engine/web/engine-worker.js',
                      'server/src/main.kt', 'leyline', 'package.json', 'bunfig.toml',
-                     'scripts/ci_scope.py', 'index.html', 'unknown-input']:
+                     'scripts/ci_scope.py', 'index.html', 'unknown-input',
+                     'scripts/release-notes/history.md', 'public/whats-new.md']:
             with self.subTest(path=path):
                 self.assertEqual('full', ci_scope.classify_paths(['src/ui/Board.module.css', path]))
         self.assertEqual('full', ci_scope.classify_paths([]))
