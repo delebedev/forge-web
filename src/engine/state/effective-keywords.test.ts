@@ -42,6 +42,18 @@ test('unknown metadata or identity is not an empty effective set', () => {
   ).toBe(false)
 })
 
+test('an AddAbility grant makes an undeclared printed keyword follow its grant row', () => {
+  const undeclared = { ...meta, abilities: { 300124: { text: 'Other ability' } } }
+  expect(lostKeywords(object, undeclared, names)?.has('flying')).toBe(false)
+  expect(lostKeywords(object, undeclared, names, ['Flying'])?.has('flying')).toBe(true)
+  expect(
+    lostKeywords({ ...object, uniqueAbilities: [{ id: 51, grpId: 8 }] }, undeclared, names, [
+      'Flying',
+    ])?.has('flying'),
+  ).toBe(false)
+  expect(lostKeywords(object, undeclared, names, ['Flying'])?.has('vigilance')).toBe(false)
+})
+
 test('every printed keyword follows its ability row, and printed metadata stays intact', () => {
   const angel: CardMeta = {
     ...meta,

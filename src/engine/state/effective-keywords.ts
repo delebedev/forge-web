@@ -21,9 +21,9 @@ const GRANTED_NAMES = new Set([...GRANTED_KEYWORDS.values()].map((name) => name.
 /**
  * Keywords, lowercased, that the object's current ability rows no longer carry. The engine omits
  * rows an ability-removing effect hides, so the rows are the effective ability list. Undefined is
- * unknown. A printed keyword is known only through a declared ability row, and a granted keyword
- * only through its explicit grant identity or an AddAbility grant in [annotationGrants], so absence
- * is never inferred from printed text alone.
+ * unknown. A printed keyword is known through a declared ability row or an AddAbility grant of the
+ * same keyword in [annotationGrants]; a granted keyword is known through its explicit grant identity
+ * or such an AddAbility grant. Absence is never inferred from printed text alone.
  */
 export function lostKeywords(
   object: GameObject | undefined,
@@ -46,11 +46,10 @@ export function lostKeywords(
     }),
   )
   const printed = new Set(meta.keywords.map((name) => name.toLowerCase()))
-  const granted = new Set([
-    ...GRANTED_NAMES,
-    ...[...annotationGrants].map((name) => name.toLowerCase()),
-  ])
-  const known = (name: string) => (printed.has(name) ? declared.has(name) : granted.has(name))
+  const annotated = new Set([...annotationGrants].map((name) => name.toLowerCase()))
+  const granted = new Set([...GRANTED_NAMES, ...annotated])
+  const known = (name: string) =>
+    printed.has(name) ? declared.has(name) || annotated.has(name) : granted.has(name)
   return new Set(
     [...printed, ...declared, ...granted].filter((name) => known(name) && !present.has(name)),
   )
