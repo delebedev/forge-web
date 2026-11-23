@@ -108,6 +108,44 @@ test('absent grant rows defeat persistent grants and help, without mutating prin
   ).toBe(false)
 })
 
+test('an AddAbility grant named by source metadata follows its grant row', () => {
+  const source: CardMeta = {
+    grpId: 200,
+    name: 'Synthetic flanker',
+    keywords: ['Flanking'],
+    abilities: { 300001: { keyword: 'Flanking', text: 'Flanking help' } },
+  }
+  const grant = {
+    id: 1,
+    type: [9, 51],
+    affectedIds: [101],
+    details: [{ key: 'grpid', valueInt32: [300001] }],
+  }
+  const decorate = (rows: number[]) =>
+    permanentState(
+      [grant],
+      new Map([
+        [100, meta],
+        [200, source],
+      ]),
+      new Map([[101, { ...object, uniqueAbilities: rows.map((grpId, id) => ({ id, grpId })) }]]),
+    )({
+      ...object,
+      objectType: 1,
+      name: meta.name,
+      grpId: 100,
+      keywords: meta.keywords,
+      mechanicHelp: meta.mechanicHelp,
+    } as Parameters<ReturnType<typeof permanentState>>[0])
+  const kept = decorate([300001])
+  expect(kept.grantedKeywords).toEqual(['Flanking'])
+  expect(kept.mechanicHelp?.map((help) => help.keyword)).toContain('Flanking')
+  const lost = decorate([])
+  expect(lost.keywords).not.toContain('Flanking')
+  expect(lost.grantedKeywords).toEqual([])
+  expect(lost.mechanicHelp?.map((help) => help.keyword)).not.toContain('Flanking')
+})
+
 test('resync, suppression and restoration use current object authority', () => {
   const full = {
     type: 1,

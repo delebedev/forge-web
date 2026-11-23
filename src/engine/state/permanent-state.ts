@@ -115,7 +115,12 @@ export function permanentState(
           unlocked: unlockedRoomDoors.get(card.instanceId)?.has(index) === true,
         })),
       },
-      lostKeywords(objects?.get(card.instanceId), cardMeta.get(card.grpId), keywordNames),
+      lostKeywords(
+        objects?.get(card.instanceId),
+        cardMeta.get(card.grpId),
+        keywordNames,
+        keywords.get(card.instanceId),
+      ),
     )
 }
 

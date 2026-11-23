@@ -23,6 +23,11 @@ test('a creature that loses all abilities drops its keyword badges and help unti
   await expect(serra.getByLabel('Flying', { exact: true })).toBeVisible()
   readyForVideo.add(page)
   await page.screenshot({ path: info.outputPath('before.png'), scale: 'css' })
+  const mechanics = page.getByRole('complementary', { name: 'Card mechanics' })
+  await serra.hover()
+  await expect(mechanics.getByRole('heading', { name: 'Flying', exact: true })).toBeVisible()
+  await expect(mechanics.getByRole('heading', { name: 'Vigilance', exact: true })).toBeVisible()
+  await page.mouse.move(5, 5)
 
   await runGreAcceptanceSteps(page, {
     steps: [
@@ -48,6 +53,10 @@ test('a creature that loses all abilities drops its keyword badges and help unti
   expect(help.serra.help ?? []).toEqual([])
   expect(help.sentry.keywords).toContain('Vigilance')
   expect(help.sentry.help).toContain('Vigilance')
+  await serra.hover()
+  await expect(page.getByRole('complementary', { name: 'Serra Angel inspection' })).toBeVisible()
+  await expect(mechanics.getByRole('heading', { name: 'Flying', exact: true })).toHaveCount(0)
+  await expect(mechanics.getByRole('heading', { name: 'Vigilance', exact: true })).toHaveCount(0)
   await page.mouse.move(5, 5)
   await page.screenshot({ path: info.outputPath('slimed.png'), scale: 'css' })
 
