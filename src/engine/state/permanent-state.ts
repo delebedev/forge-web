@@ -1,5 +1,5 @@
 import { enumName } from '@engine/wire/gre-proto'
-import { effectiveFlying, reconcileEffectiveFlying } from './effective-keywords'
+import { GRANTED_KEYWORDS, lostKeywords, reconcileEffectiveKeywords } from './effective-keywords'
 import {
   annotationHasType,
   asArray,
@@ -13,30 +13,14 @@ import {
   type ProtoObject,
 } from './gre-state'
 
-const GRANTED_KEYWORDS = new Map([
-  [2, 'Hexproof'],
-  [4, 'Double strike'],
-  [5, 'Deathtouch'],
-  [6, 'First strike'],
-  [7, 'Haste'],
-  [8, 'Flying'],
-  [11, 'Indestructible'],
-  [12, 'Lifelink'],
-  [13, 'Reach'],
-  [14, 'Trample'],
-  [15, 'Vigilance'],
-  [142, 'Menace'],
-])
-
 /** Current persistent rows describe totals and relationships, never event deltas. */
 export function permanentState(
   annotations: Iterable<ProtoObject>,
   cardMeta: ReadonlyMap<number, CardMeta>,
   objects?: ReadonlyMap<number, GameObject>,
-  coverage?: readonly string[],
 ): (card: CardView) => CardView {
   const persistent = [...annotations]
-  const keywordNames = new Map(GRANTED_KEYWORDS)
+  const keywordNames = new Map<number, string>(GRANTED_KEYWORDS)
   const keywordHelp = new Map<string, MechanicHelp>()
   for (const meta of cardMeta.values()) {
     for (const [id, ability] of Object.entries(meta.abilities ?? {})) {
@@ -109,7 +93,7 @@ export function permanentState(
     }
   }
   return (card) =>
-    reconcileEffectiveFlying(
+    reconcileEffectiveKeywords(
       {
         ...card,
         attachedTo: attachments.get(card.instanceId),
@@ -131,7 +115,12 @@ export function permanentState(
           unlocked: unlockedRoomDoors.get(card.instanceId)?.has(index) === true,
         })),
       },
-      effectiveFlying(objects?.get(card.instanceId), cardMeta.get(card.grpId), coverage),
+      lostKeywords(
+        objects?.get(card.instanceId),
+        cardMeta.get(card.grpId),
+        keywordNames,
+        keywords.get(card.instanceId),
+      ),
     )
 }
 

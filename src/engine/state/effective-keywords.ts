@@ -1,41 +1,72 @@
 import type { CardMeta, CardView, GameObject } from './gre-state'
 
-/** Coverage is a launch contract, never inferred from a build ID or printed text. */
-export function effectiveKeywordCoverage(value: unknown): readonly string[] | undefined {
-  return Array.isArray(value) && value.every((name) => typeof name === 'string')
-    ? Object.freeze(value.filter((name) => name === 'Flying'))
-    : undefined
-}
+/** Explicit grant identities, shared by every card that receives the keyword. */
+export const GRANTED_KEYWORDS: ReadonlyMap<number, string> = new Map([
+  [2, 'Hexproof'],
+  [4, 'Double strike'],
+  [5, 'Deathtouch'],
+  [6, 'First strike'],
+  [7, 'Haste'],
+  [8, 'Flying'],
+  [11, 'Indestructible'],
+  [12, 'Lifelink'],
+  [13, 'Reach'],
+  [14, 'Trample'],
+  [15, 'Vigilance'],
+  [142, 'Menace'],
+])
 
-/** Undefined is unknown; false is a covered, authoritatively empty Flying set. */
-export function effectiveFlying(
+const GRANTED_NAMES = new Set([...GRANTED_KEYWORDS.values()].map((name) => name.toLowerCase()))
+
+/**
+ * Keywords, lowercased, that the object's current ability rows no longer carry. The engine omits
+ * rows an ability-removing effect hides, so the rows are the effective ability list. Undefined is
+ * unknown. A printed keyword is known through a declared ability row or an AddAbility grant of the
+ * same keyword in [annotationGrants]; a granted keyword is known through its explicit grant identity
+ * or such an AddAbility grant. Absence is never inferred from printed text alone.
+ */
+export function lostKeywords(
   object: GameObject | undefined,
   meta: CardMeta | undefined,
-  coverage: readonly string[] | undefined,
-): boolean | undefined {
-  if (!coverage?.includes('Flying') || !object || object.isFacedown || !meta?.keywords) {
+  keywordNames: ReadonlyMap<number, string>,
+  annotationGrants: Iterable<string> = [],
+): ReadonlySet<string> | undefined {
+  if (!object || object.isFacedown || !meta?.keywords) {
     return undefined
   }
-  const declared = Object.entries(meta.abilities ?? {})
-    .filter(([, ability]) => ability.keyword === 'Flying')
-    .map(([id]) => Number(id))
-  if (meta.keywords?.includes('Flying') && declared.length === 0) {
-    return undefined
-  }
-  // 8 is the existing explicit Flying grant identity, not a synthetic intrinsic row ID.
-  return (object.uniqueAbilities ?? []).some(
-    (ability) => ability.grpId === 8 || declared.includes(ability.grpId),
+  const declared = new Set(
+    Object.values(meta.abilities ?? {}).flatMap((ability) =>
+      ability.keyword ? [ability.keyword.toLowerCase()] : [],
+    ),
+  )
+  const present = new Set(
+    (object.uniqueAbilities ?? []).flatMap((ability) => {
+      const name = keywordNames.get(ability.grpId)
+      return name ? [name.toLowerCase()] : []
+    }),
+  )
+  const printed = new Set(meta.keywords.map((name) => name.toLowerCase()))
+  const annotated = new Set([...annotationGrants].map((name) => name.toLowerCase()))
+  const granted = new Set([...GRANTED_NAMES, ...annotated])
+  const known = (name: string) =>
+    printed.has(name) ? declared.has(name) || annotated.has(name) : granted.has(name)
+  return new Set(
+    [...printed, ...declared, ...granted].filter((name) => known(name) && !present.has(name)),
   )
 }
 
-export function reconcileEffectiveFlying(card: CardView, flying: boolean | undefined): CardView {
-  if (flying !== false) {
+export function reconcileEffectiveKeywords(
+  card: CardView,
+  lost: ReadonlySet<string> | undefined,
+): CardView {
+  if (!lost?.size) {
     return card
   }
+  const kept = (keyword: string) => !lost.has(keyword.toLowerCase())
   return {
     ...card,
-    keywords: card.keywords?.filter((keyword) => keyword !== 'Flying'),
-    grantedKeywords: card.grantedKeywords?.filter((keyword) => keyword !== 'Flying'),
-    mechanicHelp: card.mechanicHelp?.filter((help) => help.keyword !== 'Flying'),
+    keywords: card.keywords?.filter(kept),
+    grantedKeywords: card.grantedKeywords?.filter(kept),
+    mechanicHelp: card.mechanicHelp?.filter((help) => kept(help.keyword)),
   }
 }

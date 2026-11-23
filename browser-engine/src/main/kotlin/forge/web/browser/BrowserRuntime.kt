@@ -3,13 +3,9 @@ package forge.web.browser
 import forge.StaticData
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.encodeToJsonElement
-import kotlinx.serialization.json.jsonObject
 import leyline.bridge.bootstrap.GameBootstrap
 import leyline.config.CostChoicePresentation
 import leyline.config.EngineSettings
-import leyline.config.KeywordProjection
 import leyline.config.PuzzleDefinition
 import leyline.config.RuntimeMatchConfig
 import leyline.domain.deck.DeckSource
@@ -116,8 +112,7 @@ object BrowserRuntime {
         val runtime = InProcessMatchRuntime(
             EngineSettings(seed = seed.toLong(), aiSpeed = 0.0, spectatorMode = false,
                 promptFailsafeMs = null, dieRollWinner = 1,
-                costChoicePresentation = CostChoicePresentation.ForgeText,
-                keywordProjection = KeywordProjection.WebEffectiveFlying),
+                costChoicePresentation = CostChoicePresentation.ForgeText),
             MatchCoordinator.NOOP,
             checkNotNull(cards) { "Initialize the catalog first" },
             File(root, "puzzles"),
@@ -136,10 +131,7 @@ object BrowserRuntime {
             if (error != null) emit("match-error", json.encodeToString(listOf(config.matchId, error.stackTraceToString())))
             else emit("result", result.toString())
         }
-        buildJsonObject {
-            json.encodeToJsonElement(launched.response).jsonObject.forEach { (key, value) -> put(key, value) }
-            put("effectiveKeywordCoverage", json.encodeToJsonElement(KeywordProjection.WebEffectiveFlying.coverage))
-        }.toString()
+        json.encodeToString(launched.response)
     }
 
     internal fun runtimeConfig(matchId: String, deck1: String, deck2: String, gameType: String, puzzleId: String = "", puzzleText: String = "") =

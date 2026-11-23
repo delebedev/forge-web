@@ -90,6 +90,18 @@ test('player counters use current persistent totals and retire with zero, deleti
 
 test('projects active packed keyword grants and retires them without duplicating printed keywords', () => {
   const state = applyGsm(initial(), {
+    gameObjects: [
+      {
+        instanceId: 101,
+        grpId: 101,
+        controllerSeatId: 1,
+        uniqueAbilities: [
+          { id: 50, grpId: 7 },
+          { id: 51, grpId: 2 },
+          { id: 52, grpId: 300001 },
+        ],
+      },
+    ],
     persistentAnnotations: [
       {
         id: 10,

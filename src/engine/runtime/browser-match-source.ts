@@ -24,16 +24,10 @@ export class BrowserMatchSource implements GreFrameSource {
   private delivery = Promise.resolve()
   private readonly host: BrowserMatchHost
   readonly matchId: string
-  private readonly keywordCoverage?: readonly string[]
 
-  constructor(
-    host: BrowserMatchHost,
-    matchId: string,
-    effectiveKeywordCoverage?: readonly string[],
-  ) {
+  constructor(host: BrowserMatchHost, matchId: string) {
     this.host = host
     this.matchId = matchId
-    this.keywordCoverage = effectiveKeywordCoverage && Object.freeze([...effectiveKeywordCoverage])
   }
 
   start(sink: GreFrameSink): void {
@@ -53,9 +47,6 @@ export class BrowserMatchSource implements GreFrameSource {
 
   get isOpen(): boolean {
     return this.open
-  }
-  get effectiveKeywordCoverage(): readonly string[] | undefined {
-    return this.retired || this.closed ? undefined : this.keywordCoverage
   }
   get isRetired(): boolean {
     return this.retired
