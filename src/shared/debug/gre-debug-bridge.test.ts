@@ -659,6 +659,7 @@ test('combat shortcuts use current bound declarations including attack-all and r
     msgId,
     gameStateId: msgId,
     declareAttackersReq: {
+      canSubmitAttackers: true,
       attackers: [
         { attackerInstanceId: 101, legalDamageRecipients: [{ type: 1, playerSystemSeatId: 2 }] },
       ],

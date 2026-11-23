@@ -93,6 +93,18 @@ test('attacker submit obeys the server can-submit gate', async () => {
   expect(sent).toEqual([])
 })
 
+test('attacker submit stays closed when the encoded request omits a false can-submit gate', async () => {
+  const h = encodedPromptHarness()
+  const request = attackerRequest(51, 61, [{ type: 1, playerSystemSeatId: 2 }])
+  delete (request['declareAttackersReq'] as ProtoObject)['canSubmitAttackers']
+  h.owner.applyFamilyRequest(request)
+
+  const binding = bindingFor(h.owner, 'attackers')
+  expect(binding.view.canSubmit).toBe(false)
+  await binding.controls.submit()
+  expect(h.sent).toEqual([])
+})
+
 function attackerRequest(
   msgId: number,
   gameStateId: number,

@@ -55,7 +55,7 @@ export function attackersPrompt(message: ProtoObject): PromptFamily | null {
       })
     })
   const legal = (context: PromptContext) =>
-    req['canSubmitAttackers'] !== false &&
+    req['canSubmitAttackers'] === true &&
     !candidates(context).some(
       (candidate) =>
         candidate.selected &&
