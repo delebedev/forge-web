@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { effectiveKeywordCoverage, lostKeywords } from './effective-keywords'
+import { lostKeywords } from './effective-keywords'
 import { permanentState } from './permanent-state'
 import { applyGsm, EMPTY_GAME_STATE } from './gre-accumulator'
 import { buildBoardProjection } from './gre-projection'
@@ -21,29 +21,28 @@ const names = new Map<number, string>([
   [300125, 'Vigilance'],
 ])
 
-test('coverage is explicit and unknown metadata is not an empty effective set', () => {
-  expect(effectiveKeywordCoverage(undefined)).toBeUndefined()
-  expect(effectiveKeywordCoverage('Flying')).toBeUndefined()
-  expect(effectiveKeywordCoverage(['Flying', 8])).toBeUndefined()
-  expect(effectiveKeywordCoverage(['Vigilance'])).toEqual(['Vigilance'])
-  expect(lostKeywords(object, meta, undefined, names)).toBeUndefined()
-  expect(lostKeywords(object, meta, [], names)).toBeUndefined()
-  expect(lostKeywords({ ...object, isFacedown: true }, meta, ['Flying'], names)).toBeUndefined()
+test('unknown metadata or identity is not an empty effective set', () => {
+  expect(lostKeywords(undefined, meta, names)).toBeUndefined()
+  expect(lostKeywords(object, undefined, names)).toBeUndefined()
+  expect(lostKeywords({ ...object, isFacedown: true }, meta, names)).toBeUndefined()
+  const undeclared = lostKeywords(
+    object,
+    { ...meta, abilities: { 300123: { text: 'Flying' } } },
+    names,
+  )
+  expect(undeclared?.has('flying')).toBe(false)
+  expect(undeclared?.has('vigilance')).toBe(false)
+  const lost = lostKeywords(object, meta, names)
+  expect(lost?.has('flying')).toBe(true)
+  expect(lost?.has('vigilance')).toBe(false)
   expect(
-    lostKeywords(object, { ...meta, abilities: { 300123: { text: 'Flying' } } }, ['Flying'], names),
-  ).toEqual(new Set())
-  expect(lostKeywords(object, meta, ['Flying'], names)).toEqual(new Set(['flying']))
-  expect(
-    lostKeywords(
-      { ...object, uniqueAbilities: [{ id: 50, grpId: 300123 }] },
-      meta,
-      ['Flying'],
-      names,
+    lostKeywords({ ...object, uniqueAbilities: [{ id: 50, grpId: 300123 }] }, meta, names)?.has(
+      'flying',
     ),
-  ).toEqual(new Set())
+  ).toBe(false)
 })
 
-test('every covered printed keyword follows its ability row, and printed metadata stays intact', () => {
+test('every printed keyword follows its ability row, and printed metadata stays intact', () => {
   const angel: CardMeta = {
     ...meta,
     abilities: {
@@ -55,13 +54,11 @@ test('every covered printed keyword follows its ability row, and printed metadat
       { keyword: 'Vigilance', title: 'Vigilance', description: 'Vigilance help' },
     ],
   }
-  const coverage = ['Flying', 'Vigilance']
   const decorate = (rows: number[]) =>
     permanentState(
       [],
       new Map([[100, angel]]),
       new Map([[101, { ...object, uniqueAbilities: rows.map((grpId, id) => ({ id, grpId })) }]]),
-      coverage,
     )({
       ...object,
       objectType: 1,
@@ -80,7 +77,7 @@ test('every covered printed keyword follows its ability row, and printed metadat
   expect(angel.keywords).toEqual(['Flying', 'Vigilance'])
 })
 
-test('covered empty membership defeats persistent grants and help, without mutating printed metadata', () => {
+test('absent grant rows defeat persistent grants and help, without mutating printed metadata', () => {
   const grant = {
     id: 1,
     type: [9, 51],
@@ -88,10 +85,7 @@ test('covered empty membership defeats persistent grants and help, without mutat
     details: [{ key: 'grpid', valueInt32: [8, 7] }],
   }
   const withHaste = { ...object, uniqueAbilities: [{ id: 61, grpId: 7 }] }
-  const decorate = permanentState([grant], new Map([[100, meta]]), new Map([[101, withHaste]]), [
-    'Flying',
-    'Haste',
-  ])
+  const decorate = permanentState([grant], new Map([[100, meta]]), new Map([[101, withHaste]]))
   const card = decorate({
     ...object,
     objectType: 1,
@@ -109,13 +103,12 @@ test('covered empty membership defeats persistent grants and help, without mutat
     lostKeywords(
       { ...object, uniqueAbilities: [{ id: 61, grpId: 8 }] },
       { ...meta, keywords: [], abilities: {} },
-      ['Flying'],
       names,
-    ),
-  ).toEqual(new Set())
+    )?.has('flying'),
+  ).toBe(false)
 })
 
-test('resync, suppression, source retirement and old-source fallback use current object authority', () => {
+test('resync, suppression and restoration use current object authority', () => {
   const full = {
     type: 1,
     gameStateId: 1,
@@ -128,19 +121,18 @@ test('resync, suppression, source retirement and old-source fallback use current
   }
   const cards = new Map([[100, meta]])
   const initial = applyGsm(EMPTY_GAME_STATE, full)
-  const project = (state: typeof initial, coverage: readonly string[] | undefined = ['Flying']) =>
-    buildBoardProjection(state, cards, false, state, coverage).battlefield[0]!
+  const project = (state: typeof initial) =>
+    buildBoardProjection(state, cards, false, state).battlefield[0]!
   expect(project(initial).keywords).toContain('Flying')
   const suppressed = applyGsm(initial, { gameStateId: 2, gameObjects: [object] })
   expect(project(suppressed).keywords).not.toContain('Flying')
   const resynced = applyGsm(suppressed, { ...full, gameStateId: 3, gameObjects: [object] })
   expect(project(resynced).keywords).not.toContain('Flying')
-  expect(project(resynced, []).keywords).toContain('Flying')
   const restored = applyGsm(resynced, { gameStateId: 4, gameObjects: full.gameObjects })
   expect(project(restored).keywords).toContain('Flying')
   const removed = applyGsm(restored, {
     diffDeletedInstanceIds: [101],
     zones: [{ zoneId: 28, type: 3, objectInstanceIds: [] }],
   })
-  expect(buildBoardProjection(removed, cards, false, removed, ['Flying']).battlefield).toEqual([])
+  expect(buildBoardProjection(removed, cards, false, removed).battlefield).toEqual([])
 })

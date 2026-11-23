@@ -2,9 +2,10 @@ import { authenticateShell, expect } from './gre-test'
 import { test, readyForVideo } from './demo-test'
 import { startScenario } from './gre-scenario'
 import { passUntil, runGreAcceptanceSteps } from './gre-acceptance'
+import { castSpell } from './gre-actions'
 import type { GreStore } from '../src/engine/runtime/gre-store'
 
-test('a creature that loses all abilities drops its keyword badges and help', async ({
+test('a creature that loses all abilities drops its keyword badges and help until the effect ends', async ({
   page,
 }, info) => {
   test.setTimeout(300_000)
@@ -58,6 +59,18 @@ test('a creature that loses all abilities drops its keyword badges and help', as
   await expect(serra.getByLabel('Vigilance', { exact: true })).toHaveCount(0)
   await page.mouse.move(5, 5)
   await page.screenshot({ path: info.outputPath('attacking.png'), scale: 'css' })
+
+  await passUntil(page, { phase: 'Main2' })
+  await castSpell(page, {
+    card: 'Unsummon',
+    target: { card: 'Sludge Monster', side: 'ours' },
+    until: { zone_contains: { side: 'ours', zone: 'hand', card: 'Sludge Monster' } },
+  })
+  await expect(serra.getByLabel('Vigilance', { exact: true })).toBeVisible()
+  await expect(serra.getByLabel('Flying', { exact: true })).toBeVisible()
+  await expect(sentry.getByLabel('Vigilance', { exact: true })).toBeVisible()
+  await page.mouse.move(5, 5)
+  await page.screenshot({ path: info.outputPath('restored.png'), scale: 'css' })
   expect((await page.evaluate(() => window.__greState()!)).diagnostics.errorCount).toBe(0)
   await page.waitForTimeout(1500)
 })

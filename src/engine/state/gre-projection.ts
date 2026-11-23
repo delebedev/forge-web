@@ -78,7 +78,6 @@ export function buildBoardProjection(
   cardMeta: Map<number, CardMeta>,
   actionsInFlight: boolean,
   current: GameState = state,
-  effectiveKeywordCoverage?: readonly string[],
 ): BoardProjection {
   const { tables, turn, viewerSeatId } = state
   const actions: Action[] = actionsInFlight ? [] : current.actions
@@ -115,12 +114,7 @@ export function buildBoardProjection(
     return card ? [{ action, card }] : []
   })
 
-  const decorate = permanentState(
-    state.persistentAnnotations.values(),
-    cardMeta,
-    tables.objects,
-    effectiveKeywordCoverage,
-  )
+  const decorate = permanentState(state.persistentAnnotations.values(), cardMeta, tables.objects)
 
   return {
     hand: cardsInZone(tables, ZONE_HAND, viewerSeatId, actions, cardMeta),

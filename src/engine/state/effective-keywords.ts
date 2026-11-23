@@ -18,29 +18,20 @@ export const GRANTED_KEYWORDS: ReadonlyMap<number, string> = new Map([
 
 const GRANTED_NAMES = new Set([...GRANTED_KEYWORDS.values()].map((name) => name.toLowerCase()))
 
-/** Coverage is a launch contract, never inferred from a build ID or printed text. */
-export function effectiveKeywordCoverage(value: unknown): readonly string[] | undefined {
-  return Array.isArray(value) && value.every((name) => typeof name === 'string')
-    ? Object.freeze([...value])
-    : undefined
-}
-
 /**
- * Covered keywords, lowercased, that the object's current ability rows no longer carry.
- * Undefined is unknown. A printed keyword is known only through a declared ability row and a
- * granted keyword only through its explicit grant identity, so absence is never inferred from
- * printed text alone.
+ * Keywords, lowercased, that the object's current ability rows no longer carry. The engine omits
+ * rows an ability-removing effect hides, so the rows are the effective ability list. Undefined is
+ * unknown. A printed keyword is known only through a declared ability row and a granted keyword
+ * only through its explicit grant identity, so absence is never inferred from printed text alone.
  */
 export function lostKeywords(
   object: GameObject | undefined,
   meta: CardMeta | undefined,
-  coverage: readonly string[] | undefined,
   keywordNames: ReadonlyMap<number, string>,
 ): ReadonlySet<string> | undefined {
-  if (!coverage?.length || !object || object.isFacedown || !meta?.keywords) {
+  if (!object || object.isFacedown || !meta?.keywords) {
     return undefined
   }
-  const covered = new Set(coverage.map((name) => name.toLowerCase()))
   const declared = new Set(
     Object.values(meta.abilities ?? {}).flatMap((ability) =>
       ability.keyword ? [ability.keyword.toLowerCase()] : [],
@@ -55,9 +46,7 @@ export function lostKeywords(
   const printed = new Set(meta.keywords.map((name) => name.toLowerCase()))
   const known = (name: string) => (printed.has(name) ? declared.has(name) : GRANTED_NAMES.has(name))
   return new Set(
-    [...printed, ...declared, ...GRANTED_NAMES].filter(
-      (name) => covered.has(name) && known(name) && !present.has(name),
-    ),
+    [...printed, ...declared, ...GRANTED_NAMES].filter((name) => known(name) && !present.has(name)),
   )
 }
 

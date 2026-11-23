@@ -18,7 +18,6 @@ export function permanentState(
   annotations: Iterable<ProtoObject>,
   cardMeta: ReadonlyMap<number, CardMeta>,
   objects?: ReadonlyMap<number, GameObject>,
-  coverage?: readonly string[],
 ): (card: CardView) => CardView {
   const persistent = [...annotations]
   const keywordNames = new Map<number, string>(GRANTED_KEYWORDS)
@@ -116,7 +115,7 @@ export function permanentState(
           unlocked: unlockedRoomDoors.get(card.instanceId)?.has(index) === true,
         })),
       },
-      lostKeywords(objects?.get(card.instanceId), cardMeta.get(card.grpId), coverage, keywordNames),
+      lostKeywords(objects?.get(card.instanceId), cardMeta.get(card.grpId), keywordNames),
     )
 }
 
