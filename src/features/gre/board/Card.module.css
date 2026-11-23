@@ -290,9 +290,16 @@
 }
 /* Every hand card overlaps the previous one except the first. */
 .handCard:first-child { margin-left: 0; }
-/* Descending, so each card tucks under its left neighbour. */
-.handCard { z-index: calc(40 - var(--index, 0)); }
-.handCard:hover, .handCard:focus-visible { transform: translateY(-42px) rotate(0deg) scale(1.08); z-index: 180; }
+/* Descending, so each card tucks under its left neighbour. The base grows with
+   the hand so every card keeps a positive layer; a negative layer would drop
+   it below the hand row, which then takes its pointer input. */
+.handCard {
+  --hand-layer: max(40, var(--hand-count, 0));
+  z-index: calc(var(--hand-layer) - var(--index, 0));
+}
+.handCard:hover, .handCard:focus-visible { transform: translateY(-42px) rotate(0deg) scale(1.08); }
+/* Above every resting hand card; outranks the generic `.card:focus-visible` layer. */
+.card.handCard:hover, .card.handCard:focus-visible { z-index: calc(var(--hand-layer) + 140); }
 /* --- Battlefield tile: landscape art crop, name, power/toughness --- */
 
 .tile {
