@@ -292,7 +292,7 @@ class MatchReplayStoreTest {
         }
 
     @Test
-    fun `browser quotas fail closed without evicting retained historical journals`() =
+    fun `browser quotas fail closed when only recent and pinned journals remain`() =
         runBlocking<Unit> {
             val root = Files.createTempDirectory("historical-replay-quota").toFile()
             seedHistoricalReplay(root, "unpinned").appendText(paddingRecord())
@@ -347,7 +347,7 @@ class MatchReplayStoreTest {
             store.cleanup()
             root.resolve("retained-other.bin").writeBytes(ByteArray((64 * 1024 - store.health().bytesUsed).toInt()))
             store.cleanup()
-            assertFailsWith<IllegalArgumentException> { store.pin("historical", "report-7") }
+            assertFailsWith<ReplayStorageCapacityExceeded> { store.pin("historical", "report-7") }
             assertFalse(root.resolve("historical.pin.json").exists())
         }
 

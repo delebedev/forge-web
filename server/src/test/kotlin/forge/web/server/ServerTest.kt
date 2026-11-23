@@ -105,7 +105,10 @@ class ServerTest {
             assertEquals("ok", body["status"]?.jsonPrimitive?.content)
             assertEquals(root.listFiles().sumOf { it.length() }, replay["bytesUsed"]?.jsonPrimitive?.long)
             assertEquals(128 * 1024L, replay["maxBytes"]?.jsonPrimitive?.long)
-            assertEquals(setOf("bytesUsed", "maxBytes"), replay.keys)
+            assertEquals(0L, replay["evictions"]?.jsonPrimitive?.long)
+            // The export above queues behind startup maintenance, which records the retained journal.
+            assertTrue(checkNotNull(replay["oldestRetainedAgeMs"]?.jsonPrimitive?.long) >= 0)
+            assertEquals(setOf("bytesUsed", "maxBytes", "evictions", "oldestRetainedAgeMs"), replay.keys)
         }
 
     @Test
