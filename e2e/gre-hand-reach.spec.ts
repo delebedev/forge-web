@@ -22,39 +22,38 @@ for (const size of [7, 20, 62]) {
     readyForVideo.add(page)
 
     // Each card tucks under its left neighbour, so aim between the neighbour's
-    // right edge and this card's right edge.
+    // right edge and this card's right edge. Hover straightens the card, which
+    // pulls its rotated right corner inward, so stay near the neighbour's edge.
     const box = (await ornithopter.boundingBox())!
     const previous = (await hand.nth(size - 2).boundingBox())!
     const point = {
-      x: (previous.x + previous.width + box.x + box.width) / 2,
+      x: previous.x + previous.width + (box.x + box.width - previous.x - previous.width) * 0.3,
       // The fan arc can carry the outer cards past the bottom of the viewport.
       y: (box.y + Math.min(box.y + box.height, page.viewportSize()!.height)) / 2,
     }
-    const cardAt = ({ x, y }: { x: number; y: number }) =>
+    const cardAt = () =>
       page.evaluate(
         (at) =>
           document.elementFromPoint(at.x, at.y)?.closest('[data-card]')?.getAttribute('aria-label'),
-        { x, y },
+        point,
       )
-    expect(await cardAt(point)).toBe('Cast Ornithopter')
+    expect(await cardAt()).toBe('Cast Ornithopter')
     await page.mouse.move(point.x, point.y)
     await expect.poll(() => ornithopter.evaluate((card) => card.matches(':hover'))).toBe(true)
+    // Click only after the lift transition settles with the card still under the pointer.
+    await expect.poll(() => ornithopter.evaluate((card) => card.getAnimations().length)).toBe(0)
+    expect(await ornithopter.evaluate((card) => card.matches(':hover'))).toBe(true)
+    expect(await cardAt()).toBe('Cast Ornithopter')
     await page.screenshot({ path: info.outputPath('hovered.png') })
     if (recordDemos) {
       await page.waitForTimeout(1000)
     }
 
-    // Hover lifts the card above its neighbours; click the lifted card's centre.
-    const liftedCentre = async () => {
-      const lifted = (await ornithopter.boundingBox())!
-      return { x: lifted.x + lifted.width / 2, y: lifted.y + lifted.height / 2 }
-    }
-    await expect.poll(async () => cardAt(await liftedCentre())).toBe('Cast Ornithopter')
-    const centre = await liftedCentre()
+    // The same completion contract `castSpell` uses, pressed at the verified point.
     await resolveTo(
       page,
       { zone_contains: { side: 'ours', zone: 'battlefield', card: 'Ornithopter' } },
-      () => page.mouse.click(centre.x, centre.y),
+      () => page.mouse.click(point.x, point.y),
     )
     const state = await page.evaluate(() => window.__greState()!)
     expect(state.hand.some((card) => card.name === 'Ornithopter')).toBe(false)
