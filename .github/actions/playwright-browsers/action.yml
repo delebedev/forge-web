@@ -1,0 +1,41 @@
+name: Install Playwright browsers
+description: >-
+  Restore Playwright browser binaries from the cache keyed on the installed
+  Playwright version, download them only on a miss, and install the OS packages
+  they need on every run. Requires dependencies installed with bun.
+inputs:
+  browsers:
+    description: Space-separated Playwright browser names stored in ~/.cache/ms-playwright.
+    default: chromium
+runs:
+  using: composite
+  steps:
+    - name: Resolve Playwright version
+      id: version
+      shell: bash
+      run: printf 'version=%s\n' "$(node -p "require('playwright-core/package.json').version")" >> "$GITHUB_OUTPUT"
+    - name: Restore Playwright browsers
+      id: cache
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/ms-playwright
+        key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ steps.version.outputs.version }}-${{ inputs.browsers }}
+    - name: Install OS dependencies
+      shell: bash
+      env:
+        BROWSERS: ${{ inputs.browsers }}
+      run: bun x --bun playwright install-deps $BROWSERS
+    - name: Download browsers
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      env:
+        BROWSERS: ${{ inputs.browsers }}
+      # A stalled CDN download otherwise holds the job until its own timeout.
+      run: |
+        for attempt in 1 2; do
+          if timeout --kill-after=30s 8m bun x --bun playwright install $BROWSERS; then
+            exit 0
+          fi
+          echo "::warning::Playwright browser download attempt $attempt failed or exceeded 8 minutes"
+        done
+        exit 1

@@ -144,3 +144,36 @@ test('release workflows stay hosted and omit diagnostic artifact publishing', ()
   const notes = YAML.parse(readFileSync('.github/workflows/release-notes.yml', 'utf8'))
   assert.ok(notes.jobs.notes.steps.every((step) => step.uses !== 'actions/upload-artifact@v4'))
 })
+
+test('browser jobs install Playwright browsers through the cached, bounded action', () => {
+  const action = YAML.parse(readFileSync('.github/actions/playwright-browsers/action.yml', 'utf8'))
+  const steps = action.runs.steps
+  const cache = steps.find((step) => step.uses === 'actions/cache@v4')
+  assert.equal(cache.with.path, '~/.cache/ms-playwright')
+  assert.match(cache.with.key, /steps\.version\.outputs\.version/)
+  const deps = steps.find((step) => step.name === 'Install OS dependencies')
+  assert.equal(deps.if, undefined)
+  const download = steps.find((step) => step.name === 'Download browsers')
+  assert.equal(download.if, "steps.cache.outputs.cache-hit != 'true'")
+  assert.match(download.run, /for attempt in 1 2/)
+  assert.match(
+    download.run,
+    /timeout --kill-after=30s 8m bun x --bun playwright install \$BROWSERS/,
+  )
+  for (const name of ['web-ci', 'browser-qualification']) {
+    const jobs = YAML.parse(readFileSync(`.github/workflows/${name}.yml`, 'utf8')).jobs
+    for (const job of Object.values(jobs)) {
+      for (const step of job.steps) {
+        assert.doesNotMatch(
+          step.run ?? '',
+          /playwright install(?!.* chrome$)/,
+          `${name}: ${step.name ?? step.run}`,
+        )
+      }
+    }
+  }
+  const installs = Object.values(workflow.jobs).filter((job) =>
+    job.steps.some((step) => step.uses === './.github/actions/playwright-browsers'),
+  )
+  assert.equal(installs.length, 3)
+})
