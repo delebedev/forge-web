@@ -30,12 +30,13 @@ for (const size of [7, 20, 62]) {
       // The fan arc can carry the outer cards past the bottom of the viewport.
       y: (box.y + Math.min(box.y + box.height, page.viewportSize()!.height)) / 2,
     }
-    const hit = await page.evaluate(
-      ({ x, y }) =>
-        document.elementFromPoint(x, y)?.closest('[data-card]')?.getAttribute('aria-label'),
-      point,
-    )
-    expect(hit).toBe('Cast Ornithopter')
+    const cardAt = ({ x, y }: { x: number; y: number }) =>
+      page.evaluate(
+        (at) =>
+          document.elementFromPoint(at.x, at.y)?.closest('[data-card]')?.getAttribute('aria-label'),
+        { x, y },
+      )
+    expect(await cardAt(point)).toBe('Cast Ornithopter')
     await page.mouse.move(point.x, point.y)
     await expect.poll(() => ornithopter.evaluate((card) => card.matches(':hover'))).toBe(true)
     await page.screenshot({ path: info.outputPath('hovered.png') })
@@ -43,11 +44,17 @@ for (const size of [7, 20, 62]) {
       await page.waitForTimeout(1000)
     }
 
+    // Hover lifts the card above its neighbours; click the lifted card's centre.
+    const liftedCentre = async () => {
+      const lifted = (await ornithopter.boundingBox())!
+      return { x: lifted.x + lifted.width / 2, y: lifted.y + lifted.height / 2 }
+    }
+    await expect.poll(async () => cardAt(await liftedCentre())).toBe('Cast Ornithopter')
+    const centre = await liftedCentre()
     await resolveTo(
       page,
       { zone_contains: { side: 'ours', zone: 'battlefield', card: 'Ornithopter' } },
-      // Hover raises the card above its neighbours; Playwright checks the click target.
-      () => ornithopter.click(),
+      () => page.mouse.click(centre.x, centre.y),
     )
     const state = await page.evaluate(() => window.__greState()!)
     expect(state.hand.some((card) => card.name === 'Ornithopter')).toBe(false)
