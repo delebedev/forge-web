@@ -36,8 +36,10 @@ checkout, create ready sibling worktrees with `just ws <branch>`.
 - **Analytics:** read `docs/analytics.md` before changing tracking, replay, or
   privacy behavior.
 - **SEO:** read `docs/seo.md` before changing public HTML, metadata, or routes.
-- **Challenges:** read `docs/specs/forgeweb-challenges.md` before changing the
+- **Challenges:** read `docs/challenges.md` before changing the
   challenge product.
+- **Card images:** read `docs/card-images.md` before changing the image index,
+  artwork resolution, or browser image assets.
 
 ## Delivery authority
 

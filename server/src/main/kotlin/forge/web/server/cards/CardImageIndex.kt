@@ -53,7 +53,10 @@ internal class CardImageIndex private constructor(
         isToken: Boolean?,
     ): ImageUrls? {
         val key = cardName?.let { key(it, isToken) } ?: return null
-        return images[key]
+        // Guard: a token-named lookup falls back to the card row and vice versa.
+        // The flag is a hint from the caller, never a reason to hide artwork that
+        // the same name has under the other kind.
+        return images[key] ?: images[key.copy(token = !key.token)]
     }
 
     private fun reportMiss(

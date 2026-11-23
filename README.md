@@ -93,7 +93,8 @@ production feedback forms. Report vulnerabilities using [SECURITY.md](SECURITY.m
 - [Routes and transports](docs/frontend-routes.md)
 - [Analytics and privacy](docs/analytics.md)
 - [Authentication boundaries and abuse budgets](docs/authentication.md)
-- [Challenges](docs/specs/forgeweb-challenges.md)
+- [Challenges](docs/challenges.md)
+- [Card images](docs/card-images.md)
 - [Changelog](CHANGELOG.md)
 
 ## Verification

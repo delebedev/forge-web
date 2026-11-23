@@ -23,6 +23,7 @@ class CardImageIndexTest {
         val back = images.find("Delver of Secrets", backFace = true)
         val incubator = images.find("Incubator Token")
         val recent = images.find("Cryotheory Adept")
+        val starTrek = images.find("Troubling Tribbles")
         val pridemate = images.find("Ajani's Pridemate", isToken = false)
         val pridemateToken = images.find("Ajani's Pridemate", isToken = true)
 
@@ -33,8 +34,18 @@ class CardImageIndexTest {
         assertNotEquals(front, back)
         assertTrue(incubator?.startsWith("https://cards.scryfall.io/normal/") == true)
         assertTrue(recent?.startsWith("https://cards.scryfall.io/normal/") == true)
+        assertTrue(starTrek?.startsWith("https://cards.scryfall.io/normal/") == true)
         assertNotEquals(pridemate, pridemateToken)
         assertTrue(images.find("Lost Mine of Phandelver", isToken = false)?.startsWith("https://cards.scryfall.io/normal/") == true)
+    }
+
+    @Test
+    fun `a mismatched token flag still resolves the name's artwork`() {
+        val images = CardImageIndex.load()
+        val spell = images.find("Lightning Bolt", isToken = false)
+
+        assertEquals(spell, images.find("Lightning Bolt", isToken = true))
+        assertEquals(spell, images.findArtwork("Lightning Bolt", isToken = true))
     }
 
     @Test

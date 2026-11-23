@@ -95,6 +95,34 @@ class CardProjectorTest {
     }
 
     @Test
+    fun `split face identity is not a token`() {
+        val parent = assertNotNull(cards.findGrpIdByName("Fire // Ice"))
+        val faces = cards.findLinkedFaces(parent)
+        assertTrue(faces.isNotEmpty())
+        for (face in faces) {
+            val meta = cards.cardPresentation(face)
+            assertEquals(cards.findNameByGrpId(face), meta.name)
+            assertFalse(meta.isToken, meta.name.orEmpty())
+        }
+    }
+
+    @Test
+    fun `shared-name token identities stay tokens without a unique name lookup`() {
+        // Two token scripts print the same name, so the name alone cannot pick
+        // one identity. Both are still tokens.
+        val decayed = assertNotNull(cards.findTokenGrpIdByScript("b_2_2_zombie_decayed"))
+        val plain = assertNotNull(cards.findTokenGrpIdByScript("b_2_2_zombie"))
+        val name = assertNotNull(cards.findNameByGrpId(decayed))
+        assertEquals(name, cards.findNameByGrpId(plain))
+        assertNull(cards.findTokenGrpIdByName(name))
+        for (id in listOf(decayed, plain)) {
+            val meta = cards.cardPresentation(id)
+            assertEquals(name, meta.name)
+            assertTrue(meta.isToken, meta.name.orEmpty())
+        }
+    }
+
+    @Test
     fun `inspected linked face retains its own rules and layout`() {
         val front = cards.cardPresentation(assertNotNull(cards.findGrpIdByName("Delver of Secrets")))
         val back = cards.cardPresentation(assertNotNull(cards.findGrpIdByNameAnyFace("Insectile Aberration")))
