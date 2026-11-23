@@ -110,7 +110,7 @@ jobs:
       - name: Build
         run: python3 scripts/ci-measure.py ui-build bash -eo pipefail -c 'bun run build:ci'
       - name: Install browser
-        run: bun x --bun playwright install --with-deps chromium
+        uses: ./.github/actions/playwright-browsers
       - name: Check browser driver
         run: python3 scripts/ci-measure.py ui-driver bash -eo pipefail -c 'node --test --experimental-strip-types tools/browser-driver/executor.browser.test.ts && bun x tsc -p tools/browser-driver/tsconfig.json'
       - name: Check public SEO
@@ -244,7 +244,7 @@ jobs:
           node scripts/runtime-artifact.mjs verify browser-17 ci-runtime/browser-engine
           cp -a ci-runtime/browser-engine dist/browser-engine
       - name: Install browser
-        run: bun x --bun playwright install --with-deps chromium
+        uses: ./.github/actions/playwright-browsers
       - name: Run Browser Local smoke
         run: python3 scripts/ci-measure.py browser-local bash -eo pipefail -c 'set -o pipefail; mkdir -p browser-smoke-output; timeout 8m bun run challenge:saved:check 2>&1 | tee browser-smoke-output/smoke.log; timeout 4m bun run challenge:browser:check --smoke 2>&1 | tee browser-smoke-output/curated.log'
       - name: Collect runner memory
@@ -346,7 +346,7 @@ jobs:
           node scripts/runtime-artifact.mjs verify browser-17 ci-runtime/browser-engine
           cp -a ci-runtime/browser-engine public/browser-engine
       - name: Install browser
-        run: bun x --bun playwright install --with-deps chromium
+        uses: ./.github/actions/playwright-browsers
       - name: Run browser journeys
         env:
           SUITE: ${{ matrix.suite }}

@@ -42,7 +42,13 @@ jobs:
 
       - run: bun run browser-alpha:build
 
-      - run: bun x --bun playwright install --with-deps chromium chrome
+      - name: Install browser
+        uses: ./.github/actions/playwright-browsers
+
+      # Google Chrome installs system-wide, outside the Playwright browser cache.
+      - name: Install Google Chrome
+        timeout-minutes: 8
+        run: bun x --bun playwright install --with-deps chrome
 
       - name: Check every bundled challenge, daily completion, retry and load recovery
         run: bun run challenge:browser:check
@@ -90,7 +96,8 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
       - run: bun run leyline:check
-      - run: bun x --bun playwright install --with-deps chromium
+      - name: Install browser
+        uses: ./.github/actions/playwright-browsers
 
       - name: Build local gameplay assets
         run: bun run browser:assets
