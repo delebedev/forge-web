@@ -1,0 +1,22 @@
+# Mechanic: every card in a 62-card hand accepts pointer input.
+# Forcing: 61 Forests precede Ornithopter, so the zero-cost cast sits rightmost.
+# AI behavior: no hand or battlefield, so no opposing choices interrupt the cast.
+# Failure modes: an unreachable rightmost card leaves Ornithopter in hand.
+# Card roles: Forests fill the hand, Ornithopter is the castable rightmost card.
+# Protocol path: Cast offer and response, resolution to the battlefield.
+# Paired with: hand-reach-7.pzl, hand-reach-20.pzl and hand-reach-62.pzl.
+[metadata]
+Name:Rightmost card in a 62-card hand
+Goal:Survive
+Turns:5
+Difficulty:Easy
+Description:Cast the rightmost Ornithopter from a 62-card hand.
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanbattlefield=Plains
+humanhand=Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Ornithopter
+humanlibrary=Forest;Forest;Forest;Forest;Forest
+ailibrary=Forest;Forest;Forest;Forest;Forest
