@@ -117,7 +117,7 @@ object BrowserRuntime {
             EngineSettings(seed = seed.toLong(), aiSpeed = 0.0, spectatorMode = false,
                 promptFailsafeMs = null, dieRollWinner = 1,
                 costChoicePresentation = CostChoicePresentation.ForgeText,
-                keywordProjection = KeywordProjection.WebEffectiveFlying),
+                keywordProjection = KeywordProjection.WebEffectiveKeywords),
             MatchCoordinator.NOOP,
             checkNotNull(cards) { "Initialize the catalog first" },
             File(root, "puzzles"),
@@ -138,7 +138,7 @@ object BrowserRuntime {
         }
         buildJsonObject {
             json.encodeToJsonElement(launched.response).jsonObject.forEach { (key, value) -> put(key, value) }
-            put("effectiveKeywordCoverage", json.encodeToJsonElement(KeywordProjection.WebEffectiveFlying.coverage))
+            put("effectiveKeywordCoverage", json.encodeToJsonElement(KeywordProjection.WebEffectiveKeywords.coverage))
         }.toString()
     }
 

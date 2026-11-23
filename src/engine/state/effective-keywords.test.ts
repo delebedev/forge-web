@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { effectiveFlying, effectiveKeywordCoverage } from './effective-keywords'
+import { effectiveKeywordCoverage, lostKeywords } from './effective-keywords'
 import { permanentState } from './permanent-state'
 import { applyGsm, EMPTY_GAME_STATE } from './gre-accumulator'
 import { buildBoardProjection } from './gre-projection'
@@ -14,21 +14,70 @@ const meta: CardMeta = {
 }
 const object: GameObject = { instanceId: 101, grpId: 100, controllerSeatId: 1 }
 
+const names = new Map<number, string>([
+  [8, 'Flying'],
+  [7, 'Haste'],
+  [300123, 'Flying'],
+  [300125, 'Vigilance'],
+])
+
 test('coverage is explicit and unknown metadata is not an empty effective set', () => {
   expect(effectiveKeywordCoverage(undefined)).toBeUndefined()
   expect(effectiveKeywordCoverage('Flying')).toBeUndefined()
   expect(effectiveKeywordCoverage(['Flying', 8])).toBeUndefined()
-  expect(effectiveKeywordCoverage(['Unsupported'])).toEqual([])
-  expect(effectiveFlying(object, meta, undefined)).toBeUndefined()
-  expect(effectiveFlying(object, meta, [])).toBeUndefined()
+  expect(effectiveKeywordCoverage(['Vigilance'])).toEqual(['Vigilance'])
+  expect(lostKeywords(object, meta, undefined, names)).toBeUndefined()
+  expect(lostKeywords(object, meta, [], names)).toBeUndefined()
+  expect(lostKeywords({ ...object, isFacedown: true }, meta, ['Flying'], names)).toBeUndefined()
   expect(
-    effectiveFlying(object, { ...meta, abilities: { 300123: { text: 'Flying' } } }, ['Flying']),
-  ).toBeUndefined()
-  expect(effectiveFlying({ ...object, isFacedown: true }, meta, ['Flying'])).toBeUndefined()
-  expect(effectiveFlying(object, meta, ['Flying'])).toBe(false)
+    lostKeywords(object, { ...meta, abilities: { 300123: { text: 'Flying' } } }, ['Flying'], names),
+  ).toEqual(new Set())
+  expect(lostKeywords(object, meta, ['Flying'], names)).toEqual(new Set(['flying']))
   expect(
-    effectiveFlying({ ...object, uniqueAbilities: [{ id: 50, grpId: 300123 }] }, meta, ['Flying']),
-  ).toBe(true)
+    lostKeywords(
+      { ...object, uniqueAbilities: [{ id: 50, grpId: 300123 }] },
+      meta,
+      ['Flying'],
+      names,
+    ),
+  ).toEqual(new Set())
+})
+
+test('every covered printed keyword follows its ability row, and printed metadata stays intact', () => {
+  const angel: CardMeta = {
+    ...meta,
+    abilities: {
+      300123: { keyword: 'Flying', text: 'Flying' },
+      300125: { keyword: 'Vigilance', text: 'Vigilance' },
+    },
+    mechanicHelp: [
+      { keyword: 'Flying', title: 'Flying', description: 'Flying help' },
+      { keyword: 'Vigilance', title: 'Vigilance', description: 'Vigilance help' },
+    ],
+  }
+  const coverage = ['Flying', 'Vigilance']
+  const decorate = (rows: number[]) =>
+    permanentState(
+      [],
+      new Map([[100, angel]]),
+      new Map([[101, { ...object, uniqueAbilities: rows.map((grpId, id) => ({ id, grpId })) }]]),
+      coverage,
+    )({
+      ...object,
+      objectType: 1,
+      name: angel.name,
+      grpId: 100,
+      keywords: angel.keywords,
+      mechanicHelp: angel.mechanicHelp,
+    } as Parameters<ReturnType<typeof permanentState>>[0])
+  const lostAll = decorate([])
+  expect(lostAll.keywords).toEqual([])
+  expect(lostAll.mechanicHelp).toEqual([])
+  const keptVigilance = decorate([300125])
+  expect(keptVigilance.keywords).toEqual(['Vigilance'])
+  expect(keptVigilance.mechanicHelp?.map((help) => help.keyword)).toEqual(['Vigilance'])
+  expect(decorate([300123, 300125]).keywords).toEqual(['Flying', 'Vigilance'])
+  expect(angel.keywords).toEqual(['Flying', 'Vigilance'])
 })
 
 test('covered empty membership defeats persistent grants and help, without mutating printed metadata', () => {
@@ -38,8 +87,10 @@ test('covered empty membership defeats persistent grants and help, without mutat
     affectedIds: [101],
     details: [{ key: 'grpid', valueInt32: [8, 7] }],
   }
-  const decorate = permanentState([grant], new Map([[100, meta]]), new Map([[101, object]]), [
+  const withHaste = { ...object, uniqueAbilities: [{ id: 61, grpId: 7 }] }
+  const decorate = permanentState([grant], new Map([[100, meta]]), new Map([[101, withHaste]]), [
     'Flying',
+    'Haste',
   ])
   const card = decorate({
     ...object,
@@ -55,12 +106,13 @@ test('covered empty membership defeats persistent grants and help, without mutat
   expect(meta.keywords).toEqual(['Flying', 'Vigilance'])
   expect(meta.mechanicHelp?.[0]?.keyword).toBe('Flying')
   expect(
-    effectiveFlying(
+    lostKeywords(
       { ...object, uniqueAbilities: [{ id: 61, grpId: 8 }] },
       { ...meta, keywords: [], abilities: {} },
       ['Flying'],
+      names,
     ),
-  ).toBe(true)
+  ).toEqual(new Set())
 })
 
 test('resync, suppression, source retirement and old-source fallback use current object authority', () => {
