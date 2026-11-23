@@ -23,18 +23,22 @@ internal data class MatchReplayConfig(
     val pinnedRetentionDays: Int = 30,
     val maxBytes: Long = 512L * 1024 * 1024,
     val maxMatchBytes: Long = 32L * 1024 * 1024,
+    val activeWindowMs: Long = 15 * 60_000L,
 ) {
     init {
         require(retentionDays > 0) { "Replay retention must be positive" }
         require(pinnedRetentionDays >= retentionDays) { "Pinned replay retention must not be shorter than normal retention" }
         require(maxBytes >= MIN_REPLAY_BYTES) { "Replay storage quota must be at least $MIN_REPLAY_BYTES bytes" }
         require(maxMatchBytes in MIN_REPLAY_BYTES..maxBytes) { "Replay match quota must be between $MIN_REPLAY_BYTES and total quota" }
+        require(activeWindowMs >= 0) { "Replay active window must not be negative" }
     }
 }
 
 internal data class ReplayStorageHealth(
     val bytesUsed: Long,
     val maxBytes: Long,
+    val evictions: Long = 0,
+    val oldestRetainedAgeMs: Long? = null,
 )
 
 internal class ReplayStorageCapacityExceeded : IllegalStateException("Replay storage quota is exhausted")
@@ -54,6 +58,9 @@ internal class MatchReplayStore(
     // Health observes the last committed measurement without entering the storage worker.
     @Volatile private var lastMeasuredBytesUsed = config.maxBytes
     private var storageReady = false
+    private val retention = ReplayRetentionIndex(config.activeWindowMs)
+
+    @Volatile private var evictions = 0L
 
     init {
         runCatching {
@@ -76,6 +83,8 @@ internal class MatchReplayStore(
         ReplayStorageHealth(
             bytesUsed = lastMeasuredBytesUsed,
             maxBytes = config.maxBytes,
+            evictions = evictions,
+            oldestRetainedAgeMs = retention.oldestCreatedAtMs?.let { (clock.millis() - it).coerceAtLeast(0) },
         )
 
     fun authorized(token: String?): Boolean {
@@ -223,11 +232,12 @@ internal class MatchReplayStore(
         val destination = compressedBrowserReplayFile(matchId)
         val legacy = plainBrowserReplayFile(matchId)
         val writes = mutableMapOf(destination to gzipReplay(replay))
+        val pinnedUntil = reportId?.let { pinnedUntilMs() }
         metadata?.let { writes[browserMetadataFile(matchId)] = it }
-        reportId?.let { writes[pinFile(matchId)] = pinBytes(it) }
+        reportId?.let { writes[pinFile(matchId)] = pinBytes(it, requireNotNull(pinnedUntil)) }
         // The legacy copy occupies quota until its removal succeeds.
         val delta = writes.entries.sumOf { (file, bytes) -> bytes.size - file.length() }
-        if (lastMeasuredBytesUsed + delta > config.maxBytes) throw ReplayStorageCapacityExceeded()
+        if (!reserve(delta, matchId)) throw ReplayStorageCapacityExceeded()
         var committed = false
         try {
             writes.forEach { (file, bytes) ->
@@ -235,9 +245,77 @@ internal class MatchReplayStore(
                 if (file == destination) committed = true
             }
         } finally {
-            if (committed) deleteAccounted(legacy)
+            if (committed) {
+                retention.written(matchId, clock.millis(), pinnedUntil) {
+                    readBrowserMetadata(matchId)?.long("createdAtMs") ?: clock.millis()
+                }
+                deleteAccounted(legacy)
+            }
         }
     }
+
+    /**
+     * Makes room for [required] more bytes by evicting idle unpinned journals, oldest first. Evicts nothing when
+     * they cannot free enough. [protectedMatchId] is the journal the caller is about to change.
+     */
+    private fun reserve(
+        required: Long,
+        protectedMatchId: String,
+    ): Boolean {
+        val excess = lastMeasuredBytesUsed + required - config.maxBytes
+        if (excess <= 0) return true
+        val now = clock.millis()
+        val candidates = retention.evictable(now, protectedMatchId)
+        var freeable = 0L
+        for ((matchId, _) in candidates) {
+            if (freeable >= excess) break
+            freeable += matchFiles(matchId).sumOf(File::length)
+        }
+        if (freeable < excess) {
+            log.warn(
+                "Replay storage full; eviction cannot make room (matchId={}, excessBytes={}, evictableBytes={}, usedBytes={}, maxBytes={})",
+                protectedMatchId,
+                excess,
+                freeable,
+                lastMeasuredBytesUsed,
+                config.maxBytes,
+            )
+            return false
+        }
+        // A failed removal moves on to the next candidate rather than rejecting the write.
+        var evicted = 0
+        for ((matchId, retained) in candidates) {
+            if (lastMeasuredBytesUsed + required <= config.maxBytes) break
+            val bytes = matchFiles(matchId).sumOf(File::length)
+            runCatching { evict(matchId) }
+                .onSuccess {
+                    evicted++
+                    log.info("Replay evicted (matchId={}, bytes={}, ageMs={})", matchId, bytes, now - retained.createdAtMs)
+                }.onFailure { log.error("Replay eviction failed (matchId={})", matchId, it) }
+        }
+        log.info(
+            "Replay eviction pass (journals={}, usedBytes={}, maxBytes={}, oldestRetainedCreatedAtMs={})",
+            evicted,
+            lastMeasuredBytesUsed,
+            config.maxBytes,
+            retention.oldestCreatedAtMs,
+        )
+        return lastMeasuredBytesUsed + required <= config.maxBytes
+    }
+
+    private fun evict(matchId: String) {
+        journalFiles(matchId).forEach(::deleteAccounted)
+        // A failed journal removal keeps its pin and creation time.
+        deleteAccounted(pinFile(matchId))
+        deleteAccounted(browserMetadataFile(matchId))
+        retention.removed(matchId)
+        evictions++
+    }
+
+    private fun journalFiles(matchId: String) =
+        listOf(replayFile(matchId), compressedReplayFile(matchId), plainBrowserReplayFile(matchId), compressedBrowserReplayFile(matchId))
+
+    private fun matchFiles(matchId: String) = journalFiles(matchId) + pinFile(matchId) + browserMetadataFile(matchId)
 
     private fun writeAccounted(
         file: File,
@@ -295,20 +373,25 @@ internal class MatchReplayStore(
         requireValidMatchId(matchId)
         require(reportId.matches(REPORT_ID)) { "reportId must be 1-100 URL-safe characters" }
         if (journalFile(matchId) == null) return false
-        val encoded = pinBytes(reportId)
+        val pinnedUntil = pinnedUntilMs()
+        val encoded = pinBytes(reportId, pinnedUntil)
         val currentPinBytes = pinFile(matchId).takeIf(File::isFile)?.length() ?: 0
-        require(
-            lastMeasuredBytesUsed - currentPinBytes + encoded.size <= config.maxBytes,
-        ) { "Replay storage quota is exhausted" }
+        if (!reserve(encoded.size - currentPinBytes, matchId)) throw ReplayStorageCapacityExceeded()
         writeAccounted(pinFile(matchId), encoded)
+        retention.pinned(matchId, pinnedUntil)
         return true
     }
 
-    private fun pinBytes(reportId: String): ByteArray {
+    private fun pinnedUntilMs() = clock.millis() + config.pinnedRetentionDays * DAY_MS
+
+    private fun pinBytes(
+        reportId: String,
+        pinnedUntilMs: Long,
+    ): ByteArray {
         require(reportId.matches(REPORT_ID)) { "reportId must be 1-100 URL-safe characters" }
         return buildJsonObject {
             put("reportId", reportId)
-            put("pinnedUntilMs", clock.millis() + config.pinnedRetentionDays * DAY_MS)
+            put("pinnedUntilMs", pinnedUntilMs)
         }.toString().toByteArray(StandardCharsets.UTF_8)
     }
 
@@ -319,22 +402,27 @@ internal class MatchReplayStore(
     private fun cleanupFiles(): Boolean {
         val now = clock.millis()
         val candidates = mutableListOf<File>()
+        val retained = mutableMapOf<String, RetainedReplay>()
         try {
             cleanupTemporaryFiles()
             for ((matchId, files) in replayFiles().groupBy { matchId(it) }) {
                 if (matchId == null) continue
                 runCatching {
-                    val retained = journalFile(matchId) ?: return@runCatching
-                    if (expired(retained, matchId, now)) {
+                    val journal = journalFile(matchId) ?: return@runCatching
+                    val createdAt = readCreatedTime(journal) ?: journal.lastModified()
+                    val pinnedUntil = readPin(matchId)?.long("pinnedUntilMs") ?: 0
+                    if (now >= retainedUntil(createdAt, pinnedUntil)) {
                         files.forEach(::deleteAccounted)
                         // Preserve retention metadata when removing any replay copy fails.
                         deleteAccounted(pinFile(matchId))
                         deleteAccounted(browserMetadataFile(matchId))
                     } else {
+                        retained[matchId] = RetainedReplay(createdAt, pinnedUntil, files.maxOf(File::lastModified))
                         candidates += files.filter { it.name.endsWith(".ndjson") || it.name.endsWith(".browser.json") }
                     }
                 }.onFailure { log.error("Replay expiry failed (matchId={})", matchId, it) }
             }
+            retention.replaceAll(retained)
             val sorted = candidates.sortedBy(File::getName)
             val ordered = sorted.filter { it.name > compactionCursor } + sorted.filter { it.name <= compactionCursor }
             val batch = ordered.take(MAX_COMPACTIONS_PER_CLEANUP)
@@ -356,8 +444,13 @@ internal class MatchReplayStore(
     ): Boolean {
         val created = readCreatedTime(file) ?: file.lastModified()
         val pinnedUntil = readPin(matchId)?.long("pinnedUntilMs") ?: 0
-        return now >= maxOf(created + config.retentionDays * DAY_MS, pinnedUntil)
+        return now >= retainedUntil(created, pinnedUntil)
     }
+
+    private fun retainedUntil(
+        createdAtMs: Long,
+        pinnedUntilMs: Long,
+    ) = maxOf(createdAtMs + config.retentionDays * DAY_MS, pinnedUntilMs)
 
     private fun replayFiles(): List<File> =
         config.root.listFiles { file ->
