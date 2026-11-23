@@ -42,8 +42,14 @@ Replay storage has one dedicated worker for uploads, operator reads, pinning and
 retention maintenance. Requests suspend while it works, with at most eight
 admitted requests. Saturation returns HTTP 503 with `Retry-After: 10` rather
 than blocking product HTTP threads. Uploads account for replay, metadata and pin
-growth together without scanning or compacting other journals. Exhausted quota
-rejects delivery explicitly and never evicts a retained or pinned replay.
+growth together without scanning or compacting other journals. When a write or
+pin would exceed the total quota, the worker evicts unpinned journals by oldest
+creation time until it fits. Expired pins count as unpinned. Eviction never
+removes a pinned journal, the journal being written or pinned, or one written
+within the last 15 minutes. It removes nothing when the evictable journals cannot
+free enough space. Eviction chooses from the set of retained journals recorded by
+the last maintenance pass and by later writes. Each eviction is logged, and health
+reports the eviction count and the oldest retained journal's age.
 Browser snapshots are gzip-compressed at rest; the per-match limit applies to
 decoded JSON, while total quota counts stored bytes including metadata and pins.
 Operator exports remain ordinary JSON. Plain snapshots remain readable and are
@@ -66,11 +72,11 @@ truncated prefix leaves an incomplete replay; client-supplied events are not
 proof that the engine accepted a submitted action. Public browser challenges
 do not upload journals.
 
-Total storage capacity rejection returns 503 with a 60-second `Retry-After`,
+Total storage capacity rejection happens only when pinned and recently written
+journals alone fill the quota. It returns 503 with a 60-second `Retry-After`,
 so the existing bounded delivery retry can recover when retention frees space.
 Per-match limits and invalid payload, ownership, or sequence rejections remain
-permanent. Capacity rejection does not evict retained journals or acknowledge
-uncommitted events.
+permanent. Capacity rejection does not acknowledge uncommitted events.
 
 Historical server lifecycle rows remain stored unchanged. The product no longer
 creates, completes or recovers server match outcomes during startup.

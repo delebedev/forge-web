@@ -107,6 +107,8 @@ internal fun Application.installHttpApplication(services: WebServices) {
                                 buildJsonObject {
                                     put("bytesUsed", health.bytesUsed)
                                     put("maxBytes", health.maxBytes)
+                                    put("evictions", health.evictions)
+                                    health.oldestRetainedAgeMs?.let { put("oldestRetainedAgeMs", it) }
                                 },
                             )
                         }
