@@ -72,10 +72,14 @@ bun scripts/build-card-image-index.ts --input /path/oracle-cards-20261122220157.
 ```
 
 A local copy's mtime says when the file was written, not when Scryfall published
-it, so `--source-updated-at` is required with `--input`. Take it from
-`api.scryfall.com/bulk-data/oracle-cards` (`updated_at`) or from the bulk file's
-own filename; never from a copy made today of an older export. `--source-uri`
-records the Scryfall download URI when it differs from the local path.
+it, so `--source-updated-at` is required with `--input`, and it must be an ISO
+8601 date. Take it from the input export itself: the bulk filename embeds its
+publication time (`oracle-cards-20261122220157.jsonl.gz`). Use
+`api.scryfall.com/bulk-data/oracle-cards` (`updated_at`) only when its
+`jsonl_download_uri` is the file you passed; that endpoint always describes the
+current export, so an older local copy would otherwise be dated later than its
+data. `--source-uri` records the Scryfall download URI when it differs from the
+local path.
 
 `bun run browser:assets` then rebuilds the browser catalog, image map and
 release manifest from the new file.

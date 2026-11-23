@@ -3,7 +3,7 @@ import { Database } from 'bun:sqlite'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { buildIndex } from './build-card-image-index'
+import { buildIndex, parseOptions } from './build-card-image-index'
 
 type ArtworkRow = [normal: string, back: string | null]
 
@@ -40,6 +40,44 @@ function withOutput(run: (output: string) => Promise<void>): Promise<void> {
     rmSync(directory, { recursive: true, force: true }),
   )
 }
+
+test('an option followed by another option has no operand', () => {
+  expect(() =>
+    parseOptions([
+      '--input',
+      'cards.json',
+      '--source-updated-at',
+      '--source-uri',
+      'https://example.org/export.jsonl.gz',
+    ]),
+  ).toThrow('--source-updated-at requires a value')
+})
+
+test('rejects an export date that is not ISO 8601', () => {
+  expect(() => parseOptions(['--input', 'cards.json', '--source-updated-at', 'yesterday'])).toThrow(
+    '--source-updated-at must be an ISO 8601 date',
+  )
+})
+
+test('parses the input, output and export metadata', () => {
+  expect(
+    parseOptions([
+      '--input',
+      'cards.json',
+      '--output',
+      'images.sqlite',
+      '--source-uri',
+      'https://example.org/export.jsonl.gz',
+      '--source-updated-at',
+      '2026-11-22T22:01:57.207+00:00',
+    ]),
+  ).toEqual({
+    input: 'cards.json',
+    output: 'images.sqlite',
+    sourceUri: 'https://example.org/export.jsonl.gz',
+    sourceUpdatedAt: '2026-11-22T22:01:57.207+00:00',
+  })
+})
 
 test('builds normal token and face lookups', async () => {
   const cards = [

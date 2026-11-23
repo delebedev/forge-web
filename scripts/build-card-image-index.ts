@@ -191,17 +191,45 @@ async function* jsonLines(source: Readable): AsyncGenerator<unknown> {
   }
 }
 
-function option(name: string): string | undefined {
-  const index = process.argv.indexOf(name)
-  return index === -1 ? undefined : process.argv[index + 1]
+const OPTIONS = new Set(['--input', '--output', '--source-uri', '--source-updated-at'])
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/
+
+export type Options = {
+  input?: string
+  output?: string
+  sourceUri?: string
+  sourceUpdatedAt?: string
 }
 
-function requireOption(name: string, companion: string): string {
-  const value = option(name)
-  if (value === undefined) {
-    throw new Error(`${name} is required with ${companion}`)
+/**
+ * Parse `--name value` pairs. Every option takes a value, so a name followed by
+ * another name has no operand and is reported rather than read as a path.
+ */
+export function parseOptions(argv: string[]): Options {
+  const values = new Map<string, string>()
+  for (let index = 0; index < argv.length; index += 2) {
+    const name = argv[index]
+    if (name === undefined || !OPTIONS.has(name)) {
+      throw new Error(`Unknown option ${String(name)}`)
+    }
+    const value = argv[index + 1]
+    if (value === undefined || OPTIONS.has(value)) {
+      throw new Error(`${name} requires a value`)
+    }
+    if (name === '--source-updated-at' && !ISO_DATE.test(value)) {
+      throw new Error(`${name} must be an ISO 8601 date, got ${value}`)
+    }
+    if (values.has(name)) {
+      throw new Error(`${name} is given more than once`)
+    }
+    values.set(name, value)
   }
-  return value
+  return {
+    input: values.get('--input'),
+    output: values.get('--output'),
+    sourceUri: values.get('--source-uri'),
+    sourceUpdatedAt: values.get('--source-updated-at'),
+  }
 }
 
 /** A local bulk file is either gzip-compressed JSON Lines or a JSON array. */
@@ -219,10 +247,11 @@ function localCards(path: string): Iterable<unknown> | AsyncIterable<unknown> {
 const repo = resolve(import.meta.dir, '..')
 
 async function main(): Promise<void> {
+  const options = parseOptions(process.argv.slice(2))
   const output = resolve(
-    option('--output') ?? resolve(repo, 'server/src/main/resources/card-images.sqlite'),
+    options.output ?? resolve(repo, 'server/src/main/resources/card-images.sqlite'),
   )
-  const input = option('--input')
+  const input = options.input
 
   let cards: Iterable<unknown> | AsyncIterable<unknown>
   let sourceUri: string
@@ -244,8 +273,11 @@ async function main(): Promise<void> {
     const path = resolve(input)
     // A local copy's mtime says when it was written, not when Scryfall published
     // it, so the export's own date has to be supplied rather than inferred.
-    sourceUpdatedAt = requireOption('--source-updated-at', '--input')
-    sourceUri = option('--source-uri') ?? path
+    if (options.sourceUpdatedAt === undefined) {
+      throw new Error('--source-updated-at is required with --input')
+    }
+    sourceUpdatedAt = options.sourceUpdatedAt
+    sourceUri = options.sourceUri ?? path
     cards = localCards(path)
   }
 
