@@ -347,7 +347,7 @@ class MatchReplayStoreTest {
             store.cleanup()
             root.resolve("retained-other.bin").writeBytes(ByteArray((64 * 1024 - store.health().bytesUsed).toInt()))
             store.cleanup()
-            assertFailsWith<IllegalArgumentException> { store.pin("historical", "report-7") }
+            assertFailsWith<ReplayStorageCapacityExceeded> { store.pin("historical", "report-7") }
             assertFalse(root.resolve("historical.pin.json").exists())
         }
 

@@ -88,6 +88,24 @@ class MatchReplayStoreEvictionTest {
         }
 
     @Test
+    fun `a failed removal moves on to the next oldest journal`() =
+        runBlocking<Unit> {
+            val root = tempRoot("replay-evict-failed-removal")
+            seedIdle(root, "stuck", createdAgoMs = 3 * HOUR)
+            seedIdle(root, "next", createdAgoMs = 2 * HOUR)
+            seedIdle(root, "newest", createdAgoMs = 1 * HOUR)
+            val upload = uploadBody(1)
+            MatchReplayStore(config(root, maxBytes = stored(root) + uploadBytes(upload) - 1), clock).use { store ->
+                store.cleanup()
+                // A non-empty directory at a journal path cannot be deleted.
+                root.resolve("stuck.ndjson").resolve("blocker").apply { parentFile.mkdirs() }.writeText("x")
+                assertTrue(store.ingestBrowser("account", matchId(1), "${matchId(1)}:full", upload))
+                assertEquals(setOf("stuck", "newest", matchId(1)), retainedJournals(root))
+                assertEquals(1, store.health().evictions)
+            }
+        }
+
+    @Test
     fun `pin on a full store evicts other journals but never its own target`() =
         runBlocking<Unit> {
             val root = tempRoot("replay-evict-pin")
@@ -194,7 +212,7 @@ class MatchReplayStoreEvictionTest {
                 ?.let { file.name.removeSuffix(it) }
         }.toSet()
 
-    private fun stored(root: File) = root.listFiles()!!.sumOf(File::length)
+    private fun stored(root: File) = root.listFiles()!!.filter(File::isFile).sumOf(File::length)
 
     private fun tempRoot(prefix: String) = Files.createTempDirectory(prefix).toFile()
 

@@ -265,13 +265,11 @@ internal class MatchReplayStore(
         val excess = lastMeasuredBytesUsed + required - config.maxBytes
         if (excess <= 0) return true
         val now = clock.millis()
-        val victims = mutableListOf<Triple<String, RetainedReplay, Long>>()
+        val candidates = retention.evictable(now, protectedMatchId)
         var freeable = 0L
-        for ((matchId, retained) in retention.evictable(now, protectedMatchId)) {
+        for ((matchId, _) in candidates) {
             if (freeable >= excess) break
-            val bytes = matchFiles(matchId).sumOf(File::length)
-            victims += Triple(matchId, retained, bytes)
-            freeable += bytes
+            freeable += matchFiles(matchId).sumOf(File::length)
         }
         if (freeable < excess) {
             log.warn(
@@ -284,14 +282,20 @@ internal class MatchReplayStore(
             )
             return false
         }
-        for ((matchId, retained, bytes) in victims) {
+        // A failed removal moves on to the next candidate rather than rejecting the write.
+        var evicted = 0
+        for ((matchId, retained) in candidates) {
+            if (lastMeasuredBytesUsed + required <= config.maxBytes) break
+            val bytes = matchFiles(matchId).sumOf(File::length)
             runCatching { evict(matchId) }
-                .onSuccess { log.info("Replay evicted (matchId={}, bytes={}, ageMs={})", matchId, bytes, now - retained.createdAtMs) }
-                .onFailure { log.error("Replay eviction failed (matchId={})", matchId, it) }
+                .onSuccess {
+                    evicted++
+                    log.info("Replay evicted (matchId={}, bytes={}, ageMs={})", matchId, bytes, now - retained.createdAtMs)
+                }.onFailure { log.error("Replay eviction failed (matchId={})", matchId, it) }
         }
         log.info(
             "Replay eviction pass (journals={}, usedBytes={}, maxBytes={}, oldestRetainedCreatedAtMs={})",
-            victims.size,
+            evicted,
             lastMeasuredBytesUsed,
             config.maxBytes,
             retention.oldestCreatedAtMs,
@@ -372,7 +376,7 @@ internal class MatchReplayStore(
         val pinnedUntil = pinnedUntilMs()
         val encoded = pinBytes(reportId, pinnedUntil)
         val currentPinBytes = pinFile(matchId).takeIf(File::isFile)?.length() ?: 0
-        require(reserve(encoded.size - currentPinBytes, matchId)) { "Replay storage quota is exhausted" }
+        if (!reserve(encoded.size - currentPinBytes, matchId)) throw ReplayStorageCapacityExceeded()
         writeAccounted(pinFile(matchId), encoded)
         retention.pinned(matchId, pinnedUntil)
         return true
