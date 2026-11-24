@@ -39,7 +39,7 @@ normal Java 21 toolchain. From the repository root:
 
 ```sh
 python3 scripts/build-browser-catalog.py
-./leyline/gradlew :browser-engine:browserDistribution :browser-engine:catalogIndex -PruntimeJavaVersion=17 -PbrowserPrune=true
+./leyline/gradlew :browser-engine:browserDistribution :browser-engine:catalogIndex :browser-engine:cardIndex -PruntimeJavaVersion=17 -PbrowserPrune=true
 bun run browser:build
 bun run browser:preview
 ```

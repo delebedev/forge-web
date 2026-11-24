@@ -341,6 +341,18 @@ async function dispatch(data, enqueuedAt) {
           delete card.isToken
         }
         break
+      case 'decklist': {
+        const response = await runtime.decklist(
+          data.text,
+          data.gameType ?? '',
+          data.import === true,
+        )
+        if (!response) {
+          throw new Error('Decklist check failed; see engine error')
+        }
+        result = JSON.parse(response)
+        break
+      }
       case 'validate-puzzle':
         result = JSON.parse(await runtime.validatePuzzle(data.text))
         break

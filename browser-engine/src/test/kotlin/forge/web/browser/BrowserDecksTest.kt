@@ -3,6 +3,7 @@ package forge.web.browser
 import forge.deck.DeckSection
 import leyline.bridge.bootstrap.DeckRealizationException
 import leyline.bridge.bootstrap.GameBootstrap
+import leyline.game.data.ForgeCardRepository
 import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.test.BeforeTest
@@ -137,4 +138,25 @@ class BrowserDecksTest {
         }.message.orEmpty(), "exactly one copy")
     }
 
+
+    @Test
+    fun `checks product decklists by card name`() {
+        val cards = ForgeCardRepository.open()
+        val imported = BrowserDecks.check(cards, "Deck\n2 dead // gone\n1 Gone\n57 Forest\nSideboard\n1 Negate", null, import = true)
+        assertEquals(
+            listOf(BrowserDecks.Row("Dead // Gone", 2), BrowserDecks.Row("Dead // Gone", 1), BrowserDecks.Row("Forest", 57)),
+            imported.mainboard,
+        )
+        assertEquals(listOf(BrowserDecks.Row("Negate", 1)), imported.sideboard)
+        assertEquals(emptyList(), imported.errors)
+
+        assertEquals(listOf("Card not found: Not A Real Card"), BrowserDecks.check(cards, "4 Not A Real Card", null, import = true).errors)
+        assertContains(
+            BrowserDecks.check(cards, "Commander\n1 Bloodthirsty Conqueror\nDeck\n99 Swamp", null, import = true).errors.single(),
+            "can't be a commander",
+        )
+        assertContains(BrowserDecks.check(cards, "5 Lightning Bolt\n55 Mountain", "constructed", import = false).errors.single(), "at most 4")
+        assertEquals(listOf("Unsupported game format."), BrowserDecks.check(cards, "60 Mountain", "vintage", import = false).errors)
+        assertEquals(emptyList(), BrowserDecks.check(cards, "60 Mountain", "constructed", import = false).errors)
+    }
 }
