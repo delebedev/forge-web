@@ -9,7 +9,12 @@ export function loginReturnPath(value: string | null, currentPath: string | null
   if (!value?.startsWith('/') || value.startsWith('//')) {
     return '/play/game'
   }
-  const url = new URL(value, 'https://local.invalid')
+  let url: URL
+  try {
+    url = new URL(value, 'https://local.invalid')
+  } catch {
+    return '/play/game'
+  }
   if (url.pathname === '/roadmap' || DECK_PATH.test(url.pathname)) {
     return url.pathname
   }

@@ -40,3 +40,8 @@ test('the sign-in heading names what the account is for', () => {
   expect(signInHeading('/roadmap')).toBe('Sign in to vote.')
   expect(signInHeading('/play/game')).toBe('Sign in to your account.')
 })
+
+test('an unparseable return path falls back to play', () => {
+  expect(loginReturnPath('/\\')).toBe('/play/game')
+  expect(loginReturnPath(null, '/\\')).toBe('/play/game')
+})
