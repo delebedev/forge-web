@@ -1,13 +1,13 @@
 package forge.web.server.http
 
-import forge.StaticData
+import forge.web.cards.commanderDeckProblem
+import forge.web.cards.forgeCanBeCommander
 import forge.web.server.auth.WebAuthService
 import forge.web.server.auth.installAuthRoutes
 import forge.web.server.auth.installOperatorPlayerRoutes
 import forge.web.server.auth.ownedPlayerId
 import forge.web.server.cards.CardImageIndex
 import forge.web.server.cards.CollectionView
-import forge.web.server.cards.commanderDeckProblem
 import forge.web.server.cards.installCardRoutes
 import forge.web.server.cards.installPublicCardRoutes
 import forge.web.server.decks.SavedDecks
@@ -58,12 +58,10 @@ internal data class WebServices(
     val decks: DeckRepository,
     val collectionService: CollectionService,
     val cardRepository: CardRepository,
-    val canBeCommander: (String) -> Boolean = { name ->
-        StaticData.instance().commonCards.getCard(name)?.rules?.canBeCommander() == true
-    },
+    val canBeCommander: (String) -> Boolean = ::forgeCanBeCommander,
     val commanderProblem: (DeckCards) -> String? = { deck -> commanderDeckProblem(cardRepository, deck) },
     val validateCopies: (DeckCards, forge.deck.DeckFormat) -> Unit = { deck, format ->
-        forge.web.server.cards.validateDeckCopies(cardRepository, deck, format)
+        forge.web.cards.validateDeckCopies(cardRepository, deck, format)
     },
     val cardImages: CardImageIndex = CardImageIndex.empty(),
     val coursePlay: forge.web.server.limited.CoursePlayService,
