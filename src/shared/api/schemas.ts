@@ -52,7 +52,6 @@ export const DeckSummarySchema = z.object({
 
 export const DeckCardSchema = z.object({
   name: z.string(),
-  grpId: z.number().nullable().optional(),
   quantity: z.number(),
   manaCost: z.string().nullable().optional(),
   typeLine: z.string().nullable().optional(),

@@ -31,15 +31,15 @@ class DecksTest {
                     player,
                     "Commander deck",
                     "Commander",
-                    listOf(WebDeckCard(1, 99)),
-                    commandZone = listOf(WebDeckCard(1, 1)),
+                    listOf(WebDeckCard("Mountain", 99)),
+                    commandZone = listOf(WebDeckCard("Mountain", 1)),
                 )
             for ((commandZone, error) in listOf(
                 emptyList<WebDeckCard>() to "Commander decks need a commander.",
-                listOf(WebDeckCard(1, 0)) to "Mountain must have exactly one copy in the command zone.",
-                listOf(WebDeckCard(1, -1)) to "Mountain must have exactly one copy in the command zone.",
-                listOf(WebDeckCard(1, 2)) to "Mountain must have exactly one copy in the command zone.",
-                listOf(WebDeckCard(2, 1)) to "Lightning Bolt can't be a commander",
+                listOf(WebDeckCard("Mountain", 0)) to "Mountain must have exactly one copy in the command zone.",
+                listOf(WebDeckCard("Mountain", -1)) to "Mountain must have exactly one copy in the command zone.",
+                listOf(WebDeckCard("Mountain", 2)) to "Mountain must have exactly one copy in the command zone.",
+                listOf(WebDeckCard("Lightning Bolt", 1)) to "Lightning Bolt can't be a commander",
             )) {
                 val invalid = valid.copy(commandZone = commandZone)
                 val rejected =
@@ -92,8 +92,8 @@ class DecksTest {
                     player,
                     "Commander deck",
                     "Commander",
-                    listOf(WebDeckCard(1, 99)),
-                    commandZone = listOf(WebDeckCard(2, 1)),
+                    listOf(WebDeckCard("Mountain", 99)),
+                    commandZone = listOf(WebDeckCard("Lightning Bolt", 1)),
                 )
             val created =
                 client.post("/api/decks") {
@@ -112,7 +112,7 @@ class DecksTest {
                 client.put("/api/decks/${deck.id}") {
                     header(HttpHeaders.Cookie, cookie)
                     contentType(ContentType.Application.Json)
-                    setBody(Json.encodeToString(input.copy(name = "Renamed", sideboard = listOf(WebDeckCard(2, 1)))))
+                    setBody(Json.encodeToString(input.copy(name = "Renamed", sideboard = listOf(WebDeckCard("Lightning Bolt", 1)))))
                 }
             assertEquals(200, updated.status.value)
             val retrieved = client.get("/api/decks/${deck.id}") { header(HttpHeaders.Cookie, cookie) }
@@ -120,7 +120,7 @@ class DecksTest {
             assertEquals(deck.id, saved.id)
             assertEquals("Renamed", saved.name)
             assertEquals(input.commandZone, saved.commandZone)
-            assertEquals(listOf(WebDeckCard(2, 1)), saved.sideboard)
+            assertEquals(listOf(WebDeckCard("Lightning Bolt", 1)), saved.sideboard)
             assertEquals(
                 1,
                 Json.decodeFromString<List<DeckView>>(client.get("/api/decks") { header(HttpHeaders.Cookie, cookie) }.bodyAsText()).size,

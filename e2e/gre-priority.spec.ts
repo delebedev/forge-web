@@ -1163,7 +1163,7 @@ test('independent draft sets preserve an active pool', async ({ page }, info) =>
   expect(start.ok()).toBe(true)
   const tdm = await start.json()
   const picked = await page.request.post('/api/draft/pick', {
-    data: { playerId, eventName, cardId: tdm.draftPack[0] },
+    data: { playerId, eventName, cardName: tdm.draftPack[0] },
   })
   expect(picked.ok()).toBe(true)
   const saved = await picked.json()

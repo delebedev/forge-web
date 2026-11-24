@@ -36,7 +36,9 @@ class LimitedRoutesTest {
                 client.post("/api/draft/deck") {
                     header(HttpHeaders.Cookie, ownerCookie)
                     contentType(ContentType.Application.Json)
-                    setBody("""{"playerId":"$owner","eventName":"$event","name":"Draft","mainDeck":[{"grpId":1,"quantity":40}]}""")
+                    setBody(
+                        """{"playerId":"$owner","eventName":"$event","name":"Draft","mainDeck":[{"cardName":"Mountain","quantity":40}]}""",
+                    )
                 }
             assertEquals(200, deck.status.value, deck.bodyAsText())
 
@@ -94,7 +96,7 @@ class LimitedRoutesTest {
                 for ((label, deckIdField, expectedId) in cases) {
                     val body =
                         """{"playerId":"$playerId","eventName":"$eventName","name":"$label",""" +
-                            """$deckIdField"mainDeck":[{"grpId":1,"quantity":40}]}"""
+                            """$deckIdField"mainDeck":[{"cardName":"Mountain","quantity":40}]}"""
                     val response =
                         client.post("/api/$mode/deck") {
                             header(HttpHeaders.Cookie, cookie)

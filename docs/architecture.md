@@ -55,8 +55,9 @@ graph TB
   `cardIndex` task projects every card with `card-presentation`, adds Commander
   eligibility, search names and the limited set list, and the release manifest
   checks its size and SHA-256. The index identifies cards by name; its `grpId`
-  values belong to one catalog build and serve only the deck and limited APIs
-  of the same release. Deck search, card display, saved-deck hydration, limited
+  values belong to one catalog build. Deck and limited HTTP requests and
+  responses carry card names, never runtime identifiers, and the browser
+  persists cards by name. Deck search, card display, saved-deck hydration, limited
   pools and the limited set list read it. Deck import parses and validates in
   the browser engine. Game setup still validates a launch on the server.
 - The product server uses Leyline's Forge-backed `CardRepository` for deck
@@ -79,6 +80,13 @@ graph TB
   identity. Numeric card storage requires an explicit migration. Catalog
   content changes alone do not invalidate name-based storage, but a stored name
   removal or rename does.
+- `server/.../limited/CourseRecordStore.kt` keeps one JSON course document per
+  account and event in `course_records` (`/api/course-records`). A save names
+  the revision it read; a stale revision gets 409 and the browser reloads the
+  record. The server checks only that the document is a JSON object, its event
+  name, and size caps per document and per account; it does not read the
+  contents. Migration V9 copied existing draft and sealed courses with a pool,
+  and their completed draft's bot decks, into documents without a seed.
 - `runtime/gre-launch.ts` builds GRE start payloads for constructed, puzzle, and saved-deck entries.
 - `runtime/browser-match-recovery.ts` reuses the Browser Local seed and in-page journal after an active worker failure. `GreSession` permits one four-minute attempt for constructed and Commander games. Replay uses a fresh worker and match identity, advances saved decisions without transporting intermediate frames, and resyncs through the existing connection handshake. Engine version, recovered board, pending choice and boundary state must match before `GreStore` installs the full state and rebound prompt. The final submitted response and all later progress are undone, with an acknowledgement before input resumes. This checks decision continuity, not complete hidden engine state. Reloads and browser crashes lose the in-page journal.
 - Browser match journals contain local decisions and frames. Players may upload

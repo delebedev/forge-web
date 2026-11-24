@@ -8,22 +8,22 @@ export function changeCardQuantity(
   card: LibraryCard,
   delta: number,
 ): LibraryCard[] {
-  const existing = cards.find((entry) => entry.grpId === card.grpId)
+  const existing = cards.find((entry) => entry.name === card.name)
   const quantity = (existing?.quantity ?? 0) + delta
   if (quantity <= 0) {
-    return cards.filter((entry) => entry.grpId !== card.grpId)
+    return cards.filter((entry) => entry.name !== card.name)
   }
   return existing
-    ? cards.map((entry) => (entry.grpId === card.grpId ? { ...entry, quantity } : entry))
+    ? cards.map((entry) => (entry.name === card.name ? { ...entry, quantity } : entry))
     : [...cards, { ...card, quantity }]
 }
 
 export function moveDeckCard(
   sections: EditableSections,
   from: EditableSection,
-  grpId: number,
+  name: string,
 ): EditableSections {
-  const card = sections[from].find((entry) => entry.grpId === grpId)
+  const card = sections[from].find((entry) => entry.name === name)
   if (!card) {
     return sections
   }

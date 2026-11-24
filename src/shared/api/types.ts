@@ -1411,6 +1411,254 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/api/course-records': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get: {
+      parameters: {
+        query?: never
+        header?: never
+        path?: never
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['CourseRecord'][]
+          }
+        }
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'text/plain': string
+          }
+        }
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content?: never
+        }
+        /** @description Internal Server Error */
+        500: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'text/plain': string
+          }
+        }
+      }
+    }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/course-records/{eventName}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get: {
+      parameters: {
+        query?: never
+        header?: never
+        path: {
+          eventName: string
+        }
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['CourseRecord']
+          }
+        }
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'text/plain': string
+          }
+        }
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content?: never
+        }
+        /** @description Not Found */
+        404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content?: never
+        }
+        /** @description Internal Server Error */
+        500: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'text/plain': string
+          }
+        }
+      }
+    }
+    put: {
+      parameters: {
+        query?: never
+        header?: never
+        path: {
+          eventName: string
+        }
+        cookie?: never
+      }
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['SaveCourseRecordRequestInput']
+        }
+      }
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'application/json': components['schemas']['CourseRecord']
+          }
+        }
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'text/plain': string
+          }
+        }
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content?: never
+        }
+        /** @description Conflict */
+        409: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'text/plain': string
+          }
+        }
+        /** @description Payload Too Large */
+        413: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'text/plain': string
+          }
+        }
+        /** @description Internal Server Error */
+        500: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'text/plain': string
+          }
+        }
+      }
+    }
+    post?: never
+    delete: {
+      parameters: {
+        query?: never
+        header?: never
+        path: {
+          eventName: string
+        }
+        cookie?: never
+      }
+      requestBody?: never
+      responses: {
+        /** @description No Content */
+        204: {
+          headers: {
+            [name: string]: unknown
+          }
+          content?: never
+        }
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'text/plain': string
+          }
+        }
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown
+          }
+          content?: never
+        }
+        /** @description Not Found */
+        404: {
+          headers: {
+            [name: string]: unknown
+          }
+          content?: never
+        }
+        /** @description Internal Server Error */
+        500: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'text/plain': string
+          }
+        }
+      }
+    }
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/api/decks': {
     parameters: {
       query?: never
@@ -2680,7 +2928,7 @@ export interface components {
       wins: number
       /** Format: int32 */
       losses: number
-      cardPool: number[]
+      cardPool: string[]
       deckId: string | null
     }
     /** CourseResultRequestInput */
@@ -2688,10 +2936,22 @@ export interface components {
       coursePlayId: string
       won: boolean
     }
+    /** CourseRecord */
+    CourseRecord: {
+      eventName: string
+      /** Format: int32 */
+      revision: number
+      document: string
+    }
+    /** SaveCourseRecordRequestInput */
+    SaveCourseRecordRequestInput: {
+      /** Format: int32 */
+      revision: number
+      document: string
+    }
     /** WebDeckCard */
     WebDeckCard: {
-      /** Format: int32 */
-      grpId: number
+      cardName: string
       /** Format: int32 */
       quantity: number
     }
@@ -2707,8 +2967,7 @@ export interface components {
     }
     /** WebDeckCardInput */
     WebDeckCardInput: {
-      /** Format: int32 */
-      grpId: number
+      cardName: string
       /** Format: int32 */
       quantity: number
     }
@@ -2734,16 +2993,15 @@ export interface components {
       packNumber: number
       /** Format: int32 */
       pickNumber: number
-      draftPack: number[]
-      pickedCards: number[]
+      draftPack: string[]
+      pickedCards: string[]
       interrupted: boolean
     }
     /** PickDraftRequestInput */
     PickDraftRequestInput: {
       playerId: string
       eventName: string
-      /** Format: int32 */
-      cardId: number
+      cardName: string
     }
     /** SubmitDeckRequestInput */
     SubmitDeckRequestInput: {

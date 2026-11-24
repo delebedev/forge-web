@@ -45,35 +45,20 @@ export function asRecentUserDeck(value: unknown): RecentUserDeck | null {
   }
 }
 
-/** Converts a persisted deck's grpId rows into launchable Forge deck text inputs. */
-export function recentDeckToDetail(
-  deck: RecentUserDeck,
-  names: Map<number, string>,
-): DeckDetail | null {
-  const cards: DeckCard[] = deck.mainDeck
-    .map((card): DeckCard | null => {
-      const name = names.get(card.grpId)
-      if (!name || isPlaceholderCardName(name, card.grpId)) {
-        return null
-      }
-      return {
-        name,
-        grpId: card.grpId,
-        quantity: card.quantity,
-        manaCost: null,
-        typeLine: null,
-        setCode: null,
-        collectorNumber: null,
-        colors: [],
-        cmc: 0,
-        power: null,
-        toughness: null,
-      }
-    })
-    .filter((card): card is DeckCard => card != null)
-  if (cards.length !== deck.mainDeck.length) {
-    return null
-  }
+/** Converts a saved deck's rows into launchable Forge deck text inputs. */
+export function recentDeckToDetail(deck: RecentUserDeck): DeckDetail {
+  const cards: DeckCard[] = deck.mainDeck.map((card) => ({
+    name: card.cardName,
+    quantity: card.quantity,
+    manaCost: null,
+    typeLine: null,
+    setCode: null,
+    collectorNumber: null,
+    colors: [],
+    cmc: 0,
+    power: null,
+    toughness: null,
+  }))
   return {
     id: deck.id,
     name: deck.name,
@@ -107,18 +92,15 @@ export function isUnavailableDeck(deck: DeckDetail | null): boolean {
   return (
     (deck.stats.totalCards ?? 0) < 60 ||
     (!deck.content?.trim() && deck.cards.length === 0) ||
-    deck.cards.some((card) => card.grpId != null && isPlaceholderCardName(card.name, card.grpId))
+    // Decks remembered before cards were stored by name may hold id placeholders.
+    deck.cards.some((card) => /^Card \d+$/.test(card.name))
   )
-}
-
-function isPlaceholderCardName(name: string, grpId: number): boolean {
-  return name === `Card ${grpId}`
 }
 
 function isWebDeckCard(value: unknown): value is WebDeckCard {
   if (!value || typeof value !== 'object') {
     return false
   }
-  const card = value as { grpId?: unknown; quantity?: unknown }
-  return typeof card.grpId === 'number' && typeof card.quantity === 'number' && card.quantity > 0
+  const card = value as { cardName?: unknown; quantity?: unknown }
+  return typeof card.cardName === 'string' && typeof card.quantity === 'number' && card.quantity > 0
 }

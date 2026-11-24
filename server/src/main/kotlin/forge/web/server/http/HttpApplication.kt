@@ -12,7 +12,9 @@ import forge.web.server.cards.installCardRoutes
 import forge.web.server.cards.installPublicCardRoutes
 import forge.web.server.decks.SavedDecks
 import forge.web.server.decks.installDeckRoutes
+import forge.web.server.limited.CourseRecordStore
 import forge.web.server.limited.LimitedSetView
+import forge.web.server.limited.installCourseRecordRoutes
 import forge.web.server.limited.installCourseRoutes
 import forge.web.server.limited.installLimitedRoutes
 import forge.web.server.match.ChallengeCatalog
@@ -65,6 +67,7 @@ internal data class WebServices(
     },
     val cardImages: CardImageIndex = CardImageIndex.empty(),
     val coursePlay: forge.web.server.limited.CoursePlayService,
+    val courseRecords: CourseRecordStore,
     val authService: WebAuthService,
     val replayStore: MatchReplayStore? = null,
     val sealedSets: () -> List<LimitedSetView> = { emptyList() },
@@ -151,7 +154,8 @@ internal fun Application.installHttpApplication(services: WebServices) {
                 services.commanderProblem,
                 services.validateCopies,
             )
-            installCourseRoutes(services.authService, services.courseService)
+            installCourseRoutes(services.authService, services.courseService, services.cardRepository)
+            installCourseRecordRoutes(services.authService, services.courseRecords)
             installDeckRoutes(
                 services.authService,
                 savedDecks,
@@ -165,6 +169,7 @@ internal fun Application.installHttpApplication(services: WebServices) {
                 services.draftService,
                 services.courseService,
                 services.coursePlay,
+                services.cardRepository,
                 services.sealedSets,
                 services.draftInterrupted,
                 services.draftDropped,

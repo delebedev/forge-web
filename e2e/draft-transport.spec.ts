@@ -11,8 +11,8 @@ async function mockDraft(page: Page, interrupted = false) {
     status: state.deleted || interrupted ? 'PickNext' : 'Completed',
     packNumber: 0,
     pickNumber: state.picks,
-    draftPack: state.deleted || interrupted ? [101] : [],
-    pickedCards: state.deleted ? (state.picks > 0 ? [101] : []) : [101],
+    draftPack: state.deleted || interrupted ? ['Grizzly Bears'] : [],
+    pickedCards: state.deleted ? (state.picks > 0 ? ['Grizzly Bears'] : []) : ['Grizzly Bears'],
     interrupted: interrupted && !state.deleted,
   })
   await routeCardIndex(
@@ -38,7 +38,10 @@ async function mockDraft(page: Page, interrupted = false) {
         return json(draftView())
       case '/api/draft/pick':
         expect(state.deleted).toBe(true)
-        expect(request.postDataJSON()).toMatchObject({ playerId: 'draft-fixture', cardId: 101 })
+        expect(request.postDataJSON()).toMatchObject({
+          playerId: 'draft-fixture',
+          cardName: 'Grizzly Bears',
+        })
         state.picks += 1
         return json(draftView())
       case '/api/draft':

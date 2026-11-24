@@ -147,7 +147,7 @@ class DraftStore {
     this.notify()
     const card = this.pack.find((candidate) => candidate.name === cardName)
     const playerId = authStore.player?.id
-    if (!card?.grpId || !this.sessionId || !playerId) {
+    if (!card || !this.sessionId || !playerId) {
       this.picking = false
       this.notify()
       return
@@ -159,7 +159,7 @@ class DraftStore {
         body: JSON.stringify({
           playerId,
           eventName: this.sessionId,
-          cardId: card.grpId,
+          cardName: card.name,
           packNumber: this.round,
           pickNumber: this.pick,
         }),
@@ -176,7 +176,7 @@ class DraftStore {
       this.round = view.packNumber ?? this.round
       this.pick = view.pickNumber ?? this.pick + 1
       this.pack = await webDraftCards(view.draftPack ?? [])
-      this.pool = await webDraftCards(view.pickedCards ?? [card.grpId])
+      this.pool = await webDraftCards(view.pickedCards ?? [card.name])
       this.poolSize = this.pool.length
       this.error = null
       if (view.status === 'Completed') {
@@ -212,8 +212,8 @@ class DraftStore {
           playerId,
           eventName: this.sessionId,
           name: 'Draft Deck',
-          mainDeck: await toWebDeckCards(mainboard, this.pool),
-          sideboard: await toWebDeckCards(sideboard, this.pool),
+          mainDeck: toWebDeckCards(mainboard),
+          sideboard: toWebDeckCards(sideboard),
         }),
       })
       if (!deckRes.ok) {

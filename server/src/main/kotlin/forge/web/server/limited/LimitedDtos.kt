@@ -13,7 +13,7 @@ data class StartDraftRequest(
 data class PickDraftRequest(
     val playerId: String,
     val eventName: String,
-    val cardId: Int,
+    val cardName: String,
 )
 
 @Serializable
@@ -38,8 +38,8 @@ data class DraftSessionView(
     val status: String,
     val packNumber: Int,
     val pickNumber: Int,
-    val draftPack: List<Int>,
-    val pickedCards: List<Int>,
+    val draftPack: List<String>,
+    val pickedCards: List<String>,
     val interrupted: Boolean = false,
 )
 
@@ -49,7 +49,7 @@ data class CourseView(
     val module: String,
     val wins: Int,
     val losses: Int,
-    val cardPool: List<Int>,
+    val cardPool: List<String>,
     val deckId: String?,
 )
 

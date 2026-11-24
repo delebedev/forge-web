@@ -146,14 +146,22 @@ export const CourseViewSchema: z.ZodType<components['schemas']['CourseView']> = 
   module: z.string(),
   wins: z.number().int().min(-2147483648).max(2147483647),
   losses: z.number().int().min(-2147483648).max(2147483647),
-  cardPool: z.array(z.number().int().min(-2147483648).max(2147483647)),
+  cardPool: z.array(z.string()),
   deckId: z.string().nullable(),
 })
 export const CourseResultRequestInputSchema: z.ZodType<
   components['schemas']['CourseResultRequestInput']
 > = z.object({ coursePlayId: z.string(), won: z.boolean() })
+export const CourseRecordSchema: z.ZodType<components['schemas']['CourseRecord']> = z.object({
+  eventName: z.string(),
+  revision: z.number().int().min(-2147483648).max(2147483647),
+  document: z.string(),
+})
+export const SaveCourseRecordRequestInputSchema: z.ZodType<
+  components['schemas']['SaveCourseRecordRequestInput']
+> = z.object({ revision: z.number().int().min(-2147483648).max(2147483647), document: z.string() })
 export const WebDeckCardSchema: z.ZodType<components['schemas']['WebDeckCard']> = z.object({
-  grpId: z.number().int().min(-2147483648).max(2147483647),
+  cardName: z.string(),
   quantity: z.number().int().min(-2147483648).max(2147483647),
 })
 export const DeckViewSchema: z.ZodType<components['schemas']['DeckView']> = z.object({
@@ -166,10 +174,7 @@ export const DeckViewSchema: z.ZodType<components['schemas']['DeckView']> = z.ob
   commandZone: z.array(z.lazy(() => WebDeckCardSchema)),
 })
 export const WebDeckCardInputSchema: z.ZodType<components['schemas']['WebDeckCardInput']> =
-  z.object({
-    grpId: z.number().int().min(-2147483648).max(2147483647),
-    quantity: z.number().int().min(-2147483648).max(2147483647),
-  })
+  z.object({ cardName: z.string(), quantity: z.number().int().min(-2147483648).max(2147483647) })
 export const CreateDeckRequestInputSchema: z.ZodType<
   components['schemas']['CreateDeckRequestInput']
 > = z.object({
@@ -189,17 +194,13 @@ export const DraftSessionViewSchema: z.ZodType<components['schemas']['DraftSessi
     status: z.string(),
     packNumber: z.number().int().min(-2147483648).max(2147483647),
     pickNumber: z.number().int().min(-2147483648).max(2147483647),
-    draftPack: z.array(z.number().int().min(-2147483648).max(2147483647)),
-    pickedCards: z.array(z.number().int().min(-2147483648).max(2147483647)),
+    draftPack: z.array(z.string()),
+    pickedCards: z.array(z.string()),
     interrupted: z.boolean(),
   })
 export const PickDraftRequestInputSchema: z.ZodType<
   components['schemas']['PickDraftRequestInput']
-> = z.object({
-  playerId: z.string(),
-  eventName: z.string(),
-  cardId: z.number().int().min(-2147483648).max(2147483647),
-})
+> = z.object({ playerId: z.string(), eventName: z.string(), cardName: z.string() })
 export const SubmitDeckRequestInputSchema: z.ZodType<
   components['schemas']['SubmitDeckRequestInput']
 > = z.object({
@@ -289,6 +290,16 @@ export const responseSchemas = {
   },
   'POST /api/courses/result': {
     '200': z.lazy(() => CourseViewSchema),
+  },
+  'GET /api/course-records': {
+    '200': z.array(z.lazy(() => CourseRecordSchema)),
+  },
+  'PUT /api/course-records/{eventName}': {
+    '200': z.lazy(() => CourseRecordSchema),
+  },
+  'DELETE /api/course-records/{eventName}': {},
+  'GET /api/course-records/{eventName}': {
+    '200': z.lazy(() => CourseRecordSchema),
   },
   'POST /api/decks': {
     '200': z.lazy(() => DeckViewSchema),

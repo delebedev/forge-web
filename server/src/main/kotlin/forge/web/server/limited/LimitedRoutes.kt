@@ -2,6 +2,8 @@ package forge.web.server.limited
 
 import forge.web.server.auth.WebAuthService
 import forge.web.server.auth.ownedPlayerId
+import forge.web.server.decks.requiredGrpId
+import forge.web.server.decks.requiredName
 import forge.web.server.decks.toDomainDeckCards
 import forge.web.server.http.contract
 import forge.web.server.http.requiredQuery
@@ -24,16 +26,18 @@ import leyline.domain.DraftSessionId
 import leyline.domain.service.CourseService
 import leyline.domain.service.DraftService
 import leyline.domain.service.EventRegistry
+import leyline.game.data.CardRepository
 import java.util.UUID
 
 internal fun Route.installCourseRoutes(
     auth: WebAuthService,
     courses: CourseService,
+    cards: CardRepository,
 ) {
     route("/courses") {
         get {
             val playerId = call.ownedPlayerId(auth, call.request.queryParameters["playerId"])
-            call.respond(courses.getCoursesForPlayer(playerId).map(::courseView))
+            call.respond(courses.getCoursesForPlayer(playerId).map { courseView(it, cards) })
         }.contract {
             query<String>("playerId")
             response<List<CourseView>>()
@@ -47,16 +51,17 @@ internal fun Route.installLimitedRoutes(
     drafts: DraftService,
     courses: CourseService,
     plays: CoursePlayService,
+    cards: CardRepository,
     sealedSets: () -> List<LimitedSetView>,
     draftInterrupted: (DraftSession) -> Boolean,
     draftDropped: (DraftSessionId) -> Unit,
 ) {
-    fun view(session: DraftSession) = sessionView(session, draftInterrupted(session))
+    fun view(session: DraftSession) = sessionView(session, draftInterrupted(session), cards)
 
     post("/courses/result") {
         val request = call.receive<CourseResultRequest>()
         val playerId = call.ownedPlayerId(auth, null)
-        call.respond(courseView(plays.report(playerId, request.coursePlayId, request.won)))
+        call.respond(courseView(plays.report(playerId, request.coursePlayId, request.won), cards))
     }.contract {
         request<CourseResultRequest>()
         response<CourseView>()
@@ -80,7 +85,7 @@ internal fun Route.installLimitedRoutes(
                 call.respond(HttpStatusCode.Conflict, "This draft was interrupted by a server restart. Discard it to start a new draft.")
                 return@post
             }
-            call.respond(view(drafts.pick(playerId, request.eventName, request.cardId)))
+            call.respond(view(drafts.pick(playerId, request.eventName, cards.requiredGrpId(request.cardName))))
         }.contract {
             request<PickDraftRequest>()
             response<DraftSessionView>()
@@ -97,7 +102,7 @@ internal fun Route.installLimitedRoutes(
             response<DraftSessionView>()
             empty(401, 403, 404)
         }
-        post("/deck") { call.submitCourseDeck(auth, courses) }.contract {
+        post("/deck") { call.submitCourseDeck(auth, courses, cards) }.contract {
             request<SubmitDeckRequest>()
             response<CourseView>()
             empty(401, 403)
@@ -126,13 +131,13 @@ internal fun Route.installLimitedRoutes(
             val request = call.receive<StartDraftRequest>()
             val playerId = call.ownedPlayerId(auth, request.playerId)
             require(EventRegistry.isSealed(request.eventName)) { "${request.eventName} is not a sealed event" }
-            call.respond(courseView(courses.join(playerId, request.eventName)))
+            call.respond(courseView(courses.join(playerId, request.eventName), cards))
         }.contract {
             request<StartDraftRequest>()
             response<CourseView>()
             empty(401, 403)
         }
-        post("/deck") { call.submitCourseDeck(auth, courses) }.contract {
+        post("/deck") { call.submitCourseDeck(auth, courses, cards) }.contract {
             request<SubmitDeckRequest>()
             response<CourseView>()
             empty(401, 403)
@@ -157,12 +162,14 @@ internal fun Route.installLimitedRoutes(
 private suspend fun ApplicationCall.submitCourseDeck(
     auth: WebAuthService,
     courses: CourseService,
+    cards: CardRepository,
 ) {
     val request = receive<SubmitDeckRequest>()
     val playerId = ownedPlayerId(auth, request.playerId)
     require(request.mainDeck.sumOf { it.quantity } >= 40) { "mainDeck must contain at least 40 cards" }
     val deckId = DeckId(request.deckId?.takeIf(String::isNotBlank) ?: UUID.randomUUID().toString())
-    respond(courses.setDeck(playerId, request.eventName, request.toCourseDeck(deckId), request.toCourseSummary(deckId)).let(::courseView))
+    val deck = request.toCourseDeck(deckId, cards)
+    respond(courseView(courses.setDeck(playerId, request.eventName, deck, request.toCourseSummary(deck)), cards))
 }
 
 private suspend fun ApplicationCall.playCourse(
@@ -176,30 +183,43 @@ private suspend fun ApplicationCall.playCourse(
 private fun sessionView(
     session: DraftSession,
     interrupted: Boolean,
+    cards: CardRepository,
 ) = DraftSessionView(
     session.eventName,
     session.status.name,
     session.packNumber,
     session.pickNumber,
-    session.draftPack,
-    session.pickedCards,
+    session.draftPack.map(cards::requiredName),
+    session.pickedCards.map(cards::requiredName),
     interrupted,
 )
 
-private fun courseView(course: Course) =
-    CourseView(course.eventName, course.module.name, course.wins, course.losses, course.cardPool, course.deck?.deckId?.value)
+private fun courseView(
+    course: Course,
+    cards: CardRepository,
+) = CourseView(
+    course.eventName,
+    course.module.name,
+    course.wins,
+    course.losses,
+    course.cardPool.map(cards::requiredName),
+    course.deck?.deckId?.value,
+)
 
-private fun SubmitDeckRequest.toCourseDeck(deckId: DeckId): CourseDeck =
+private fun SubmitDeckRequest.toCourseDeck(
+    deckId: DeckId,
+    cards: CardRepository,
+): CourseDeck =
     CourseDeck(
         deckId,
-        mainDeck.toDomainDeckCards(),
-        sideboard.toDomainDeckCards(),
+        mainDeck.toDomainDeckCards(cards),
+        sideboard.toDomainDeckCards(cards),
     )
 
-private fun SubmitDeckRequest.toCourseSummary(deckId: DeckId): CourseDeckSummary =
+private fun SubmitDeckRequest.toCourseSummary(deck: CourseDeck): CourseDeckSummary =
     CourseDeckSummary(
-        deckId,
+        deck.deckId,
         name.ifBlank { "Draft Deck" },
-        mainDeck.firstOrNull()?.grpId ?: 0,
+        deck.mainDeck.firstOrNull()?.grpId ?: 0,
         "Limited",
     )

@@ -3,7 +3,7 @@ import { readJson } from '@shared/api/decoding'
 import type { DraftCard } from '@shared/api/contracts'
 import { apiFetch } from '@shared/api/client'
 import { authStore } from '@shared/auth/auth'
-import { toWebDeckCards, webDraftCard } from '@shared/cards/catalog'
+import { toWebDeckCards, webDraftCards } from '@shared/cards/catalog'
 
 export type SealedPhase = 'idle' | 'connecting' | 'deck_build' | 'playing' | 'finished'
 
@@ -87,7 +87,7 @@ class SealedStore {
         return false
       }
       this.eventName = inProgress.eventName
-      this.pool = inProgress.cardPool.map(webDraftCard)
+      this.pool = await webDraftCards(inProgress.cardPool)
       this.phase = 'deck_build'
       return true
     } catch {
@@ -124,7 +124,7 @@ class SealedStore {
       }
       const course = await readJson(res, CourseViewSchema)
       this.eventName = course.eventName
-      this.pool = course.cardPool.map(webDraftCard)
+      this.pool = await webDraftCards(course.cardPool)
       this.phase = 'deck_build'
       return true
     } catch (err) {
@@ -154,8 +154,8 @@ class SealedStore {
           playerId,
           eventName: this.eventName,
           name: 'Sealed Deck',
-          mainDeck: await toWebDeckCards(mainboard, this.pool),
-          sideboard: await toWebDeckCards(sideboard, this.pool),
+          mainDeck: toWebDeckCards(mainboard),
+          sideboard: toWebDeckCards(sideboard),
         }),
       })
       if (!deckRes.ok) {

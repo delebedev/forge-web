@@ -19,15 +19,15 @@ const card = libraryCard(
 
 test('moving one copy merges the destination and preserves source metadata and total inventory', () => {
   const original = { mainboard: [card], sideboard: [{ ...card, quantity: 3 }] }
-  const moved = moveDeckCard(original, 'mainboard', 1)
+  const moved = moveDeckCard(original, 'mainboard', 'Relentless Rats')
   expect(moved.mainboard).toEqual([{ ...card, quantity: 1 }])
   expect(moved.sideboard).toEqual([{ ...card, quantity: 4 }])
-  expect(moveDeckCard(moved, 'sideboard', 1)).toEqual(original)
+  expect(moveDeckCard(moved, 'sideboard', 'Relentless Rats')).toEqual(original)
   expect(original.mainboard[0]).toBe(card)
-  const emptied = moveDeckCard(moved, 'mainboard', 1)
+  const emptied = moveDeckCard(moved, 'mainboard', 'Relentless Rats')
   expect(emptied.mainboard).toEqual([])
   expect(emptied.sideboard).toEqual([{ ...card, quantity: 5 }])
-  expect(moveDeckCard(emptied, 'mainboard', 1)).toBe(emptied)
+  expect(moveDeckCard(emptied, 'mainboard', 'Relentless Rats')).toBe(emptied)
 })
 
 test('draft quantity changes do not invent a four-copy limit or mutate the original rows', () => {

@@ -34,8 +34,9 @@ export function loadStoredDeck(key: string): DeckDetail | null {
   }
 }
 
+/** Stores the deck's schema fields only, so cards persist by name without runtime ids. */
 export function saveStoredDeck(key: string, deck: DeckDetail): void {
-  localStorage.setItem(key, JSON.stringify(deck))
+  localStorage.setItem(key, JSON.stringify(DeckDetailSchema.parse(deck)))
 }
 
 export function migrateStoredDeckKey(oldKey: string, newKey: string): void {

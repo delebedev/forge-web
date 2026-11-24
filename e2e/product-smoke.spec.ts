@@ -395,7 +395,7 @@ test('all Commander starters have playable saved deck contents', async ({ page }
     expect(commandZone, name).toHaveLength(1)
     expect(commandZone[0]!.quantity, name).toBe(1)
     for (const card of [...detail.mainDeck, ...commandZone]) {
-      expect(card.grpId, name).toBeGreaterThan(0)
+      expect(card.cardName, name).toBeTruthy()
       expect(card.quantity, name).toBeGreaterThan(0)
     }
   }

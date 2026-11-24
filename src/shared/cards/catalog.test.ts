@@ -1,15 +1,9 @@
 import { afterEach, expect, test } from 'bun:test'
 import { installCardIndexForTest } from './card-index'
 import { testCardIndex } from './card-index-test-fixtures'
-import { grpIdsToNames, toWebDeckCards, webDraftCards } from './catalog'
+import { toWebDeckCards, webDraftCards } from './catalog'
 
 afterEach(() => installCardIndexForTest(null))
-
-test('names resolve from the card index', async () => {
-  installCardIndexForTest(testCardIndex([{ grpId: 42, name: 'Named Card' }]))
-
-  expect(await grpIdsToNames([42, 99])).toEqual(new Map([[42, 'Named Card']]))
-})
 
 test('limited card hydration preserves pack order, metadata and placeholders', async () => {
   installCardIndexForTest(
@@ -28,9 +22,9 @@ test('limited card hydration preserves pack order, metadata and placeholders', a
     ]),
   )
 
-  const cards = await webDraftCards([44, 43, 45])
+  const cards = await webDraftCards(['Red Card', 'Blue Card', 'Unknown Card'])
 
-  expect(cards.map((card) => card.name)).toEqual(['Red Card', 'Blue Card', 'Card 45'])
+  expect(cards.map((card) => card.name)).toEqual(['Red Card', 'Blue Card', 'Unknown Card'])
   expect(cards[1]?.colors).toEqual(['U'])
   expect(cards[1]?.typeLine).toBe('Creature')
   expect(cards[1]?.rulesText).toBe('Flying')
@@ -59,7 +53,7 @@ test('limited catalog cards retain layout and linked face rules', async () => {
     ]),
   )
 
-  const [card] = await webDraftCards([520])
+  const [card] = await webDraftCards(['Adventurer'])
 
   expect(card?.faceLayout).toBe('Adventure')
   expect(card?.linkedFaces?.map((face) => [face.name, face.manaCost, face.rulesText])).toEqual([
@@ -67,8 +61,9 @@ test('limited catalog cards retain layout and linked face rules', async () => {
   ])
 })
 
-test('auto-filled basic lands resolve by name', async () => {
-  installCardIndexForTest(testCardIndex([{ grpId: 7, name: 'Forest' }]))
-
-  expect(await toWebDeckCards(['Forest', 'Forest'], [])).toEqual([{ grpId: 7, quantity: 2 }])
+test('deck rows count card names', () => {
+  expect(toWebDeckCards(['Forest', 'Shock', 'Forest'])).toEqual([
+    { cardName: 'Forest', quantity: 2 },
+    { cardName: 'Shock', quantity: 1 },
+  ])
 })

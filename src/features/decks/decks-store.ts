@@ -124,19 +124,19 @@ export class DecksStore {
     this.commit(this.emptyState())
   }
 
-  private async loadMetadata(decks: DeckView[]): Promise<ReadonlyMap<number, LibraryCard>> {
+  private async loadMetadata(decks: DeckView[]): Promise<ReadonlyMap<string, LibraryCard>> {
     let index: CardIndex | null = null
     try {
       index = await this.cards()
     } catch {
       /* Retain persisted identities when the card index is unavailable. */
     }
-    const metadata = new Map<number, LibraryCard>()
+    const metadata = new Map<string, LibraryCard>()
     for (const deck of decks) {
       for (const row of [...deck.mainDeck, ...deck.sideboard, ...deck.commandZone]) {
-        const card = index?.cardById(row.grpId)
-        if (card && !metadata.has(row.grpId)) {
-          metadata.set(row.grpId, hydratedCard({ grpId: row.grpId, quantity: 1 }, card))
+        const card = index?.card(row.cardName)
+        if (card && !metadata.has(row.cardName)) {
+          metadata.set(row.cardName, hydratedCard({ cardName: row.cardName, quantity: 1 }, card))
         }
       }
     }
@@ -249,7 +249,7 @@ export class DecksStore {
     this.commit({ mutating: true, error: null })
     try {
       const rows = (cards: LibraryCard[]) =>
-        cards.map(({ grpId, quantity }) => ({ grpId, quantity }))
+        cards.map(({ name, quantity }) => ({ cardName: name, quantity }))
       const response = await this.request(
         draft.id ? `/api/decks/${encodeURIComponent(draft.id)}` : '/api/decks',
         {
