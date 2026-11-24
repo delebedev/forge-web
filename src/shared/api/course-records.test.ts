@@ -1,0 +1,50 @@
+import { afterEach, beforeEach, expect, it } from 'bun:test'
+import { recordCourseResult } from './course-records'
+import { courseRecordServer } from './course-records-test-server'
+
+const EVENT = 'Sealed_FDN_20260307'
+const originalFetch = globalThis.fetch
+let server: ReturnType<typeof courseRecordServer>
+
+const course = (wins: number, losses: number) => ({
+  kind: 'sealed',
+  set: 'FDN',
+  seed: 1,
+  picks: [],
+  catalogVersion: 'catalog-1',
+  pool: ['Bear'],
+  deck: { mainDeck: [{ cardName: 'Bear', quantity: 40 }], sideboard: [] },
+  botDecks: [],
+  wins,
+  losses,
+  phase: 'games',
+})
+
+beforeEach(() => {
+  server = courseRecordServer()
+  globalThis.fetch = server.fetch
+})
+
+afterEach(() => {
+  globalThis.fetch = originalFetch
+})
+
+it('records a game once, however often it is reported', async () => {
+  server.put(EVENT, course(1, 0))
+  expect(await recordCourseResult(EVENT, 1, true)).toEqual({ wins: 2, losses: 0 })
+  expect(await recordCourseResult(EVENT, 1, true)).toEqual({ wins: 2, losses: 0 })
+  expect(server.document(EVENT)).toMatchObject({ revision: 2, wins: 2, losses: 0, phase: 'games' })
+})
+
+it('the third loss finishes the course', async () => {
+  server.put(EVENT, course(2, 2))
+  expect(await recordCourseResult(EVENT, 4, false)).toEqual({ wins: 2, losses: 3 })
+  expect(server.document(EVENT)).toMatchObject({ phase: 'finished' })
+})
+
+it('a stale save reloads the course and records the result on it', async () => {
+  server.put(EVENT, course(0, 0))
+  server.conflictOnce()
+  expect(await recordCourseResult(EVENT, 0, false)).toEqual({ wins: 0, losses: 1 })
+  expect(server.document(EVENT)).toMatchObject({ revision: 2, losses: 1 })
+})

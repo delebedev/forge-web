@@ -1,15 +1,10 @@
 import { describe, expect, it } from 'bun:test'
 import type { DeckDetail } from '@shared/api/contracts'
-import {
-  DEFAULT_GRE_LIMITED_OPPONENT_DECK,
-  DEFAULT_GRE_OPPONENT_DECK,
-  DEFAULT_GRE_PLAYER_DECK,
-} from './gre-match'
+import { DEFAULT_GRE_OPPONENT_DECK, DEFAULT_GRE_PLAYER_DECK } from './gre-match'
 import {
   challengeToGreStartConfig,
   devDefaultGreStartConfig,
   gameSetupToGreStartConfig,
-  limitedDeckToGreStartConfig,
   puzzleToGreStartConfig,
 } from './gre-launch'
 
@@ -83,12 +78,7 @@ describe('gameSetupToGreStartConfig', () => {
   })
 })
 
-it('builds limited, puzzle, and dev GRE configs', () => {
-  expect(limitedDeckToGreStartConfig('1 Bear', 'draft')).toEqual({
-    seat1Deck: '1 Bear',
-    seat2Deck: DEFAULT_GRE_LIMITED_OPPONENT_DECK,
-    gameType: 'draft',
-  })
+it('builds puzzle and dev GRE configs', () => {
   expect(puzzleToGreStartConfig('combat.pzl')).toEqual({
     challengeId: 'combat.pzl',
     gameType: 'puzzle',

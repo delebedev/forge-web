@@ -32,7 +32,7 @@ async function observeAdmission(page: Page, config: unknown) {
           json: { matchId: 'route-fixture-match', wireMatchId: 'route-fixture-match' },
         })
       case '/api/decks':
-      case '/api/courses':
+      case '/api/course-records':
         return route.fulfill({ json: [] })
       default:
         return route.fulfill({ status: 204 })

@@ -1,5 +1,4 @@
 import { clearGreMatchConfig, loadGreMatchConfig, saveGreMatchConfig } from './gre-match'
-import { limitedDeckToGreStartConfig } from './gre-launch'
 import { BrowserEngine, BrowserEngineFailure } from './browser-engine'
 import { replayBrowserMatch } from './browser-match-recovery'
 import type { TranscriptBundle } from '@engine/replay/gre-transcript'
@@ -359,10 +358,6 @@ export class GreSessionStore {
     this.notify()
   }
 
-  startLimited(deckText: string, gameType: 'draft' | 'sealed'): void {
-    this.start(limitedDeckToGreStartConfig(deckText, gameType))
-  }
-
   private watchBrowserProgress(): void {
     this.browserWatchdog?.stop()
     this.browserWatchdog = new BrowserProgressWatchdog(
@@ -511,7 +506,7 @@ export class GreSessionStore {
   }
 
   playAgain(): Promise<boolean> {
-    return this.transition(!this.config?.coursePlayId || !greStore.gameOver)
+    return this.transition(!this.config?.courseEvent || !greStore.gameOver)
   }
   leave(): Promise<boolean> {
     return this.transition(false)

@@ -622,7 +622,8 @@ it('course startup and refresh retry locally with the same receipt, while comple
       session.startBrowser(
         {
           gameType: 'draft',
-          coursePlayId: 'pending-receipt',
+          courseEvent: 'QuickDraft_FDN_20260223',
+          courseGame: 0,
           seat1Deck: '40 Mountain',
           seat2Deck: '40 Forest',
           returnPath: '/play/limited',
@@ -642,7 +643,8 @@ it('course startup and refresh retry locally with the same receipt, while comple
       }
       expect(await session.playAgain()).toBe(true)
       expect(session.config).toMatchObject({
-        coursePlayId: 'pending-receipt',
+        courseEvent: 'QuickDraft_FDN_20260223',
+        courseGame: 0,
         seat1Deck: '40 Mountain',
         seat2Deck: '40 Forest',
       })

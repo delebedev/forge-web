@@ -280,7 +280,8 @@ class ServerTest {
             assertTrue(response.bodyAsText().contains("/api/decks"))
             assertFalse(response.bodyAsText().contains("/api/gre/abandon"))
             assertFalse(response.bodyAsText().contains("MatchCapacityResponse"))
-            assertTrue(response.bodyAsText().contains("/api/courses/result"))
+            assertTrue(response.bodyAsText().contains("/api/course-records"))
+            assertFalse(response.bodyAsText().contains("/api/draft"))
             assertFalse(response.bodyAsText().contains("/api/legacy-decks"))
             assertFalse(response.bodyAsText().contains("LegacyDeckSummaryView"))
         }

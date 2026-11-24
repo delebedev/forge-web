@@ -13,10 +13,7 @@ import forge.web.server.cards.installPublicCardRoutes
 import forge.web.server.decks.SavedDecks
 import forge.web.server.decks.installDeckRoutes
 import forge.web.server.limited.CourseRecordStore
-import forge.web.server.limited.LimitedSetView
 import forge.web.server.limited.installCourseRecordRoutes
-import forge.web.server.limited.installCourseRoutes
-import forge.web.server.limited.installLimitedRoutes
 import forge.web.server.match.ChallengeCatalog
 import forge.web.server.match.ChallengeSummary
 import forge.web.server.match.DevelopmentPuzzle
@@ -42,21 +39,13 @@ import io.ktor.server.routing.route
 import io.ktor.server.routing.routing
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
-import leyline.domain.DraftSession
-import leyline.domain.DraftSessionId
 import leyline.domain.deck.DeckCards
 import leyline.domain.json.productionJson
 import leyline.domain.repo.DeckRepository
 import leyline.domain.service.CollectionService
-import leyline.domain.service.CourseService
-import leyline.domain.service.DraftService
 import leyline.game.data.CardRepository
 
 internal data class WebServices(
-    val draftService: DraftService,
-    val draftInterrupted: (DraftSession) -> Boolean = { false },
-    val draftDropped: (DraftSessionId) -> Unit = {},
-    val courseService: CourseService,
     val decks: DeckRepository,
     val collectionService: CollectionService,
     val cardRepository: CardRepository,
@@ -66,11 +55,9 @@ internal data class WebServices(
         forge.web.cards.validateDeckCopies(cardRepository, deck, format)
     },
     val cardImages: CardImageIndex = CardImageIndex.empty(),
-    val coursePlay: forge.web.server.limited.CoursePlayService,
     val courseRecords: CourseRecordStore,
     val authService: WebAuthService,
     val replayStore: MatchReplayStore? = null,
-    val sealedSets: () -> List<LimitedSetView> = { emptyList() },
     val challengeCatalog: ChallengeCatalog = emptyChallenges(),
     val devToolsEnabled: Boolean = false,
     val puzzleStore: PuzzleStore? = null,
@@ -154,7 +141,6 @@ internal fun Application.installHttpApplication(services: WebServices) {
                 services.commanderProblem,
                 services.validateCopies,
             )
-            installCourseRoutes(services.authService, services.courseService, services.cardRepository)
             installCourseRecordRoutes(services.authService, services.courseRecords)
             installDeckRoutes(
                 services.authService,
@@ -163,16 +149,6 @@ internal fun Application.installHttpApplication(services: WebServices) {
                 services.canBeCommander,
                 services.commanderProblem,
                 services.validateCopies,
-            )
-            installLimitedRoutes(
-                services.authService,
-                services.draftService,
-                services.courseService,
-                services.coursePlay,
-                services.cardRepository,
-                services.sealedSets,
-                services.draftInterrupted,
-                services.draftDropped,
             )
         }
     }

@@ -5,7 +5,9 @@ export type GreExecution = 'browser'
 
 export type GreStartConfig = {
   execution?: GreExecution
-  coursePlayId?: string
+  /** A limited course game: its event and the number of games the course had finished before it. */
+  courseEvent?: string
+  courseGame?: number
   attemptId?: string
   seed?: number
   frontendBuild?: string

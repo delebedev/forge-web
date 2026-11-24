@@ -2,12 +2,8 @@
  * Feature flags for parked or in-progress surfaces.
  */
 
-/**
- * Sealed is parked: /api/sealed/play 500s at match launch, so the
- * sealed-to-game path dead-ends after deck build. Flip back on once the
- * launch path works end-to-end.
- */
-export const SEALED_ENABLED = false
+/** Shows the Sealed tab beside Draft on the limited page. */
+export const SEALED_ENABLED = true
 
 /**
  * The puzzle page is parked: the product ships login/constructed

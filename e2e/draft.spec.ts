@@ -1,8 +1,8 @@
-import type { Page } from '@playwright/test'
+import type { Locator, Page } from '@playwright/test'
 import { expect, test } from './gre-test'
 import { completionState } from './gre-action-completion'
 
-test.setTimeout(360_000)
+test.setTimeout(600_000)
 
 async function signIn(page: Page): Promise<void> {
   const email = `draft-${Date.now()}@example.test`
@@ -13,7 +13,21 @@ async function signIn(page: Page): Promise<void> {
   expect(response.ok()).toBe(true)
 }
 
-test('drafts a deck and enters a playable pod match', async ({ page }, testInfo) => {
+const EVENT = 'QuickDraft_FDN_20260223'
+
+async function poolCount(pool: Locator): Promise<number> {
+  return Number(/(\d+) cards/.exec((await pool.textContent()) ?? '')![1])
+}
+
+async function poolNames(pool: Locator): Promise<string[]> {
+  return (
+    await pool
+      .locator('[data-card]')
+      .evaluateAll((cards) => cards.map((card) => card.getAttribute('data-card') ?? ''))
+  ).sort()
+}
+
+test('drafts a deck and enters a playable pod match', async ({ page, browser }, testInfo) => {
   const gameplayRequests: string[] = []
   const gameplaySockets: string[] = []
   const journalUploads: { status: number; format?: string; complete: boolean }[] = []
@@ -52,6 +66,9 @@ test('drafts a deck and enters a playable pod match', async ({ page }, testInfo)
 
   await expect(page).toHaveURL(/\/play\/limited\?mode=draft$/)
   await expect(page.getByRole('heading', { name: 'Booster Draft' })).toBeVisible()
+  await page.getByRole('button', { name: 'Change set', exact: true }).click()
+  await page.getByRole('textbox', { name: 'Search sets' }).fill('FDN')
+  await page.getByRole('button', { name: /FDN.*Foundations/ }).click()
   await page.getByRole('button', { name: 'Start Draft' }).click()
 
   const firstCard = page.locator('button[data-card]').first()
@@ -59,7 +76,8 @@ test('drafts a deck and enters a playable pod match', async ({ page }, testInfo)
   await expect(page.getByRole('button', { name: 'Get Advice' })).toHaveCount(0)
   await expect(page.getByText('Round 1', { exact: true })).toBeVisible()
   await firstCard.click()
-  await expect(page.getByRole('complementary', { name: 'Draft pool' })).toContainText('1 cards')
+  const pool = page.getByRole('complementary', { name: 'Draft pool' })
+  await expect(pool).toContainText('1 cards')
   await expect
     .poll(() =>
       page
@@ -73,13 +91,54 @@ test('drafts a deck and enters a playable pod match', async ({ page }, testInfo)
     .toBe(true)
   await page.screenshot({ path: testInfo.outputPath('draft-pick.png') })
 
+  // Pick into the second pack, then reload: the saved picks replay to the same pool and pack.
+  while (!(await page.getByText('Round 2', { exact: true }).isVisible())) {
+    const picked = await poolCount(pool)
+    await page.locator('button[data-card]').first().click()
+    await expect(pool).toContainText(`${picked + 1} cards`)
+  }
+  await page.locator('button[data-card]').first().click()
+  await expect(page.getByText('Pick 2', { exact: true })).toBeVisible()
+  const pickedBefore = await poolNames(pool)
+  const countBefore = await poolCount(pool)
+  const packBefore = await page
+    .locator('button[data-card]')
+    .evaluateAll((cards) => cards.map((card) => card.getAttribute('data-card')))
+  await page.reload()
+  await page.getByRole('button', { name: 'Start Draft' }).click()
+  await expect(page.getByText('Round 2', { exact: true })).toBeVisible({ timeout: 60_000 })
+  await expect(page.getByText('Pick 2', { exact: true })).toBeVisible()
+  expect(await poolNames(pool)).toEqual(pickedBefore)
+  expect(
+    await page
+      .locator('button[data-card]')
+      .evaluateAll((cards) => cards.map((card) => card.getAttribute('data-card'))),
+  ).toEqual(packBefore)
+
+  // The same account continues the draft in another browser profile.
+  const other = await browser.newContext({ storageState: await page.context().storageState() })
+  const otherPage = await other.newPage()
+  await otherPage.goto('/play/limited?mode=draft')
+  await otherPage.getByRole('button', { name: 'Start Draft' }).click()
+  await expect(otherPage.getByText('Round 2', { exact: true })).toBeVisible({ timeout: 60_000 })
+  const otherPool = otherPage.getByRole('complementary', { name: 'Draft pool' })
+  expect(await poolNames(otherPool)).toEqual(pickedBefore)
+  await otherPage.locator('button[data-card]').first().click()
+  await expect(otherPool).toContainText(`${countBefore + 1} cards`)
+  await other.close()
+
+  await page.reload()
+  await page.getByRole('button', { name: 'Start Draft' }).click()
+  await expect(pool).toContainText(`${countBefore + 1} cards`, { timeout: 60_000 })
   await page.getByRole('button', { name: 'Auto-pick draft' }).click()
   await expect(page.getByRole('heading', { name: 'Build your draft deck' })).toBeVisible({
-    timeout: 60_000,
+    timeout: 120_000,
   })
   await page.reload()
   await page.getByRole('button', { name: 'Start Draft' }).click()
-  await expect(page.getByRole('heading', { name: 'Build your draft deck' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Build your draft deck' })).toBeVisible({
+    timeout: 30_000,
+  })
   await page.getByRole('button', { name: 'Auto-build deck' }).click()
   await expect(page.getByText('40/40')).toBeVisible()
   await page.screenshot({ path: testInfo.outputPath('draft-deck.png') })
@@ -148,15 +207,7 @@ test('drafts a deck and enters a playable pod match', async ({ page }, testInfo)
       },
     )
     .toBe(true)
-  const saved = page.waitForResponse(
-    (response) =>
-      response.url().endsWith('/api/courses/result') && response.request().method() === 'POST',
-  )
   expect((await page.evaluate(() => window.__greActWait('concede'))).ok).toBe(true)
-  const result = await saved
-  expect(result.ok()).toBe(true)
-  const course = await result.json()
-  expect(course).toMatchObject({ wins: 0, losses: 1 })
   await expect(
     page.getByText('Course result saved: 0 wins · 1 losses.', { exact: true }),
   ).toBeVisible()
@@ -168,8 +219,27 @@ test('drafts a deck and enters a playable pod match', async ({ page }, testInfo)
   await page.screenshot({ path: testInfo.outputPath('draft-course-result.png') })
   await page.getByRole('button', { name: 'Play Again', exact: true }).click()
   await expect(page).toHaveURL(/\/play\/limited/)
-  const courses = await (await page.request.get('/api/courses')).json()
-  expect(courses).toEqual(expect.arrayContaining([expect.objectContaining({ wins: 0, losses: 1 })]))
+  // Games two and three start from the saved course.
+  for (const losses of [2, 3]) {
+    await page
+      .getByRole('group', { name: EVENT })
+      .getByRole('button', { name: 'Play', exact: true })
+      .click()
+    await expect(page).toHaveURL(/\/match\/draft$/, { timeout: 30_000 })
+    await expect
+      .poll(() => page.evaluate(() => Boolean(window.__greState()?.connected)), {
+        timeout: 120_000,
+      })
+      .toBe(true)
+    expect((await page.evaluate(() => window.__greActWait('concede'))).ok).toBe(true)
+    await expect(
+      page.getByText(`Course result saved: 0 wins · ${losses} losses.`, { exact: true }),
+    ).toBeVisible()
+    await page.getByRole('button', { name: 'Back to Play', exact: true }).click()
+    await expect(page).toHaveURL(/\/play\/limited/)
+  }
+  const course = await (await page.request.get(`/api/course-records/${EVENT}`)).json()
+  expect(JSON.parse(course.document)).toMatchObject({ phase: 'finished', wins: 0, losses: 3 })
   expect(journalUploads.filter((upload) => upload.status < 200 || upload.status >= 300)).toEqual([])
   expect(gameplayRequests).toEqual([])
   expect(gameplaySockets).toEqual([])

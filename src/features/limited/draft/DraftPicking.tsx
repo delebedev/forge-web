@@ -15,7 +15,7 @@ export function DraftPicking() {
 
   const [autoPicking, setAutoPicking] = useState(false)
 
-  // Development shortcut: exercise the real pick endpoint until the draft completes.
+  // Development shortcut: make real picks until the draft completes.
   useEffect(() => {
     if (draft.error) {
       setAutoPicking(false)

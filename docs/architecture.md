@@ -107,14 +107,14 @@ graph TB
   objective, and return path into `greSession`; the normal `GrePlay` board owns
   every puzzle interaction and terminal state.
 - `features/decks/decks-store.ts` owns account-scoped saved-deck values, metadata loading, selection freshness, and mutation aftermath. Editors keep unsaved drafts with original card identities and all sections. The library publishes committed values and rejects old-account completions. [ADR-007](adr/007-own-complete-decks-in-the-library.md) records the ownership and presentation limits.
-- `features/limited/draft-store.ts` and `features/limited/sealed-store.ts` own limited course state (pool, phase, submitted deck, match launch) entirely over REST.
-- `shared/cards/catalog.ts` projects card index entries to DraftCards, holds the placeholder shape, and converts names to grpIds for both stores' deck submission.
+- `features/limited/draft-store.ts` and `features/limited/sealed-store.ts` own limited course state (pool, phase, submitted deck, match launch). They run draft and sealed commands in the browser engine and save the course as one document under `/api/course-records`.
+- `shared/cards/catalog.ts` projects card index entries to DraftCards, holds the placeholder shape, and counts card names into deck rows.
 
 ## Limited-to-GRE Flow
 
-1. Draft or sealed opens a course pool over REST (`POST /api/{draft,sealed}/start`); draft then picks packs over REST (`POST /api/draft/pick`).
-2. The deck_build phase builds a deck client-side in `LimitedDeckBuilder.tsx`.
-3. Submit persists the deck (`POST /api/{draft,sealed}/deck`). The play endpoint returns both complete decks and an owner-scoped `coursePlayId` receipt. Retrying the same pending deck returns that receipt. Editing the deck retires the prior pending receipt.
-4. `GreSession.startBrowser` launches the returned decks locally. Limited games use the constructed rules runtime while retaining draft/sealed product context.
-5. A terminal local outcome posts the receipt and win/loss to `/api/courses/result`. The server checks owner and course identity, then atomically records the result. Duplicate identical reports are harmless and conflicting reports fail. This solo progression trusts the browser outcome.
+1. Draft or sealed starts in the browser engine (`draft`, `sealed` worker commands). Each command replays the course from `{set, seed, picks, catalogVersion}` alone, so no engine state outlives a command.
+2. The course document is saved under `/api/course-records/{eventName}` after every pick, the completed draft's pool and bot decks, the submitted deck, and every game result. A save names the revision it read; a 409 reloads the saved document. A reload or another browser on the same account resumes from the document.
+3. A draft whose catalog version differs from the loaded worker cannot replay its picks; the player discards it and starts again. Courses copied from the old schema have no seed and open at deck building or games.
+4. The deck_build phase builds a deck client-side in `LimitedDeckBuilder.tsx`. `GreSession.startBrowser` launches the course's next game locally: draft opponents take the pod's bot decks in seat order, and a sealed opponent plays a copy of the player's deck. Limited games use the constructed rules runtime while retaining draft/sealed product context.
+5. A terminal local outcome adds the win or loss to the course document. The launch names the number of games already recorded, so a repeated report saves nothing. Seven wins or three losses finish the course. This solo progression trusts the browser outcome.
 6. The next game is unavailable until the result is saved. A failed save stays visible with retry. Leaving before saving requires confirmation. Reload does not restore a live local game.

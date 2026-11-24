@@ -1,17 +1,27 @@
-import { DraftSessionViewSchema, CoursePlayResponseSchema } from '@shared/api/wire-schemas'
-import { readJson } from '@shared/api/decoding'
 import type { DraftCard } from '@shared/api/contracts'
-import { apiFetch } from '@shared/api/client'
+import {
+  CourseConflict,
+  deleteCourse,
+  listCourses,
+  loadCourse,
+  saveCourse,
+  type Course,
+} from '@shared/api/course-records'
 import { authStore } from '@shared/auth/auth'
-import { toWebDeckCards, webDraftCards } from '@shared/cards/catalog'
+import { webDraftCards } from '@shared/cards/catalog'
+import {
+  draftEventName,
+  emptyCourse,
+  newSeed,
+  submitCourseDeck,
+  type LimitedMatchLaunch,
+} from './course'
+import { limitedEngine, type DraftState, type LimitedEngine } from './limited-engine'
 
 export type DraftPhase =
   'idle' | 'connecting' | 'interrupted' | 'drafting' | 'deck_build' | 'playing' | 'finished'
 
-const DEFAULT_EVENT_NAME = 'QuickDraft_FDN_20260223'
-
-/** Match handed off to GreStartConfig with an owner-scoped course result receipt. */
-export type DraftMatchLaunch = { coursePlayId: string; seat1Deck: string; seat2Deck: string }
+const DEFAULT_SET = 'FDN'
 
 /** React reads this store through `snapshot()`/`subscribe()`. */
 export interface DraftSnapshot {
@@ -22,35 +32,38 @@ export interface DraftSnapshot {
   round: number
   pick: number
   poolSize: number
-  matchLaunch: DraftMatchLaunch | null
+  matchLaunch: LimitedMatchLaunch | null
   error: string | null
   picking: boolean
   submitting: boolean
-  savedDeckId: string | null
 }
 
 /**
- * Drives draft picks and deck submission entirely over REST against the
- * Product course routes — no session WebSocket.
+ * Drives a draft in the browser engine and saves its course document after
+ * every pick, so a reload or another browser resumes it from the same seed.
  */
-class DraftStore {
+export class DraftStore {
   phase: DraftPhase = 'idle'
   sessionId: string | null = null
   pack: DraftCard[] = []
   pool: DraftCard[] = []
-  round = 1
-  pick = 1
+  round = 0
+  pick = 0
   poolSize = 0
-  matchLaunch: DraftMatchLaunch | null = null
+  matchLaunch: LimitedMatchLaunch | null = null
   error: string | null = null
   picking = false
   submitting = false
-  /** When editing from a saved deck, holds the deck ID for REST-based submit. */
-  savedDeckId: string | null = null
 
+  private course: Course | null = null
   private discarding = false
-
   private subscribers = new Set<() => void>()
+
+  private readonly engine: LimitedEngine
+
+  constructor(engine: LimitedEngine = limitedEngine) {
+    this.engine = engine
+  }
 
   snapshot(): DraftSnapshot {
     return {
@@ -65,7 +78,6 @@ class DraftStore {
       error: this.error,
       picking: this.picking,
       submitting: this.submitting,
-      savedDeckId: this.savedDeckId,
     }
   }
 
@@ -86,195 +98,141 @@ class DraftStore {
     this.notify()
   }
 
-  /** Start a new draft via the product server. */
-  async startDraft(setCode?: string): Promise<boolean> {
+  /** The set of a draft still picking or awaiting its first deck, if the account has one. */
+  async unfinishedSet(): Promise<string | null> {
+    if (!authStore.player?.id) {
+      return null
+    }
+    const courses = await listCourses().catch(() => [])
+    const course = courses.find(
+      ({ document }) =>
+        document.kind === 'draft' &&
+        (document.phase === 'drafting' || (document.phase === 'deck_build' && !document.deck)),
+    )
+    return course?.document.set ?? null
+  }
+
+  /** Start a new draft for a set, or reopen the unfinished one. */
+  async startDraft(setCode = DEFAULT_SET): Promise<boolean> {
     this.phase = 'connecting'
     this.error = null
     this.pool = []
     this.pack = []
-    this.round = 1
-    this.pick = 1
     this.notify()
-    const playerId = authStore.player?.id
-    if (!playerId) {
+    if (!authStore.player?.id) {
       this.error = 'auth_required'
       this.phase = 'idle'
       this.notify()
       return false
     }
-
     try {
       const eventName = draftEventName(setCode)
-      const res = await apiFetch('/api/draft/start', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ playerId, eventName }),
-      })
-      if (!res.ok) {
-        throw new Error(`draft_start_${res.status}`)
+      const existing = await loadCourse(eventName)
+      if (existing && existing.document.phase !== 'finished') {
+        await this.open(existing)
+        return true
       }
-      const view = await readJson(res, DraftSessionViewSchema)
-      if (!Array.isArray(view.draftPack)) {
-        throw new Error('bad_response')
-      }
-      this.sessionId = view.eventName ?? eventName
-      this.round = view.packNumber ?? 1
-      this.pick = view.pickNumber ?? 1
-      this.pack = await webDraftCards(view.draftPack)
-      this.pool = await webDraftCards(view.pickedCards ?? [])
-      this.poolSize = this.pool.length
-      this.phase = view.interrupted
-        ? 'interrupted'
-        : view.status === 'Completed'
-          ? 'deck_build'
-          : 'drafting'
+      const catalogVersion = await this.engine.catalogVersion()
+      const document = emptyCourse('draft', setCode, newSeed(), catalogVersion)
+      const state = await this.engine.draft({ ...this.draftRequest(document), picks: [] })
+      this.course = await saveCourse({ eventName, revision: existing?.revision ?? 0, document })
+      this.sessionId = eventName
+      await this.showPack(state)
       return true
     } catch (err) {
-      this.error = err instanceof Error ? err.message : 'network_error'
-      this.phase = 'idle'
+      this.fail(err)
       return false
     } finally {
       this.notify()
     }
   }
 
-  /** Pick a card from the current pack. */
+  /** Pick a card from the current pack; the pick counts once the course is saved. */
   async pickCard(cardName: string): Promise<void> {
-    if (this.picking || this.phase === 'interrupted') {
+    const course = this.course
+    if (this.picking || this.phase !== 'drafting' || !course) {
+      return
+    }
+    if (!this.pack.some((candidate) => candidate.name === cardName)) {
       return
     }
     this.picking = true
     this.notify()
-    const card = this.pack.find((candidate) => candidate.name === cardName)
-    const playerId = authStore.player?.id
-    if (!card || !this.sessionId || !playerId) {
-      this.picking = false
-      this.notify()
-      return
-    }
     try {
-      const res = await apiFetch('/api/draft/pick', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          playerId,
-          eventName: this.sessionId,
-          cardName: card.name,
-          packNumber: this.round,
-          pickNumber: this.pick,
-        }),
-      })
-      if (res.status === 409) {
-        this.phase = 'interrupted'
-        this.error = null
-        return
+      const picks = [...course.document.picks, cardName]
+      const request = { ...this.draftRequest(course.document), picks }
+      const state = await this.engine.draft(request)
+      const document = { ...course.document, picks }
+      if (state.complete) {
+        const result = await this.engine.completeDraft(request)
+        this.course = await saveCourse({
+          ...course,
+          document: {
+            ...document,
+            pool: result.pool,
+            botDecks: result.botDecks,
+            phase: 'deck_build',
+          },
+        })
+        this.engine.release()
+        await this.showDeckBuild()
+      } else {
+        this.course = await saveCourse({ ...course, document })
+        await this.showPack(state)
       }
-      if (!res.ok) {
-        throw new Error(`draft_pick_${res.status}`)
-      }
-      const view = await readJson(res, DraftSessionViewSchema)
-      this.round = view.packNumber ?? this.round
-      this.pick = view.pickNumber ?? this.pick + 1
-      this.pack = await webDraftCards(view.draftPack ?? [])
-      this.pool = await webDraftCards(view.pickedCards ?? [card.name])
-      this.poolSize = this.pool.length
       this.error = null
-      if (view.status === 'Completed') {
-        this.phase = 'deck_build'
-      }
     } catch (err) {
-      this.error = err instanceof Error ? err.message : 'network_error'
+      await this.recover(err)
     } finally {
       this.picking = false
       this.notify()
     }
   }
 
-  /** Submit the built deck, then launch the course match. */
+  /** Save the built deck to the course, then hand its next game to the route. */
   async submitDeck(mainboard: string[], sideboard: string[]): Promise<void> {
-    if (this.submitting || this.discarding) {
-      return
-    }
-    const playerId = authStore.player?.id
-    if (!playerId || !this.sessionId) {
-      this.error = 'auth_required'
-      this.notify()
+    const course = this.course
+    if (this.submitting || this.discarding || !course) {
       return
     }
     this.submitting = true
     this.error = null
     this.notify()
     try {
-      const deckRes = await apiFetch('/api/draft/deck', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          playerId,
-          eventName: this.sessionId,
-          name: 'Draft Deck',
-          mainDeck: toWebDeckCards(mainboard),
-          sideboard: toWebDeckCards(sideboard),
-        }),
-      })
-      if (!deckRes.ok) {
-        throw new Error(`draft_deck_${deckRes.status}`)
-      }
-
-      const playRes = await apiFetch('/api/draft/play', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ playerId, eventName: this.sessionId }),
-      })
-      if (!playRes.ok) {
-        throw new Error(`draft_play_${playRes.status}`)
-      }
-      const launch = await readJson(playRes, CoursePlayResponseSchema)
-      this.matchLaunch = launch
+      const submitted = await submitCourseDeck(course, mainboard, sideboard)
+      this.course = submitted.course
+      this.engine.release()
+      this.matchLaunch = submitted.launch
       this.phase = 'playing'
     } catch (err) {
-      this.error = err instanceof Error ? err.message : 'network_error'
+      await this.recover(err)
     } finally {
       this.submitting = false
       this.notify()
     }
   }
 
-  /** Load a saved course pool into the deck builder while retaining its event identity. */
-  loadSavedPool(pool: DraftCard[], eventName: string): void {
-    this.sessionId = eventName
-    this.pack = []
-    this.round = 1
-    this.pick = 1
-    this.poolSize = pool.length
-    this.matchLaunch = null
-    this.error = null
-    this.picking = false
-    this.submitting = false
-    this.savedDeckId = null
-    this.pool = pool
-    this.phase = 'deck_build'
+  /** Open a saved course's pool in the deck builder. */
+  async editCourse(course: Course): Promise<void> {
+    this.reset()
+    this.course = course
+    this.sessionId = course.eventName
+    await this.showDeckBuild()
     this.notify()
   }
 
-  /** Drop the current course before returning to setup so the same set starts a new pod. */
+  /** Delete the course before returning to setup so the same set starts a new pod. */
   async discardDraft(): Promise<void> {
     if (this.discarding || this.submitting) {
       return
     }
-    const playerId = authStore.player?.id
-    if (!playerId || !this.sessionId) {
+    if (!this.sessionId) {
       this.reset()
       return
     }
     this.discarding = true
     try {
-      const res = await apiFetch(
-        `/api/draft?playerId=${encodeURIComponent(playerId)}&eventName=${encodeURIComponent(this.sessionId)}`,
-        { method: 'DELETE' },
-      )
-      if (!res.ok) {
-        throw new Error(`draft_drop_${res.status}`)
-      }
+      await deleteCourse(this.sessionId)
       this.reset()
     } catch (err) {
       this.setError(err instanceof Error ? err.message : 'network_error')
@@ -287,25 +245,88 @@ class DraftStore {
   reset(): void {
     this.phase = 'idle'
     this.sessionId = null
+    this.course = null
     this.pack = []
     this.pool = []
-    this.round = 1
-    this.pick = 1
+    this.round = 0
+    this.pick = 0
     this.poolSize = 0
     this.matchLaunch = null
     this.error = null
     this.picking = false
     this.submitting = false
-    this.savedDeckId = null
+    this.engine.release()
     this.notify()
+  }
+
+  private draftRequest(document: Course['document']) {
+    if (document.seed == null || document.catalogVersion == null) {
+      throw new Error('This draft has no picks to replay.')
+    }
+    return {
+      set: document.set,
+      seed: document.seed,
+      picks: document.picks,
+      catalogVersion: document.catalogVersion,
+    }
+  }
+
+  private async open(course: Course): Promise<void> {
+    this.course = course
+    this.sessionId = course.eventName
+    if (course.document.phase !== 'drafting') {
+      await this.showDeckBuild()
+      return
+    }
+    if (course.document.catalogVersion !== (await this.engine.catalogVersion())) {
+      this.pool = await webDraftCards(course.document.picks)
+      this.poolSize = this.pool.length
+      this.pack = []
+      this.phase = 'interrupted'
+      return
+    }
+    await this.showPack(await this.engine.draft(this.draftRequest(course.document)))
+  }
+
+  private async showPack(state: DraftState): Promise<void> {
+    this.round = state.packNumber
+    this.pick = state.pickNumber
+    this.pack = await webDraftCards(state.pack)
+    this.pool = await webDraftCards(state.pool)
+    this.poolSize = this.pool.length
+    this.phase = 'drafting'
+  }
+
+  private async showDeckBuild(): Promise<void> {
+    this.pack = []
+    this.pool = await webDraftCards(this.course?.document.pool ?? [])
+    this.poolSize = this.pool.length
+    this.phase = 'deck_build'
+  }
+
+  /** A stale save reloads the saved course; other failures keep the current state. */
+  private async recover(err: unknown): Promise<void> {
+    if (!(err instanceof CourseConflict) || !this.sessionId) {
+      this.error = err instanceof Error ? err.message : 'network_error'
+      return
+    }
+    try {
+      const course = await loadCourse(this.sessionId)
+      if (course) {
+        await this.open(course)
+      } else {
+        this.reset()
+      }
+      this.error = err.message
+    } catch (reloadError) {
+      this.error = reloadError instanceof Error ? reloadError.message : 'network_error'
+    }
+  }
+
+  private fail(err: unknown): void {
+    this.error = err instanceof Error ? err.message : 'network_error'
+    this.phase = 'idle'
   }
 }
 
 export const draftStore = new DraftStore()
-
-function draftEventName(setCode?: string): string {
-  if (!setCode || setCode.includes('_')) {
-    return setCode ?? DEFAULT_EVENT_NAME
-  }
-  return `QuickDraft_${setCode}_20260223`
-}
