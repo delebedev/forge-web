@@ -86,8 +86,9 @@ class SealedStore {
       if (!inProgress) {
         return false
       }
+      const pool = await webDraftCards(inProgress.cardPool)
       this.eventName = inProgress.eventName
-      this.pool = await webDraftCards(inProgress.cardPool)
+      this.pool = pool
       this.phase = 'deck_build'
       return true
     } catch {
@@ -123,8 +124,9 @@ class SealedStore {
         throw new Error(`sealed_start_${res.status}`)
       }
       const course = await readJson(res, CourseViewSchema)
+      const pool = await webDraftCards(course.cardPool)
       this.eventName = course.eventName
-      this.pool = await webDraftCards(course.cardPool)
+      this.pool = pool
       this.phase = 'deck_build'
       return true
     } catch (err) {

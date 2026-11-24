@@ -34,7 +34,20 @@ class CourseRecordStoreTest {
             assertEquals(listOf(EVENT), store.list("p1").map { it.eventName })
             assertEquals(true, store.delete("p1", EVENT))
             assertEquals(false, store.delete("p1", EVENT))
-            assertEquals(1, store.save("p1", EVENT, 0, "{}").revision)
+            assertNull(store.find("p1", EVENT))
+            assertEquals(emptyList(), store.list("p1"))
+        }
+
+    @Test
+    fun `a recreated course does not accept a revision read before the delete`() =
+        withStore { store ->
+            store.save("p1", EVENT, 0, """{"a":1}""")
+            store.delete("p1", EVENT)
+            assertFailsWith<CourseRecordConflict> { store.save("p1", EVENT, 1, """{"stale":1}""") }
+            val recreated = store.save("p1", EVENT, 0, """{"a":2}""")
+            assertEquals(3, recreated.revision)
+            assertFailsWith<CourseRecordConflict> { store.save("p1", EVENT, 1, """{"stale":1}""") }
+            assertEquals("""{"a":2}""", store.find("p1", EVENT)?.document)
         }
 
     @Test

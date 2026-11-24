@@ -8,7 +8,6 @@ import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.neq
 import org.jetbrains.exposed.v1.jdbc.Database
-import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -34,7 +33,11 @@ internal class CourseRecordConflict : RuntimeException("This course changed in a
 
 internal class CourseRecordTooLarge(message: String) : RuntimeException(message)
 
-/** One JSON course document per account and event, saved against the revision the browser read. */
+/**
+ * One JSON course document per account and event, saved against the revision the browser read.
+ * Deleting keeps the row with an empty document, so a recreated course continues its revisions
+ * and a save against a revision read before the delete still conflicts.
+ */
 internal class CourseRecordStore(
     private val database: Database,
     private val maxDocumentBytes: Int = MAX_DOCUMENT_BYTES,
@@ -51,7 +54,9 @@ internal class CourseRecordStore(
 
     fun list(playerId: String): List<CourseRecord> =
         transaction(database) {
-            Records.selectAll().where { Records.playerId eq playerId }.orderBy(Records.eventName).map(::record)
+            Records.selectAll().where { (Records.playerId eq playerId) and (Records.document neq DELETED) }
+                .orderBy(Records.eventName)
+                .map(::record)
         }
 
     fun find(
@@ -61,6 +66,7 @@ internal class CourseRecordStore(
         transaction(database) {
             Records.selectAll().where { (Records.playerId eq playerId) and (Records.eventName eq requireEvent(eventName)) }
                 .firstOrNull()
+                ?.takeIf { it[Records.document] != DELETED }
                 ?.let(::record)
         }
 
@@ -83,13 +89,14 @@ internal class CourseRecordStore(
                     "Saved courses are limited to $maxAccountBytes bytes per account",
                 )
             }
-            val current =
+            val row =
                 Records.selectAll().where { (Records.playerId eq playerId) and (Records.eventName eq eventName) }
                     .firstOrNull()
-                    ?.get(Records.revision) ?: 0
-            if (current != expectedRevision) throw CourseRecordConflict()
+            val current = row?.get(Records.revision) ?: 0
+            val live = row != null && row[Records.document] != DELETED
+            if ((if (live) current else 0) != expectedRevision) throw CourseRecordConflict()
             val now = Instant.now().toString()
-            if (current == 0) {
+            if (row == null) {
                 Records.insert {
                     it[Records.playerId] = playerId
                     it[Records.eventName] = eventName
@@ -113,7 +120,14 @@ internal class CourseRecordStore(
         eventName: String,
     ): Boolean =
         transaction(database) {
-            Records.deleteWhere { (Records.playerId eq playerId) and (Records.eventName eq requireEvent(eventName)) } > 0
+            val where = (Records.playerId eq playerId) and (Records.eventName eq requireEvent(eventName))
+            val current = Records.selectAll().where { where and (Records.document neq DELETED) }.firstOrNull()
+            current != null &&
+                Records.update({ where }) {
+                    it[revision] = current[Records.revision] + 1
+                    it[document] = DELETED
+                    it[updatedAt] = Instant.now().toString()
+                } > 0
         }
 
     private fun record(row: org.jetbrains.exposed.v1.core.ResultRow) =
@@ -128,5 +142,8 @@ internal class CourseRecordStore(
         const val MAX_DOCUMENT_BYTES = 64 * 1024
         const val MAX_ACCOUNT_BYTES = 1024 * 1024
         private val EVENT_NAME = Regex("[A-Za-z0-9_]{1,64}")
+
+        /** The document of a deleted record; a saved document is always a JSON object. */
+        private const val DELETED = ""
     }
 }
