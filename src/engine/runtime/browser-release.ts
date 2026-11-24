@@ -82,6 +82,35 @@ async function fetchVerified(asset: BrowserReleaseAsset, signal: AbortSignal): P
   return bytes.byteLength
 }
 
+/**
+ * Downloads one release file and checks it against the manifest. A gzip asset may
+ * arrive as stored or already decoded by HTTP; both forms are checked and the
+ * decoded bytes are returned.
+ */
+export async function releaseAssetBytes(path: string): Promise<Uint8Array> {
+  const asset = (await getBrowserRelease()).assets.find((candidate) => candidate.path === path)
+  if (!asset) {
+    throw new Error(`Release asset is missing: ${path}`)
+  }
+  const response = await fetch(asset.url)
+  if (!response.ok) {
+    throw new Error(`Asset download failed: ${path} (${response.status})`)
+  }
+  const bytes = await response.arrayBuffer()
+  const actual = await digest(bytes)
+  if (bytes.byteLength === asset.bytes && actual === asset.sha256) {
+    if (!path.endsWith('.gz')) {
+      return new Uint8Array(bytes)
+    }
+    const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))
+    return new Uint8Array(await new Response(stream).arrayBuffer())
+  }
+  if (bytes.byteLength === asset.contentBytes && actual === asset.contentSha256) {
+    return new Uint8Array(bytes)
+  }
+  throw new Error(`Release asset mismatch: ${path}. Refresh and retry.`)
+}
+
 export function browserWarmupState(): BrowserWarmup {
   return warmup
 }

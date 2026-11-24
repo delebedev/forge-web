@@ -1,13 +1,18 @@
-import { afterEach, expect, it } from 'bun:test'
+import { afterEach, beforeEach, expect, it } from 'bun:test'
 import { authStore } from '@shared/auth/auth'
+import { installCardIndexForTest } from '@shared/cards/card-index'
+import { testCardIndex } from '@shared/cards/card-index-test-fixtures'
 import { draftStore } from './draft-store'
 
 const originalFetch = globalThis.fetch
+
+beforeEach(() => installCardIndexForTest(testCardIndex([])))
 
 afterEach(() => {
   globalThis.fetch = originalFetch
   draftStore.reset()
   authStore.clear()
+  installCardIndexForTest(null)
 })
 
 it('starts only one course match during concurrent deck submissions', async () => {
@@ -153,9 +158,6 @@ it('clears a pick error after a successful retry', async () => {
           }),
       } as Response)
     }
-    if (path.includes('/api/public/cards/by-grpids')) {
-      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({}) } as Response)
-    }
     if (path.endsWith('/api/draft/pick')) {
       pickAttempts += 1
       if (pickAttempts === 1) {
@@ -206,9 +208,6 @@ it('preserves interrupted picks until explicit discard and never submits a stale
         interrupted: true,
       })
     }
-    if (path.includes('/api/public/cards/by-grpids')) {
-      return Response.json({})
-    }
     if (init?.method === 'DELETE') {
       return new Response(null, { status: 204 })
     }
@@ -241,9 +240,6 @@ it('turns a server-restart pick conflict into recovery without losing the saved 
         pickedCards: [302],
         interrupted: false,
       })
-    }
-    if (path.includes('/api/public/cards/by-grpids')) {
-      return Response.json({})
     }
     if (path.endsWith('/api/draft/pick')) {
       picks += 1

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { trackDeckPaste } from '@shared/analytics'
 import { parseManaSymbols } from '@shared/cards/mana'
 import {
+  commanderCandidates,
   formatDecklist,
   parseDecklist,
   selectCommanders,
@@ -43,6 +44,7 @@ export function DeckImportDialog({
   const [partnerIndex, setPartnerIndex] = useState('')
   const requestVersion = useRef(0)
   const [saving, setSaving] = useState(false)
+  const commanderOptions = commanderCandidates(mainboard)
 
   useEffect(
     () => () => {
@@ -267,7 +269,7 @@ export function DeckImportDialog({
                   }}
                 >
                   <option value="">No commander</option>
-                  {mainboard.map((card, index) => (
+                  {commanderOptions.map(({ card, index }) => (
                     <option key={`${card.grpId}-${index}`} value={index}>
                       {card.card.name}
                     </option>
@@ -287,7 +289,7 @@ export function DeckImportDialog({
                   }}
                 >
                   <option value="">No second commander</option>
-                  {mainboard.map((card, index) =>
+                  {commanderOptions.map(({ card, index }) =>
                     index === Number(commanderIndex) ? null : (
                       <option key={`${card.grpId}-${index}`} value={index}>
                         {card.card.name}

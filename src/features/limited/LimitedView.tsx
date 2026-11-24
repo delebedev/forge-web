@@ -6,10 +6,9 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
-import { z } from 'zod'
 import { SEALED_ENABLED } from '@shared/flags'
-import { apiFetch } from '@shared/api/client'
-import { SealedSetSchema, type SealedSet } from '@shared/api/contracts'
+import type { SealedSet } from '@shared/api/contracts'
+import { loadCardIndex } from '@shared/cards/card-index'
 import { draftStore } from '@features/limited/draft-store'
 import { sealedStore } from '@features/limited/sealed-store'
 import { useRouter } from '@app/router'
@@ -107,14 +106,10 @@ export function LimitedView({
 
     void (async () => {
       try {
-        const res = await apiFetch('/api/sealed/sets')
-        const raw: unknown = await res.json()
-        const parsed = z.array(SealedSetSchema).safeParse(raw)
-        if (parsed.success) {
-          setSets(parsed.data)
-          if (parsed.data.length > 0 && !parsed.data.some((s) => s.code === selectedSetCode)) {
-            setSelectedSetCode(parsed.data[0]!.code)
-          }
+        const { sets } = await loadCardIndex()
+        setSets(sets)
+        if (sets.length > 0 && !sets.some((s) => s.code === selectedSetCode)) {
+          setSelectedSetCode(sets[0]!.code)
         }
       } catch (err) {
         console.warn('[limited] Failed to fetch sets', err)

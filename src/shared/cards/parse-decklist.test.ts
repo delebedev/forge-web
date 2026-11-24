@@ -1,53 +1,62 @@
 import { afterEach, expect, test } from 'bun:test'
 import type { ParseDecklistResponse } from '@shared/api/contracts'
+import { installCardIndexForTest } from './card-index'
+import { testCardIndex } from './card-index-test-fixtures'
 import { formatDecklist, parseDecklist, selectCommanders, validateDecklist } from './parse-decklist'
 
-const originalFetch = globalThis.fetch
+afterEach(() => installCardIndexForTest(null))
 
-afterEach(() => {
-  globalThis.fetch = originalFetch
+const checked = (fields: Record<string, unknown> = {}) => ({
+  mainboard: [],
+  sideboard: [],
+  commandZone: [],
+  errors: [],
+  ...fields,
 })
 
-test('import and launch validation use their server contracts', async () => {
-  const paths: string[] = []
-  const bodies: unknown[] = []
-  globalThis.fetch = (async (input, init) => {
-    const path = String(input)
-    paths.push(path)
-    bodies.push(JSON.parse(String(init?.body)))
-    return path.endsWith('/validate-decklist')
-      ? new Response(null, { status: 204 })
-      : Response.json({ mainboard: [], sideboard: [], commandZone: [] })
-  }) as typeof fetch
-
-  expect(await parseDecklist('60 Plains')).toEqual({
-    ok: true,
-    deck: { mainboard: [], sideboard: [], commandZone: [] },
-  })
-  expect(await validateDecklist('[Commander]\n1 Lightning Bolt\n60 Mountain', 'commander')).toEqual(
-    { ok: true },
+test('import resolves engine rows to card index cards by name', async () => {
+  installCardIndexForTest(
+    testCardIndex([
+      { grpId: 7, name: 'Plains', types: 'Basic Land' },
+      { grpId: 8, name: 'Isamaru, Hound of Konda', manaCost: '{W}', types: 'Legendary Creature' },
+    ]),
   )
-  expect(bodies).toEqual([
-    { text: '60 Plains' },
-    { text: '[Commander]\n1 Lightning Bolt\n60 Mountain', gameType: 'commander' },
-  ])
-  expect(paths.map((path) => new URL(path, 'http://local').pathname)).toEqual([
-    '/api/cards/parse-decklist',
-    '/api/cards/validate-decklist',
-  ])
+  const calls: unknown[][] = []
+  const result = await parseDecklist('59 Plains\n1 isamaru', async (...args) => {
+    calls.push(args)
+    return checked({
+      mainboard: [{ name: 'Plains', quantity: 59 }],
+      commandZone: [{ name: 'Isamaru, Hound of Konda', quantity: 1 }],
+    })
+  })
+
+  expect(calls).toEqual([['59 Plains\n1 isamaru', undefined, true]])
+  expect(
+    result.ok && result.deck.mainboard.map((row) => [row.grpId, row.quantity, row.card.typeLine]),
+  ).toEqual([[7, 59, 'Basic Land']])
+  expect(result.ok && result.deck.commandZone[0]?.card.colors).toEqual(['W'])
 })
 
-test('launch validation preserves server errors', async () => {
-  globalThis.fetch = (async () =>
-    Response.json(
-      { errors: ['Card not found: Bogus'] },
-      { status: 400 },
-    )) as unknown as typeof fetch
-
-  expect(await validateDecklist('60 Bogus')).toEqual({
-    ok: false,
-    errors: ['Card not found: Bogus'],
+test('validation reports engine errors and passes the game type', async () => {
+  const calls: unknown[][] = []
+  const result = await validateDecklist('60 Bogus', 'commander', async (...args) => {
+    calls.push(args)
+    return checked({ errors: ['Card not found: Bogus'] })
   })
+
+  expect(calls).toEqual([['60 Bogus', 'commander', false]])
+  expect(result).toEqual({ ok: false, errors: ['Card not found: Bogus'] })
+  expect(await validateDecklist('60 Plains', undefined, async () => checked())).toEqual({
+    ok: true,
+  })
+})
+
+test('an engine failure becomes a retryable decklist error', async () => {
+  expect(
+    await validateDecklist('60 Plains', undefined, async () => {
+      throw new Error('worker failed')
+    }),
+  ).toEqual({ ok: false, errors: ['Could not check this decklist. Try again.'] })
 })
 
 test('commander selection moves the chosen card rather than assuming the first row', () => {

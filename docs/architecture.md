@@ -49,9 +49,18 @@ graph TB
   `<resolved stateDir>/player.db`; Leyline's native local storage has a separate
   lifecycle. The server consumes the pinned domain and catalog/draft services
   through the composite Gradle build. Only `browser-engine/` launches games.
-- `card-presentation/` owns the Java 17 card presentation DTOs and Forge projection shared by the server and browser worker. Hosts supply artwork from their own indexes and retain their transport boundaries.
-- The product server uses Leyline's Forge-backed `CardRepository` for card
-  search, deck import, saved-deck hydration, and GRE metadata. Generated card
+- `card-presentation/` owns the Java 17 card presentation DTOs, Forge projection and Web decklist rules shared by the server and browser worker. Hosts supply artwork from their own indexes and retain their transport boundaries.
+- Outside gameplay, the browser reads cards from the static card index in the
+  browser release (`shared/cards/card-index.ts`). `browser-engine`'s
+  `cardIndex` task projects every card with `card-presentation`, adds Commander
+  eligibility, search names and the limited set list, and the release manifest
+  checks its size and SHA-256. The index identifies cards by name; its `grpId`
+  values belong to one catalog build and serve only the deck and limited APIs
+  of the same release. Deck search, card display, saved-deck hydration, limited
+  pools and the limited set list read it. Deck import parses and validates in
+  the browser engine. Game setup still validates a launch on the server.
+- The product server uses Leyline's Forge-backed `CardRepository` for deck
+  validation on save and launch, limited generation, and replay metadata. Generated card
   identifiers are runtime-scoped. `SqlitePlayerStore` persists exact primary
   Forge names and resolves them to the current runtime identifiers at startup.
   It rejects removed, renamed, ambiguous, derived-face, and otherwise unknown
@@ -91,7 +100,7 @@ graph TB
   every puzzle interaction and terminal state.
 - `features/decks/decks-store.ts` owns account-scoped saved-deck values, metadata loading, selection freshness, and mutation aftermath. Editors keep unsaved drafts with original card identities and all sections. The library publishes committed values and rejects old-account completions. [ADR-007](adr/007-own-complete-decks-in-the-library.md) records the ownership and presentation limits.
 - `features/limited/draft-store.ts` and `features/limited/sealed-store.ts` own limited course state (pool, phase, submitted deck, match launch) entirely over REST.
-- `shared/cards/catalog.ts` holds the placeholder DraftCard shape and the name→grpId conversion shared by both stores' deck submission.
+- `shared/cards/catalog.ts` projects card index entries to DraftCards, holds the placeholder shape, and converts names to grpIds for both stores' deck submission.
 
 ## Limited-to-GRE Flow
 

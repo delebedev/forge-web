@@ -33,7 +33,6 @@ async function observeAdmission(page: Page, config: unknown) {
         })
       case '/api/decks':
       case '/api/courses':
-      case '/api/sealed/sets':
         return route.fulfill({ json: [] })
       default:
         return route.fulfill({ status: 204 })

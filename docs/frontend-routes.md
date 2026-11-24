@@ -146,12 +146,12 @@ course with a pool but no deckId yet (no session WebSocket to reconnect).
 ### Constructed deck builder
 ```
 /decks → "New" button → DeckEditor (full-width, mode='edit')
-  → search cards (GET /api/cards/search) → click to add
+  → search the card index → click to add
   → adjust lands (+/-) → name deck → Save
   → library save → POST /api/decks → committed list and selected deck → browse
 
 /decks → "Import" button → DeckImportDialog (modal)
-  → paste decklist → Parse (POST /api/cards/parse-decklist)
+  → paste decklist → Check deck (browser engine `decklist` command, card fields from the card index)
   → see structured preview → name deck → "Open in Editor"
   → DeckEditor pre-populated → edit → Save
 
@@ -162,7 +162,7 @@ course with a pool but no deckId yet (no session WebSocket to reconnect).
 **Key components:**
 - `DeckEditor.tsx` — full-width editor (CMC columns + card search + land controls + stats bar)
 - `shared/cards/DeckImportDialog.tsx` — shared parse, commander selection, and validation dialog
-- `decks-store.ts` — account and selection correlation, metadata hydration, committed mutation results
+- `decks-store.ts` — account and selection correlation, card index hydration, committed mutation results
 - `deck-value.ts` — complete deck values and presentation projections
 
 ## Gameplay boundary

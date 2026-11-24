@@ -317,8 +317,10 @@ test('lobby resolves a case-insensitive commander name, persists it and launches
     .getByRole('textbox', { name: 'Deck list', exact: true })
     .fill('99 Plains\n1 kenrith, the returned king')
   await page.getByRole('button', { name: 'Check deck', exact: true }).click()
+  // The first decklist check starts the browser engine.
   await expect(page.getByRole('combobox', { name: 'Choose commander', exact: true })).toHaveValue(
     '',
+    { timeout: 60_000 },
   )
   await page.getByRole('button', { name: 'Import and select', exact: true }).click()
   await expect(page.getByRole('alert')).toContainText('Choose a commander')

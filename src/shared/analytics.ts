@@ -53,6 +53,7 @@ export type BrowserFailureOperation =
   | 'metadata'
   | 'advice'
   | 'validate-puzzle'
+  | 'decklist'
   | 'memory'
   | 'heartbeat'
   | 'progress'
@@ -513,9 +514,8 @@ export function trackDeckPaste(props: {
 
 export function trackDeckSearch(props: {
   queryLength: number
-  outcome: 'success' | 'server' | 'network'
+  outcome: 'success' | 'network'
   resultCount?: number
-  status?: number
 }): void {
   track(EVENTS.DECK_SEARCH, props)
 }

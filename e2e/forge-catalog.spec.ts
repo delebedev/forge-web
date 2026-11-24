@@ -35,6 +35,12 @@ test.afterEach(async ({ page }, testInfo) => {
 test('imports, saves, reloads, and searches the same catalog identity', async ({
   page,
 }, testInfo) => {
+  // Deck building reads the card index and the browser engine, never the card routes.
+  const cardRequests: string[] = []
+  await page.route(/\/api\/(?:cards|public\/cards)\//, (route) => {
+    cardRequests.push(new URL(route.request().url()).pathname)
+    return route.abort()
+  })
   await authenticate(page)
   await page.goto('/decks')
   await page.getByRole('button', { name: 'Import', exact: true }).click()
@@ -45,40 +51,21 @@ test('imports, saves, reloads, and searches the same catalog identity', async ({
     .fill(
       `1 ${SPLIT_CARD}\n1 Dead\n1 Gone\n1 ${TRANSFORM_CARD}\n1 ${TRANSFORM_FACE}\n1 ${TRANSFORM_COMBINED}\n1 ${FORGE_CARD}\n53 Forest`,
     )
-
-  const parsedResponse = page.waitForResponse(
-    (response) => response.url().includes('/api/cards/parse-decklist') && response.status() === 200,
-  )
   await dialog.getByRole('button', { name: 'Check deck' }).click()
-  const parsed = (await parsedResponse.then((response) => response.json())) as DecklistResponse
-  const parsedCard = parsed.mainboard.find((entry) => entry.card.name === FORGE_CARD)
-  const splitEntries = parsed.mainboard.filter((entry) => entry.card.name === SPLIT_CARD)
-  const splitGrpId = splitEntries[0]?.grpId
-  const transformEntries = parsed.mainboard.filter((entry) => entry.card.name === TRANSFORM_CARD)
-  const transformGrpId = transformEntries[0]?.grpId
-  expect(parsedCard?.grpId).toBeGreaterThan(0)
-  expect(splitGrpId).toBeGreaterThan(0)
-  expect(splitEntries.reduce((total, entry) => total + entry.quantity, 0)).toBe(3)
-  expect(transformGrpId).toBeGreaterThan(0)
-  expect(transformEntries.reduce((total, entry) => total + entry.quantity, 0)).toBe(3)
-  await expect(dialog.getByText(FORGE_CARD, { exact: true }).last()).toBeVisible()
+  await expect(dialog.getByText(FORGE_CARD, { exact: true }).last()).toBeVisible({
+    timeout: 60_000,
+  })
   await expect(dialog.getByText(SPLIT_CARD, { exact: true }).last()).toBeVisible()
   await expect(dialog.getByText(TRANSFORM_CARD, { exact: true }).last()).toBeVisible()
-
-  const transformMetadata = await page.request.get(
-    `/api/public/cards/by-grpids?ids=${transformGrpId}`,
-  )
-  const transformCard = ((await transformMetadata.json()) as Record<string, CardMetadataResult>)[
-    String(transformGrpId)
-  ]
-  expect(transformCard?.linkedFaceGrpIds).toHaveLength(1)
-  expect(transformCard?.linkedFaceGrpIds[0]).not.toBe(transformGrpId)
 
   await dialog.getByRole('textbox', { name: 'Deck name' }).fill('Forge catalog proof')
   await dialog.getByRole('button', { name: 'Open in Editor' }).click()
   const splitEntry = page.getByRole('button', { name: 'Remove one Dead // Gone', exact: true })
   await expect(splitEntry).toHaveCount(1)
   await expect(splitEntry).toHaveText(/x3$/)
+  await expect(
+    page.getByRole('button', { name: `Remove one ${TRANSFORM_CARD}`, exact: true }),
+  ).toHaveText(/x3$/)
   await page.getByRole('textbox', { name: 'Search cards', exact: true }).fill(SPLIT_CARD)
   const splitSearch = page.getByRole('button', { name: /^Dead \/\/ Gone.*Instant$/ })
   await expect(splitSearch).toBeVisible()
@@ -96,41 +83,26 @@ test('imports, saves, reloads, and searches the same catalog identity', async ({
   )
   await page.getByRole('button', { name: 'Create', exact: true }).click()
   const saved = (await saveResponse.then((response) => response.json())) as DeckResponse
-  expect(saved.mainDeck.find((entry) => entry.grpId === parsedCard?.grpId)?.quantity).toBe(1)
-  expect(saved.mainDeck.find((entry) => entry.grpId === splitGrpId)?.quantity).toBe(3)
-  expect(saved.mainDeck.find((entry) => entry.grpId === transformGrpId)?.quantity).toBe(3)
+  expect(saved.mainDeck.map((entry) => entry.quantity).sort((a, b) => a - b)).toEqual([1, 3, 3, 53])
 
   await page.reload()
   const deckButton = page.getByRole('button', { name: 'Forge catalog proof 60 cards', exact: true })
   await expect(deckButton).toBeVisible({ timeout: 15_000 })
-  const detailResponse = page.waitForResponse(
-    (response) => response.url().includes(`/api/decks/${saved.id}`) && response.status() === 200,
-  )
   await deckButton.click()
-  const reloaded = (await detailResponse.then((response) => response.json())) as DeckResponse
-  expect(reloaded.mainDeck.find((entry) => entry.grpId === parsedCard?.grpId)?.quantity).toBe(1)
-  expect(reloaded.mainDeck.find((entry) => entry.grpId === splitGrpId)?.quantity).toBe(3)
-  expect(reloaded.mainDeck.find((entry) => entry.grpId === transformGrpId)?.quantity).toBe(3)
   await expect(page.getByText(FORGE_CARD, { exact: true })).toBeVisible()
   await expect(page.getByText(SPLIT_CARD, { exact: true })).toBeVisible()
   await expect(page.getByText(TRANSFORM_CARD, { exact: true })).toBeVisible()
 
   await page.getByRole('button', { name: 'Edit', exact: true }).click()
-  const searchResponse = page.waitForResponse(
-    (response) => response.url().includes('/api/cards/search?') && response.status() === 200,
-  )
   await page.getByRole('textbox', { name: 'Search cards', exact: true }).fill(FORGE_CARD)
-  const search = (await searchResponse.then((response) => response.json())) as CardSearchResult[]
-  expect(search.find((card) => card.name === FORGE_CARD)?.grpId).toBe(parsedCard?.grpId)
-  await expect(
-    page.getByRole('button', { name: new RegExp(`^${FORGE_CARD}`) }).first(),
-  ).toBeVisible()
   await page
     .getByRole('button', { name: new RegExp(`^${FORGE_CARD}`) })
     .first()
     .click()
+  await expect(
+    page.getByRole('button', { name: `Remove one ${FORGE_CARD}`, exact: true }),
+  ).toHaveText(/x2$/)
 
-  const aliasSearches: Record<string, CardSearchResult[]> = {}
   for (const query of [
     SPLIT_CARD,
     'Dead',
@@ -139,18 +111,8 @@ test('imports, saves, reloads, and searches the same catalog identity', async ({
     TRANSFORM_FACE,
     TRANSFORM_COMBINED,
   ]) {
-    const aliasResponse = page.waitForResponse(
-      (response) => response.url().includes('/api/cards/search?') && response.status() === 200,
-    )
     await page.getByRole('textbox', { name: 'Search cards', exact: true }).fill(query)
-    aliasSearches[query] = (await aliasResponse.then((response) =>
-      response.json(),
-    )) as CardSearchResult[]
     const expectedName = query.includes('Dead') || query === 'Gone' ? SPLIT_CARD : TRANSFORM_CARD
-    const expectedGrpId = expectedName === SPLIT_CARD ? splitGrpId : transformGrpId
-    expect(aliasSearches[query]?.find((card) => card.name === expectedName)?.grpId).toBe(
-      expectedGrpId,
-    )
     await expect(
       page
         .getByRole('button', { name: new RegExp(`^${expectedName.replaceAll('/', '\\/')}`) })
@@ -162,22 +124,16 @@ test('imports, saves, reloads, and searches the same catalog identity', async ({
   await page.setViewportSize({ width: 390, height: 844 })
   await page.screenshot({ path: testInfo.outputPath('catalog-phone.png'), fullPage: true })
   await page.setViewportSize({ width: 1440, height: 900 })
+  expect(cardRequests).toEqual([])
   await page.goto('/play/game')
   await page.getByRole('button', { name: 'Constructed', exact: true }).click()
   await page.getByRole('button', { name: 'Forge catalog proof 60 cards', exact: true }).click()
+  await page.unroute(/\/api\/(?:cards|public\/cards)\//)
   await page.getByRole('button', { name: 'Start game', exact: true }).click()
   await expect
     .poll(() => page.evaluate(() => window.__greState()?.connected), { timeout: 240_000 })
     .toBe(true)
-  await attachState(testInfo, 'catalog-identities', {
-    parsed: parsedCard,
-    split: splitEntries,
-    transform: transformEntries,
-    saved: saved.mainDeck,
-    reloaded: reloaded.mainDeck,
-    search,
-    aliasSearches,
-  })
+  await attachState(testInfo, 'catalog-identities', { saved: saved.mainDeck })
 })
 
 test('casts Jungle Lion from the catalog and deals combat damage', async ({ page }, testInfo) => {
@@ -827,12 +783,7 @@ test('casts a spell from the graveyard through its visible action', async ({ pag
   await attachState(testInfo, 'flashback-state', state)
 })
 
-type DecklistResponse = {
-  mainboard: Array<{ grpId: number; quantity: number; card: CardSearchResult }>
-}
 type DeckResponse = { id: string; mainDeck: Array<{ grpId: number; quantity: number }> }
-type CardSearchResult = { name: string; grpId?: number | null }
-type CardMetadataResult = CardSearchResult & { linkedFaceGrpIds: number[] }
 
 async function authenticate(page: Page): Promise<void> {
   const email = `forge-catalog-${Date.now()}-${Math.random().toString(16).slice(2)}@example.test`
