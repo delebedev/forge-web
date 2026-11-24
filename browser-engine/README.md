@@ -56,6 +56,18 @@ removes server and database dependencies, Forge persistence and download
 helpers, and compile-time annotations from the browser distribution without
 removing card rules.
 
+## Draft and sealed
+
+The worker's `draft`, `draft-complete` and `sealed` commands exchange card names.
+A draft keeps no session: each call replays `{set, seed, picks, catalogVersion}`
+under a seeded Forge random generator, so a recycled or reloaded worker resumes
+it with the same packs, bot picks and bot decks. The catalog carries draft
+rankings for the offered sets. Boosters build each edition's print sheets on
+demand instead of loading every card script.
+
+`node tools/limited-timing.mjs --runs 3` times a full FDN draft, its bot decks
+and a sealed pool on cold workers in desktop Chrome after `bun run browser:assets`.
+
 ## Boundaries
 
 The launcher supports human-versus-AI and AI-versus-AI games. It validates

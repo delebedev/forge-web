@@ -359,6 +359,22 @@ async function dispatch(data, enqueuedAt) {
       case 'advice':
         result = JSON.parse(await runtime.advice())
         break
+      case 'draft':
+      case 'draft-complete':
+      case 'sealed': {
+        const request = JSON.stringify(data.request)
+        const response =
+          data.type === 'draft'
+            ? await runtime.draft(request)
+            : data.type === 'draft-complete'
+              ? await runtime.draftComplete(request)
+              : await runtime.sealed(request)
+        if (!response) {
+          throw new Error('Limited request failed; see engine error')
+        }
+        result = JSON.parse(response)
+        break
+      }
       case 'memory':
         result = {
           ...JSON.parse(await runtime.memory()),
