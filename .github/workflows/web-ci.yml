@@ -173,7 +173,7 @@ jobs:
       - name: Prepare pinned Forge dependencies
         run: python3 scripts/ci-measure.py prepare bash -eo pipefail -c 'node scripts/bootstrap.mjs --prepare-only'
       - name: Build and validate Java 21 server
-        run: python3 scripts/ci-measure.py server-21 bash -eo pipefail -c './leyline/gradlew :server:check :server:installDist :server:generateOpenApi --init-script scripts/ci-gradle.init.gradle --project-cache-dir .gradle/ci-jvm-21 -Pkotlin.compiler.execution.strategy=in-process && scripts/check-server-distribution.sh --no-build && node scripts/generate-web-openapi.mjs --check server/build/generated/openapi/openapi.json && bun scripts/check-web-contract.ts'
+        run: python3 scripts/ci-measure.py server-21 bash -eo pipefail -c './leyline/gradlew :server:check :card-presentation:check :server:installDist :server:generateOpenApi --init-script scripts/ci-gradle.init.gradle --project-cache-dir .gradle/ci-jvm-21 -Pkotlin.compiler.execution.strategy=in-process && scripts/check-server-distribution.sh --no-build && node scripts/generate-web-openapi.mjs --check server/build/generated/openapi/openapi.json && bun scripts/check-web-contract.ts'
       - name: Build and validate Java 17 browser runtime
         run: python3 scripts/ci-measure.py browser-17 bash -eo pipefail -c 'bun run challenge:manifest && python3 scripts/build-browser-catalog.py && ./leyline/gradlew :browser-engine:test :browser-engine:browserDistribution :browser-engine:catalogIndex :browser-engine:cardIndex -PruntimeJavaVersion=17 -PbrowserPrune=true --init-script scripts/ci-gradle.init.gradle --project-cache-dir .gradle/ci-jvm-17 -Pkotlin.compiler.execution.strategy=in-process && node scripts/build-browser-release.mjs'
       - name: Seal runtime artifacts

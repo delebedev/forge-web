@@ -1,9 +1,9 @@
 # Frontend Data Flow
 
 All gameplay runs in a browser worker through the pinned Leyline runtime.
-The product server in `server/` owns accounts, saved decks, catalog queries,
-deck validation, draft generation, course progress, saved puzzles, and replay uploads.
-It constructs no games and exposes no gameplay WebSocket or match-start route.
+The product server in `server/` owns accounts, saved decks, course records,
+saved puzzles, roadmap votes and replay uploads. It builds without Leyline, Forge
+or `card-presentation`, constructs no games, and exposes no card or gameplay routes.
 Unsupported browsers show a retryable error instead of switching execution hosts.
 
 ```mermaid
@@ -44,13 +44,14 @@ graph TB
 | `src/engine/generated` | Generated GRE message descriptor |
 
 - `server/` owns browser-facing Ktor routes, REST DTOs, OpenAPI generation,
-  process composition, product configuration, authentication, and curated challenge content. It also owns the product database
+  process composition, product configuration and authentication. It also owns the product database
   path, connection, [schema migrations](database-migrations.md), and persistence. The database remains
-  `<resolved stateDir>/player.db`; Leyline's native local storage has a separate
-  lifecycle. The server consumes the pinned domain and catalog/draft services
-  through the composite Gradle build. Only `browser-engine/` launches games.
-- `card-presentation/` owns the Java 17 card presentation DTOs, Forge projection and Web decklist rules shared by the server and browser worker. Hosts supply artwork from their own indexes and retain their transport boundaries.
-- Outside gameplay, the browser reads cards from the static card index in the
+  `<resolved stateDir>/player.db`. The server keeps its own version catalog
+  (`gradle/libs.versions.toml`); only `browser-engine/` and `card-presentation/`
+  build against the Leyline composite build, and only `browser-engine/` launches games.
+  A Leyline pin change therefore ships as a frontend release.
+- `card-presentation/` owns the Java 17 card presentation DTOs, Forge projection and Web decklist rules used by the browser worker and its card index build.
+- The browser reads cards from the static card index in the
   browser release (`shared/cards/card-index.ts`). `browser-engine`'s
   `cardIndex` task projects every card with `card-presentation`, adds Commander
   eligibility, search names and the limited set list, and the release manifest
@@ -58,28 +59,21 @@ graph TB
   values belong to one catalog build. Deck and limited HTTP requests and
   responses carry card names, never runtime identifiers, and the browser
   persists cards by name. Deck search, card display, saved-deck hydration, limited
-  pools and the limited set list read it. Deck import parses and validates in
-  the browser engine. Game setup still validates a launch on the server.
-- The product server uses Leyline's Forge-backed `CardRepository` for deck
-  validation on save and launch, limited generation, and replay metadata. Generated card
-  identifiers are runtime-scoped. `SqlitePlayerStore` persists exact primary
-  Forge names and resolves them to the current runtime identifiers at startup.
-  It rejects removed, renamed, ambiguous, derived-face, and otherwise unknown
-  identities. Deck import canonicalizes Split halves and Specialize forms to
-  their parent before persistence. Ordered face links supply split-cast and Room
-  door names, while GRE action costs and persistent Room designations remain the
-  authority for the current action and unlocked doors. Generic left and right
-  split casts are supported; fused casting is outside the current browser proof.
-
-  Persisted card state uses the `card-name-v1` format marker in
-  `product_metadata.card_storage_format`. `decks.tile_name` is text. Deck and
-  course deck entries use `{cardName,quantity}`. Course pools, draft packs and
-  picks, and draft pod decks are arrays of names. Collation ids and other
-  non-card fields keep their existing shape; course summaries use `tileName`
-  and `deckArtName`. An empty tile or art name represents the optional zero
-  identity. Numeric card storage requires an explicit migration. Catalog
-  content changes alone do not invalidate name-based storage, but a stored name
-  removal or rename does.
+  pools and the limited set list read it.
+- Card legality runs in the session's browser engine, which the next match
+  reuses. Deck import, the deck editor's save and game setup all check there,
+  so the page starts one engine.
+  `server/.../decks/DeckStore.kt` checks only a save's shape: name, format,
+  positive card rows, at most 250 cards per main deck or sideboard, at most two
+  commanders, a commander for Commander decks, and 200 decks per account.
+  Starter decks are name lists seeded at registration.
+- Deck rows are stored by exact card name in `decks.cards` as
+  `{MainDeck,Sideboard,CommandZone,Companions}` lists of `{cardName,quantity}`.
+  `decks.tile_name` is text. Catalog content changes alone do not invalidate
+  name-based storage; a removed or renamed card fails the browser legality
+  check the next time the deck is edited or launched.
+- Replay viewers read card metadata embedded in the replay journal. A replay
+  without it shows cards without names or text; there is no server fallback.
 - `server/.../limited/CourseRecordStore.kt` keeps one JSON course document per
   account and event in `course_records` (`/api/course-records`). A save names
   the revision it read; a stale revision gets 409 and the browser reloads the

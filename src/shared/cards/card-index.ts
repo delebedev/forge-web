@@ -6,9 +6,9 @@
 
 import { z } from 'zod'
 import { releaseAssetBytes } from '@engine/runtime/browser-release'
-import { SealedSetSchema, type SealedSet, type WebComponents } from '@shared/api/contracts'
+import { SealedSetSchema, type GreCardMetaDto, type SealedSet } from '@shared/api/contracts'
 
-type GreCardMeta = WebComponents['schemas']['GreCardMetaDto']
+type GreCardMeta = GreCardMetaDto
 export type IndexedCard = GreCardMeta & {
   name: string
   linkedFaces: GreCardMeta[]

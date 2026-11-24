@@ -1,6 +1,7 @@
 import type { PromptBinding } from './prompts/family'
 import { viewFor } from '@engine/runtime/prompts/prompt-test-harness'
 import { httpCardMeta } from '@shared/api/http-test-fixtures'
+import { parseGreCardMeta } from './gre-card-meta'
 import type { GreStore } from './gre-store'
 import type { ReplacementControls, OptionalActionControls, PaymentControls } from './prompts/family'
 import { expect, test } from 'bun:test'
@@ -412,28 +413,38 @@ test('an inspected opponent-owned face-down exile spell retains its exact cast a
   expect(response['performActionResp']).toEqual({ actions: [action] })
 })
 
+function connectWithMeta(
+  store: GreStore,
+  source: FakeSource,
+  requested: number[][],
+  lookup: (ids: number[]) => Record<string, unknown>,
+): void {
+  store.connectSource(source, {
+    matchId: 'metadata',
+    gameType: 'constructed',
+    fetchCardMeta: async (ids) => {
+      requested.push(ids)
+      return parseGreCardMeta(lookup(ids))
+    },
+  })
+}
+
 test('an emblem-only full state fetches creator metadata and publishes its effect', async () => {
   const store = await freshStore()
   const source = new FakeSource()
-  store.attachSource(source)
-  const originalFetch = globalThis.fetch
-  const urls: string[] = []
+  const requested: number[][] = []
   let publications = 0
   store.subscribe(() => {
     publications += 1
   })
-  globalThis.fetch = (async (input) => {
-    urls.push(String(input))
+  connectWithMeta(store, source, requested, () => {
     return {
-      ok: true,
-      json: async () => ({
-        700: httpCardMeta(700, {
-          name: 'Creator',
-          abilities: { 900: { text: 'An emblem effect.', keyword: null, manaCost: null } },
-        }),
+      700: httpCardMeta(700, {
+        name: 'Creator',
+        abilities: { 900: { text: 'An emblem effect.', keyword: null, manaCost: null } },
       }),
-    } as Response
-  }) as typeof fetch
+    }
+  })
   try {
     source.sink!.onBatch({
       byteLength: 0,
@@ -457,8 +468,8 @@ test('an emblem-only full state fetches creator metadata and publishes its effec
     })
     const before = publications
     await new Promise((resolve) => setTimeout(resolve, 70))
-    expect(urls.some((url) => url.includes('ids=700&'))).toBe(true)
-    expect(urls.some((url) => url.includes('ids=2&'))).toBe(false)
+    expect(requested.some((ids) => ids.includes(700))).toBe(true)
+    expect(requested.some((ids) => ids.includes(2))).toBe(false)
     expect(store.snapshot().emblems?.[0]).toMatchObject({
       name: 'Creator',
       typeLine: 'Emblem',
@@ -466,7 +477,6 @@ test('an emblem-only full state fetches creator metadata and publishes its effec
     })
     expect(publications).toBeGreaterThan(before)
   } finally {
-    globalThis.fetch = originalFetch
     store.disconnect()
   }
 })
@@ -474,13 +484,10 @@ test('an emblem-only full state fetches creator metadata and publishes its effec
 test('action face grpIds join the metadata fetch set', async () => {
   const store = await freshStore()
   const source = new FakeSource()
-  store.attachSource(source)
-  const originalFetch = globalThis.fetch
-  const urls: string[] = []
-  globalThis.fetch = (async (input) => {
-    urls.push(String(input))
-    return { ok: true, json: async () => ({}) } as Response
-  }) as typeof fetch
+  const requested: number[][] = []
+  connectWithMeta(store, source, requested, () => {
+    return {}
+  })
   try {
     source.sink!.onBatch({
       byteLength: 0,
@@ -504,35 +511,25 @@ test('action face grpIds join the metadata fetch set', async () => {
       messages: [availableActions(80, 81, [{ actionType: 1, instanceId: 100, grpId: 70 }])],
     })
     await new Promise((resolve) => setTimeout(resolve, 70))
-    expect(urls.some((url) => url.includes('ids=7%2C70') || url.includes('ids=7,70'))).toBe(true)
+    expect(requested).toContainEqual([7, 70])
   } finally {
-    globalThis.fetch = originalFetch
+    store.disconnect()
   }
 })
 
 test('linked face grpIds join the existing metadata fetch queue once', async () => {
   const store = await freshStore()
   const source = new FakeSource()
-  store.attachSource(source)
-  const originalFetch = globalThis.fetch
-  const urls: string[] = []
-  globalThis.fetch = (async (input) => {
-    const url = String(input)
-    urls.push(url)
-    if (url.includes('ids=7')) {
-      return {
-        ok: true,
-        json: async () => ({ 7: httpCardMeta(7, { name: 'Room', linkedFaceGrpIds: [70, 71] }) }),
-      } as Response
+  const requested: number[][] = []
+  connectWithMeta(store, source, requested, (ids) => {
+    if (ids.includes(7)) {
+      return { 7: httpCardMeta(7, { name: 'Room', linkedFaceGrpIds: [70, 71] }) }
     }
     return {
-      ok: true,
-      json: async () => ({
-        70: httpCardMeta(70, { name: 'Left', linkedFaceGrpIds: [7] }),
-        71: httpCardMeta(71, { name: 'Right', linkedFaceGrpIds: [7] }),
-      }),
-    } as Response
-  }) as typeof fetch
+      70: httpCardMeta(70, { name: 'Left', linkedFaceGrpIds: [7] }),
+      71: httpCardMeta(71, { name: 'Right', linkedFaceGrpIds: [7] }),
+    }
+  })
   try {
     source.sink!.onBatch({
       byteLength: 0,
@@ -551,29 +548,23 @@ test('linked face grpIds join the existing metadata fetch queue once', async () 
         }),
       ],
     })
-    for (let attempt = 0; attempt < 100 && urls.length < 2; attempt++) {
+    for (let attempt = 0; attempt < 100 && requested.length < 2; attempt++) {
       await new Promise((resolve) => setTimeout(resolve, 20))
     }
-    expect(urls).toHaveLength(2)
-    expect(urls[1]).toMatch(/ids=70(?:%2C|,)71/)
+    expect(requested).toHaveLength(2)
+    expect(requested[1]).toEqual([70, 71])
   } finally {
-    globalThis.fetch = originalFetch
+    store.disconnect()
   }
 })
 
 test('static card-name choices join the metadata fetch set', async () => {
   const store = await freshStore()
   const source = new FakeSource()
-  store.attachSource(source)
-  const originalFetch = globalThis.fetch
-  const urls: string[] = []
-  globalThis.fetch = (async (input) => {
-    urls.push(String(input))
-    return {
-      ok: true,
-      json: async () => ({ '488161': httpCardMeta(488161, { name: 'Named card' }) }),
-    } as Response
-  }) as typeof fetch
+  const requested: number[][] = []
+  connectWithMeta(store, source, requested, () => {
+    return { '488161': httpCardMeta(488161, { name: 'Named card' }) }
+  })
   try {
     source.sink!.onBatch({
       byteLength: 0,
@@ -587,10 +578,10 @@ test('static card-name choices join the metadata fetch set', async () => {
       ],
     })
     await new Promise((resolve) => setTimeout(resolve, 70))
-    expect(urls.some((url) => url.includes('ids=488161'))).toBe(true)
+    expect(requested).toContainEqual([488161])
     expect(viewFor(store, 'selectN').selectNCandidates).toMatchObject([{ name: 'Named card' }])
   } finally {
-    globalThis.fetch = originalFetch
+    store.disconnect()
   }
 })
 

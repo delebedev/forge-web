@@ -24,66 +24,6 @@ private const val TEST_SECRET = "a-32-char-secret-for-tests-0123456789"
 
 class AuthTest {
     @Test
-    fun `hourly guest IP budget survives minute expiry without creating more players`() {
-        var now = 0L
-        var players = 0
-        val store =
-            object : WebAuthStore by InMemoryWebAuthStore() {
-                override fun findOrCreatePlayer(
-                    email: String,
-                    onCreate: (WebPlayer) -> Unit,
-                ): WebPlayer {
-                    players++
-                    return WebPlayer("guest-$players", email)
-                }
-            }
-        val service =
-            WebAuthService(
-                store,
-                DevEmailSender(),
-                TEST_SECRET,
-                rateLimiter =
-                    InMemoryRateLimiter(nowMs = {
-                        now
-                    }),
-                rateLimitConfig = AuthRateLimitConfig(hourlyIpLimit = 2),
-            )
-        assertNotNull(service.guestSession("shared"))
-        now = 60_000
-        assertNotNull(service.guestSession("shared"))
-        now = 120_000
-        assertNull(service.guestSession("shared"))
-        assertEquals(2, players)
-        assertNotNull(service.guestSession("other"))
-        now = 3_600_000
-        assertNotNull(service.guestSession("shared"))
-    }
-
-    @Test
-    fun `hourly global guest budget follows rotating addresses but not other actions`() =
-        runBlocking {
-            var now = 0L
-            val service =
-                WebAuthService(
-                    InMemoryWebAuthStore(),
-                    DevEmailSender(),
-                    TEST_SECRET,
-                    rateLimiter =
-                        InMemoryRateLimiter(nowMs = {
-                            now
-                        }),
-                    rateLimitConfig = AuthRateLimitConfig(hourlyGlobalLimit = 2),
-                )
-            repeat(2) {
-                now += 60_000
-                assertNotNull(service.guestSession("ip-$it"))
-            }
-            now += 60_000
-            assertNull(service.guestSession("new-ip"))
-            assertEquals(StartLoginResult.Sent, service.requestCode("player@example.test", "new-ip"))
-        }
-
-    @Test
     fun `excessive code length does not consume the challenge`() =
         runBlocking {
             val service = WebAuthService(InMemoryWebAuthStore(), DevEmailSender(), TEST_SECRET, fixedLoginCode = "123456")
@@ -217,20 +157,6 @@ class AuthTest {
             assertEquals(StartLoginResult.RateLimited, service.requestCode("one-more@example.test", "shared-ip"))
             tokens.forEach { assertNotNull(service.validate(it)) }
         }
-
-    @Test
-    fun `guest sessions obey the configured rate limit`() {
-        val service =
-            WebAuthService(
-                InMemoryWebAuthStore(),
-                DevEmailSender(),
-                TEST_SECRET,
-                rateLimitConfig = AuthRateLimitConfig(loginLimit = 1),
-            )
-
-        assertNotNull(service.guestSession(ip = "guest-ip"))
-        assertNull(service.guestSession(ip = "guest-ip"))
-    }
 
     @Test
     fun `request code enforces cooldown and invalidates a challenge after email failure`() =

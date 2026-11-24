@@ -1,21 +1,12 @@
 package forge.web.server.decks
 
-import leyline.domain.Deck
-import leyline.domain.DeckId
-import leyline.domain.Format
-import leyline.domain.PlayerId
-import leyline.domain.deck.parseDecklist
-import leyline.domain.deck.resolveCards
-import leyline.domain.repo.DeckRepository
-import java.util.UUID
-
-/** Immutable starter templates, resolved before the server accepts registrations. */
-internal class StarterDecks(private val templates: List<Deck>) {
+/** Starter lists by card name, checked before the server accepts registrations. */
+internal class StarterDecks(private val templates: List<CreateDeckRequest>) {
     fun seed(
-        playerId: PlayerId,
-        decks: DeckRepository,
+        playerId: String,
+        decks: DeckStore,
     ) {
-        templates.forEach { decks.save(it.copy(id = DeckId(UUID.randomUUID().toString()), playerId = playerId)) }
+        templates.forEach { decks.create(playerId, it.copy(playerId = playerId)) }
     }
 
     companion object {
@@ -26,28 +17,50 @@ internal class StarterDecks(private val templates: List<Deck>) {
                 "commander/Vivi - Spellslinger", "commander/Y'shtola - Spell Control",
             )
 
-        fun load(resolve: (String, String?) -> Int?): StarterDecks =
+        fun load(): StarterDecks =
             StarterDecks(
                 files.map { file ->
                     val text =
                         checkNotNull(StarterDecks::class.java.getResourceAsStream("/starter-decks/$file.txt")) {
                             "Missing starter deck: $file"
                         }.bufferedReader().use { it.readText() }
-                    val cards = parseDecklist(text).resolveCards(resolve)
-                    val commander = cards.commandZone.isNotEmpty()
-                    check(cards.mainDeck.sumOf { it.quantity } + cards.commandZone.sumOf { it.quantity } == if (commander) 100 else 60) {
-                        "Invalid starter deck size: $file"
+                    parse(file.substringAfterLast('/'), text).also { deck ->
+                        val commander = deck.commandZone.isNotEmpty()
+                        check(deck.mainDeck.sumOf { it.quantity } + deck.commandZone.sumOf { it.quantity } == if (commander) 100 else 60) {
+                            "Invalid starter deck size: $file"
+                        }
+                        DeckStore.validate(deck)
                     }
-                    Deck(
-                        id = DeckId(""), playerId = PlayerId(""), name = file.substringAfterLast('/'),
-                        format = if (commander) Format.Commander else Format.Timeless,
-                        tileId = (cards.commandZone.firstOrNull() ?: cards.mainDeck.first()).grpId,
-                        mainDeck = cards.mainDeck,
-                        sideboard = cards.sideboard,
-                        commandZone = cards.commandZone,
-                        companions = cards.companions,
-                    )
                 },
             )
+
+        /** Reads `[Commander]`, `[Deck]` and `[Sideboard]` sections of `<quantity> <name>` rows. */
+        fun parse(
+            name: String,
+            text: String,
+        ): CreateDeckRequest {
+            val sections = mutableMapOf<String, MutableList<WebDeckCard>>()
+            var section = "deck"
+            for (line in text.lines().map(String::trim).filter(String::isNotEmpty)) {
+                if (line.startsWith("[") && line.endsWith("]")) {
+                    section = line.removeSurrounding("[", "]").lowercase()
+                    check(section in setOf("commander", "deck", "sideboard")) { "Unsupported starter section: $line" }
+                    continue
+                }
+                val row = checkNotNull(ROW.matchEntire(line)) { "Invalid starter row: $line" }
+                sections.getOrPut(section, ::mutableListOf) += WebDeckCard(row.groupValues[2], row.groupValues[1].toInt())
+            }
+            val commandZone = sections["commander"].orEmpty()
+            return CreateDeckRequest(
+                playerId = "",
+                name = name,
+                format = if (commandZone.isEmpty()) "Timeless" else "Commander",
+                mainDeck = sections["deck"].orEmpty(),
+                sideboard = sections["sideboard"].orEmpty(),
+                commandZone = commandZone,
+            )
+        }
+
+        private val ROW = Regex("""(\d+)\s+(.+)""")
     }
 }

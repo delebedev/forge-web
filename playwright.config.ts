@@ -55,7 +55,6 @@ function makeSmokeConfig({
   timeout,
   frontendPort,
   webPort,
-  invalidCardDb = false,
   builtFrontendPort,
 }: {
   name: string
@@ -63,7 +62,6 @@ function makeSmokeConfig({
   timeout: number
   frontendPort: number
   webPort: number
-  invalidCardDb?: boolean
   builtFrontendPort?: number
 }): PlaywrightTestConfig {
   if (suite === name) {
@@ -82,12 +80,11 @@ function makeSmokeConfig({
   const stateDir =
     process.env['FORGE_WEB_PLAYWRIGHT_STATE_DIR'] ??
     `/tmp/forge-web-${name}-${webPort}-${process.pid}-${Date.now()}-state`
-  const cardDb = invalidCardDb ? 'LEYLINE_CARD_DB=/dev/null/forge-card-db.sqlite ' : ''
   const serverCommand = process.env['FORGE_WEB_SERVER_DIST']
     ? 'bash scripts/run-ci-server.sh'
     : './leyline/gradlew :server:run'
   const serverLog = `/tmp/forge-web-${name}-${webPort}-${process.pid}-web.log`
-  const webCommand = `bash -lc 'set -o pipefail; ${cardDb}LEYLINE_WEB_PORT=${webPort} LEYLINE_WEB_LOGIN_CODE=123456 LEYLINE_WEB_ALLOW_FIXED_LOGIN_CODE=true LEYLINE_WEB_RATE_LIMIT_ENABLED=false LEYLINE_WEB_DEV_TOOLS=true LEYLINE_WEB_AUTH_SECRET=forge-web-${name}-test-secret-1234567890 LEYLINE_WEB_REPLAY_OPERATOR_TOKEN=forge-web-${name}-operator-secret-1234567890 LEYLINE_PATHS_STATE="${stateDir}" ${serverCommand} 2>&1 | tee ${serverLog} >&2'`
+  const webCommand = `bash -lc 'set -o pipefail; LEYLINE_WEB_PORT=${webPort} LEYLINE_WEB_LOGIN_CODE=123456 LEYLINE_WEB_ALLOW_FIXED_LOGIN_CODE=true LEYLINE_WEB_RATE_LIMIT_ENABLED=false LEYLINE_WEB_AUTH_SECRET=forge-web-${name}-test-secret-1234567890 LEYLINE_WEB_REPLAY_OPERATOR_TOKEN=forge-web-${name}-operator-secret-1234567890 LEYLINE_PATHS_STATE="${stateDir}" ${serverCommand} 2>&1 | tee ${serverLog} >&2'`
 
   return defineConfig({
     metadata: { serverLog },
@@ -183,7 +180,6 @@ const forgeCatalogBase = makeSmokeConfig({
   timeout: 120_000,
   frontendPort: 15179,
   webPort: 15189,
-  invalidCardDb: true,
 })
 
 const browserAlphaBase = makeSmokeConfig({

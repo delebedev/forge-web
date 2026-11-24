@@ -1,5 +1,4 @@
 import { z } from 'zod'
-import { BrowserEngine } from '@engine/runtime/browser-engine'
 import type { DecklistCard, ParseDecklistResponse } from '@shared/api/contracts'
 import { indexDraftCard } from './catalog'
 import { loadCardIndex, loadedCardIndex } from './card-index'
@@ -7,7 +6,9 @@ import { loadCardIndex, loadedCardIndex } from './card-index'
 export type ParseDecklistResult =
   { ok: true; deck: ParseDecklistResponse } | { ok: false; errors: string[] }
 
-export type DecklistValidationResult = { ok: true } | { ok: false; errors: string[] }
+/** `unavailable` marks a check the engine could not run, as opposed to a rejected list. */
+export type DecklistValidationResult =
+  { ok: true } | { ok: false; errors: string[]; unavailable?: true }
 
 export function selectCommanders(
   deck: ParseDecklistResponse,
@@ -74,51 +75,16 @@ export type DecklistChecker = (
 ) => Promise<unknown>
 
 /**
- * Keeps one engine warm from an import's parse to its validation. A passing
- * validation ends the import, so the engine is released then, before a match
- * engine can start.
+ * Checks run in the session's browser engine, which the next match reuses, so
+ * importing, saving and launching a deck start at most one engine.
  */
-const DECK_ENGINE_IDLE_MS = 60_000
-let deckEngine: BrowserEngine | null = null
-let deckEngineChecks = 0
-let deckEngineIdle: ReturnType<typeof setTimeout> | null = null
-
 async function checkInEngine(
   text: string,
   gameType: string | undefined,
   isImport: boolean,
 ): Promise<unknown> {
-  if (deckEngineIdle) {
-    clearTimeout(deckEngineIdle)
-    deckEngineIdle = null
-  }
-  const engine = (deckEngine ??= new BrowserEngine(() => {}))
-  deckEngineChecks++
-  let finished = false
-  try {
-    const result = await engine.checkDecklist(text, gameType, isImport)
-    finished = !isImport && CheckedDecklistSchema.safeParse(result).data?.errors.length === 0
-    return result
-  } catch (error) {
-    if (deckEngine === engine) {
-      deckEngine = null
-      engine.dispose()
-    }
-    throw error
-  } finally {
-    deckEngineChecks--
-    if (deckEngine === engine && deckEngineChecks === 0) {
-      const release = () => {
-        deckEngine = null
-        engine.dispose()
-      }
-      if (finished) {
-        release()
-      } else {
-        deckEngineIdle = setTimeout(release, DECK_ENGINE_IDLE_MS)
-      }
-    }
-  }
+  const { greSession } = await import('@engine/runtime/gre-session')
+  return greSession.checkDecklist(text, gameType, isImport)
 }
 
 async function check(
@@ -126,12 +92,14 @@ async function check(
   gameType: string | undefined,
   isImport: boolean,
   checker: DecklistChecker,
-): Promise<{ ok: true; deck: CheckedDecklist } | { ok: false; errors: string[] }> {
+): Promise<
+  { ok: true; deck: CheckedDecklist } | { ok: false; errors: string[]; unavailable?: true }
+> {
   try {
     const deck = CheckedDecklistSchema.parse(await checker(text, gameType, isImport))
     return deck.errors.length ? { ok: false, errors: deck.errors } : { ok: true, deck }
   } catch {
-    return { ok: false, errors: ['Could not check this decklist. Try again.'] }
+    return { ok: false, errors: ['Could not check this decklist. Try again.'], unavailable: true }
   }
 }
 

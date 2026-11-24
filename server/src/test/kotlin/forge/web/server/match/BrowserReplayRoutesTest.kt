@@ -1,10 +1,8 @@
 package forge.web.server.match
 
-import forge.web.server.auth.DEV_WEB_AUTH_SECRET
-import forge.web.server.auth.DevEmailSender
-import forge.web.server.auth.InMemoryWebAuthStore
-import forge.web.server.auth.WebAuthService
 import forge.web.server.http.installHttpErrorHandling
+import forge.web.server.support.testAuth
+import forge.web.server.support.testSession
 import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
@@ -49,7 +47,7 @@ class BrowserReplayRoutesTest {
                 }
             val store = MatchReplayStore(MatchReplayConfig(root, "token", maxBytes = 64 * 1024, maxMatchBytes = 64 * 1024), clock)
             val auth = auth()
-            val session = assertNotNull(auth.guestSession())
+            val session = auth.testSession()
             val id = "browser-11111111-1111-4111-8111-111111111111"
             val body = assertNotNull(javaClass.getResource("/replay/commander-first-chunk.json")).readText()
             application {
@@ -292,7 +290,7 @@ class BrowserReplayRoutesTest {
             val auth = auth()
             val store = store()
             val id = matchId(1)
-            val session = assertNotNull(auth.guestSession())
+            val session = auth.testSession()
             application {
                 installHttpErrorHandling(auth)
                 routing { route("/api") { installBrowserReplayRoutes(auth, store) } }
@@ -325,7 +323,7 @@ class BrowserReplayRoutesTest {
             }
         }
 
-    private fun auth() = WebAuthService(InMemoryWebAuthStore(), DevEmailSender(), DEV_WEB_AUTH_SECRET)
+    private fun auth() = testAuth()
 
     private fun store() = MatchReplayStore(MatchReplayConfig(Files.createTempDirectory("replay-route").toFile(), "token"))
 

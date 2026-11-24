@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, mock, spyOn, test } from 'bun:test'
 import { DEVICE_ID_HEADER, deviceId } from '@shared/device-id'
 import * as reporting from '@shared/reporting'
-import { fetchGreCardMeta } from '@engine/runtime/gre-card-meta'
+import { listCourses } from '@shared/api/course-records'
 import { BrowserReplayCollector } from './browser-replay-collector'
 import { BrowserReplayStreamer, type ReplayClock } from './browser-replay-streamer'
 import { RetiredReplayDeliveries, retiredReplayDeliveries } from './retired-replay-deliveries'
@@ -213,12 +213,12 @@ for (const status of [429, 503]) {
   }
 }
 
-test('unrelated metadata decoding cannot consume a streamer diagnostic budget', async () => {
+test('unrelated response decoding cannot consume a streamer diagnostic budget', async () => {
   const report = reportFailure
   const normalReport = spyOn(reporting, 'reportDiagnostic').mockImplementation(() => {})
   const body = deferred<unknown>()
   const reading = deferred<void>()
-  const failure = new SyntaxError('synthetic metadata JSON failure')
+  const failure = new SyntaxError('synthetic course JSON failure')
   const response = new Response(null, {
     headers: { 'X-Backend-Release': '123abcd' },
   })
@@ -227,7 +227,7 @@ test('unrelated metadata decoding cannot consume a streamer diagnostic budget', 
     return body.promise
   })
   const request = spyOn(globalThis, 'fetch').mockResolvedValue(response)
-  const metadata = fetchGreCardMeta([42]).catch((error: unknown) => error)
+  const metadata = listCourses().catch((error: unknown) => error)
   const journal = collector('reporter-isolation')
   journal.incoming([{ type: 1 }])
   const time = new Clock()
@@ -249,7 +249,7 @@ test('unrelated metadata decoding cannot consume a streamer diagnostic budget', 
     expect(normalReport).toHaveBeenCalledWith(undefined, 'API response decoding failed', {
       failure_category: 'api-response',
       failure_phase: 'json',
-      api_operation: 'GET /api/public/cards/by-grpids',
+      api_operation: 'GET /api/course-records',
       http_status: 200,
       backend_release: '123abcd',
     })

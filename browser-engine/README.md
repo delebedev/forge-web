@@ -21,12 +21,11 @@ checked for size and SHA-256 before use.
 
 On supported browsers, the signed-in play lobby downloads the startup set at
 bounded concurrency. Save-Data suppresses automatic warmup. Failures remain non-fatal and Play retries through ordinary
-HTTP caching before falling back to a server. Hosted CheerpJ files stay lazy.
+HTTP caching. Hosted CheerpJ files stay lazy.
 Reloading or leaving a game ends it.
 
-Browser execution is the default on supported browsers. Capability checks select
-server play when required browser APIs are unavailable; a failed engine startup
-also falls back to the server. Players can choose server play explicitly. Roll
+All play runs in the browser engine; there is no server engine to fall back to.
+Unsupported browsers and failed engine startups show a retryable error. Roll
 back by atomically restoring the preceding application root.
 
 Current desktop Chrome is the qualification target. Edge remains best-effort

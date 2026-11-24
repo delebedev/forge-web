@@ -21,7 +21,7 @@ class OpenApiExportTest {
         PlayerDatabase.open(PlayerDatabasePath(temp.resolve("player.db").toFile())).use { database ->
             testApplication {
                 application {
-                    installServer(testServices(devToolsEnabled = true).copy(roadmap = database.roadmap, puzzleStore = database.puzzles))
+                    installServer(testServices().copy(roadmap = database.roadmap, puzzleStore = database.puzzles))
                 }
                 val response = client.get("/openapi.json")
                 assertEquals(200, response.status.value)

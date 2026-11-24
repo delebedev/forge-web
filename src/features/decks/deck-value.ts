@@ -3,6 +3,7 @@ import type {
   DeckDetail,
   DeckSummary,
   DraftCard,
+  GreCardMetaDto,
   ParseDecklistResponse,
   WebComponents,
 } from '@shared/api/contracts'
@@ -11,8 +12,8 @@ import { cmcOf } from '@shared/cards/deck-builder'
 
 export type DeckView = WebComponents['schemas']['DeckView']
 type WebDeckCard = WebComponents['schemas']['WebDeckCard']
-export type CardMetadata = WebComponents['schemas']['GreCardMetaDto'] & {
-  linkedFaces?: WebComponents['schemas']['GreCardMetaDto'][]
+export type CardMetadata = GreCardMetaDto & {
+  linkedFaces?: GreCardMetaDto[]
   colors?: string[]
   collectorNumber?: string | null
 }

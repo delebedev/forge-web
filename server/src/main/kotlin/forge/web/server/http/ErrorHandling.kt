@@ -5,7 +5,8 @@ import ch.qos.logback.classic.LoggerContext
 import forge.web.server.auth.UnauthorizedPlayer
 import forge.web.server.auth.WEB_SESSION_COOKIE
 import forge.web.server.auth.WebAuthService
-import forge.web.server.cards.ParseDecklistErrorResponse
+import forge.web.server.decks.DeckRejected
+import forge.web.server.decks.ParseDecklistErrorResponse
 import forge.web.server.match.ReplayStorageBusy
 import forge.web.server.match.ReplayStorageCapacityExceeded
 import io.ktor.http.HttpHeaders
@@ -35,8 +36,8 @@ internal fun Application.installHttpErrorHandling(auth: WebAuthService) {
             call.response.headers.append(HttpHeaders.RetryAfter, "60")
             call.respond(HttpStatusCode.ServiceUnavailable, cause.message ?: "Replay storage is full")
         }
-        exception<leyline.domain.deck.DecklistException> { call, cause ->
-            call.application.log.warn("Decklist rejected on {} {}: {}", call.request.local.method.value, call.request.path(), cause.errors)
+        exception<DeckRejected> { call, cause ->
+            call.application.log.warn("Deck rejected on {} {}: {}", call.request.local.method.value, call.request.path(), cause.errors)
             call.respond(HttpStatusCode.BadRequest, ParseDecklistErrorResponse(cause.errors))
         }
         exception<IllegalArgumentException> { call, cause ->

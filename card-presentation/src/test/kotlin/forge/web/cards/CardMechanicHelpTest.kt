@@ -1,28 +1,11 @@
-package forge.web.server.cards
+package forge.web.cards
 
-import forge.web.cards.GreMechanicHelpDto
-import forge.web.cards.cardPresentation
-import forge.web.cards.forgeMechanicHelp
 import leyline.game.data.ForgeCardRepository
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class CardMechanicHelpTest {
-    @Test
-    fun `server adapter preserves shared presentation for cards faces and tokens`() {
-        val cards = ForgeCardRepository.open()
-        listOf(
-            requireNotNull(cards.findGrpIdByName("Goblin Trailblazer")),
-            requireNotNull(cards.findGrpIdByName("Zurgo Bellstriker")),
-            requireNotNull(cards.findGrpIdByNameAnyFace("Insectile Aberration")),
-            requireNotNull(cards.findTokenGrpIdByScript("scrap")),
-            requireNotNull(cards.findTokenGrpIdByScript("w_1_1_human_ward")),
-        ).forEach { id ->
-            assertEquals(cards.cardPresentation(id, true), cards.cardMeta(id, includeAbilities = true))
-        }
-    }
-
     @Test
     fun `projects public keyword help and ignores internal keyword directives`() {
         assertEquals(
@@ -45,7 +28,7 @@ class CardMechanicHelpTest {
         val cards = ForgeCardRepository.open()
         val grpId = requireNotNull(cards.findGrpIdByNameAnyFace("Insectile Aberration"))
 
-        assertTrue(cards.cardMeta(grpId, includeAbilities = false).mechanicHelp.any { it.keyword == "Flying" })
+        assertTrue(cards.cardPresentation(grpId, false).mechanicHelp.any { it.keyword == "Flying" })
     }
 
     @Test
@@ -53,7 +36,7 @@ class CardMechanicHelpTest {
         val cards = ForgeCardRepository.open()
         val grpId = requireNotNull(cards.findGrpIdByNameAnyFace("The Restoration of Eiganjo"))
 
-        val text = requireNotNull(cards.cardMeta(grpId, includeAbilities = false).rulesText)
+        val text = requireNotNull(cards.cardPresentation(grpId, false).rulesText)
 
         assertTrue(text.contains("I — Search your library"))
         assertTrue(text.contains("III — Exile this Saga"))
@@ -62,9 +45,9 @@ class CardMechanicHelpTest {
     @Test
     fun `projects visual values and face layout`() {
         val cards = ForgeCardRepository.open()
-        val walker = cards.cardMeta(requireNotNull(cards.findGrpIdByNameAnyFace("Liliana of the Veil")))
-        val battle = cards.cardMeta(requireNotNull(cards.findGrpIdByNameAnyFace("Invasion of Zendikar")))
-        val split = cards.cardMeta(requireNotNull(cards.findDeckGrpIdByName("Dead // Gone")))
+        val walker = cards.cardPresentation(requireNotNull(cards.findGrpIdByNameAnyFace("Liliana of the Veil")))
+        val battle = cards.cardPresentation(requireNotNull(cards.findGrpIdByNameAnyFace("Invasion of Zendikar")))
+        val split = cards.cardPresentation(requireNotNull(cards.findDeckGrpIdByName("Dead // Gone")))
 
         assertEquals("3", walker.loyalty)
         assertEquals("3", battle.defense)
@@ -72,7 +55,7 @@ class CardMechanicHelpTest {
         assertEquals("Split", split.faceLayout)
         val sourceId = requireNotNull(cards.findGrpIdByName("Sidewinder Sliver"))
         val grantId = requireNotNull(cards.findByGrpId(sourceId)).grantedKeywordAbilityIds.getValue("Flanking")
-        val grant = cards.cardMeta(sourceId, includeAbilities = true).abilities.getValue(grantId)
+        val grant = cards.cardPresentation(sourceId, true).abilities.getValue(grantId)
         assertEquals("Flanking", grant.keyword)
         assertTrue(grant.text.contains("-1/-1"))
     }
@@ -81,7 +64,7 @@ class CardMechanicHelpTest {
     fun `preserves parameters on registered token keywords`() {
         val cards = ForgeCardRepository.open()
         val grpId = requireNotNull(cards.findTokenGrpIdByScript("w_1_1_human_ward"))
-        val ward = requireNotNull(cards.cardMeta(grpId, includeAbilities = false).mechanicHelp.singleOrNull { it.keyword == "Ward" })
+        val ward = requireNotNull(cards.cardPresentation(grpId, false).mechanicHelp.singleOrNull { it.keyword == "Ward" })
 
         assertEquals("{2}", ward.cost)
     }

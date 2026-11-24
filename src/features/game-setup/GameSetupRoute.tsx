@@ -32,6 +32,7 @@ import {
   shouldReplaceAutoDeck,
 } from './recent-decks'
 import { createGameSetupStarter } from './setup-game-start'
+import { validateDecklist } from '@shared/cards/parse-decklist'
 import { currentBrowserPreflight } from '@engine/runtime/browser-support'
 import { warmBrowserRelease } from '@engine/runtime/browser-release'
 
@@ -78,6 +79,7 @@ export function GameSetupRoute() {
   const seed = Number.isSafeInteger(requestedSeed) && requestedSeed >= 0 ? requestedSeed : undefined
   const [startBrowserGame] = useState(() =>
     createGameSetupStarter({
+      validate: validateDecklist,
       start: (config) => greSession.startBrowser(config),
       onStarting: setStarting,
     }),

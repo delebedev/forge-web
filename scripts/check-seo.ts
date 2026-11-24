@@ -113,9 +113,6 @@ try {
         body: '',
       })
     }
-    if (url.pathname === '/api/auth/guest') {
-      return route.fulfill({ json: { playerId: 'seo-guest', guest: true } })
-    }
     if (url.pathname.startsWith('/api/')) {
       return route.fulfill({ status: 503, contentType: 'application/json', body: '{}' })
     }

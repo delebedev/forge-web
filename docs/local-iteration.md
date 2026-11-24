@@ -144,8 +144,7 @@ even without mana or during the opponent turn. The rail uses command-zone
 objects and Commander designations for visibility, and exact legal actions for
 casting. It follows the new object identity after a commander returns.
 
-Start the server with `LEYLINE_WEB_DEV_TOOLS=true`. The flag exposes fixture
-metadata and authored puzzle text reads; it defaults to false.
+The Vite dev server serves fixtures from `leyline/data/puzzles/`.
 Development frontend builds show the Challenges navigation. Validate starts a local
 browser engine on first use and reports validation issues. Play launches the authored
 text on the standard local board. Generation and engine trials are not product APIs.

@@ -7,6 +7,31 @@ if (!['127.0.0.1', 'localhost', '[::1]'].includes(base.hostname)) {
 const email = process.env.FORGE_WEB_DEV_EMAIL ?? 'player@example.test'
 const code = process.env.FORGE_WEB_DEV_CODE ?? '123456'
 let cookie = ''
+
+/** Reads `[Commander]`, `[Deck]` and `[Sideboard]` sections of `<quantity> <name>` rows. */
+function parseDeck(text) {
+  const sections = { commander: [], deck: [], sideboard: [] }
+  let section = 'deck'
+  for (const line of text
+    .split('\n')
+    .map((row) => row.trim())
+    .filter(Boolean)) {
+    const heading = line.match(/^\[(.+)\]$/)
+    if (heading) {
+      section = heading[1].toLowerCase()
+      if (!(section in sections)) {
+        throw new Error(`Unsupported section: ${line}`)
+      }
+      continue
+    }
+    const row = line.match(/^(\d+)\s+(.+)$/)
+    if (!row) {
+      throw new Error(`Invalid row: ${line}`)
+    }
+    sections[section].push({ cardName: row[2], quantity: Number(row[1]) })
+  }
+  return sections
+}
 async function api(path, data) {
   const response = await fetch(new URL(path, base), {
     method: data === undefined ? 'GET' : 'POST',
@@ -41,11 +66,10 @@ for (const file of (await readdir(directory, { recursive: true }))
     continue
   }
   const text = await readFile(new URL(file, directory), 'utf8')
-  const parsed = await api('/api/cards/parse-decklist', { text })
-  const cards = (rows) => rows.map(({ card, quantity }) => ({ cardName: card.name, quantity }))
-  const commandZone = cards(parsed.commandZone ?? [])
+  const parsed = parseDeck(text)
+  const commandZone = parsed.commander
   const total =
-    parsed.mainboard.reduce((total, card) => total + card.quantity, 0) +
+    parsed.deck.reduce((total, card) => total + card.quantity, 0) +
     commandZone.reduce((total, card) => total + card.quantity, 0)
   const expected = commandZone.length ? 100 : 60
   if (total !== expected) {
@@ -55,8 +79,8 @@ for (const file of (await readdir(directory, { recursive: true }))
     playerId,
     name,
     format: commandZone.length ? 'Commander' : 'Timeless',
-    mainDeck: cards(parsed.mainboard),
-    sideboard: cards(parsed.sideboard),
+    mainDeck: parsed.deck,
+    sideboard: parsed.sideboard,
     commandZone,
   })
 }

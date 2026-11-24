@@ -1,24 +1,15 @@
 package forge.web.server.http
 
-import forge.web.cards.commanderDeckProblem
-import forge.web.cards.forgeCanBeCommander
 import forge.web.server.auth.WebAuthService
 import forge.web.server.auth.installAuthRoutes
 import forge.web.server.auth.installOperatorPlayerRoutes
-import forge.web.server.auth.ownedPlayerId
 import forge.web.server.cards.CardImageIndex
-import forge.web.server.cards.CollectionView
-import forge.web.server.cards.installCardRoutes
-import forge.web.server.cards.installPublicCardRoutes
-import forge.web.server.decks.SavedDecks
+import forge.web.server.cards.installCardImageRoute
+import forge.web.server.decks.DeckStore
 import forge.web.server.decks.installDeckRoutes
 import forge.web.server.limited.CourseRecordStore
 import forge.web.server.limited.installCourseRecordRoutes
-import forge.web.server.match.ChallengeCatalog
-import forge.web.server.match.ChallengeSummary
-import forge.web.server.match.DevelopmentPuzzle
 import forge.web.server.match.MatchReplayStore
-import forge.web.server.match.emptyChallenges
 import forge.web.server.match.installBrowserReplayRoutes
 import forge.web.server.match.installReplayOperatorRoutes
 import forge.web.server.puzzles.PuzzleStore
@@ -39,27 +30,13 @@ import io.ktor.server.routing.route
 import io.ktor.server.routing.routing
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
-import leyline.domain.deck.DeckCards
-import leyline.domain.json.productionJson
-import leyline.domain.repo.DeckRepository
-import leyline.domain.service.CollectionService
-import leyline.game.data.CardRepository
 
 internal data class WebServices(
-    val decks: DeckRepository,
-    val collectionService: CollectionService,
-    val cardRepository: CardRepository,
-    val canBeCommander: (String) -> Boolean = ::forgeCanBeCommander,
-    val commanderProblem: (DeckCards) -> String? = { deck -> commanderDeckProblem(cardRepository, deck) },
-    val validateCopies: (DeckCards, forge.deck.DeckFormat) -> Unit = { deck, format ->
-        forge.web.cards.validateDeckCopies(cardRepository, deck, format)
-    },
+    val decks: DeckStore,
     val cardImages: CardImageIndex = CardImageIndex.empty(),
     val courseRecords: CourseRecordStore,
     val authService: WebAuthService,
     val replayStore: MatchReplayStore? = null,
-    val challengeCatalog: ChallengeCatalog = emptyChallenges(),
-    val devToolsEnabled: Boolean = false,
     val puzzleStore: PuzzleStore? = null,
     val roadmap: RoadmapStore? = null,
 )
@@ -76,7 +53,6 @@ internal fun Application.installHttpApplication(services: WebServices) {
     }
     install(RequestTiming)
     installHttpErrorHandling(services.authService)
-    val savedDecks = SavedDecks(services.decks)
     lateinit var openApiJson: String
     routing {
         get("/openapi.json") {
@@ -113,43 +89,9 @@ internal fun Application.installHttpApplication(services: WebServices) {
                 installReplayOperatorRoutes(it)
                 installOperatorPlayerRoutes(services.authService, it)
             }
-            installPublicCardRoutes(services.cardRepository, services.cardImages)
-            if (services.devToolsEnabled) {
-                get(
-                    "/dev/challenges",
-                ) { call.respond(services.challengeCatalog.summaries()) }.contract { response<List<ChallengeSummary>>() }
-                get("/dev/puzzles/{puzzleId}") {
-                    val summary = services.challengeCatalog.describePuzzle(call.parameters["puzzleId"].orEmpty())
-                    if (summary == null) call.respond(io.ktor.http.HttpStatusCode.NotFound) else call.respond(summary)
-                }.contract {
-                    response<DevelopmentPuzzle>()
-                    empty(404)
-                }
-            }
-            get("/collection") {
-                val playerId = call.ownedPlayerId(services.authService, call.request.queryParameters["playerId"])
-                call.respond(CollectionView(services.collectionService.getCollection(playerId).keys.sorted()))
-            }.contract {
-                query<String>("playerId")
-                response<CollectionView>()
-                empty(401, 403)
-            }
-            installCardRoutes(
-                services.cardRepository,
-                services.cardImages,
-                services.canBeCommander,
-                services.commanderProblem,
-                services.validateCopies,
-            )
+            installCardImageRoute(services.cardImages)
             installCourseRecordRoutes(services.authService, services.courseRecords)
-            installDeckRoutes(
-                services.authService,
-                savedDecks,
-                services.cardRepository,
-                services.canBeCommander,
-                services.commanderProblem,
-                services.validateCopies,
-            )
+            installDeckRoutes(services.authService, services.decks)
         }
     }
     openApiJson = OpenApi.generate(this)

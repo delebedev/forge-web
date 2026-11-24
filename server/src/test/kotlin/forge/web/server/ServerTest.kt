@@ -1,14 +1,14 @@
 package forge.web.server
 
-import forge.web.server.auth.AuthRateLimitConfig
 import forge.web.server.auth.DEV_WEB_AUTH_SECRET
 import forge.web.server.auth.DevEmailSender
+import forge.web.server.auth.GUEST_EMAIL_DOMAIN
 import forge.web.server.auth.InMemoryWebAuthStore
-import forge.web.server.auth.WEB_SESSION_MAX_AGE_SECONDS
 import forge.web.server.auth.WebAuthService
 import forge.web.server.match.MatchReplayConfig
 import forge.web.server.match.MatchReplayStore
 import forge.web.server.match.seedHistoricalReplay
+import forge.web.server.support.signIn
 import forge.web.server.support.testServices
 import io.ktor.client.request.get
 import io.ktor.client.request.header
@@ -62,9 +62,7 @@ class ServerTest {
                     contentType(ContentType.Application.Json)
                     setBody(body)
                 }
-            val guest = client.post("/api/auth/guest")
-            val cookie = checkNotNull(guest.headers[HttpHeaders.SetCookie]).substringBefore(';')
-            val accountId = Json.parseToJsonElement(guest.bodyAsText()).jsonObject["playerId"]?.jsonPrimitive?.content
+            val (cookie, accountId) = client.signIn()
             val accepted =
                 client.post("/api/browser-replays/$matchId") {
                     header(HttpHeaders.Cookie, cookie)
@@ -119,7 +117,8 @@ class ServerTest {
         testApplication {
             val authStore = InMemoryWebAuthStore()
             val auth = WebAuthService(authStore, DevEmailSender(), DEV_WEB_AUTH_SECRET)
-            val guest = checkNotNull(auth.guestSession()).player
+            // A guest row has no email to show.
+            val guest = authStore.findOrCreatePlayer("guest-1@$GUEST_EMAIL_DOMAIN")
             val player = authStore.findOrCreatePlayer("player@example.test")
             val replayStore =
                 MatchReplayStore(
@@ -168,50 +167,6 @@ class ServerTest {
             val guestBody = Json.parseToJsonElement(guestResponse.bodyAsText()).jsonObject
             assertEquals(HttpStatusCode.OK, guestResponse.status)
             assertEquals(JsonNull, guestBody["email"])
-        }
-
-    @Test
-    fun `development puzzle routes are absent unless explicitly enabled`() =
-        testApplication {
-            application { installServer(testServices()) }
-            val account = client.post("/api/auth/guest")
-            val cookie = checkNotNull(account.headers[HttpHeaders.SetCookie]).substringBefore(';')
-
-            val catalog = client.get("/api/dev/challenges")
-            val start =
-                client.post("/api/gre/start") {
-                    header(HttpHeaders.Cookie, cookie)
-                    contentType(ContentType.Application.Json)
-                    setBody("""{"puzzle":"bolt-face"}""")
-                }
-
-            assertEquals(404, catalog.status.value)
-            assertEquals(404, start.status.value)
-        }
-
-    @Test
-    fun `guest route reuses its session and applies rate limiting`() =
-        testApplication {
-            val auth =
-                WebAuthService(
-                    InMemoryWebAuthStore(),
-                    DevEmailSender(),
-                    DEV_WEB_AUTH_SECRET,
-                    rateLimitConfig = AuthRateLimitConfig(loginLimit = 1),
-                )
-            application { installServer(testServices(auth)) }
-
-            val first = client.post("/api/auth/guest")
-            val cookieHeader = checkNotNull(first.headers[HttpHeaders.SetCookie])
-            val cookie = cookieHeader.substringBefore(';')
-            val reused = client.post("/api/auth/guest") { header(HttpHeaders.Cookie, cookie) }
-            val limited = client.post("/api/auth/guest")
-
-            assertEquals(200, first.status.value)
-            assertTrue(cookieHeader.contains("HttpOnly"))
-            assertTrue(cookieHeader.contains("Max-Age=$WEB_SESSION_MAX_AGE_SECONDS"))
-            assertEquals(first.bodyAsText(), reused.bodyAsText())
-            assertEquals(429, limited.status.value)
         }
 
     @Test
@@ -281,6 +236,9 @@ class ServerTest {
             assertFalse(response.bodyAsText().contains("/api/gre/abandon"))
             assertFalse(response.bodyAsText().contains("MatchCapacityResponse"))
             assertTrue(response.bodyAsText().contains("/api/course-records"))
+            for (removed in listOf("/api/cards/", "/api/public/cards/by-grpids", "/api/auth/guest", "/api/dev/", "/api/collection")) {
+                assertFalse(response.bodyAsText().contains(removed), removed)
+            }
             assertFalse(response.bodyAsText().contains("/api/draft"))
             assertFalse(response.bodyAsText().contains("/api/legacy-decks"))
             assertFalse(response.bodyAsText().contains("LegacyDeckSummaryView"))

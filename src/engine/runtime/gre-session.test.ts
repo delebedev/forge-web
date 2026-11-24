@@ -1,4 +1,3 @@
-import { httpCardMeta } from '@shared/api/http-test-fixtures'
 import { afterEach, expect, it, spyOn } from 'bun:test'
 import { GreSessionStore } from './gre-session'
 import { parseGreMatchConfig } from './gre-match'
@@ -48,14 +47,6 @@ it('replaces browser metadata and state when starting another browser game', asy
     zones: [{ zoneId: 31, type: ZONE_HAND, ownerSeatId: 1, objectInstanceIds: [100] }],
     gameObjects: [{ instanceId: 100, grpId: 42, ownerSeatId: 1, controllerSeatId: 1 }],
   })
-  const previousFetch = globalThis.fetch
-  const requests: string[] = []
-  globalThis.fetch = (async (input: RequestInfo | URL) => {
-    requests.push(String(input))
-    return Response.json({
-      42: httpCardMeta(42, { name: 'Forest', imageUrl: 'https://cards.scryfall.io/forest.jpg' }),
-    })
-  }) as typeof fetch
   const session = new GreSessionStore({ execution: 'browser', gameType: 'constructed' })
   try {
     greStore.connectSource(source, {
@@ -71,13 +62,10 @@ it('replaces browser metadata and state when starting another browser game', asy
     greStore.attachSource(source)
     sink!.onBatch({ byteLength: 0, messages: [frame] })
     await Bun.sleep(70)
-    expect(
-      requests.some((url) => url.endsWith('/api/public/cards/by-grpids?ids=42&abilities=true')),
-    ).toBe(true)
-    expect(greStore.hand[0]?.name).toBe('Forest')
+    expect(greStore.hand).toHaveLength(1)
+    expect(greStore.hand[0]?.name).not.toBe('Browser card')
   } finally {
     session.clear()
-    globalThis.fetch = previousFetch
   }
 })
 
@@ -666,5 +654,44 @@ it('course startup and refresh retry locally with the same receipt, while comple
     } else {
       Reflect.deleteProperty(globalThis, 'sessionStorage')
     }
+  }
+})
+
+it('checks decklists in the engine the next browser match reuses', async () => {
+  const navigate = spyOn(router, 'reactNavigate').mockImplementation(() => {})
+  const calls: string[] = []
+  const engine = {
+    checkDecklist: async (text: string) => {
+      calls.push(`check ${text}`)
+      return { mainboard: [], sideboard: [], commandZone: [], errors: [] }
+    },
+    createMatch: async () => {
+      calls.push('match')
+      throw new Error('stop after launch')
+    },
+    diagnostics: () => ({ failed: false, disposed: false }),
+    terminateWithFailure: async () => {},
+    dispose: () => {},
+  }
+  let created = 0
+  const session = new GreSessionStore(null, () => {
+    created++
+    return engine as unknown as BrowserEngine
+  })
+  try {
+    await session.checkDecklist('60 Forest', 'constructed', false)
+    await session.checkDecklist('60 Mountain', 'constructed', false)
+    session.startBrowser({
+      gameType: 'constructed',
+      seat1Deck: '60 Forest',
+      seat2Deck: '60 Mountain',
+      seed: 42,
+    })
+    await session.connectBrowser(session.config!).catch(() => undefined)
+    expect(created).toBe(1)
+    expect(calls).toEqual(['check 60 Forest', 'check 60 Mountain', 'match'])
+  } finally {
+    session.clear()
+    navigate.mockRestore()
   }
 })

@@ -160,11 +160,9 @@ jobs:
           printf '%s\n' "$PUBLISH_KEY" > "$key"
           printf '%s\n' "$PUBLISH_KNOWN_HOST" > "$known_hosts"
           chmod 600 "$key" "$known_hosts"
-          leyline=$(git -C leyline rev-parse HEAD)
-          forge=$(git -C leyline/forge rev-parse HEAD)
           ssh -i "$key" -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes \
             -o UserKnownHostsFile="$known_hosts" "$DEPLOY_USER@$DEPLOY_HOST" \
-            "publish $GITHUB_SHA $BASE_RELEASE $leyline $forge" < "$RUNNER_TEMP/forge-web-full/full.tar.gz"
+            "publish $GITHUB_SHA $BASE_RELEASE" < "$RUNNER_TEMP/forge-web-full/full.tar.gz"
 
       - name: Verify production release
         env:

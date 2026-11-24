@@ -62,85 +62,6 @@ export const PuzzleRatingRequestInputSchema: z.ZodType<
   outcome: z.string(),
   actions: z.array(z.string()).optional(),
 })
-export const GreMechanicHelpDtoSchema: z.ZodType<components['schemas']['GreMechanicHelpDto']> =
-  z.object({
-    keyword: z.string(),
-    title: z.string(),
-    description: z.string(),
-    cost: z.string().nullable(),
-  })
-export const GreAbilityMetaDtoSchema: z.ZodType<components['schemas']['GreAbilityMetaDto']> =
-  z.object({ text: z.string(), keyword: z.string().nullable(), manaCost: z.string().nullable() })
-export const GreCardMetaDtoSchema: z.ZodType<components['schemas']['GreCardMetaDto']> = z.object({
-  grpId: z.number().int().min(-2147483648).max(2147483647),
-  name: z.string().nullable(),
-  setCode: z.string().nullable(),
-  rarity: z.string().nullable(),
-  titleId: z.number().int().min(-2147483648).max(2147483647).nullable(),
-  manaCost: z.string().nullable(),
-  power: z.string().nullable(),
-  toughness: z.string().nullable(),
-  loyalty: z.string().nullable(),
-  defense: z.string().nullable(),
-  faceLayout: z.string().nullable(),
-  types: z.string().nullable(),
-  subtypes: z.string().nullable(),
-  rulesText: z.string().nullable(),
-  imageUrl: z.string().nullable(),
-  keywords: z.array(z.string()),
-  mechanicHelp: z.array(z.lazy(() => GreMechanicHelpDtoSchema)),
-  linkedFaceGrpIds: z.array(z.number().int().min(-2147483648).max(2147483647)),
-  abilities: z.record(
-    z.string(),
-    z.lazy(() => GreAbilityMetaDtoSchema),
-  ),
-})
-export const ChallengeSummarySchema: z.ZodType<components['schemas']['ChallengeSummary']> =
-  z.object({ challengeId: z.string(), name: z.string(), objective: z.string() })
-export const DevelopmentPuzzleSchema: z.ZodType<components['schemas']['DevelopmentPuzzle']> =
-  z.object({ name: z.string(), objective: z.string(), text: z.string() })
-export const CollectionViewSchema: z.ZodType<components['schemas']['CollectionView']> = z.object({
-  grpIds: z.array(z.number().int().min(-2147483648).max(2147483647)),
-})
-export const CardMetadataEntrySchema: z.ZodType<components['schemas']['CardMetadataEntry']> =
-  z.object({
-    grpId: z.number().int().min(-2147483648).max(2147483647),
-    name: z.string().nullable(),
-  })
-export const CardMetadataViewSchema: z.ZodType<components['schemas']['CardMetadataView']> =
-  z.object({ cards: z.array(z.lazy(() => CardMetadataEntrySchema)) })
-export const DraftCardDtoSchema: z.ZodType<components['schemas']['DraftCardDto']> = z.object({
-  name: z.string(),
-  grpId: z.number().int().min(-2147483648).max(2147483647).nullable(),
-  manaCost: z.string().nullable(),
-  typeLine: z.string().nullable(),
-  rarity: z.string().nullable(),
-  colors: z.array(z.string()),
-  setCode: z.string().nullable(),
-  collectorNumber: z.string().nullable(),
-  score: z.number().nullable(),
-})
-export const ParseDecklistRequestInputSchema: z.ZodType<
-  components['schemas']['ParseDecklistRequestInput']
-> = z.object({ text: z.string() })
-export const ParseDecklistErrorResponseSchema: z.ZodType<
-  components['schemas']['ParseDecklistErrorResponse']
-> = z.object({ errors: z.array(z.string()) })
-export const DecklistCardDtoSchema: z.ZodType<components['schemas']['DecklistCardDto']> = z.object({
-  grpId: z.number().int().min(-2147483648).max(2147483647),
-  quantity: z.number().int().min(-2147483648).max(2147483647),
-  card: z.lazy(() => DraftCardDtoSchema),
-})
-export const ParseDecklistResponseSchema: z.ZodType<
-  components['schemas']['ParseDecklistResponse']
-> = z.object({
-  mainboard: z.array(z.lazy(() => DecklistCardDtoSchema)),
-  sideboard: z.array(z.lazy(() => DecklistCardDtoSchema)),
-  commandZone: z.array(z.lazy(() => DecklistCardDtoSchema)),
-})
-export const ValidateDecklistRequestInputSchema: z.ZodType<
-  components['schemas']['ValidateDecklistRequestInput']
-> = z.object({ text: z.string(), gameType: z.string().nullable().optional() })
 export const CourseRecordSchema: z.ZodType<components['schemas']['CourseRecord']> = z.object({
   eventName: z.string(),
   revision: z.number().int().min(-2147483648).max(2147483647),
@@ -174,11 +95,11 @@ export const CreateDeckRequestInputSchema: z.ZodType<
   sideboard: z.array(z.lazy(() => WebDeckCardInputSchema)).optional(),
   commandZone: z.array(z.lazy(() => WebDeckCardInputSchema)).optional(),
 })
+export const ParseDecklistErrorResponseSchema: z.ZodType<
+  components['schemas']['ParseDecklistErrorResponse']
+> = z.object({ errors: z.array(z.string()) })
 export const responseSchemas = {
   'GET /api/auth/me': {
-    '200': z.lazy(() => AuthViewSchema),
-  },
-  'POST /api/auth/guest': {
     '200': z.lazy(() => AuthViewSchema),
   },
   'POST /api/auth/request-code': {},
@@ -201,35 +122,7 @@ export const responseSchemas = {
     '200': z.lazy(() => GeneratedPuzzleSchema),
   },
   'POST /api/puzzles/{puzzleId}/ratings': {},
-  'GET /api/public/cards/by-grpids': {
-    '200': z.record(
-      z.string(),
-      z.lazy(() => GreCardMetaDtoSchema),
-    ),
-  },
   'GET /api/public/cards/image': {},
-  'GET /api/dev/challenges': {
-    '200': z.array(z.lazy(() => ChallengeSummarySchema)),
-  },
-  'GET /api/dev/puzzles/{puzzleId}': {
-    '200': z.lazy(() => DevelopmentPuzzleSchema),
-  },
-  'GET /api/collection': {
-    '200': z.lazy(() => CollectionViewSchema),
-  },
-  'GET /api/cards/metadata': {
-    '200': z.lazy(() => CardMetadataViewSchema),
-  },
-  'GET /api/cards/search': {
-    '200': z.array(z.lazy(() => DraftCardDtoSchema)),
-  },
-  'POST /api/cards/parse-decklist': {
-    '200': z.lazy(() => ParseDecklistResponseSchema),
-    '400': z.lazy(() => ParseDecklistErrorResponseSchema),
-  },
-  'POST /api/cards/validate-decklist': {
-    '400': z.lazy(() => ParseDecklistErrorResponseSchema),
-  },
   'GET /api/course-records': {
     '200': z.array(z.lazy(() => CourseRecordSchema)),
   },

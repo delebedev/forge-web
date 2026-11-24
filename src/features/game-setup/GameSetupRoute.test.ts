@@ -96,7 +96,24 @@ describe('recent constructed decks', () => {
     expect(starts).toEqual([{ seat1Deck: '60 Plains', gameType: 'constructed' }])
   })
 
-  it('keeps an invalid pasted deck on setup with the server error', async () => {
+  it('starts the match when the engine cannot check, so the match reports the failure', async () => {
+    const starts: GreStartConfig[] = []
+    const start = createGameSetupStarter({
+      validate: async () => ({ ok: false, errors: ['Could not check'], unavailable: true }),
+      start: (config) => starts.push(config),
+    })
+
+    const result = await start(
+      { gameType: 'constructed', mode: 'play', deckList: '60 Plains' },
+      null,
+      null,
+    )
+
+    expect(result).toEqual({ ok: true })
+    expect(starts).toHaveLength(1)
+  })
+
+  it('keeps an invalid pasted deck on setup with the engine error', async () => {
     const starts: GreStartConfig[] = []
     const start = createGameSetupStarter({
       validate: async () => ({ ok: false, errors: ['Card not found: Bogus'] }),
@@ -202,7 +219,10 @@ describe('recent constructed decks', () => {
 
   it('rejects an unavailable selected deck before starting', async () => {
     const starts: GreStartConfig[] = []
-    const start = createGameSetupStarter({ start: (config) => starts.push(config) })
+    const start = createGameSetupStarter({
+      validate: async () => ({ ok: true }),
+      start: (config) => starts.push(config),
+    })
 
     const result = await start({ gameType: 'constructed', mode: 'play' }, null, null)
 

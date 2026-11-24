@@ -1,16 +1,26 @@
 import { expect, it } from 'bun:test'
-import { challengeSummaryToChallenge } from './challenge'
+import { puzzleChallenge } from './challenge'
 
-it('maps a challenge summary into browser challenge context', () => {
-  const challenge = challengeSummaryToChallenge({
-    challengeId: 'bolt-face',
-    name: 'One red line',
-    objective: 'Cast Lightning Bolt at the opponent.',
+it('reads challenge context from puzzle metadata', () => {
+  const text = [
+    '[metadata]',
+    'Name:Brainstorm Order',
+    'Goal:Survive',
+    'Turns:1',
+    'Description:Order the top of your library.',
+    '',
+    '[state]',
+    'Name:ignored',
+  ].join('\n')
+
+  expect(puzzleChallenge('brainstorm-order', text)).toEqual({
+    id: 'brainstorm-order',
+    name: 'Brainstorm Order',
+    objective: 'Survive within 1 turn. Order the top of your library.',
   })
-
-  expect(challenge).toEqual({
-    id: 'bolt-face',
-    name: 'One red line',
-    objective: 'Cast Lightning Bolt at the opponent.',
+  expect(puzzleChallenge('bare', '[state]\n')).toEqual({
+    id: 'bare',
+    name: 'bare',
+    objective: 'Win.',
   })
 })

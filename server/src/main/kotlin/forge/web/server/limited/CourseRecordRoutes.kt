@@ -19,20 +19,20 @@ internal fun Route.installCourseRecordRoutes(
 ) {
     route("/course-records") {
         get {
-            call.respond(records.list(call.authenticatedPlayerId(auth).value))
+            call.respond(records.list(call.authenticatedPlayerId(auth)))
         }.contract {
             response<List<CourseRecord>>()
             empty(401)
         }
         get("/{eventName}") {
-            val record = records.find(call.authenticatedPlayerId(auth).value, call.parameters["eventName"].orEmpty())
+            val record = records.find(call.authenticatedPlayerId(auth), call.parameters["eventName"].orEmpty())
             if (record == null) call.respond(HttpStatusCode.NotFound) else call.respond(record)
         }.contract {
             response<CourseRecord>()
             empty(401, 404)
         }
         put("/{eventName}") {
-            val playerId = call.authenticatedPlayerId(auth).value
+            val playerId = call.authenticatedPlayerId(auth)
             val request = call.receive<SaveCourseRecordRequest>()
             try {
                 call.respond(records.save(playerId, call.parameters["eventName"].orEmpty(), request.revision, request.document))
@@ -49,7 +49,7 @@ internal fun Route.installCourseRecordRoutes(
             empty(401)
         }
         delete("/{eventName}") {
-            val playerId = call.authenticatedPlayerId(auth).value
+            val playerId = call.authenticatedPlayerId(auth)
             val revision = requireNotNull(call.request.queryParameters["revision"]?.toIntOrNull()) { "revision is required" }
             try {
                 val deleted = records.delete(playerId, call.parameters["eventName"].orEmpty(), revision)

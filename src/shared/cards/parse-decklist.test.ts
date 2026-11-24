@@ -56,7 +56,11 @@ test('an engine failure becomes a retryable decklist error', async () => {
     await validateDecklist('60 Plains', undefined, async () => {
       throw new Error('worker failed')
     }),
-  ).toEqual({ ok: false, errors: ['Could not check this decklist. Try again.'] })
+  ).toEqual({
+    ok: false,
+    errors: ['Could not check this decklist. Try again.'],
+    unavailable: true,
+  })
 })
 
 test('commander selection moves the chosen card rather than assuming the first row', () => {

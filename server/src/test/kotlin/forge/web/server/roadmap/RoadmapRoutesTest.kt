@@ -2,6 +2,9 @@ package forge.web.server.roadmap
 
 import forge.web.server.auth.DEV_WEB_AUTH_SECRET
 import forge.web.server.auth.DevEmailSender
+import forge.web.server.auth.GUEST_EMAIL_DOMAIN
+import forge.web.server.auth.VerifyLoginResult
+import forge.web.server.auth.WEB_SESSION_COOKIE
 import forge.web.server.auth.WebAuthService
 import forge.web.server.installServer
 import forge.web.server.persistence.PlayerDatabase
@@ -50,7 +53,10 @@ class RoadmapRoutesTest {
                 assertEquals(false, initial.first().voted)
                 assertEquals(HttpStatusCode.Unauthorized, client.put("/api/roadmap/play-stability/vote").status)
 
-                val guest = client.post("/api/auth/guest").headers[HttpHeaders.SetCookie].orEmpty().substringBefore(';')
+                val guestEmail = "guest-1@$GUEST_EMAIL_DOMAIN"
+                auth.requestCode(guestEmail)
+                val guestSession = auth.verify(guestEmail, assertNotNull(sender.latestCode(guestEmail))) as VerifyLoginResult.Success
+                val guest = "$WEB_SESSION_COOKIE=${guestSession.token}"
                 assertEquals(
                     HttpStatusCode.Forbidden,
                     client.put("/api/roadmap/play-stability/vote") {

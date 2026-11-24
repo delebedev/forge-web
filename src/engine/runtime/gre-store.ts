@@ -1,3 +1,4 @@
+import { noCardMeta } from './gre-card-meta'
 import type { BrowserFailureSnapshot } from '@shared/browser-failure-snapshot'
 import { buildGreWrapper, enumValue, type ProtoObject } from '@engine/wire/gre-proto'
 import {
@@ -49,7 +50,6 @@ import { EMPTY_ID_CHAIN, processIdChanges, type IdChain } from '@engine/state/gr
 import { buildBoardProjection, type BoardProjection } from '@engine/state/gre-projection'
 import { dungeonCardIds } from '@engine/state/dungeon-view'
 import { buildBootstrapMessages } from '@engine/wire/gre-bootstrap'
-import { fetchGreCardMeta } from './gre-card-meta'
 import { GameLog } from '@engine/state/game-log'
 import { GreDiagnostics } from './gre-diagnostics'
 import { GreDispatch, type GreDecisionHorizon } from './gre-dispatch'
@@ -329,7 +329,7 @@ export class GreStore {
 
   private source: GreFrameSource | null = null
   private cardMeta = new Map<number, CardMeta>()
-  private fetchCardMeta = fetchGreCardMeta
+  private fetchCardMeta = noCardMeta
   private pendingMeta = new Set<number>()
   private inFlightMeta = new Set<number>()
   private metaFetchTimer: ReturnType<typeof setTimeout> | null = null
@@ -838,7 +838,7 @@ export class GreStore {
 
   clearSession(): void {
     this.disconnect()
-    this.fetchCardMeta = fetchGreCardMeta
+    this.fetchCardMeta = noCardMeta
     this.cardMeta = new Map()
     this.browserReplay = null
     this.browserReplayStreamer = null

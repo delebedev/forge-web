@@ -1,13 +1,12 @@
 package forge.web.server.match
 
 import forge.web.server.auth.DEVICE_ID_HEADER
-import forge.web.server.auth.DEV_WEB_AUTH_SECRET
-import forge.web.server.auth.DevEmailSender
-import forge.web.server.auth.InMemoryWebAuthStore
-import forge.web.server.auth.WebAuthService
+import forge.web.server.auth.WEB_SESSION_COOKIE
 import forge.web.server.http.installHttpErrorHandling
 import forge.web.server.installServer
+import forge.web.server.support.testAuth
 import forge.web.server.support.testServices
+import forge.web.server.support.testSession
 import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
@@ -55,8 +54,8 @@ class MatchReplayStoreConcurrencyTest {
             var now = 0L
             val jitter = Random(916)
             val admission = ReplayAdmission({ now })
-            val auth = WebAuthService(InMemoryWebAuthStore(), DevEmailSender(), DEV_WEB_AUTH_SECRET)
-            val session = assertNotNull(auth.guestSession())
+            val auth = testAuth()
+            val session = auth.testSession()
             val root = ObservedDirectory()
             val store = MatchReplayStore(MatchReplayConfig(root, "token"))
             val body = chunk(1_500_000)
@@ -208,6 +207,7 @@ class MatchReplayStoreConcurrencyTest {
             fillNearQuota(root)
             val store = MatchReplayStore(MatchReplayConfig(root, "token"))
             assertTrue(store.pin("historical-0", "report"))
+            val auth = testAuth()
             val server =
                 embeddedServer(
                     Netty,
@@ -221,7 +221,7 @@ class MatchReplayStoreConcurrencyTest {
                         workerGroupSize = 1
                         callGroupSize = 2
                     },
-                ) { installServer(testServices(replayStore = store)) }.start(wait = false)
+                ) { installServer(testServices(authService = auth, replayStore = store)) }.start(wait = false)
             val port = server.engine.resolvedConnectors().single().port
             val http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(2)).build()
 
@@ -243,9 +243,7 @@ class MatchReplayStoreConcurrencyTest {
                 return http.send(builder.build(), HttpResponse.BodyHandlers.ofString())
             }
             try {
-                val guest = request("/auth/guest", ByteArray(0))
-                assertEquals(200, guest.statusCode())
-                val cookie = guest.headers().firstValue("set-cookie").orElseThrow().substringBefore(';')
+                val cookie = "$WEB_SESSION_COOKIE=${auth.testSession().token}"
                 root.block = true
                 val cleanup = async(Dispatchers.IO) { store.cleanup() }
                 assertTrue(root.entered.await(5, TimeUnit.SECONDS), "Maintenance must reach the filesystem barrier")
@@ -261,7 +259,7 @@ class MatchReplayStoreConcurrencyTest {
                 assertTrue(rejected.await(5, TimeUnit.SECONDS), "Saturated storage must reject without waiting for I/O")
                 val latencies = mutableMapOf<String, MutableList<Long>>()
                 repeat(20) {
-                    for (path in listOf("/health", "/auth/me", "/decks", "/public/cards/by-grpids?ids=1&abilities=true")) {
+                    for (path in listOf("/health", "/auth/me", "/decks", "/course-records")) {
                         val start = System.nanoTime()
                         assertEquals(200, request(path, cookie = cookie).statusCode(), path)
                         val elapsedMs = (System.nanoTime() - start) / 1_000_000

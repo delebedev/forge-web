@@ -96,7 +96,7 @@ an explicit error and browser retry. There is no alternate server host.
 
 ### Development challenge
 ```
-/challenges/:id → resolve GET /api/dev/challenges + GET /api/dev/puzzles/{id}
+/challenges/:id → read /dev/puzzles/{id}.pzl from the Vite dev server
   → greSession.startBrowser({puzzleText}) → router.navigate('/match/puzzle')
   → worker starts the puzzle → hydrate GrePlay
 ```
@@ -104,8 +104,8 @@ an explicit error and browser retry. There is no alternate server host.
 The puzzle supplies its initial state and objective only. `greStore` remains the
 sole match-state and action owner. Restart awaits retirement of the current
 match before launching the exact same puzzle. Return clears the match and opens
-the launcher. `/dev/puzzle/:id` resolves fixture metadata through
-`GET /api/dev/puzzles/{puzzleId}` and uses the same match path.
+the launcher. `/dev/puzzle/:id` reads the same fixture file and uses the same
+match path.
 
 Editable candidates validate authored text in a dedicated browser worker. First
 validation explicitly initializes the local engine. Play launches that exact text.

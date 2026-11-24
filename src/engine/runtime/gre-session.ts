@@ -183,6 +183,22 @@ export class GreSessionStore {
     }
   }
 
+  /** Checks a decklist in the engine the next browser match reuses. */
+  async checkDecklist(text: string, gameType: string | undefined, isImport: boolean) {
+    const engine = (this.browserEngine ??= this.browserEngineFactory(this.onBrowserEvent))
+    try {
+      return await engine.checkDecklist(text, gameType, isImport)
+    } catch (error) {
+      // A failed worker cannot host the next match; a running match reports its own failure.
+      const idle = !['preparing', 'active', 'recovering'].includes(this.browserPhase)
+      if (this.browserEngine === engine && engine.diagnostics().failed && idle) {
+        this.browserEngine = null
+        engine.dispose()
+      }
+      throw error
+    }
+  }
+
   async connectBrowser(config: GreStartConfig, signal?: AbortSignal): Promise<string> {
     if (
       config.execution !== 'browser' ||

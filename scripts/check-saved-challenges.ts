@@ -34,9 +34,6 @@ try {
     if (path === '/api/auth/me') {
       return json({ playerId: null, guest: false })
     }
-    if (path === '/api/auth/guest') {
-      return json({ playerId: 'test-guest', guest: true })
-    }
     if (path === `/api/puzzles/${firstId}/ratings`) {
       ratings.push({
         device: route.request().headers()['x-device-id'] ?? null,
