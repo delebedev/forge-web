@@ -74,6 +74,9 @@ export function parseGreMatchConfig(raw: string): GreStartConfig | null {
     }
     if (typeof parsed['courseEvent'] === 'string' && Number.isSafeInteger(parsed['courseGame'])) {
       config.courseEvent = parsed['courseEvent']
+      config.courseSeed = Number.isSafeInteger(parsed['courseSeed'])
+        ? Number(parsed['courseSeed'])
+        : null
       config.courseGame = Number(parsed['courseGame'])
     }
     if (typeof parsed['attemptId'] === 'string') {

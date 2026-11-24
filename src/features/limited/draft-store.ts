@@ -13,6 +13,7 @@ import {
   draftEventName,
   emptyCourse,
   newSeed,
+  requireEditable,
   submitCourseDeck,
   type LimitedMatchLaunch,
 } from './course'
@@ -57,6 +58,7 @@ export class DraftStore {
 
   private course: Course | null = null
   private discarding = false
+  private pickInFlight: Promise<void> = Promise.resolve()
   private subscribers = new Set<() => void>()
 
   private readonly engine: LimitedEngine
@@ -125,8 +127,8 @@ export class DraftStore {
       this.notify()
       return false
     }
+    const eventName = draftEventName(setCode)
     try {
-      const eventName = draftEventName(setCode)
       const existing = await loadCourse(eventName)
       if (existing && existing.document.phase !== 'finished') {
         await this.open(existing)
@@ -140,7 +142,15 @@ export class DraftStore {
       await this.showPack(state)
       return true
     } catch (err) {
-      this.fail(err)
+      // Another window started this event first: open its course instead.
+      if (!(err instanceof CourseConflict)) {
+        this.fail(err)
+        return false
+      }
+      if (await this.reload(eventName, err)) {
+        return true
+      }
+      this.phase = 'idle'
       return false
     } finally {
       this.notify()
@@ -158,6 +168,8 @@ export class DraftStore {
     }
     this.picking = true
     this.notify()
+    let settled!: () => void
+    this.pickInFlight = new Promise((resolve) => (settled = resolve))
     try {
       const picks = [...course.document.picks, cardName]
       const request = { ...this.draftRequest(course.document), picks }
@@ -185,6 +197,7 @@ export class DraftStore {
       await this.recover(err)
     } finally {
       this.picking = false
+      settled()
       this.notify()
     }
   }
@@ -214,6 +227,7 @@ export class DraftStore {
 
   /** Open a saved course's pool in the deck builder. */
   async editCourse(course: Course): Promise<void> {
+    requireEditable(course)
     this.reset()
     this.course = course
     this.sessionId = course.eventName
@@ -221,17 +235,21 @@ export class DraftStore {
     this.notify()
   }
 
-  /** Delete the course before returning to setup so the same set starts a new pod. */
+  /**
+   * Delete the course before returning to setup so the same set starts a new
+   * pod. A pick still saving finishes first, so its save cannot recreate the course.
+   */
   async discardDraft(): Promise<void> {
     if (this.discarding || this.submitting) {
       return
     }
-    if (!this.sessionId) {
-      this.reset()
-      return
-    }
     this.discarding = true
     try {
+      await this.pickInFlight
+      if (!this.sessionId) {
+        this.reset()
+        return
+      }
       await deleteCourse(this.sessionId)
       this.reset()
     } catch (err) {
@@ -310,16 +328,28 @@ export class DraftStore {
       this.error = err instanceof Error ? err.message : 'network_error'
       return
     }
+    await this.reload(this.sessionId, err)
+  }
+
+  /**
+   * Opens the course another window saved under `eventName`. A failed reload
+   * keeps the current state and says so; the next save conflicts and retries it.
+   */
+  private async reload(eventName: string, conflict: CourseConflict): Promise<boolean> {
     try {
-      const course = await loadCourse(this.sessionId)
-      if (course) {
-        await this.open(course)
-      } else {
+      const course = await loadCourse(eventName)
+      if (!course) {
         this.reset()
+        this.error = 'This course was deleted in another window.'
+        return false
       }
-      this.error = err.message
+      await this.open(course)
+      this.error = `${conflict.message} It has been reloaded.`
+      return true
     } catch (reloadError) {
-      this.error = reloadError instanceof Error ? reloadError.message : 'network_error'
+      const reason = reloadError instanceof Error ? reloadError.message : 'network_error'
+      this.error = `${conflict.message} Reloading it failed: ${reason}`
+      return false
     }
   }
 

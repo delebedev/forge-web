@@ -3,6 +3,7 @@ import { authStore } from '@shared/auth/auth'
 import { courseRecordServer } from '@shared/api/course-records-test-server'
 import { installCardIndexForTest } from '@shared/cards/card-index'
 import { testCardIndex } from '@shared/cards/card-index-test-fixtures'
+import { emptyCourse } from './course'
 import { DraftStore } from './draft-store'
 import type { DraftRequest, LimitedEngine } from './limited-engine'
 
@@ -106,22 +107,90 @@ it('a completed draft saves its pool and bot decks, and the deck launches agains
     seat1Deck: '[Deck]\n2 Forest\n1 Bear\n[Sideboard]\n1 Elk',
     seat2Deck: '[Deck]\n2 Bot One',
     courseEvent: EVENT,
+    courseSeed: server.document(EVENT).seed,
     courseGame: 0,
   })
 })
 
-it('a stale save reloads the saved course instead of advancing', async () => {
+it('discarding during a pick deletes the course after the pick saves', async () => {
+  const { engine } = fakeEngine()
+  const store = new DraftStore(engine)
+  expect(await store.startDraft('FDN')).toBe(true)
+  let release!: () => void
+  const gate = new Promise<void>((resolve) => (release = resolve))
+  const draft = engine.draft
+  engine.draft = async (request) => {
+    await gate
+    return draft(request)
+  }
+  const pick = store.pickCard(store.snapshot().pack[0]!.name)
+  const discard = store.discardDraft()
+  release()
+  await Promise.all([pick, discard])
+  const writes = server.requests.filter((request) => !request.startsWith('GET'))
+  expect(writes.slice(-2)).toEqual([
+    `PUT /api/course-records/${EVENT}`,
+    `DELETE /api/course-records/${EVENT}`,
+  ])
+  expect(server.document(EVENT)).toBeUndefined()
+  expect(store.snapshot().phase).toBe('idle')
+})
+
+it('deck editing refuses a draft still picking', async () => {
   const store = new DraftStore(fakeEngine().engine)
-  await draftTwoPicks(store)
-  const before = server.document(EVENT)
-  server.conflictOnce()
+  expect(await store.startDraft('FDN')).toBe(true)
+  const picking = new DraftStore(fakeEngine().engine)
+  const course = { eventName: EVENT, revision: 1, document: server.document(EVENT) }
+  const refused = await picking.editCourse(course).then(
+    () => null,
+    (error: Error) => error.message,
+  )
+  expect(refused).toContain('still picking')
+  expect(picking.snapshot().phase).toBe('idle')
+})
+
+it('a draft another window starts first opens instead of failing', async () => {
+  const { engine } = fakeEngine()
+  const draft = engine.draft
+  let raced = false
+  engine.draft = async (request) => {
+    if (!raced) {
+      raced = true
+      server.put(EVENT, { ...emptyCourse('draft', 'FDN', 7, 'catalog-1'), picks: ['a7-0'] })
+    }
+    return draft(request)
+  }
+  const store = new DraftStore(engine)
+  expect(await store.startDraft('FDN')).toBe(true)
+  expect(store.snapshot()).toMatchObject({ phase: 'drafting', poolSize: 1 })
+  expect(store.snapshot().pool.map((card) => card.name)).toEqual(['a7-0'])
+  expect(store.snapshot().error).toBe(
+    'This course changed in another window. It has been reloaded.',
+  )
+  expect(server.document(EVENT)).toMatchObject({ revision: 1, seed: 7 })
+})
+
+it('a stale pick reloads the pick another window saved and continues from it', async () => {
+  const store = new DraftStore(fakeEngine().engine)
+  expect(await store.startDraft('FDN')).toBe(true)
   await store.pickCard(store.snapshot().pack[0]!.name)
-  expect(server.document(EVENT)).toEqual(before)
-  expect(store.snapshot()).toMatchObject({ phase: 'drafting', poolSize: 2 })
-  expect(store.snapshot().error).toContain('changed in another window')
+  const other = new DraftStore(fakeEngine().engine)
+  expect(await other.startDraft('FDN')).toBe(true)
+  const otherPick = other.snapshot().pack[1]!.name
+  await other.pickCard(otherPick)
+  const theirs = server.document(EVENT)
+
   await store.pickCard(store.snapshot().pack[0]!.name)
-  expect(server.document(EVENT)).toMatchObject({ revision: before.revision + 1 })
-  expect(server.document(EVENT).picks).toHaveLength(3)
+  expect(server.document(EVENT)).toEqual(theirs)
+  expect(store.snapshot().pool.map((card) => card.name)).toEqual(theirs.picks)
+  expect(store.snapshot().pool.map((card) => card.name)).toContain(otherPick)
+  expect(store.snapshot().error).toBe(
+    'This course changed in another window. It has been reloaded.',
+  )
+
+  await store.pickCard(store.snapshot().pack[0]!.name)
+  expect(server.document(EVENT)).toMatchObject({ revision: theirs.revision + 1 })
+  expect(server.document(EVENT).picks).toEqual([...theirs.picks, expect.any(String)])
 })
 
 it('a changed catalog keeps the picks visible until the draft is discarded', async () => {

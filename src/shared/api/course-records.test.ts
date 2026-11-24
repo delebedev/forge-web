@@ -31,20 +31,30 @@ afterEach(() => {
 
 it('records a game once, however often it is reported', async () => {
   server.put(EVENT, course(1, 0))
-  expect(await recordCourseResult(EVENT, 1, true)).toEqual({ wins: 2, losses: 0 })
-  expect(await recordCourseResult(EVENT, 1, true)).toEqual({ wins: 2, losses: 0 })
+  expect(await recordCourseResult(EVENT, 1, 1, true)).toEqual({ wins: 2, losses: 0 })
+  expect(await recordCourseResult(EVENT, 1, 1, true)).toEqual({ wins: 2, losses: 0 })
   expect(server.document(EVENT)).toMatchObject({ revision: 2, wins: 2, losses: 0, phase: 'games' })
+})
+
+it('a result from an earlier run of the event does not advance the new course', async () => {
+  server.put(EVENT, { ...course(0, 0), seed: 2 })
+  const refused = await recordCourseResult(EVENT, 1, 0, false).then(
+    () => null,
+    (error: Error) => error.message,
+  )
+  expect(refused).toContain('A new course replaced')
+  expect(server.document(EVENT)).toMatchObject({ revision: 1, wins: 0, losses: 0 })
 })
 
 it('the third loss finishes the course', async () => {
   server.put(EVENT, course(2, 2))
-  expect(await recordCourseResult(EVENT, 4, false)).toEqual({ wins: 2, losses: 3 })
+  expect(await recordCourseResult(EVENT, 1, 4, false)).toEqual({ wins: 2, losses: 3 })
   expect(server.document(EVENT)).toMatchObject({ phase: 'finished' })
 })
 
 it('a stale save reloads the course and records the result on it', async () => {
   server.put(EVENT, course(0, 0))
   server.conflictOnce()
-  expect(await recordCourseResult(EVENT, 0, false)).toEqual({ wins: 0, losses: 1 })
+  expect(await recordCourseResult(EVENT, 1, 0, false)).toEqual({ wins: 0, losses: 1 })
   expect(server.document(EVENT)).toMatchObject({ revision: 2, losses: 1 })
 })

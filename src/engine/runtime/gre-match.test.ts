@@ -23,6 +23,7 @@ it('restores local course decks and the course game', () => {
     attemptId: 'attempt-2',
     matchId: 'browser-2',
     courseEvent: 'QuickDraft_FDN_20260223',
+    courseSeed: 41,
     courseGame: 2,
     gameType: 'draft',
     seat1Deck: '40 Plains',

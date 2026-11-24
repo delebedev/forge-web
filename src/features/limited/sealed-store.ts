@@ -11,6 +11,7 @@ import { webDraftCards } from '@shared/cards/catalog'
 import {
   emptyCourse,
   newSeed,
+  requireEditable,
   sealedEventName,
   submitCourseDeck,
   type LimitedMatchLaunch,
@@ -42,6 +43,8 @@ export class SealedStore {
   error: string | null = null
 
   private course: Course | null = null
+  /** Bumped by reset and open, so late work from a left course is ignored. */
+  private session = 0
   private subscribers = new Set<() => void>()
 
   private readonly engine: LimitedEngine
@@ -111,8 +114,8 @@ export class SealedStore {
       this.notify()
       return false
     }
+    const eventName = sealedEventName(setCode)
     try {
-      const eventName = sealedEventName(setCode)
       const existing = await loadCourse(eventName)
       if (existing && existing.document.phase !== 'finished') {
         await this.open(existing)
@@ -131,7 +134,13 @@ export class SealedStore {
       )
       return true
     } catch (err) {
-      this.error = err instanceof Error ? err.message : 'network_error'
+      // Another window opened this event first: open its pool instead.
+      if (err instanceof CourseConflict && (await this.reload(eventName, err))) {
+        return true
+      }
+      if (!(err instanceof CourseConflict)) {
+        this.error = err instanceof Error ? err.message : 'network_error'
+      }
       this.phase = 'idle'
       return false
     } finally {
@@ -142,23 +151,30 @@ export class SealedStore {
   /** Save the built deck to the course, then hand its next game to the route. */
   async submitDeck(mainboard: string[], sideboard: string[]): Promise<void> {
     const course = this.course
-    if (!course) {
+    const eventName = this.eventName
+    if (!course || !eventName) {
       return
     }
+    const session = this.session
     this.error = null
     this.notify()
     try {
       const submitted = await submitCourseDeck(course, mainboard, sideboard)
+      // The player left the builder or opened another course while this saved.
+      if (session !== this.session) {
+        return
+      }
       this.course = submitted.course
       this.matchLaunch = submitted.launch
       this.phase = 'playing'
     } catch (err) {
-      this.error = err instanceof Error ? err.message : 'network_error'
-      if (err instanceof CourseConflict && this.eventName) {
-        const reloaded = await loadCourse(this.eventName).catch(() => null)
-        if (reloaded) {
-          await this.open(reloaded)
-        }
+      if (session !== this.session) {
+        return
+      }
+      if (err instanceof CourseConflict) {
+        await this.reload(eventName, err)
+      } else {
+        this.error = err instanceof Error ? err.message : 'network_error'
       }
     } finally {
       this.notify()
@@ -167,6 +183,7 @@ export class SealedStore {
 
   /** Open a saved course's pool in the deck builder. */
   async editCourse(course: Course): Promise<void> {
+    requireEditable(course)
     this.reset()
     await this.open(course)
     this.notify()
@@ -174,6 +191,7 @@ export class SealedStore {
 
   /** Reset to idle. */
   reset(): void {
+    this.session++
     this.phase = 'idle'
     this.eventName = null
     this.course = null
@@ -185,10 +203,37 @@ export class SealedStore {
   }
 
   private async open(course: Course): Promise<void> {
+    const session = ++this.session
+    const pool = await webDraftCards(course.document.pool)
+    if (session !== this.session) {
+      return
+    }
     this.course = course
     this.eventName = course.eventName
-    this.pool = await webDraftCards(course.document.pool)
+    this.pool = pool
     this.phase = 'deck_build'
+  }
+
+  /**
+   * Opens the course another window saved under `eventName`. A failed reload
+   * keeps the current state and says so; the next save conflicts and retries it.
+   */
+  private async reload(eventName: string, conflict: CourseConflict): Promise<boolean> {
+    try {
+      const course = await loadCourse(eventName)
+      if (!course) {
+        this.reset()
+        this.error = 'This course was deleted in another window.'
+        return false
+      }
+      await this.open(course)
+      this.error = `${conflict.message} It has been reloaded.`
+      return true
+    } catch (reloadError) {
+      const reason = reloadError instanceof Error ? reloadError.message : 'network_error'
+      this.error = `${conflict.message} Reloading it failed: ${reason}`
+      return false
+    }
   }
 }
 

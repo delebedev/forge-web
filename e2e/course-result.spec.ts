@@ -17,6 +17,7 @@ async function terminalCourse(page: Page, unknown = false) {
       greSession.connectBrowser = async () => 'browser-course-ui'
       greSession.startBrowser({
         courseEvent: 'QuickDraft_FDN_20260223',
+        courseSeed: 1,
         courseGame: 0,
         gameType: 'draft',
         seat1Deck: '40 Plains',

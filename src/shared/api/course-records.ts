@@ -36,7 +36,7 @@ export const COURSE_MAX_LOSSES = 3
 /** Another window or browser saved the course since this one read it. */
 export class CourseConflict extends Error {
   constructor() {
-    super('This course changed in another window. It has been reloaded.')
+    super('This course changed in another window.')
   }
 }
 
@@ -103,11 +103,14 @@ export async function deleteCourse(eventName: string): Promise<void> {
 }
 
 /**
- * Records one game's result. `game` is the number of games the course had
- * finished when this one launched, so a repeated report saves nothing.
+ * Records one game's result. `seed` names the course run the game launched
+ * from, so a result never lands on a newer course of the same event. `game` is
+ * the number of games the course had finished when this one launched, so a
+ * repeated report saves nothing.
  */
 export async function recordCourseResult(
   eventName: string,
+  seed: number | null,
   game: number,
   won: boolean,
 ): Promise<{ wins: number; losses: number }> {
@@ -117,6 +120,9 @@ export async function recordCourseResult(
       throw new Error('This course no longer exists.')
     }
     const { document } = course
+    if (document.seed !== seed) {
+      throw new Error('A new course replaced the one this game was played for.')
+    }
     if (document.wins + document.losses !== game) {
       return { wins: document.wins, losses: document.losses }
     }

@@ -115,6 +115,7 @@ export function GrePlay({
   useEffect(() => {
     const event = initialConfig?.courseEvent
     const game = initialConfig?.courseGame
+    const seed = initialConfig?.courseSeed ?? null
     const outcome = board.outcome?.viewerResult
     if (!event || game == null || !board.gameOver || !outcome || outcome === 'unknown') {
       return
@@ -122,7 +123,7 @@ export function GrePlay({
     let active = true
     setCourseResult(null)
     setCourseError('')
-    void recordCourseResult(event, game, outcome === 'win').then(
+    void recordCourseResult(event, seed, game, outcome === 'win').then(
       (course) => {
         if (active) {
           setCourseResult(course)
@@ -140,6 +141,7 @@ export function GrePlay({
   }, [
     initialConfig?.courseEvent,
     initialConfig?.courseGame,
+    initialConfig?.courseSeed,
     board.gameOver,
     board.outcome?.viewerResult,
     courseRetry,

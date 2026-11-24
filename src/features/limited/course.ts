@@ -11,6 +11,8 @@ export type LimitedMatchLaunch = {
   seat1Deck: string
   seat2Deck: string
   courseEvent: string
+  /** The course run's seed; a migrated course has none. */
+  courseSeed: number | null
   courseGame: number
 }
 
@@ -68,7 +70,19 @@ export function courseMatch(course: Course): LimitedMatchLaunch {
     seat1Deck,
     seat2Deck: bot ? deckText(toWebDeckCards(bot)) : seat1Deck,
     courseEvent: course.eventName,
+    courseSeed: course.document.seed,
     courseGame: game,
+  }
+}
+
+/** Deck editing opens only a finished pool; a draft still picking resumes from its set instead. */
+export function requireEditable(course: Course): void {
+  if (course.document.phase !== 'deck_build' && course.document.phase !== 'games') {
+    throw new Error(
+      course.document.phase === 'drafting'
+        ? 'This draft is still picking. Start its set to continue.'
+        : 'This course is complete. Start a new one to play again.',
+    )
   }
 }
 

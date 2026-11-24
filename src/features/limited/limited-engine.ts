@@ -29,46 +29,70 @@ export type LimitedEngine = {
 
 /** Kept between picks so each pick skips the worker's cold start. */
 const IDLE_MS = 5 * 60_000
-let engine: BrowserEngine | null = null
-let idle: ReturnType<typeof setTimeout> | null = null
 
-function release(): void {
-  if (idle) {
-    clearTimeout(idle)
-    idle = null
-  }
-  engine?.dispose()
-  engine = null
-}
+type LimitedWorker = Pick<BrowserEngine, 'catalogVersion' | 'limited' | 'dispose'>
 
-async function run<T>(command: (engine: BrowserEngine) => Promise<T>): Promise<T> {
-  if (idle) {
-    clearTimeout(idle)
-    idle = null
-  }
-  const current = (engine ??= new BrowserEngine(() => {}))
-  try {
-    return await command(current)
-  } catch (error) {
-    // A failed command may leave the worker unusable; the next one starts fresh.
-    if (engine === current) {
-      release()
+/**
+ * The draft and sealed stores share one worker. It is disposed by an explicit
+ * release once no command runs, after a failed command, or when idle.
+ */
+export function createLimitedEngine(
+  create: () => LimitedWorker = () => new BrowserEngine(() => {}),
+): LimitedEngine {
+  let engine: LimitedWorker | null = null
+  let idle: ReturnType<typeof setTimeout> | null = null
+  /** Commands running on `engine`. */
+  let active = 0
+
+  function dispose(): void {
+    if (idle) {
+      clearTimeout(idle)
+      idle = null
     }
-    throw error
-  } finally {
-    if (engine === current) {
-      idle = setTimeout(release, IDLE_MS)
+    engine?.dispose()
+    engine = null
+    active = 0
+  }
+
+  async function run<T>(command: (engine: LimitedWorker) => Promise<T>): Promise<T> {
+    if (idle) {
+      clearTimeout(idle)
+      idle = null
     }
+    const current = (engine ??= create())
+    active++
+    try {
+      return await command(current)
+    } catch (error) {
+      // A failed command may leave the worker unusable; the next one starts fresh.
+      if (engine === current) {
+        dispose()
+      }
+      throw error
+    } finally {
+      if (engine === current && --active === 0) {
+        idle = setTimeout(dispose, IDLE_MS)
+      }
+    }
+  }
+
+  return {
+    catalogVersion: () => run((engine) => engine.catalogVersion()),
+    draft: (request) =>
+      run(async (engine) => DraftStateSchema.parse(await engine.limited('draft', request))),
+    completeDraft: (request) =>
+      run(async (engine) =>
+        DraftResultSchema.parse(await engine.limited('draft-complete', request)),
+      ),
+    sealed: (request) =>
+      run(async (engine) => SealedPoolSchema.parse(await engine.limited('sealed', request)).pool),
+    // A command another store still runs keeps the worker; its end arms the idle release.
+    release: () => {
+      if (active === 0) {
+        dispose()
+      }
+    },
   }
 }
 
-export const limitedEngine: LimitedEngine = {
-  catalogVersion: () => run((engine) => engine.catalogVersion()),
-  draft: (request) =>
-    run(async (engine) => DraftStateSchema.parse(await engine.limited('draft', request))),
-  completeDraft: (request) =>
-    run(async (engine) => DraftResultSchema.parse(await engine.limited('draft-complete', request))),
-  sealed: (request) =>
-    run(async (engine) => SealedPoolSchema.parse(await engine.limited('sealed', request)).pool),
-  release,
-}
+export const limitedEngine = createLimitedEngine()

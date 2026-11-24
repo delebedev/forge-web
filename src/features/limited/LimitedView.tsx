@@ -75,6 +75,8 @@ export function LimitedView({
 
   const [sets, setSets] = useState<SealedSet[]>([])
   const [selectedSetCode, setSelectedSetCode] = useState('NEO')
+  // Set once the player picks a set; the unfinished-draft lookup then leaves the choice alone.
+  const pickedSet = useRef(false)
   const [loadingSets, setLoadingSets] = useState(true)
   const [starting, setStarting] = useState(false)
   const [enteringGame, setEnteringGame] = useState(false)
@@ -89,8 +91,17 @@ export function LimitedView({
       void sealedStore.tryResume()
     }
     if (mode === 'draft' && draftStore.phase === 'idle') {
-      void draftStore.unfinishedSet().then((set) => set && setSelectedSetCode(set))
+      let current = true
+      void draftStore.unfinishedSet().then((set) => {
+        if (set && current && !pickedSet.current) {
+          setSelectedSetCode(set)
+        }
+      })
+      return () => {
+        current = false
+      }
     }
+    return undefined
   }, [mode])
 
   const mounted = useRef(false)
@@ -239,7 +250,10 @@ export function LimitedView({
               sets={sets}
               selectedCode={selectedSetCode}
               loading={loadingSets}
-              onSelect={setSelectedSetCode}
+              onSelect={(code) => {
+                pickedSet.current = true
+                setSelectedSetCode(code)
+              }}
             />
             <Button
               onClick={() => void handleStart()}

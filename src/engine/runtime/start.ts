@@ -7,6 +7,7 @@ export type GreStartConfig = {
   execution?: GreExecution
   /** A limited course game: its event and the number of games the course had finished before it. */
   courseEvent?: string
+  courseSeed?: number | null
   courseGame?: number
   attemptId?: string
   seed?: number
