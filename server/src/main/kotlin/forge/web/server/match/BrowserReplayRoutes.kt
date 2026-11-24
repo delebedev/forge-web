@@ -1,7 +1,8 @@
 package forge.web.server.match
 
 import forge.web.server.auth.WebAuthService
-import forge.web.server.auth.authenticatedPlayer
+import forge.web.server.auth.deviceId
+import forge.web.server.auth.optionalPlayer
 import forge.web.server.http.excludeContract
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
@@ -26,8 +27,8 @@ internal fun Route.installBrowserReplayRoutes(
     route("/browser-replays/{matchId}") {
         post("/chunks") {
             call.response.headers.append(HttpHeaders.CacheControl, "no-store")
-            val player = call.authenticatedPlayer(auth)
-            admission.admit(ReplayTraffic.CHUNK, player.playerId, call.request.origin.remoteHost)?.let {
+            val owner = ReplayOwner(call.deviceId(), call.optionalPlayer(auth)?.playerId)
+            admission.admit(ReplayTraffic.CHUNK, owner.deviceId, call.request.origin.remoteHost)?.let {
                 return@post call.rejectReplay(it)
             }
             val afterSeq =
@@ -42,13 +43,13 @@ internal fun Route.installBrowserReplayRoutes(
                     return@post call.respond(HttpStatusCode.PayloadTooLarge)
                 }
             val matchId = call.parameters["matchId"].orEmpty()
-            val result = store.ingestBrowserChunk(player.playerId, matchId, afterSeq, body)
+            val result = store.ingestBrowserChunk(owner, matchId, afterSeq, body)
             call.respond(HttpStatusCode.OK, result.toString())
         }
         post {
             call.response.headers.append(HttpHeaders.CacheControl, "no-store")
-            val player = call.authenticatedPlayer(auth)
-            admission.admit(ReplayTraffic.ARTIFACT, player.playerId, call.request.origin.remoteHost)?.let {
+            val owner = ReplayOwner(call.deviceId(), call.optionalPlayer(auth)?.playerId)
+            admission.admit(ReplayTraffic.ARTIFACT, owner.deviceId, call.request.origin.remoteHost)?.let {
                 return@post call.rejectReplay(it)
             }
             val matchId = call.parameters["matchId"].orEmpty()
@@ -61,7 +62,7 @@ internal fun Route.installBrowserReplayRoutes(
                 runCatching { call.receiveBounded(MAX_BROWSER_REPLAY_UPLOAD_BYTES) }.getOrElse {
                     return@post call.respond(HttpStatusCode.PayloadTooLarge)
                 }
-            val result = store.ingestBrowser(player.playerId, matchId, artifactId, body)
+            val result = store.ingestBrowser(owner, matchId, artifactId, body)
             call.respond(if (result) HttpStatusCode.Created else HttpStatusCode.Conflict)
         }
     }.excludeContract("GRE replay upload")

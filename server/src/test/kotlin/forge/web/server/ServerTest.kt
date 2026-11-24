@@ -33,7 +33,7 @@ import kotlin.test.assertTrue
 
 class ServerTest {
     @Test
-    fun `browser replay upload requires a session and enforces the request bound`() =
+    fun `browser replay upload requires a device id and enforces the request bound`() =
         testApplication {
             val replayStore =
                 MatchReplayStore(
@@ -56,7 +56,7 @@ class ServerTest {
                 "matchId":"$matchId","gameType":"constructed","seed":42}}
                 """.trimIndent()
 
-            val unauthenticated =
+            val withoutDevice =
                 client.post("/api/browser-replays/$matchId") {
                     header("X-Replay-Artifact", "$matchId:worker")
                     contentType(ContentType.Application.Json)
@@ -68,6 +68,7 @@ class ServerTest {
             val accepted =
                 client.post("/api/browser-replays/$matchId") {
                     header(HttpHeaders.Cookie, cookie)
+                    header("X-Device-Id", DEVICE)
                     header("X-Replay-Artifact", "$matchId:worker")
                     contentType(ContentType.Application.Json)
                     setBody(body)
@@ -75,15 +76,17 @@ class ServerTest {
             val oversized =
                 client.post("/api/browser-replays/browser-large") {
                     header(HttpHeaders.Cookie, cookie)
+                    header("X-Device-Id", DEVICE)
                     header("X-Replay-Artifact", "browser-large:worker")
                     contentType(ContentType.Application.Json)
                     setBody("x".repeat(4 * 1024 * 1024 + 1))
                 }
 
-            assertEquals(HttpStatusCode.Unauthorized, unauthenticated.status)
+            assertEquals(HttpStatusCode.BadRequest, withoutDevice.status)
             assertEquals(HttpStatusCode.Created, accepted.status)
             assertEquals(HttpStatusCode.PayloadTooLarge, oversized.status)
             assertEquals(accountId, replayStore.export(matchId)?.context?.accountId)
+            assertEquals(DEVICE, replayStore.export(matchId)?.context?.deviceId)
         }
 
     @Test
@@ -282,3 +285,5 @@ class ServerTest {
             assertFalse(response.bodyAsText().contains("LegacyDeckSummaryView"))
         }
 }
+
+private const val DEVICE = "55555555-5555-4555-8555-555555555555"

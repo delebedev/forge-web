@@ -1,5 +1,6 @@
 package forge.web.server.match
 
+import forge.web.server.auth.DEVICE_ID_HEADER
 import forge.web.server.auth.DEV_WEB_AUTH_SECRET
 import forge.web.server.auth.DevEmailSender
 import forge.web.server.auth.InMemoryWebAuthStore
@@ -68,6 +69,7 @@ class MatchReplayStoreConcurrencyTest {
             suspend fun send() =
                 client.post("/api/browser-replays/$MATCH_ID/chunks") {
                     header(HttpHeaders.Cookie, "web_session=${session.token}")
+                    header(DEVICE_ID_HEADER, DEVICE)
                     header("X-Forwarded-For", "198.51.100.1")
                     header("X-Replay-After-Seq", "0")
                     setBody(body)
@@ -79,13 +81,13 @@ class MatchReplayStoreConcurrencyTest {
                     assertTrue(root.entered.await(5, TimeUnit.SECONDS))
                     // Cleanup owns one slot. Undispatched reads acquire the remaining slots before suspending.
                     val reads = List(7) { async(start = CoroutineStart.UNDISPATCHED) { store.export("web-missing") } }
-                    repeat(11) { assertEquals(null, admission.admit(ReplayTraffic.CHUNK, session.player.playerId, "198.51.100.1")) }
+                    repeat(11) { assertEquals(null, admission.admit(ReplayTraffic.CHUNK, DEVICE, "198.51.100.1")) }
                     val unavailable = send()
                     assertEquals(503, unavailable.status.value)
                     assertEquals("10", unavailable.headers[HttpHeaders.RetryAfter])
                     now += 10_000 + jitter.nextInt(2_000)
-                    // Another match on the same account spends the replenished player token.
-                    assertEquals(null, admission.admit(ReplayTraffic.CHUNK, session.player.playerId, "198.51.100.1"))
+                    // Another match on the same device spends the replenished device token.
+                    assertEquals(null, admission.admit(ReplayTraffic.CHUNK, DEVICE, "198.51.100.1"))
                     val limited = send()
                     assertEquals(429, limited.status.value)
                     assertTrue(assertNotNull(limited.headers[HttpHeaders.RetryAfter]).toLong() >= 1)
@@ -119,7 +121,7 @@ class MatchReplayStoreConcurrencyTest {
         runBlocking<Unit> {
             val root = ObservedDirectory()
             MatchReplayStore(MatchReplayConfig(root, "token")).use { store ->
-                val results = (1..4).map { async { store.ingestBrowserChunk("account", MATCH_ID, 0, chunk(1_024)) } }.awaitAll()
+                val results = (1..4).map { async { store.ingestBrowserChunk(owner("account"), MATCH_ID, 0, chunk(1_024)) } }.awaitAll()
                 assertEquals(listOf(1L, 1L, 1L, 1L), results)
                 assertEquals(listOf(1L), assertNotNull(store.export(MATCH_ID)).events.map { it.seq })
                 assertEquals(root.listFiles()!!.sumOf(File::length), store.health().bytesUsed)
@@ -133,7 +135,7 @@ class MatchReplayStoreConcurrencyTest {
             val body = chunk(1_024, reportId = "report")
             val replayBytes =
                 MatchReplayStore(MatchReplayConfig(reference, "token")).use { store ->
-                    store.ingestBrowserChunk("account", MATCH_ID, 0, body)
+                    store.ingestBrowserChunk(owner("account"), MATCH_ID, 0, body)
                     reference.resolve("$MATCH_ID.browser.json.gz").length()
                 }
             for (full in listOf(false, true)) {
@@ -142,9 +144,9 @@ class MatchReplayStoreConcurrencyTest {
                 MatchReplayStore(MatchReplayConfig(root, "token")).use { store ->
                     assertFailsWith<ReplayStorageCapacityExceeded> {
                         if (full) {
-                            store.ingestBrowser("account", MATCH_ID, "$MATCH_ID:report", body)
+                            store.ingestBrowser(owner("account"), MATCH_ID, "$MATCH_ID:report", body)
                         } else {
-                            store.ingestBrowserChunk("account", MATCH_ID, 0, body)
+                            store.ingestBrowserChunk(owner("account"), MATCH_ID, 0, body)
                         }
                     }
                     assertEquals(listOf("retained.bin"), root.listFiles()!!.map(File::getName))
@@ -158,12 +160,12 @@ class MatchReplayStoreConcurrencyTest {
         runBlocking<Unit> {
             val root = ObservedDirectory()
             MatchReplayStore(MatchReplayConfig(root, "token")).use { store ->
-                store.ingestBrowserChunk("account", MATCH_ID, 0, chunk(1_024))
+                store.ingestBrowserChunk(owner("account"), MATCH_ID, 0, chunk(1_024))
                 val usage = store.health().bytesUsed
                 RandomAccessFile(root.resolve("retained.bin"), "rw").use { it.setLength(QUOTA - usage - 512) }
                 store.cleanup()
                 val scans = root.scans.get()
-                assertEquals(2L, store.ingestBrowserChunk("account", MATCH_ID, 1, chunk(1_024, seq = 2)))
+                assertEquals(2L, store.ingestBrowserChunk(owner("account"), MATCH_ID, 1, chunk(1_024, seq = 2)))
                 assertEquals(listOf(1L, 2L), assertNotNull(store.export(MATCH_ID)).events.map { it.seq })
                 assertEquals(scans, root.scans.get())
                 assertEquals(root.listFiles()!!.sumOf(File::length), store.health().bytesUsed)
@@ -183,11 +185,11 @@ class MatchReplayStoreConcurrencyTest {
                     assertEquals(
                         "Replay storage quota is exhausted",
                         assertFailsWith<ReplayStorageCapacityExceeded> {
-                            store.ingestBrowserChunk("account", MATCH_ID, 0, chunk())
+                            store.ingestBrowserChunk(owner("account"), MATCH_ID, 0, chunk())
                         }.message,
                     )
                     assertFailsWith<ReplayStorageCapacityExceeded> {
-                        store.ingestBrowser("account", MATCH_ID, "$MATCH_ID:full", chunk())
+                        store.ingestBrowser(owner("account"), MATCH_ID, "$MATCH_ID:full", chunk())
                     }
                 }
                 assertNotNull(store.export("historical-0"))
@@ -233,6 +235,7 @@ class MatchReplayStoreConcurrencyTest {
                 if (path.startsWith("/operator/")) builder.header("Authorization", "Bearer token")
                 if (body != null) {
                     builder.header("Content-Type", "application/json")
+                        .header(DEVICE_ID_HEADER, DEVICE)
                         .header("X-Replay-After-Seq", "0")
                         .header("X-Replay-Artifact", "$MATCH_ID:full")
                         .POST(HttpRequest.BodyPublishers.ofByteArray(body))
@@ -339,3 +342,5 @@ class MatchReplayStoreConcurrencyTest {
 
 private const val QUOTA = 512L * 1024 * 1024
 private const val MATCH_ID = "browser-33333333-3333-4333-8333-333333333333"
+
+private const val DEVICE = "55555555-5555-4555-8555-555555555555"

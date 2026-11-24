@@ -30,6 +30,7 @@ internal data class BrowserReplayContext(
     val seat2Deck: String? = null,
     val frontendBuild: String? = null,
     val engineBuild: String? = null,
+    val deviceId: String? = null,
     val accountId: String? = null,
 )
 

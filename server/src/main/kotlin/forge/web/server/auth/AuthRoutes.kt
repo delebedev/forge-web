@@ -117,4 +117,15 @@ internal suspend fun ApplicationCall.ownedPlayerId(
     return playerId
 }
 
+/** The signed-in player, or null without a session. */
+internal fun ApplicationCall.optionalPlayer(auth: WebAuthService): WebPlayer? = auth.validate(request.cookies[WEB_SESSION_COOKIE])
+
+/** The browser's random device id. It identifies uploads from players without an account. */
+internal fun ApplicationCall.deviceId(): String =
+    requireNotNull(request.headers[DEVICE_ID_HEADER]?.takeIf(DEVICE_ID::matches)) { "Invalid device identity" }.lowercase()
+
+internal const val DEVICE_ID_HEADER = "X-Device-Id"
+
+private val DEVICE_ID = Regex("[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}", RegexOption.IGNORE_CASE)
+
 internal class UnauthorizedPlayer : RuntimeException()

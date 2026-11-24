@@ -2,6 +2,7 @@ import type { z } from 'zod'
 import { GeneratedPuzzleSchema } from '@shared/api/wire-schemas'
 import { readJson } from '@shared/api/decoding'
 import { apiFetch } from '@shared/api/client'
+import { DEVICE_ID_HEADER, deviceId } from '@shared/device-id'
 import type { components } from '@shared/api/types'
 
 export type GeneratedPuzzle = components['schemas']['GeneratedPuzzle']
@@ -38,7 +39,7 @@ export async function getPuzzle(id: string, signal?: AbortSignal): Promise<Gener
 export async function sendPuzzleRating(id: string, rating: PuzzleRatingRequest): Promise<void> {
   const response = await apiFetch(`/api/puzzles/${encodeURIComponent(id)}/ratings`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', [DEVICE_ID_HEADER]: deviceId() },
     body: JSON.stringify(rating),
   })
   if (!response.ok) {

@@ -67,7 +67,7 @@ class MatchReplayStoreCompressionTest {
             root.resolve("retained.bin").writeBytes(ByteArray(64 * 1024 - original.length().toInt()))
             MatchReplayStore(MatchReplayConfig(root, "token", maxBytes = 64 * 1024, maxMatchBytes = 64 * 1024)).use { store ->
                 assertFailsWith<ReplayStorageCapacityExceeded> {
-                    store.ingestBrowserChunk("account", bundle.matchId, 1, bytes(bundle(1, seq = 2)))
+                    store.ingestBrowserChunk(owner("account"), bundle.matchId, 1, bytes(bundle(1, seq = 2)))
                 }
                 store.cleanup()
                 assertContentEquals(bytes(bundle), original.readBytes())
@@ -114,10 +114,10 @@ class MatchReplayStoreCompressionTest {
                 }
             MatchReplayStore(MatchReplayConfig(root, "token")).use { store ->
                 val bundle = bundle(1)
-                assertFailsWith<IllegalStateException> { store.ingestBrowserChunk("account", bundle.matchId, 0, bytes(bundle)) }
+                assertFailsWith<IllegalStateException> { store.ingestBrowserChunk(owner("account"), bundle.matchId, 0, bytes(bundle)) }
                 root.unavailable = false
                 store.cleanup()
-                assertEquals(1L, store.ingestBrowserChunk("account", bundle.matchId, 0, bytes(bundle)))
+                assertEquals(1L, store.ingestBrowserChunk(owner("account"), bundle.matchId, 0, bytes(bundle)))
                 assertEquals(root.listFiles()!!.sumOf(File::length), store.health().bytesUsed)
             }
         }
@@ -130,8 +130,8 @@ class MatchReplayStoreCompressionTest {
             val bytes = bytes(bundle)
             val config = MatchReplayConfig(root, "token", maxBytes = 64 * 1024, maxMatchBytes = 64 * 1024)
             MatchReplayStore(config).use { store ->
-                assertEquals(1L, store.ingestBrowserChunk("account", bundle.matchId, 0, bytes))
-                assertTrue(store.ingestBrowser("account", bundle.matchId, "${bundle.matchId}:report", bytes))
+                assertEquals(1L, store.ingestBrowserChunk(owner("account"), bundle.matchId, 0, bytes))
+                assertTrue(store.ingestBrowser(owner("account"), bundle.matchId, "${bundle.matchId}:report", bytes))
                 assertFalse(root.resolve("${bundle.matchId}.browser.json").exists())
                 val compressed = root.resolve("${bundle.matchId}.browser.json.gz")
                 assertTrue(compressed.length() < bytes.size / 4)
@@ -143,7 +143,7 @@ class MatchReplayStoreCompressionTest {
                 assertEquals("report", retained.status.reportId)
                 assertEquals(bundle.events, retained.events)
                 assertEquals(bundle.cards, retained.cards)
-                assertFailsWith<IllegalArgumentException> { store.ingestBrowserChunk("another", bundle.matchId, 0, bytes) }
+                assertFailsWith<IllegalArgumentException> { store.ingestBrowserChunk(owner("another"), bundle.matchId, 0, bytes) }
             }
         }
 
@@ -285,7 +285,7 @@ class MatchReplayStoreCompressionTest {
             MatchReplayStore(MatchReplayConfig(root, "token", maxBytes = 64 * 1024, maxMatchBytes = 64 * 1024)).use { store ->
                 assertNull(store.export(oversized.matchId))
                 assertFailsWith<IllegalArgumentException> {
-                    store.ingestBrowserChunk("account", oversized.matchId, 1, bytes(bundle(1, seq = 2)))
+                    store.ingestBrowserChunk(owner("account"), oversized.matchId, 1, bytes(bundle(1, seq = 2)))
                 }
                 assertContentEquals(compressed, root.resolve("${oversized.matchId}.browser.json.gz").readBytes())
             }

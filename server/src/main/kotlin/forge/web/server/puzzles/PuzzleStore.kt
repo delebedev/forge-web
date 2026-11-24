@@ -6,6 +6,7 @@ import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.Database
+import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -92,6 +93,7 @@ internal class PuzzleStore(
         val id = text("id")
         val puzzleId = text("puzzle_id")
         val playerId = text("player_id").nullable()
+        val deviceId = text("device_id").nullable()
         val reaction = text("reaction")
         val comment = text("comment").nullable()
         val outcome = text("outcome")
@@ -202,8 +204,10 @@ internal class PuzzleStore(
                 .map { row -> GeneratedPuzzle(row[Puzzles.id], row[Puzzles.title], row[Puzzles.text], row[Puzzles.createdAt]) }
         }
 
+    /** One rating per puzzle and device; rating again replaces it. */
     fun rate(
         puzzleId: String,
+        deviceId: String,
         playerId: String?,
         rating: PuzzleRatingRequest,
     ) {
@@ -215,9 +219,11 @@ internal class PuzzleStore(
             require(Puzzles.selectAll().where { (Puzzles.id eq puzzleId) and (Puzzles.active eq true) }.singleOrNull() != null) {
                 "Unknown puzzle"
             }
+            Ratings.deleteWhere { (Ratings.puzzleId eq puzzleId) and (Ratings.deviceId eq deviceId) }
             Ratings.insert {
                 it[id] = UUID.randomUUID().toString()
                 it[Ratings.puzzleId] = puzzleId
+                it[Ratings.deviceId] = deviceId
                 it[Ratings.playerId] = playerId
                 it[reaction] = rating.reaction
                 it[comment] = rating.comment

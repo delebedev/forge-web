@@ -1,5 +1,6 @@
 import { afterEach, expect, test } from 'bun:test'
 import { setAnalyticsAccountId } from './analytics'
+import { deviceId } from './device-id'
 import { createBugReport, prepareBugReport, trackBugReportOpen } from './feedback'
 
 const originalWindow = Object.getOwnPropertyDescriptor(globalThis, 'window')
@@ -77,6 +78,8 @@ test('bug reports share one correlation id with analytics and explicit form cont
     traffic: 'smoke',
   })
   expect(url.searchParams.has('close_category')).toBe(false)
+  expect(url.searchParams.get('device_id')).toBe(deviceId())
+  expect(events[0]?.data?.['device_id']).toBe(deviceId())
   expect(events[0]).toMatchObject({
     name: 'bug-report-opened',
     data: {

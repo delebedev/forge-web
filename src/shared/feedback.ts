@@ -1,4 +1,5 @@
 import { ANALYTICS_RELEASE, analyticsTraffic, trackBugReportOpened } from './analytics'
+import { deviceId } from './device-id'
 import type { GreCloseCategory } from '@engine/runtime/gre-connection'
 
 const TALLY_FORM = 'https://tally.so/r/pbGADP'
@@ -33,6 +34,7 @@ export function prepareBugReport(context: BugReportContext): BugReport {
     release: ANALYTICS_RELEASE,
     source: context.source,
     traffic: analyticsTraffic(),
+    device_id: deviceId(),
   })
   if (context.accountId) {
     params.set('account_id', context.accountId)

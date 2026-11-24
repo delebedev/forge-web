@@ -34,7 +34,7 @@ class MatchReplayStoreEvictionTest {
             val upload = uploadBody(1)
             MatchReplayStore(config(root, maxBytes = stored(root) + uploadBytes(upload) - 1), clock).use { store ->
                 store.cleanup()
-                assertTrue(store.ingestBrowser("account", matchId(1), "${matchId(1)}:full", upload))
+                assertTrue(store.ingestBrowser(owner("account"), matchId(1), "${matchId(1)}:full", upload))
                 assertEquals(setOf("journal-a", "journal-c", matchId(1)), retainedJournals(root))
                 assertAccounted(root, store)
                 assertEquals(1, store.health().evictions)
@@ -52,7 +52,7 @@ class MatchReplayStoreEvictionTest {
             val upload = uploadBody(1)
             MatchReplayStore(config(root, maxBytes = stored(root) + uploadBytes(upload) - 1), clock).use { store ->
                 store.cleanup()
-                assertTrue(store.ingestBrowser("account", matchId(1), "${matchId(1)}:full", upload))
+                assertTrue(store.ingestBrowser(owner("account"), matchId(1), "${matchId(1)}:full", upload))
                 assertEquals(setOf("pinned", "unpinned", matchId(1)), retainedJournals(root))
                 assertFalse(root.resolve("expired-pin.pin.json").exists())
                 assertEquals("report-pinned", assertNotNull(store.export("pinned")).status.reportId)
@@ -74,13 +74,13 @@ class MatchReplayStoreEvictionTest {
                 store.cleanup()
                 val before = root.listFiles()!!.associate { it.name to it.length() }
                 assertFailsWith<ReplayStorageCapacityExceeded> {
-                    store.ingestBrowser("account", matchId(1), "${matchId(1)}:full", upload)
+                    store.ingestBrowser(owner("account"), matchId(1), "${matchId(1)}:full", upload)
                 }
                 assertEquals(before, root.listFiles()!!.associate { it.name to it.length() })
                 assertEquals(0, store.health().evictions)
 
                 clock.advanceMs(ACTIVE_WINDOW_MS)
-                assertTrue(store.ingestBrowser("account", matchId(1), "${matchId(1)}:full", upload))
+                assertTrue(store.ingestBrowser(owner("account"), matchId(1), "${matchId(1)}:full", upload))
                 assertEquals(setOf("pinned", "idle", matchId(1)), retainedJournals(root))
                 assertEquals(1, store.health().evictions)
                 assertAccounted(root, store)
@@ -99,7 +99,7 @@ class MatchReplayStoreEvictionTest {
                 store.cleanup()
                 // A non-empty directory at a journal path cannot be deleted.
                 root.resolve("stuck.ndjson").resolve("blocker").apply { parentFile.mkdirs() }.writeText("x")
-                assertTrue(store.ingestBrowser("account", matchId(1), "${matchId(1)}:full", upload))
+                assertTrue(store.ingestBrowser(owner("account"), matchId(1), "${matchId(1)}:full", upload))
                 assertEquals(setOf("stuck", "newest", matchId(1)), retainedJournals(root))
                 assertEquals(1, store.health().evictions)
             }
@@ -131,7 +131,7 @@ class MatchReplayStoreEvictionTest {
                 store.cleanup()
                 val results =
                     uploads.mapIndexed { index, body ->
-                        async { store.ingestBrowser("account", matchId(index + 1), "${matchId(index + 1)}:full", body) }
+                        async { store.ingestBrowser(owner("account"), matchId(index + 1), "${matchId(index + 1)}:full", body) }
                     }.awaitAll()
                 assertEquals(listOf(true, true, true, true), results)
                 assertEquals(1, store.health().evictions)
@@ -193,7 +193,7 @@ class MatchReplayStoreEvictionTest {
     private fun uploadBytes(body: ByteArray): Long {
         val root = tempRoot("replay-evict-reference")
         val id = Json.decodeFromString(ReplayBundle.serializer(), body.decodeToString()).matchId
-        MatchReplayStore(config(root), clock).use { runBlocking { it.ingestBrowser("account", id, "$id:full", body) } }
+        MatchReplayStore(config(root), clock).use { runBlocking { it.ingestBrowser(owner("account"), id, "$id:full", body) } }
         return stored(root)
     }
 

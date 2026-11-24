@@ -56,10 +56,13 @@ must not write directly to `player.db`.
 `GET /api/puzzles` and `GET /api/puzzles/{id}` expose accepted positions.
 `GET /api/puzzles/capabilities` tells the UI whether the current session may
 generate. The owner can start `POST /api/puzzles/generate` and poll
-`GET /api/puzzles/runs/{id}`. Authenticated players can submit one of `fun`,
-`meh`, or `bad`, optional comment, terminal outcome, and bounded action labels
-to `POST /api/puzzles/{id}/ratings`. The current browser rating submits an
-empty action list; it does not yet serialize the player's move trace.
+`GET /api/puzzles/runs/{id}`. Any player can submit one of `fun`, `meh`, or
+`bad`, optional comment, terminal outcome, and bounded action labels to
+`POST /api/puzzles/{id}/ratings`. The request carries the browser's device id in
+`X-Device-Id`; one device keeps one rating per puzzle, and rating again replaces
+it. A signed-in rating also records the account. One client address may send
+30 ratings an hour and the server 1,000; more return 429. The current browser rating
+submits an empty action list; it does not yet serialize the player's move trace.
 
 ## Development launcher
 
