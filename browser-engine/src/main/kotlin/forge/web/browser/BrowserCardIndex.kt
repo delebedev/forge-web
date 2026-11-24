@@ -40,13 +40,17 @@ object BrowserCardIndex {
     @JvmStatic
     fun main(args: Array<String>) {
         val directory = File(args.firstOrNull() ?: "public/browser-engine/catalog")
-        val root = Files.createTempDirectory("browser-card-index-")
-        val version = BrowserRuntime.initialize(File(directory, "catalog.zip").absolutePath, root.toString())
-        check(version.isNotEmpty()) { "Catalog initialization failed" }
-        val output = File(directory, "card-index.json.gz")
-        val text = write(BrowserRuntime.repository(), version)
-        GZIPOutputStream(output.outputStream()).use { it.write(text.toByteArray()) }
-        println("card-index.json.gz ${text.length} bytes, ${output.length()} gzipped")
+        val root = Files.createTempDirectory("browser-card-index-").toFile()
+        try {
+            val version = BrowserRuntime.initialize(File(directory, "catalog.zip").absolutePath, root.path)
+            check(version.isNotEmpty()) { "Catalog initialization failed" }
+            val output = File(directory, "card-index.json.gz")
+            val text = write(BrowserRuntime.repository(), version)
+            GZIPOutputStream(output.outputStream()).use { it.write(text.toByteArray()) }
+            println("card-index.json.gz ${text.length} bytes, ${output.length()} gzipped")
+        } finally {
+            root.deleteRecursively()
+        }
     }
 
     internal fun write(

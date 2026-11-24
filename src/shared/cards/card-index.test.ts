@@ -26,6 +26,8 @@ const index = testCardIndex(
   {
     '0:delver of secrets': ['https://cards.example/front.jpg', 'https://cards.example/back.jpg'],
     '1:goblin': ['https://cards.example/goblin.jpg', null],
+    '0:soldier': ['https://cards.example/soldier-card.jpg', null],
+    '1:soldier': ['https://cards.example/soldier-token.jpg', null],
     '0:a-delver of secrets': ['https://cards.example/front.jpg', null],
   },
 )
@@ -49,6 +51,8 @@ test('artwork resolves front, back and token rows', () => {
   expect(index.imageUrl('Delver of Secrets')).toBe('https://cards.example/front.jpg')
   expect(index.imageUrl('Delver of Secrets', true)).toBe('https://cards.example/back.jpg')
   expect(index.imageUrl('Goblin Token', true)).toBe('https://cards.example/goblin.jpg')
+  expect(index.imageUrl('Soldier Token')).toBe('https://cards.example/soldier-token.jpg')
+  expect(index.imageUrl('Soldier')).toBe('https://cards.example/soldier-card.jpg')
   expect(index.imageUrl('Missing')).toBeNull()
   expect(index.imageUrl('A-Delver of Secrets')).toBeNull()
 })

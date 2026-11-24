@@ -113,7 +113,8 @@ export class CardIndex {
   }
 
   /**
-   * Full-card artwork from the release image map; a token name falls back to the
+   * Full-card artwork from the release image map. A name ending in " Token"
+   * prefers the token row and falls back to the card row; other names prefer the
    * card row. Rebalanced names have no printing of their own, and an original
    * printing's rules can differ, so they get no full-card image.
    */
@@ -121,8 +122,11 @@ export class CardIndex {
     if (name.startsWith(REBALANCED_NAME_PREFIX)) {
       return null
     }
+    const token = / Token$/.test(name)
     const key = lookupKey(name.replace(/ Token$/, ''))
-    const row = this.images[`0:${key}`] ?? this.images[`1:${key}`]
+    const row = token
+      ? (this.images[`1:${key}`] ?? this.images[`0:${key}`])
+      : (this.images[`0:${key}`] ?? this.images[`1:${key}`])
     return (back ? (row?.[1] ?? row?.[0]) : row?.[0]) ?? null
   }
 }

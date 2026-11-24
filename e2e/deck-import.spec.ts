@@ -68,10 +68,18 @@ test('a validation result after Back cannot open the editor', async ({ page }) =
     const held: (() => void)[] = []
     Object.assign(window, { releaseDeckValidation: () => held.splice(0).forEach((run) => run()) })
     Worker.prototype.postMessage = function (this: Worker, message: unknown, ...rest: never[]) {
-      const command = message as { type?: string; import?: boolean } | null
+      const command = message as { type?: string; id?: number; import?: boolean } | null
       if (command?.type === 'decklist' && command.import === false) {
         Object.assign(window, { deckValidationHeld: true })
-        held.push(() => send.call(this, message, ...rest))
+        held.push(() => {
+          this.addEventListener('message', ({ data }: MessageEvent) => {
+            const reply = data as { event?: string; data?: { id?: number } } | null
+            if (reply?.event === 'reply' && reply.data?.id === command.id) {
+              Object.assign(window, { deckValidationReplied: true })
+            }
+          })
+          send.call(this, message, ...rest)
+        })
         return
       }
       send.call(this, message, ...rest)
@@ -92,10 +100,12 @@ test('a validation result after Back cannot open the editor', async ({ page }) =
   await page.evaluate(() =>
     (window as unknown as { releaseDeckValidation: () => void }).releaseDeckValidation(),
   )
+  await page.waitForFunction(() => 'deckValidationReplied' in window, null, { timeout: 10_000 })
+  // Let the page handle the reply and render before checking that nothing opened.
   await page.evaluate(
     () =>
       new Promise<void>((resolve) =>
-        setTimeout(() => requestAnimationFrame(() => requestAnimationFrame(() => resolve())), 500),
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
       ),
   )
 
