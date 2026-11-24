@@ -12,20 +12,20 @@ client-side.
 |---|---|---|---|
 | `/` | `LandingPage` | no | Public homepage with curated full-game replay |
 | `/about` | `AboutPage` | no | Marketing/info page |
-| `/roadmap` | `RoadmapPage` | no | Curated public feature board and account votes |
+| `/roadmap` | `RoadmapPage` | no | Curated public feature board; voting needs an account |
 | `/login` | `LoginPage` | no | Login/signup forms, replay backdrop |
-| `/play/game` | `GameSetupRoute` → `GameSetup` | yes | Constructed setup: deck, format, opponent |
-| `/play/limited` | `LimitedRoute` → `LimitedView` | yes | Draft/sealed mode picker, `?mode=draft\|sealed` |
+| `/play/game` | `GameSetupRoute` → `GameSetup` | no | Constructed setup: deck, format, opponent; saved decks need an account |
+| `/play/limited` | `LimitedRoute` → `LimitedView` | account | Draft/sealed mode picker, `?mode=draft\|sealed` |
 | `/challenges` | `ChallengesView` | dev | Curated puzzle browser; production returns 404 |
 | `/challenges/:id` | `ChallengesView` → `GrePlay` | dev | Launch a curated puzzle on the standard match route |
 | `/challenge/:challengeId` | `BrowserChallenge` → `GrePlay` | no | Daily bundled puzzle rotation and shared generated puzzle pool |
 | `/watch` | `CuratedWatch` | no | Curated full-game replays with automatic playback and card inspection |
 | `/watch/:replayId` | `CuratedWatch` | no | Allowlisted static replay; fresh-game deck handoff |
 | `/play/replay` | `ReplayView` | dev | Local operator transcript viewer with completeness and submitted-choice inspection; production returns 404 |
-| `/decks` | `DecksView` | yes | Deck browser: list + detail pane + filters |
-| `/decks/:deckId` | `DecksView` | yes | Auto-select a deck by its stable ID |
-| `/match/:id` | `MatchRoute` → `GrePlay` | yes | Active GRE match route with stored launch config |
-| `/dev/puzzle/:id` | `DevLoader` | dev | Auto-boot puzzle, bypasses auth |
+| `/decks` | `DecksView` | account | Deck browser: list + detail pane + filters |
+| `/decks/:deckId` | `DecksView` | account | Auto-select a deck by its stable ID |
+| `/match/:id` | `MatchRoute` → `GrePlay` | no | Active GRE match route with stored launch config |
+| `/dev/puzzle/:id` | `DevLoader` | dev | Auto-boot puzzle |
 | `/dev/game` | `DevLoader` | dev | Auto-boot constructed with default deck |
 | `/*` | `NotFoundPage` | no | 404 fallback |
 
@@ -40,7 +40,7 @@ to the 404 case like any other unmatched path.
 ```
 ShellRoot
 ├─ landing, about, login, not-found, dev — standalone
-└─ AppShell (game, replay, match, decks, limited, challenges; development routes bypass auth)
+└─ AppShell (game, replay, match, decks, limited, challenges; only decks and limited need an account)
    ├─ TopBar or LobbyHeader (navigation, account, and match controls)
    └─ Content
       ├─ /play/* routes: padded glass panel
@@ -63,7 +63,7 @@ selects from the server's accepted shared pool; UUID links load the accepted
 All positions start the pinned Forge browser worker in place; no server-backed
 match is needed. Retry reuses the worker and position. The owner can generate
 a vetted Next puzzle, while other players select a different pool entry. A
-terminal generated puzzle can be rated after a guest session is established.
+terminal generated puzzle can be rated without an account, once per device.
 
 ## Stores
 
@@ -96,8 +96,7 @@ an explicit error and browser retry. There is no alternate server host.
 
 ### Development challenge
 ```
-/challenges/:id → authStore.ensureSession() → POST /api/auth/guest if needed
-  → resolve GET /api/dev/challenges + GET /api/dev/puzzles/{id}
+/challenges/:id → resolve GET /api/dev/challenges + GET /api/dev/puzzles/{id}
   → greSession.startBrowser({puzzleText}) → router.navigate('/match/puzzle')
   → worker starts the puzzle → hydrate GrePlay
 ```
@@ -181,6 +180,7 @@ progress use REST. Static watch streams use saved transcripts.
 | `forge:game:opponentDeck` | Last selected opponent deck |
 | `forge:gre:priority-flag:hideStack` | Saved stack-display preference |
 | `forge.dismissedPuzzleLoadIds` | Dismissed puzzle intros |
+| `forge.deviceId` | Random device id for replay uploads, puzzle ratings and telemetry |
 
 ### sessionStorage
 
@@ -195,16 +195,20 @@ Draft/sealed deck-building refresh-resume reads course state from
 
 1. `authStore` probes `/api/auth/me` with credentials on startup, except for the
    public browser challenge route.
-2. Development challenge routes reuse an account session or mint an anonymous guest session
-   through `/api/auth/guest`.
-3. Dev mode can bootstrap a session through fake email-code endpoints.
-4. `ShellRoot` renders nothing for authenticated `AppShell` routes (`game`,
-   `match`, `decks`, `limited`) until `authStore.isAuthenticated` is true — it
-   does not auto-redirect an unauthenticated visit to `/login`; the other
-   routes (`landing`, `about`, `login`, `not-found`, `challenges`, `dev`) render
-   regardless of auth state. Replay remains `AppShell`-hosted but bypasses the
-   auth gate and is limited to development builds by `REPLAY_ENABLED`.
-5. `LoginPage` navigates to `/play/game` once `authStore` resolves authenticated (on mount or after a successful login); `authStore.logout()` navigates to `/login`.
+2. Dev mode can bootstrap a session through fake email-code endpoints.
+3. `decks` and `limited` need an account. Without a session, `ShellRoot` renders
+   the sign-in prompt in place at the requested URL once `authStore` is ready,
+   and nothing before then. Every other route renders without an account.
+4. The sign-in heading names what the account is for at that destination, and
+   the description lists what an account keeps: decks, draft and sealed runs,
+   and roadmap votes.
+5. `LoginPage` navigates to the allowlisted destination after sign-in:
+   `returnTo`, else the current path. `loginReturnPath` allows `/roadmap`,
+   `/decks`, `/decks/:deckId`, `/play/limited` with its mode, and the curated
+   replay handoff; anything else returns to `/play/game`. `authStore.logout()`
+   navigates to `/login`.
+6. Without an account, game setup offers starter decks and pasted decklists for
+   one game; saving an import needs an account.
 
 ## Storybook
 

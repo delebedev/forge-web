@@ -7,7 +7,6 @@ import { challengeToGreStartConfig } from '@engine/runtime/gre-launch'
 import { greSession } from '@engine/runtime/gre-session'
 import { challengesStore, type Challenge } from './challenges-store'
 import { useChallengesSnapshot } from './challenges-hooks'
-import { authStore } from '@shared/auth/auth'
 import styles from './ChallengesView.module.css'
 import { CandidateEditor } from './CandidateEditor'
 
@@ -63,12 +62,6 @@ export function ChallengesView({ challengeId }: { challengeId?: string }) {
     setError(null)
 
     async function prepare(): Promise<void> {
-      if (!(await authStore.ensureSession())) {
-        if (active) {
-          setError('Could not start a development session.')
-        }
-        return
-      }
       await challengesStore.ensureLoaded()
       if (!active) {
         return

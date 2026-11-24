@@ -11,11 +11,11 @@ A person who plays or watches Forge Web. Use this for the product audience, incl
 _Avoid_: Customer, user, WebPlayer
 
 **Account**:
-A returning player's email-linked identity for saved content and match ownership.
+A returning player's email-linked identity for saved decks, draft and sealed, and roadmap votes. Nothing else needs one.
 _Avoid_: player, WebPlayer, session
 
 **Guest**:
-A player using an anonymous identity instead of email sign-in. A guest can play a challenge without an account.
+A player without an account. A guest plays, solves challenges and watches; this browser's device id stands in for uploads and ratings.
 _Avoid_: anonymous account, unauthenticated player
 
 **Session**:

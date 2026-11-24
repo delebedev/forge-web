@@ -1,14 +1,12 @@
 /**
  * The app's single root: it dispatches on `router.route` and decides which
- * views get the authenticated shell chrome around them.
+ * views get the shell chrome around them.
  *
- * `game`, `replay`, `match`, `decks`, and `limited` render inside `AppShell`
- * and need a session.
+ * `game`, `replay`, `match`, `decks`, `limited` and `challenges` render inside
+ * `AppShell`. Only `decks` and `limited` need an account; without one they show
+ * the sign-in prompt in place and return there after sign-in.
  *
  * `dev`, `landing`, `about`, `login`, and `not-found` render standalone.
- * `dev` is a bare bootstrap screen
- * that hands off to `/match/:matchId` once a session exists; the rest are
- * public surfaces that must render whether or not a session has resolved.
  */
 
 import { greSession } from '@engine/runtime/gre-session'
@@ -88,15 +86,9 @@ export function ShellRoot() {
     return <NotFoundPage />
   }
 
-  // Hold the shell until the session resolves. Views
-  // inside it read the player id on mount and do not retry, so rendering them
-  // against an unresolved session silently produces an empty page — the deck
-  // list fetched with no player and stayed empty for the life of the route.
-  //
-  // `replay` is exempt: a transcript is a file, not a session, and it reads no
-  // player id. Gating it would make a viewer that needs no backend unreachable
-  // without one.
-  if (router.route !== 'replay' && router.route !== 'challenges' && !auth.isAuthenticated) {
+  // Account routes wait for the session to resolve: their views read the player
+  // id on mount and do not retry, so rendering them earlier leaves an empty page.
+  if ((router.route === 'decks' || router.route === 'limited') && !auth.isAuthenticated) {
     return auth.ready ? (
       <LandingPage screen="login" login={<LoginPage />} about={<AboutPage />} />
     ) : null

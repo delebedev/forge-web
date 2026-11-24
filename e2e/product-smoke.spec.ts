@@ -99,7 +99,7 @@ test('unknown development challenge can return to the launcher', async ({ page }
   await expect(page.getByRole('heading', { name: 'Challenges' })).toBeVisible()
 })
 
-test('challenge selection boots the standard puzzle board as guest', async ({ page }) => {
+test('challenge selection boots the standard puzzle board without an account', async ({ page }) => {
   test.setTimeout(300_000)
   await page.goto('/challenges')
   await page.getByRole('link', { name: /GRE Game Over - Bolt/ }).click()
@@ -133,7 +133,7 @@ test('browser GRE path reaches the local engine', async ({ page, gre }) => {
   expect(result.state?.connected && result.state.gsId > 0).toBe(true)
 })
 
-test('public navigation preserves the replay through login, About and expansion', async ({
+test('public navigation preserves the replay through sign-in, About and expansion', async ({
   page,
 }) => {
   await page.goto('/')
@@ -143,7 +143,7 @@ test('public navigation preserves the replay through login, About and expansion'
     .elementHandle()
   expect(table).not.toBeNull()
   await expect(page.getByRole('region', { name: 'Battlefield', exact: true })).toBeVisible()
-  await page.getByRole('link', { name: 'Play against AI', exact: true }).click()
+  await page.getByRole('link', { name: 'Sign in', exact: true }).click()
   await expect(page.getByTestId('auth-email')).toBeVisible()
   await expect(page.getByRole('link', { name: 'Back', exact: true })).toBeVisible()
   expect(await table!.evaluate((node) => node.isConnected)).toBe(true)
@@ -169,19 +169,75 @@ test('replay download failure does not block sign-in', async ({ page }) => {
   )
   await page.goto('/')
   await expect(page.getByRole('alert')).toContainText(/could not be loaded/)
-  await page.getByRole('link', { name: 'Play against AI', exact: true }).click()
+  await page.getByRole('link', { name: 'Sign in', exact: true }).click()
   await expect(page.getByTestId('auth-email')).toBeEnabled()
 })
 
-test('watching hands the current decks through sign-in to a local game', async ({ page }) => {
-  const sample = curatedReplay('krenko-v-atraxa-v1')!
-  await page.goto(`/watch/${sample.id}`)
-  await page.getByRole('link', { name: 'Play these decks', exact: true }).click()
-  await expect(page.getByTestId('auth-email')).toBeVisible()
-  await page.getByTestId('auth-email').fill(`watch-${Date.now()}@example.test`)
+test('a player without an account plays from the landing page and uploads the replay', async ({
+  page,
+}) => {
+  const guests: string[] = []
+  page.on('request', (request) => {
+    if (request.url().endsWith('/api/auth/guest')) {
+      guests.push(request.url())
+    }
+  })
+  const chunk = page.waitForResponse(
+    (response) => /\/api\/browser-replays\/[^/]+\/chunks$/.test(new URL(response.url()).pathname),
+    { timeout: 120_000 },
+  )
+  await page.goto('/')
+  await page.getByRole('link', { name: 'Play against AI', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'What are you playing?' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Sign in', exact: true })).toBeVisible()
+  await localStart(page).click()
+  await page.waitForURL(/\/match\/(?:commander|constructed)$/)
+  await waitForLocalBoard(page)
+  const upload = await chunk
+  expect(upload.status()).toBe(200)
+  expect(upload.request().headers()['x-device-id']).toBe(
+    await page.evaluate(() => localStorage.getItem('forge.deviceId')),
+  )
+  expect(guests).toEqual([])
+  expect(await (await page.request.get('/api/auth/me')).json()).toMatchObject({ playerId: null })
+})
+
+test('a player without an account plays a pasted decklist without saving it', async ({ page }) => {
+  await page.goto('/play/game')
+  await page.getByRole('button', { name: 'Constructed', exact: true }).click()
+  await page.getByRole('button', { name: 'Import a deck', exact: true }).click()
+  await page.getByRole('textbox', { name: 'Deck list', exact: true }).fill('60 Forest')
+  await page.getByRole('button', { name: 'Check deck', exact: true }).click()
+  await page.getByRole('textbox', { name: 'Deck name', exact: true }).fill('Pasted forests')
+  await page.getByRole('button', { name: 'Import and select', exact: true }).click()
+  await expect(
+    page.getByText('Ready for this game. Sign in to save decks to your library.', { exact: true }),
+  ).toBeVisible()
+  await localStart(page).click()
+  await page.waitForURL(/\/match\/constructed$/)
+  expect((await savedConfig(page)).seat1Deck).toBe('[Deck]\n60 Forest')
+  await waitForLocalBoard(page)
+})
+
+test('account routes ask for sign-in and return the player there', async ({ page }) => {
+  await page.goto('/play/limited?mode=draft')
+  await expect(
+    page.getByRole('heading', { name: 'Sign in to play draft and sealed.' }),
+  ).toBeVisible()
+  await page.goto('/decks')
+  await expect(page.getByRole('heading', { name: 'Sign in to save decks.' })).toBeVisible()
+  await page.getByTestId('auth-email').fill(`decks-${Date.now()}@example.test`)
   await page.getByTestId('auth-start').click()
   await page.getByTestId('auth-code').fill('123456')
   await page.getByTestId('auth-verify').click()
+  await expect(page).toHaveURL(/\/decks$/)
+  await expect(page.getByRole('button', { name: 'Import' })).toBeVisible()
+})
+
+test('watching hands the current decks to a local game without an account', async ({ page }) => {
+  const sample = curatedReplay('krenko-v-atraxa-v1')!
+  await page.goto(`/watch/${sample.id}`)
+  await page.getByRole('link', { name: 'Play these decks', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'What are you playing?' })).toBeVisible()
   await expect(page).toHaveURL(`/play/game?replay=${sample.id}`)
   await expect(page.getByRole('combobox', { name: 'AI opponent' })).toHaveValue('pick')
