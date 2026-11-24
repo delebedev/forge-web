@@ -1035,6 +1035,25 @@ test('SelectN static-list candidates expose static choice labels', () => {
   })
 })
 
+test('SelectN static subset values keep their labels when an object shares the id', () => {
+  const tables = applyGsmToTables(emptyTables(), {
+    zones: [{ zoneId: 28, type: ZONE_BATTLEFIELD, ownerSeatId: 1, objectInstanceIds: [448] }],
+    gameObjects: [
+      { instanceId: 448, grpId: 102738, zoneId: 28, ownerSeatId: 1, controllerSeatId: 1 },
+    ],
+  })
+  expect(
+    selectNCandidateView(
+      448,
+      new Set(),
+      tables,
+      new Map([[102738, { grpId: 102738, name: 'Mountain' }]]),
+      3,
+      5,
+    ),
+  ).toMatchObject({ instanceId: 448, name: 'Hero', grpId: 0, zoneType: 0, staticChoice: true })
+})
+
 test('SelectN static-list color labels cover open color prompts', () => {
   expect(
     [1, 2, 3, 4, 5].map(

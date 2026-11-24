@@ -1509,7 +1509,9 @@ export function selectNCandidateView(
   if (instanceId < 0 || (instanceId === 0 && !isStaticChoice)) {
     return null
   }
-  const object = tables.objects.get(instanceId)
+  // A static subset of a named list carries list values, which may equal a live object's id.
+  const listValue = listType === 3 && staticList !== 0
+  const object = listValue ? undefined : tables.objects.get(instanceId)
   if (!object && isStaticChoice) {
     return {
       interactionKey,
