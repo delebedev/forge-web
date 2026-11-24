@@ -388,6 +388,48 @@ class MatchReplayStoreTest {
             assertEquals("no-store", response.headers[HttpHeaders.CacheControl])
         }
 
+    @Test
+    fun `later artifacts from the owning device keep the account the journal was created with`() =
+        runBlocking {
+            val store = MatchReplayStore(config(Files.createTempDirectory("replay-owner").toFile()))
+            val bundle = browserBundle("constructed")
+            val id = bundle.matchId
+            val bytes = Json.encodeToString(ReplayBundle.serializer(), bundle).toByteArray()
+            store.use {
+                assertTrue(it.ingestBrowser(ReplayOwner(DEVICE, "account-1"), id, "$id:created", bytes))
+                assertTrue(it.ingestBrowser(ReplayOwner(DEVICE, null), id, "$id:after-logout", bytes))
+                assertTrue(it.ingestBrowser(ReplayOwner(DEVICE, "account-2"), id, "$id:after-switch", bytes))
+                assertFailsWith<IllegalArgumentException> {
+                    it.ingestBrowser(ReplayOwner(OTHER_DEVICE, "account-1"), id, "$id:other-device", bytes)
+                }
+                val exported = assertNotNull(it.export(id))
+                assertEquals(DEVICE, exported.context?.deviceId)
+                assertEquals("account-1", exported.context?.accountId)
+            }
+        }
+
+    @Test
+    fun `journals stored before device ids stay owned by their account`() =
+        runBlocking {
+            val root = Files.createTempDirectory("replay-legacy-owner").toFile()
+            val bundle = browserBundle("constructed")
+            val id = bundle.matchId
+            val legacy = bundle.copy(context = bundle.context!!.copy(accountId = "account-1"))
+            root.resolve("$id.browser.json").writeText(Json.encodeToString(ReplayBundle.serializer(), legacy))
+            root.resolve(
+                "$id.browser-meta.json",
+            ).writeText("""{"accountId":"account-1","createdAtMs":${System.currentTimeMillis()},"artifacts":[]}""")
+            val bytes = Json.encodeToString(ReplayBundle.serializer(), bundle).toByteArray()
+            MatchReplayStore(config(root)).use {
+                assertTrue(it.ingestBrowser(ReplayOwner(DEVICE, "account-1"), id, "$id:first", bytes))
+                assertTrue(it.ingestBrowser(ReplayOwner(OTHER_DEVICE, "account-1"), id, "$id:second", bytes))
+                assertFailsWith<IllegalArgumentException> { it.ingestBrowser(ReplayOwner(DEVICE, null), id, "$id:third", bytes) }
+                val exported = assertNotNull(it.export(id))
+                assertEquals(null, exported.context?.deviceId)
+                assertEquals("account-1", exported.context?.accountId)
+            }
+        }
+
     private fun browserBundle(format: String?) =
         ReplayBundle(
             version = 2,
@@ -444,3 +486,6 @@ private class MutableClock(private var instant: Instant) : Clock() {
 
 /** Store tests give each account its own device. */
 internal fun owner(account: String) = ReplayOwner("device-$account", account)
+
+private const val DEVICE = "55555555-5555-4555-8555-555555555555"
+private const val OTHER_DEVICE = "66666666-6666-4666-8666-666666666666"

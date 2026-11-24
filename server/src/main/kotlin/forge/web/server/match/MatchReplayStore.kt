@@ -134,16 +134,11 @@ internal class MatchReplayStore(
             require(artifactId == "$matchId:$it") { "Replay report identity mismatch" }
         }
         val metadata = readBrowserMetadata(matchId)
-        require(metadata == null || owner.owns(metadata.string("deviceId"), metadata.string("accountId"))) {
-            "Replay belongs to another player"
-        }
         val prior = readBrowserReplay(matchId)
-        require(prior?.context == null || owner.owns(prior.context.deviceId, prior.context.accountId)) {
-            "Replay belongs to another player"
-        }
+        val (deviceId, accountId) = journalOwner(owner, metadata, prior)
         val artifacts = metadata?.get("artifacts") as? JsonArray
         if (artifacts?.any { (it as? JsonPrimitive)?.contentOrNull == artifactId } == true) return false
-        val normalized = submitted.copy(context = context.copy(deviceId = owner.deviceId, accountId = owner.accountId))
+        val normalized = submitted.copy(context = context.copy(deviceId = deviceId, accountId = accountId))
         val encoded = json.encodeToString(ReplayBundle.serializer(), normalized).toByteArray(StandardCharsets.UTF_8)
         require(encoded.size <= config.maxMatchBytes) { "Replay match quota exceeded" }
         val nextArtifacts = artifacts?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull }.orEmpty() + artifactId
@@ -151,8 +146,8 @@ internal class MatchReplayStore(
             matchId,
             encoded,
             buildJsonObject {
-                put("deviceId", owner.deviceId)
-                owner.accountId?.let { put("accountId", it) }
+                deviceId?.let { put("deviceId", it) }
+                accountId?.let { put("accountId", it) }
                 put("createdAtMs", metadata?.long("createdAtMs") ?: browserOriginalTime(matchId) ?: clock.millis())
                 put("artifacts", JsonArray(nextArtifacts.takeLast(8).map(::JsonPrimitive)))
             }.toString().toByteArray(StandardCharsets.UTF_8),
@@ -188,13 +183,8 @@ internal class MatchReplayStore(
             "Replay chunk sequence is not contiguous"
         }
         val metadata = readBrowserMetadata(matchId)
-        require(metadata == null || owner.owns(metadata.string("deviceId"), metadata.string("accountId"))) {
-            "Replay belongs to another player"
-        }
         val prior = readBrowserReplay(matchId)
-        require(prior?.context == null || owner.owns(prior.context.deviceId, prior.context.accountId)) {
-            "Replay belongs to another player"
-        }
+        val (deviceId, accountId) = journalOwner(owner, metadata, prior)
         require(prior == null || prior.context?.attemptId == context.attemptId) { "Replay attempt identity mismatch" }
         val committedSeq = prior?.events?.lastOrNull()?.seq ?: 0L
         if (afterSeq < committedSeq) {
@@ -207,7 +197,7 @@ internal class MatchReplayStore(
         require(afterSeq == committedSeq) { "Replay chunk has a gap" }
         val normalized =
             if (prior == null) {
-                chunk.copy(context = context.copy(deviceId = owner.deviceId, accountId = owner.accountId))
+                chunk.copy(context = context.copy(deviceId = deviceId, accountId = accountId))
             } else {
                 require(!prior.status.complete || chunk.events.isEmpty()) { "Replay is already complete" }
                 chunk.copy(
@@ -231,8 +221,8 @@ internal class MatchReplayStore(
         val metadataBytes =
             if (metadata == null) {
                 buildJsonObject {
-                    put("deviceId", owner.deviceId)
-                    owner.accountId?.let { put("accountId", it) }
+                    deviceId?.let { put("deviceId", it) }
+                    accountId?.let { put("accountId", it) }
                     put("createdAtMs", browserOriginalTime(matchId) ?: clock.millis())
                     put("artifacts", JsonArray(emptyList()))
                 }.toString().toByteArray(StandardCharsets.UTF_8)
@@ -241,6 +231,26 @@ internal class MatchReplayStore(
             }
         persistBrowser(matchId, encoded, metadataBytes, normalized.status.reportId)
         return normalized.events.lastOrNull()?.seq ?: committedSeq
+    }
+
+    /**
+     * The journal's stored device and account. The uploader must own the journal; its own identity sets the owner
+     * only when the journal has none yet, so a later upload cannot change who owns it.
+     */
+    private fun journalOwner(
+        owner: ReplayOwner,
+        metadata: JsonObject?,
+        prior: ReplayBundle?,
+    ): Pair<String?, String?> {
+        val stored =
+            listOfNotNull(
+                metadata?.let { it.string("deviceId") to it.string("accountId") },
+                prior?.context?.let { it.deviceId to it.accountId },
+            ).filter { (deviceId, accountId) -> deviceId != null || accountId != null }
+        stored.forEach { (deviceId, accountId) ->
+            require(owner.owns(deviceId, accountId)) { "Replay belongs to another player" }
+        }
+        return stored.firstOrNull() ?: (owner.deviceId to owner.accountId)
     }
 
     private fun persistBrowser(
