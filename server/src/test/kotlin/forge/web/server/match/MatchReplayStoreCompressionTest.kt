@@ -40,14 +40,14 @@ class MatchReplayStoreCompressionTest {
             root.resolve(".orphan.replay-gzip.tmp").writeText("orphan")
             MatchReplayStore(MatchReplayConfig(root, "token")).use { store ->
                 store.cleanup()
-                assertTrue(root.resolve("${bundle.matchId}.browser.json.gz").isFile)
+                assertTrue(appended(root, bundle.matchId).isFile)
                 assertTrue(root.resolve(".orphan.replay-gzip.tmp").isFile)
                 assertEquals(root.listFiles()!!.sumOf(File::length), store.health().bytesUsed)
             }
         }
 
     @Test
-    fun `failed conversion rolls back gzip without exceeding quota or losing plaintext`() =
+    fun `a chunk on a full store neither migrates nor changes the snapshot journal`() =
         runBlocking<Unit> {
             val bundle = bundle(1, payload = "x".repeat(30_000))
             val root =
@@ -69,9 +69,8 @@ class MatchReplayStoreCompressionTest {
                 assertFailsWith<ReplayStorageCapacityExceeded> {
                     store.ingestBrowserChunk(owner("account"), bundle.matchId, 1, bytes(bundle(1, seq = 2)))
                 }
-                store.cleanup()
                 assertContentEquals(bytes(bundle), original.readBytes())
-                assertFalse(root.resolve("${bundle.matchId}.browser.json.gz").exists())
+                assertFalse(appended(root, bundle.matchId).exists())
                 assertEquals(64 * 1024L, root.listFiles()!!.sumOf(File::length))
                 assertEquals(64 * 1024L, store.health().bytesUsed)
             }
@@ -92,8 +91,9 @@ class MatchReplayStoreCompressionTest {
             MatchReplayStore(config, clock).use { store ->
                 assertNotNull(store.export(bundle.matchId))
                 store.cleanup()
-                assertEquals(created, compressed.lastModified())
+                assertEquals(bundle, assertNotNull(store.export(bundle.matchId)))
                 assertFalse(root.resolve("${bundle.matchId}.browser.json").exists())
+                assertFalse(compressed.exists())
             }
             clock.advanceDays(2)
             MatchReplayStore(config, clock).use { store ->
@@ -133,8 +133,8 @@ class MatchReplayStoreCompressionTest {
                 assertEquals(1L, store.ingestBrowserChunk(owner("account"), bundle.matchId, 0, bytes))
                 assertTrue(store.ingestBrowser(owner("account"), bundle.matchId, "${bundle.matchId}:report", bytes))
                 assertFalse(root.resolve("${bundle.matchId}.browser.json").exists())
-                val compressed = root.resolve("${bundle.matchId}.browser.json.gz")
-                assertTrue(compressed.length() < bytes.size / 4)
+                val compressed = appended(root, bundle.matchId, generation = 1)
+                assertTrue(compressed.length() in 1 until bytes.size / 4)
                 assertEquals(root.listFiles()!!.sumOf(File::length), store.health().bytesUsed)
             }
             MatchReplayStore(config).use { store ->
@@ -155,15 +155,55 @@ class MatchReplayStoreCompressionTest {
             repeat(17) { index -> legacy(root, bundle(index), created) }
             MatchReplayStore(MatchReplayConfig(root, "token")).use { store ->
                 assertTrue(store.cleanup())
-                assertEquals(16, root.listFiles()!!.count { it.name.endsWith(".browser.json.gz") })
+                assertEquals(16, root.listFiles()!!.count { APPENDED_JOURNAL.matches(it.name) })
                 assertEquals(1, root.listFiles()!!.count { it.name.endsWith(".browser.json") })
                 assertFalse(store.cleanup())
                 repeat(17) { index ->
                     val expected = bundle(index)
                     assertEquals(expected.cards, assertNotNull(store.export(expected.matchId)).cards)
-                    assertEquals(created, root.resolve("${expected.matchId}.browser.json.gz").lastModified())
+                    assertEquals(expected, store.export(expected.matchId))
+                    assertEquals(created, appended(root, expected.matchId).lastModified())
                 }
                 assertEquals(root.listFiles()!!.sumOf(File::length), store.health().bytesUsed)
+            }
+        }
+
+    @Test
+    fun `a migrated snapshot journal exports exactly as before and accepts its next chunk`() =
+        runBlocking<Unit> {
+            val root = directory()
+            val clock = ReplayClock()
+            val created = clock.millis() - 86_400_000
+            val original = bundle(1).let { it.copy(context = it.context?.copy(deviceId = "device-account", accountId = "account")) }
+            // The whole-snapshot layout: gzip of the merged bundle, owner metadata and a report pin.
+            root.resolve("${original.matchId}.browser.json.gz").apply {
+                writeBytes(gzipReplay(bytes(original)))
+                assertTrue(setLastModified(created + 60_000))
+            }
+            root.resolve("${original.matchId}.browser-meta.json").writeText(
+                """{"deviceId":"device-account","accountId":"account","createdAtMs":$created,"artifacts":["${original.matchId}:a"]}""",
+            )
+            root.resolve(
+                "${original.matchId}.pin.json",
+            ).writeText("""{"reportId":"report","pinnedUntilMs":${clock.millis() + 86_400_000}}""")
+            MatchReplayStore(MatchReplayConfig(root, "token"), clock).use { store ->
+                val before = assertNotNull(store.export(original.matchId))
+                store.cleanup()
+                assertFalse(root.resolve("${original.matchId}.browser.json.gz").exists())
+                assertEquals(created + 60_000, appended(root, original.matchId).lastModified())
+                assertEquals(before, store.export(original.matchId))
+                assertFalse(store.ingestBrowser(owner("account"), original.matchId, "${original.matchId}:a", bytes(original)))
+                assertEquals(2L, store.ingestBrowserChunk(owner("account"), original.matchId, 1, bytes(bundle(1, seq = 2))))
+                val continued = assertNotNull(store.export(original.matchId))
+                assertEquals(listOf(1L, 2L), continued.events.map { it.seq })
+                assertEquals(before.context, continued.context)
+                assertEquals(root.listFiles()!!.sumOf(File::length), store.health().bytesUsed)
+            }
+            clock.advanceDays(2)
+            MatchReplayStore(MatchReplayConfig(root, "token", retentionDays = 1), clock).use { store ->
+                store.cleanup()
+                // Retention still counts from the original creation time.
+                assertTrue(root.listFiles()!!.isEmpty())
             }
         }
 
@@ -178,7 +218,7 @@ class MatchReplayStoreCompressionTest {
                 store.startMaintenance()
                 assertNotNull(store.export(bundle.matchId))
                 assertFalse(root.resolve("${bundle.matchId}.browser.json").exists())
-                assertTrue(root.resolve("${bundle.matchId}.browser.json.gz").isFile)
+                assertTrue(appended(root, bundle.matchId).isFile)
             }
         }
 
@@ -292,6 +332,12 @@ class MatchReplayStoreCompressionTest {
         }
 
     private fun directory(): File = Files.createTempDirectory("replay-compression").toFile()
+
+    private fun appended(
+        root: File,
+        matchId: String,
+        generation: Long = 0,
+    ) = appendedJournalFile(root, matchId, generation)
 
     private fun legacy(
         root: File,

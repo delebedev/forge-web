@@ -135,7 +135,7 @@ class MatchReplayStoreConcurrencyTest {
             val replayBytes =
                 MatchReplayStore(MatchReplayConfig(reference, "token")).use { store ->
                     store.ingestBrowserChunk(owner("account"), MATCH_ID, 0, body)
-                    reference.resolve("$MATCH_ID.browser.json.gz").length()
+                    appendedJournalFile(reference, MATCH_ID, 0).length().also { check(it > 0) }
                 }
             for (full in listOf(false, true)) {
                 val root = ObservedDirectory()
@@ -164,7 +164,7 @@ class MatchReplayStoreConcurrencyTest {
                 RandomAccessFile(root.resolve("retained.bin"), "rw").use { it.setLength(QUOTA - usage - 512) }
                 store.cleanup()
                 val scans = root.scans.get()
-                assertEquals(2L, store.ingestBrowserChunk(owner("account"), MATCH_ID, 1, chunk(1_024, seq = 2)))
+                assertEquals(2L, store.ingestBrowserChunk(owner("account"), MATCH_ID, 1, chunk(16, seq = 2)))
                 assertEquals(listOf(1L, 2L), assertNotNull(store.export(MATCH_ID)).events.map { it.seq })
                 assertEquals(scans, root.scans.get())
                 assertEquals(root.listFiles()!!.sumOf(File::length), store.health().bytesUsed)

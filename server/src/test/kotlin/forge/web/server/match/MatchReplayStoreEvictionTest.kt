@@ -88,6 +88,26 @@ class MatchReplayStoreEvictionTest {
         }
 
     @Test
+    fun `a full store evicts down to its headroom so the next writes need no eviction`() =
+        runBlocking<Unit> {
+            val root = tempRoot("replay-evict-headroom")
+            val journals = (0 until 4).map { seedIdle(root, "journal-$it", createdAgoMs = (5 - it) * HOUR) }
+            val uploads = (1..3).map { uploadBody(it) }
+            val quota = stored(root) + uploadBytes(uploads[0]) - 1
+            val headroom = journals[1].length() + uploads.drop(1).sumOf(::uploadBytes)
+            MatchReplayStore(config(root, maxBytes = quota, headroom = headroom), clock).use { store ->
+                store.cleanup()
+                assertTrue(store.ingestBrowser(owner("account"), matchId(1), "${matchId(1)}:full", uploads[0]))
+                assertEquals(2, store.health().evictions)
+                assertEquals(setOf("journal-2", "journal-3", matchId(1)), retainedJournals(root))
+                assertTrue(store.ingestBrowser(owner("account"), matchId(2), "${matchId(2)}:full", uploads[1]))
+                assertTrue(store.ingestBrowser(owner("account"), matchId(3), "${matchId(3)}:full", uploads[2]))
+                assertEquals(2, store.health().evictions)
+                assertAccounted(root, store)
+            }
+        }
+
+    @Test
     fun `a failed removal moves on to the next oldest journal`() =
         runBlocking<Unit> {
             val root = tempRoot("replay-evict-failed-removal")
@@ -210,6 +230,7 @@ class MatchReplayStoreEvictionTest {
             listOf(".ndjson.gz", ".ndjson", ".browser.json.gz", ".browser.json")
                 .firstOrNull { file.name.endsWith(it) }
                 ?.let { file.name.removeSuffix(it) }
+                ?: APPENDED_JOURNAL.matchEntire(file.name)?.groupValues?.get(1)
         }.toSet()
 
     private fun stored(root: File) = root.listFiles()!!.filter(File::isFile).sumOf(File::length)
@@ -221,7 +242,15 @@ class MatchReplayStoreEvictionTest {
     private fun config(
         root: File,
         maxBytes: Long = 512L * 1024 * 1024,
-    ) = MatchReplayConfig(root, "token", maxBytes = maxBytes, maxMatchBytes = 64 * 1024, activeWindowMs = ACTIVE_WINDOW_MS)
+        headroom: Long = 0,
+    ) = MatchReplayConfig(
+        root,
+        "token",
+        maxBytes = maxBytes,
+        maxMatchBytes = 64 * 1024,
+        activeWindowMs = ACTIVE_WINDOW_MS,
+        evictionHeadroomBytes = headroom,
+    )
 
     private fun paddingRecord(seed: Int): String {
         val payload = ByteArray(48_000).also { Random(seed.toLong()).nextBytes(it) }

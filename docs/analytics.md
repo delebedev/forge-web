@@ -47,13 +47,19 @@ pin would exceed the total quota, the worker evicts unpinned journals by oldest
 creation time until it fits. Expired pins count as unpinned. Eviction never
 removes a pinned journal, the journal being written or pinned, or one written
 within the last 15 minutes. It removes nothing when the evictable journals cannot
-free enough space. Eviction chooses from the set of retained journals recorded by
+free enough space. Once it evicts, it continues until 1/32 of the quota is free,
+so a full store evicts in batches rather than on every write. Eviction chooses from the set of retained journals recorded by
 the last maintenance pass and by later writes. Each eviction is logged, and health
 reports the eviction count and the oldest retained journal's age.
-Browser snapshots are gzip-compressed at rest; the per-match limit applies to
-decoded JSON, while total quota counts stored bytes including metadata and pins.
-Operator exports remain ordinary JSON. Plain snapshots remain readable and are
-migrated by maintenance without changing their retention age.
+A browser journal is append-only: each chunk is stored as one gzip member, so an
+upload costs the chunk's size rather than the journal's. The journal's metadata
+holds its header, merged status and committed length; it is the commit record,
+and bytes past that length are discarded by the next append. A full artifact
+replaces the journal with a new generation file. Export merges the members into
+ordinary JSON. The per-match limit applies to decoded JSON, while total quota
+counts stored bytes including metadata and pins. Whole-snapshot journals, plain
+or compressed, remain readable; maintenance and the next chunk convert them to
+the appended form without changing their retention age.
 Maintenance starts in the background at application startup, reconciles on-disk
 usage in one linear sweep and compacts at most 16 journals per pass. While a
 migration backlog remains, passes yield for one second; otherwise they run hourly.
