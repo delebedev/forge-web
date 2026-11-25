@@ -101,6 +101,19 @@ describe('appended journals', () => {
     expect(store.health().bytesUsed).toBe(stored(root))
   })
 
+  test('an unreadable commit record neither restarts the journal nor lets cleanup delete it', async () => {
+    const { root, clock, store } = fixture()
+    await store.ingestBrowserChunk(DEVICE, matchId(), 0, chunk(1))
+    const before = readFileSync(segment(root))
+    writeFileSync(join(root, `${matchId()}.browser-meta.json`), '{')
+    await expect(
+      store.ingestBrowserChunk(DEVICE, matchId(), 0, chunk(1, { padding: 100 })),
+    ).rejects.toThrow()
+    clock.now += HOUR
+    await store.cleanup()
+    expect(readFileSync(segment(root))).toEqual(before)
+  })
+
   test('an unacknowledged tail is discarded by the next append', async () => {
     const { root, store } = fixture()
     await store.ingestBrowserChunk(DEVICE, matchId(), 0, chunk(1))
@@ -273,15 +286,19 @@ describe('quota eviction', () => {
     const { root, clock, store } = await filled(70_000)
     clock.now -= HOUR
     await store.ingestBrowserChunk(DEVICE, matchId(4), 1, chunk(2, { index: 4, empty: true }))
-    clock.now += 20 * 60_000
     await store.pin(matchId(2), 'report')
     await store.pin(matchId(3), 'report')
+    clock.now += 14 * 60_000
     const before = readdirSync(root).sort()
-    expect(
-      store.ingestBrowserChunk(DEVICE, matchId(1), 0, chunk(1, { index: 1, padding: 50_000 })),
-    ).rejects.toBeInstanceOf(ReplayStorageCapacityExceeded)
+    const write = () =>
+      store.ingestBrowserChunk(DEVICE, matchId(1), 0, chunk(1, { index: 1, padding: 40_000 }))
+    await expect(write()).rejects.toBeInstanceOf(ReplayStorageCapacityExceeded)
     expect(readdirSync(root).sort()).toEqual(before)
     expect(store.health().evictions).toBe(0)
+    clock.now += 60_000
+    await write()
+    expect(retained(root)).toEqual(new Set([matchId(1), matchId(2), matchId(3)]))
+    expect(store.health().evictions).toBe(1)
   })
 
   test('eviction frees the configured headroom', async () => {

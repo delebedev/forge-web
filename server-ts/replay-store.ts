@@ -1041,12 +1041,18 @@ export class MatchReplayStore {
     return null
   }
 
+  /** Null only when no commit record exists; an unreadable one must not look like a new journal. */
   private async readMetadata(matchId: string): Promise<JournalMetadata | null> {
+    let text: string
     try {
-      return metadataSchema.parse(JSON.parse(await readFile(this.metadataFile(matchId), 'utf8')))
-    } catch {
-      return null
+      text = await readFile(this.metadataFile(matchId), 'utf8')
+    } catch (cause) {
+      if ((cause as NodeJS.ErrnoException).code === 'ENOENT') {
+        return null
+      }
+      throw cause
     }
+    return metadataSchema.parse(JSON.parse(text))
   }
 
   private async readPin(
@@ -1095,7 +1101,11 @@ async function writeAtomic(file: string, bytes: Uint8Array) {
   try {
     const handle = await open(temporary, 'w')
     try {
-      await handle.write(bytes)
+      let written = 0
+      while (written < bytes.length) {
+        written += (await handle.write(bytes, written, bytes.length - written, written))
+          .bytesWritten
+      }
       await handle.sync()
     } finally {
       await handle.close()
