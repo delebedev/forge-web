@@ -39,9 +39,11 @@ test('only bounded build cleanup remains cancellation resistant', () => {
     .filter((step) => /always\(/.test(step.if ?? ''))
   assert.deepEqual(
     resistant.map((step) => step.name),
-    ['Stop build JVMs'],
+    ['Stop build JVMs', 'Stop build JVMs'],
   )
-  assert.equal(resistant[0]['timeout-minutes'], 1)
+  for (const step of resistant) {
+    assert.equal(step['timeout-minutes'], 1)
+  }
 })
 
 test('runtime jobs separate product and catalog from four single-worker GRE shards', () => {
