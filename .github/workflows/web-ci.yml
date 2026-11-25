@@ -183,6 +183,8 @@ jobs:
           mkdir -p runtime-artifacts
           tar -czf runtime-artifacts/server-21.tgz -C server/build/install server
           tar -czf runtime-artifacts/browser-17.tgz -C public browser-engine
+      - name: Check server HTTP parity
+        run: python3 scripts/ci-measure.py server-parity bash -eo pipefail -c 'FORGE_WEB_SERVER_DIST=server/build/install/server bun run server:parity'
       - uses: actions/upload-artifact@v4
         with:
           name: runtime-distributions

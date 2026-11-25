@@ -10,6 +10,7 @@
     "server:test": "./leyline/gradlew :server:test",
     "server:check": "./leyline/gradlew :server:check",
     "server:build": "./leyline/gradlew :server:installDist",
+    "server:parity": "mkdir -p test-results && bun test ./e2e/server-parity",
     "dev": "vite",
     "dev:seed": "bun scripts/seed-dev.mjs",
     "build": "bun run challenge:manifest:check && bun run css:types:check && tsc && vite build",
