@@ -187,17 +187,23 @@ export class RollingLogFile {
 
   private rollover() {
     closeSync(this.fd)
-    if (this.size > 0) {
-      let index = 0
-      while (existsSync(this.archive(this.period, index))) {
-        index++
+    let archived = this.size === 0
+    try {
+      if (!archived) {
+        let index = 0
+        while (existsSync(this.archive(this.period, index))) {
+          index++
+        }
+        const target = this.archive(this.period, index)
+        const temporary = `${target}.tmp`
+        writeFileSync(temporary, gzipSync(readFileSync(this.path)))
+        renameSync(temporary, target)
+        archived = true
       }
-      const target = this.archive(this.period, index)
-      const temporary = `${target}.tmp`
-      writeFileSync(temporary, gzipSync(readFileSync(this.path)))
-      renameSync(temporary, target)
+    } finally {
+      // A failed archive keeps the active file open for appending, and the next write retries.
+      this.fd = openSync(this.path, archived ? 'w' : 'a')
     }
-    this.fd = openSync(this.path, 'w')
     this.size = 0
     this.cleanup()
   }

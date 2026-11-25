@@ -14,7 +14,7 @@ import { DeckStore, loadStarterDecks, starterDeckSeeder } from './decks.ts'
 import { backendRelease } from './http.ts'
 import { Logger, configureLogging } from './log.ts'
 import { MatchReplayStore } from './replay-store.ts'
-import { installErrorReporting } from './reporting.ts'
+import { closeErrorReporting, installErrorReporting } from './reporting.ts'
 import { cardImagesFile, starterDeckFiles } from './resources.ts'
 
 const env = process.env
@@ -86,6 +86,7 @@ const stop = async () => {
   replays.close()
   await server.stop()
   db.close()
+  await closeErrorReporting()
   process.exit(0)
 }
 process.on('SIGTERM', stop)

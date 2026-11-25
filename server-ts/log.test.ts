@@ -2,9 +2,11 @@ import { describe, expect, test } from 'bun:test'
 import {
   chmodSync,
   existsSync,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   readdirSync,
+  rmdirSync,
   utimesSync,
   writeFileSync,
 } from 'node:fs'
@@ -102,6 +104,23 @@ describe('RollingLogFile', () => {
     log.close()
     expect(existsSync(join(directory, 'forge-web.2026-11-24.0.log.gz'))).toBe(true)
     expect(readFileSync(file, 'utf8')).toBe('new\n')
+  })
+
+  test('a failed archive keeps the file open, and a later write archives it', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'forge-web-log-'))
+    const now = Date.parse('2026-11-25T12:00:00Z')
+    const log = new RollingLogFile(directory, () => now, 10)
+    log.write('first line\n')
+    const blocked = join(directory, 'forge-web.2026-11-25.0.log.gz.tmp')
+    mkdirSync(blocked)
+    expect(() => log.write('second\n')).toThrow()
+    rmdirSync(blocked)
+    log.write('third\n')
+    log.close()
+    expect(
+      gunzipSync(readFileSync(join(directory, 'forge-web.2026-11-25.0.log.gz'))).toString(),
+    ).toBe('first line\n')
+    expect(readFileSync(join(directory, 'forge-web.log'), 'utf8')).toBe('third\n')
   })
 
   test('startup removes archives older than seven days', () => {

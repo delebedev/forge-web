@@ -124,6 +124,43 @@ describe('WebAuth', () => {
     )
   })
 
+  test('a send that fails after a resend retires only its own code', async () => {
+    let now = Date.parse('2026-01-01T00:00:00Z')
+    const sent: LoginCodeEmail[] = []
+    let failFirst: (error: Error) => void = () => {}
+    const db = testDatabase()
+    const auth = testAuth({
+      db,
+      now: () => now,
+      fixedLoginCode: null,
+      sendEmail: (email) => {
+        sent.push(email)
+        return sent.length === 1
+          ? new Promise((_, reject) => (failFirst = reject))
+          : Promise.resolve()
+      },
+    })
+    const first = auth.requestCode('player@example.test', 'ip', null)
+    now += 30_000
+    expect(await auth.requestCode('player@example.test', 'ip', null)).toBe('sent')
+    failFirst(new Error('down'))
+    expect(await first).toBe('email_send_failed')
+    expect(
+      db.query('SELECT attempt_count FROM web_login_challenges WHERE used_at IS NULL').all(),
+    ).toEqual([{ attempt_count: 0 }])
+    expect(auth.verify('player@example.test', sent[1]!.code, 'ip', null).kind).toBe('success')
+  })
+
+  test('cleanup at a whole second keeps a code that expires later in that second', async () => {
+    const expiry = Date.parse('2026-01-01T00:10:00Z')
+    let now = expiry + 500 - 10 * 60_000
+    const auth = testAuth({ now: () => now })
+    await auth.requestCode('player@example.test', 'ip', null)
+    now = expiry
+    await auth.requestCode('other@example.test', 'ip', null)
+    expect(auth.verify('player@example.test', TEST_LOGIN_CODE, 'ip', null).kind).toBe('success')
+  })
+
   test('signup rolls back when its seeding fails', async () => {
     const db = testDatabase()
     const auth = testAuth({

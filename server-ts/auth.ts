@@ -45,6 +45,8 @@ export function resendEmailSender(apiKey: string, from: string): EmailSender {
   return async (email) => {
     const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
+      // A redirect would resend the code in the body to another URL; the previous server never followed one.
+      redirect: 'error',
       headers: {
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
@@ -192,7 +194,10 @@ export class WebAuth {
       })
       return 'sent'
     } catch {
-      this.consumeChallenge(normalized, this.hash(`${normalized}:${code}`))
+      // Retire this send's own challenge; a later resend may already have replaced it.
+      this.db
+        .query('UPDATE web_login_challenges SET used_at = ? WHERE id = ? AND used_at IS NULL')
+        .run(javaInstant(this.now()), id)
       return 'email_send_failed'
     }
   }
@@ -345,7 +350,9 @@ export class WebAuth {
   }
 
   private cleanupExpired(now: number) {
-    const text = javaInstant(now)
+    // Stored text drops a zero fraction, and '.' sorts before 'Z'. Comparing against a value with
+    // milliseconds can delete an expired row late, never one that is still valid.
+    const text = new Date(now).toISOString()
     this.db.query('DELETE FROM web_login_challenges WHERE expires_at < ?').run(text)
     this.db
       .query('DELETE FROM web_sessions WHERE idle_expires_at < ? OR absolute_expires_at < ?')
