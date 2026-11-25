@@ -577,9 +577,12 @@ internal class MatchReplayStore(
             val sorted = candidates.sortedBy(File::getName)
             val ordered = sorted.filter { it.name > compactionCursor } + sorted.filter { it.name <= compactionCursor }
             val batch = ordered.take(MAX_COMPACTIONS_PER_CLEANUP)
+            var deferred = false
             for (file in batch) {
                 if (isBrowserReplay(file)) {
-                    runCatching { migrateBrowserJournal(requireNotNull(matchId(file)), admitted = false) }
+                    val id = requireNotNull(matchId(file))
+                    runCatching { migrateBrowserJournal(id, admitted = false) }
+                        .onSuccess { if (it == null && legacyBrowserReplayFile(id) != null) deferred = true }
                         .onFailure { log.error("Replay journal migration failed (file={})", file.name, it) }
                 } else {
                     runCatching { compress(file, requireNotNull(matchId(file))) }
@@ -587,7 +590,8 @@ internal class MatchReplayStore(
                 }
                 compactionCursor = file.name
             }
-            return candidates.size > batch.size
+            // A conversion deferred for quota waits for the next scheduled pass instead of retrying every second.
+            return candidates.size > batch.size && !deferred
         } finally {
             storageBudgetUsage()
         }
