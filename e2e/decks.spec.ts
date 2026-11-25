@@ -80,6 +80,9 @@ test('imported sideboard cards move, edit, save and reopen with their quantities
 test('deck library import, editing and selection retain their controls at laptop size', async ({
   page,
 }, testInfo) => {
+  // Import validation and the post-reload save each start the browser engine cold,
+  // which takes 20-30 seconds apiece on a CI runner.
+  test.setTimeout(150_000)
   const retiredRequests: string[] = []
   page.on('request', (request) => {
     if (request.url().includes('/api/legacy-decks')) {
