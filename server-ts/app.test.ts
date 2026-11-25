@@ -19,7 +19,10 @@ describe('product HTTP surface', () => {
       expect(response.headers.get('Server-Timing')).toMatch(/^app;dur=\d+$/)
       expect(response.headers.get('X-Backend-Release')).toBe('abcdef1')
     }
-    expect(await (await server.request('/api/health')).json()).toEqual({ status: 'ok' })
+    expect(await (await server.request('/api/health')).json()).toEqual({
+      status: 'ok',
+      replay: { bytesUsed: 0, maxBytes: 536870912, evictions: 0 },
+    })
     expect((await server.request('/api/health', { method: 'DELETE' })).status).toBe(405)
   })
 
