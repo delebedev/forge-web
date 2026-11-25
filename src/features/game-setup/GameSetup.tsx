@@ -7,7 +7,7 @@ import { scryfallUrl, artCropUrl, CARD_BACK_URL } from '@shared/cards/scryfall'
 import type { DeckDetail, AiMode } from '@shared/api/contracts'
 import { deckDetailToGreDeck } from '@engine/runtime/gre-match'
 import type { GameTypeId } from './game-types'
-import { PRECONSTRUCTED_DECKS, COMMANDER_DECKS } from './preconstructed'
+import { PRECONSTRUCTED_DECKS, COMMANDER_DECKS, pastedDeck } from './preconstructed'
 import styles from './GameSetup.module.css'
 
 export interface GameStartConfig {
@@ -121,6 +121,12 @@ export function GameSetup({
   }
 
   async function importDeck({ name, deck }: ImportedDeck): Promise<void> {
+    if (!library.accountId) {
+      choose(pastedDeck(name, deck))
+      setImportOpen(false)
+      setNotice('Ready for this game. Sign in to save decks to your library.')
+      return
+    }
     const saved = await decksStore.saveDeck(
       decksStore.draft(importedContent(name, deck, commander ? 'Commander' : 'Timeless')),
     )

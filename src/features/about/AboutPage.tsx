@@ -123,7 +123,7 @@ export function AboutPage() {
         </details>
       </section>
       <div className={styles.actions}>
-        <a className="public-primary" href="/login" onClick={follow}>
+        <a className="public-primary" href="/play/game" onClick={follow}>
           Play against AI
         </a>
       </div>

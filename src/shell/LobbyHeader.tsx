@@ -101,18 +101,24 @@ export function LobbyHeader() {
         >
           Feedback
         </a>
-        <details>
-          <summary>Account</summary>
-          <div className={styles.menu}>
-            <span>{auth.player?.name ?? 'Player'}</span>
-            <a href="/about" onClick={follow}>
-              About Forge Web
-            </a>
-            <button type="button" onClick={() => void authStore.logout()}>
-              Sign out
-            </button>
-          </div>
-        </details>
+        {auth.isAuthenticated ? (
+          <details>
+            <summary>Account</summary>
+            <div className={styles.menu}>
+              <span>{auth.player?.name ?? 'Player'}</span>
+              <a href="/about" onClick={follow}>
+                About Forge Web
+              </a>
+              <button type="button" onClick={() => void authStore.logout()}>
+                Sign out
+              </button>
+            </div>
+          </details>
+        ) : (
+          <a href="/login" onClick={follow}>
+            Sign in
+          </a>
+        )}
       </div>
     </SiteHeader>
   )

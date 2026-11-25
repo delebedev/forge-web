@@ -1,8 +1,13 @@
 # Authentication boundaries
 
-The product API issues opaque cookie sessions after an emailed one-time code, or
-creates a separate guest identity. Guest access remains available. Existing valid
-sessions are reused by the guest endpoint without creating another identity.
+The product API issues opaque cookie sessions after an emailed one-time code.
+Only saved decks, draft and sealed, and roadmap votes need an account. Play,
+challenges, watching, replay uploads and puzzle ratings work without one; the
+browser identifies itself to replay uploads and ratings with a random device id.
+
+The frontend no longer creates guest identities. The guest endpoint remains for
+older clients and reuses an existing valid session without creating another
+identity. Existing guest sessions keep working.
 
 Login codes expire after ten minutes, allow five incorrect attempts, and have a
 30-second resend cooldown. Sessions expire after 30 idle days or 90 absolute days.

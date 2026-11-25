@@ -137,7 +137,11 @@ try {
     'content',
     await app.title(),
   )
-  await app.getByRole('link', { name: 'Play against AI', exact: true }).click()
+  await expect(app.getByRole('link', { name: 'Play against AI', exact: true })).toHaveAttribute(
+    'href',
+    '/play/game',
+  )
+  await app.getByRole('link', { name: 'Sign in', exact: true }).click()
   await expect(app.locator('meta[name="robots"]')).toHaveAttribute('content', /noindex/)
   await expect(app.locator('link[rel="canonical"]')).toHaveCount(0)
   await expect(app.locator('meta[property="og:url"]')).toHaveCount(0)

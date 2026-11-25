@@ -8,7 +8,6 @@ import { readJson } from '@shared/api/decoding'
  */
 
 import { useEffect, useState } from 'react'
-import { authStore } from '@shared/auth/auth'
 import { devDefaultGreStartConfig, puzzleToGreStartConfig } from '@engine/runtime/gre-launch'
 import { greSession } from '@engine/runtime/gre-session'
 import { apiFetch } from '@shared/api/client'
@@ -34,17 +33,6 @@ export function DevLoader({
 
     async function boot(): Promise<void> {
       try {
-        if (!authStore.isAuthenticated) {
-          setStatus('Creating dev session…')
-          // `refresh` only reads an existing session, so a first visit to a dev
-          // route with no cookie yet would report the endpoints as missing.
-          if (!(await authStore.ensureSession())) {
-            if (!cancelled) {
-              setError('Dev auth endpoints not available')
-            }
-            return
-          }
-        }
         if (puzzleId) {
           setStatus(`Loading puzzle ${puzzleId}…`)
           const metadata = await loadPuzzleMetadata(puzzleId)

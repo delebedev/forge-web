@@ -1,4 +1,6 @@
-import type { DeckDetail } from '@shared/api/contracts'
+import type { DeckDetail, ParseDecklistResponse } from '@shared/api/contracts'
+import { cmcOf } from '@shared/cards/deck-builder'
+import { formatDecklist } from '@shared/cards/parse-decklist'
 import green from '../../../dev/decks/Pauper Green Stompy.txt?raw'
 import red from '../../../dev/decks/Pauper Red Burn.txt?raw'
 import blue from '../../../dev/decks/Pauper Blue Tempo.txt?raw'
@@ -57,3 +59,34 @@ export const COMMANDER_DECKS: DeckDetail[] = Object.entries(commanderLists).map(
     }
   },
 )
+
+/** A pasted decklist played without saving it, for players without an account. */
+export function pastedDeck(name: string, deck: ParseDecklistResponse): DeckDetail {
+  const rows = (entries: ParseDecklistResponse['mainboard']) =>
+    entries.map(({ card, quantity }) => ({
+      name: card.name,
+      quantity,
+      colors: card.colors,
+      cmc: cmcOf(card),
+    }))
+  const count = (entries: ParseDecklistResponse['mainboard']) =>
+    entries.reduce((sum, entry) => sum + entry.quantity, 0)
+  return {
+    id: `pasted:${name}`,
+    name,
+    content: formatDecklist(deck),
+    colors: [],
+    cards: rows(deck.mainboard),
+    commandZone: rows(deck.commandZone),
+    stats: {
+      totalCards: count(deck.mainboard) + count(deck.commandZone),
+      creatures: 0,
+      nonCreatures: 0,
+      lands: 0,
+      manaCurve: {},
+      averageCmc: 0,
+    },
+    hasCommander: deck.commandZone.length > 0,
+    userOwned: false,
+  }
+}

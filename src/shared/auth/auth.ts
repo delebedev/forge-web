@@ -116,38 +116,6 @@ class AuthStore {
     }
   }
 
-  /**
-   * Guarantee a usable session for public surfaces (e.g. /challenges).
-   * Reuses an existing account/guest session; otherwise mints an anonymous
-   * guest so logged-out visitors can drive the standard GRE path.
-   */
-  async ensureSession(): Promise<boolean> {
-    if (!this.ready) {
-      await this.refresh()
-    }
-    if (this.isAuthenticated) {
-      return true
-    }
-    const generation = ++this.sessionGeneration
-    try {
-      const res = await fetch(`${apiBase}/api/auth/guest`, {
-        method: 'POST',
-        credentials: 'include',
-      })
-      if (!res.ok) {
-        return false
-      }
-      const data = AuthViewSchema.parse(await res.json())
-      if (generation !== this.sessionGeneration || !data.playerId) {
-        return false
-      }
-      this.applySession({ id: data.playerId, name: 'Guest' }, true)
-      return true
-    } catch {
-      return false
-    }
-  }
-
   async logout(): Promise<void> {
     this.clear()
     try {

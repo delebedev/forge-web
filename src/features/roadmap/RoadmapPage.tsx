@@ -92,8 +92,8 @@ export function RoadmapPage() {
           <a href="/about" onClick={follow}>
             About
           </a>
-          <a href={canVote ? '/play/game' : '/login?returnTo=/roadmap'} onClick={follow}>
-            {canVote ? 'Play' : 'Sign in'}
+          <a href="/play/game" onClick={follow}>
+            Play
           </a>
         </nav>
       </SiteHeader>

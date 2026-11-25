@@ -2,6 +2,7 @@ import { useState, type ReactNode, type MouseEvent } from 'react'
 import { SiteHeader } from '@shared/SiteHeader'
 import { useRouter } from '@app/router'
 import { useAuthSnapshot } from '@shared/auth/hooks'
+import { loginReturnPath, signInHeading } from '@features/auth/login-return'
 import { CuratedWatch } from '@features/replay/CuratedWatch'
 import { useWhatsNew } from '@features/whats-new/WhatsNewController'
 import '@shared/public-theme.css'
@@ -25,9 +26,11 @@ export function LandingPage({
   const { openWhatsNew } = useWhatsNew()
   const [expanded, setExpanded] = useState(false)
   const signingIn = screen === 'login'
-  const fromRoadmap = signingIn && router.query.get('returnTo') === '/roadmap'
+  const returnPath = loginReturnPath(
+    router.query.get('returnTo'),
+    `${router.path}?${router.query.toString()}`,
+  )
   const showingAbout = screen === 'about'
-  const playPath = auth.isAuthenticated ? '/play/game' : '/login'
   const dailyComplete = hasCompletedDailyPuzzle()
   function follow(event: MouseEvent<HTMLAnchorElement>): void {
     if (event.button || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
@@ -72,6 +75,11 @@ export function LandingPage({
           <a href={showingAbout ? '/' : '/about'} onClick={follow}>
             {showingAbout ? 'Back to table' : 'About'}
           </a>
+          {!signingIn && auth.ready && !auth.isAuthenticated && (
+            <a href="/login" onClick={follow}>
+              Sign in
+            </a>
+          )}
         </nav>
       </SiteHeader>
       <main
@@ -84,11 +92,18 @@ export function LandingPage({
         >
           {signingIn ? (
             <>
-              <a className={styles.back} href={fromRoadmap ? '/roadmap' : '/'} onClick={follow}>
+              <a
+                className={styles.back}
+                href={returnPath === '/roadmap' ? '/roadmap' : '/'}
+                onClick={follow}
+              >
                 Back
               </a>
-              <h1 id="entry-title">Sign in to {fromRoadmap ? 'vote' : 'play'}.</h1>
-              <p className={styles.description}>Enter your email. We’ll send you a sign-in code.</p>
+              <h1 id="entry-title">{signInHeading(returnPath)}</h1>
+              <p className={styles.description}>
+                An account saves your decks, keeps your draft and sealed runs, and lets you vote on
+                the roadmap. Enter your email and we’ll send you a sign-in code.
+              </p>
               {login}
             </>
           ) : (
@@ -97,7 +112,7 @@ export function LandingPage({
               <p className={styles.description}>
                 Choose a deck or bring your own. Play against AI, right in your browser.
               </p>
-              <a className="public-primary" href={playPath} onClick={follow}>
+              <a className="public-primary" href="/play/game" onClick={follow}>
                 Play against AI
               </a>
             </>
