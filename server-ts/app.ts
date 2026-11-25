@@ -1,13 +1,18 @@
 import type { Database } from 'bun:sqlite'
 import { authRoutes, sessionPlayer, type WebAuth } from './auth.ts'
 import { cardImageRoutes, type CardImageIndex } from './card-images.ts'
+import { courseRecordRoutes, type CourseRecordStore } from './course-records.ts'
+import { deckRoutes, type DeckStore } from './decks.ts'
 import { json, serveRoutes, type HttpOptions, type Routes } from './http.ts'
+import { puzzleRoutes } from './puzzles.ts'
 import { roadmapRoutes } from './roadmap.ts'
 
 export interface WebServices {
   db: Database
   auth: WebAuth
   cardImages: CardImageIndex
+  decks: DeckStore
+  courseRecords: CourseRecordStore
   operatorToken: string
 }
 
@@ -17,6 +22,9 @@ export function productRoutes(services: WebServices): Routes {
     ...authRoutes(services.auth, services.operatorToken),
     ...roadmapRoutes(services.auth, services.db),
     ...cardImageRoutes(services.cardImages),
+    ...puzzleRoutes(services.auth, services.db),
+    ...courseRecordRoutes(services.auth, services.courseRecords),
+    ...deckRoutes(services.auth, services.decks),
   }
 }
 
