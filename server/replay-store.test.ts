@@ -282,6 +282,14 @@ describe('quota eviction', () => {
     })
   })
 
+  test('an unreadable oldest candidate is kept and the next candidate makes room', async () => {
+    const { root, store } = await filled(70_000)
+    writeFileSync(join(root, `${matchId(2)}.browser-meta.json`), '{')
+    await store.ingestBrowserChunk(DEVICE, matchId(1), 0, chunk(1, { index: 1, padding: 30_000 }))
+    expect(retained(root)).toEqual(new Set([matchId(1), matchId(2), matchId(4)]))
+    expect(store.health().evictions).toBe(1)
+  })
+
   test('a store that cannot make room rejects without evicting, and recent writes are protected', async () => {
     const { root, clock, store } = await filled(70_000)
     clock.now -= HOUR
