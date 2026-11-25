@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, expect, mock, spyOn, test } from 'bun:test'
+import { DEVICE_ID_HEADER, deviceId } from '@shared/device-id'
 import * as reporting from '@shared/reporting'
 import { fetchGreCardMeta } from '@engine/runtime/gre-card-meta'
 import { BrowserReplayCollector } from './browser-replay-collector'
@@ -117,6 +118,7 @@ test('committed-but-response-lost retries the exact body before later observatio
     'browser-test',
     async function (this: unknown, _url, options) {
       expect(this).toBe(globalThis)
+      expect((options!.headers as Record<string, string>)[DEVICE_ID_HEADER]).toBe(deviceId())
       sent.push({
         after: (options!.headers as Record<string, string>)['X-Replay-After-Seq']!,
         body: String(options!.body),

@@ -38,7 +38,10 @@ try {
       return json({ playerId: 'test-guest', guest: true })
     }
     if (path === `/api/puzzles/${firstId}/ratings`) {
-      ratings.push(route.request().postDataJSON())
+      ratings.push({
+        device: route.request().headers()['x-device-id'] ?? null,
+        ...route.request().postDataJSON(),
+      })
       return route.fulfill({ status: 204 })
     }
     return route.fulfill({ status: 404 })
@@ -62,8 +65,16 @@ try {
   await dialog.getByRole('textbox').fill('A quick, satisfying finish.')
   await dialog.getByRole('button', { name: 'Send rating' }).click()
   await expect(dialog.getByText('Thanks — your rating is saved.')).toBeVisible()
+  const device = await page.evaluate(() => localStorage.getItem('forge.deviceId'))
+  assert.match(device ?? '', /^[0-9a-f-]{36}$/)
   assert.deepEqual(ratings, [
-    { reaction: 'fun', outcome: 'won', comment: 'A quick, satisfying finish.', actions: [] },
+    {
+      device,
+      reaction: 'fun',
+      outcome: 'won',
+      comment: 'A quick, satisfying finish.',
+      actions: [],
+    },
   ])
 
   await expect(page.getByRole('button', { name: 'Generate next' })).toHaveCount(0)

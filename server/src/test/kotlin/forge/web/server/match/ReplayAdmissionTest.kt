@@ -92,13 +92,13 @@ class ReplayAdmissionTest {
     }
 
     @Test
-    fun `player burst has precise replenishment without spending unrelated budgets`() {
+    fun `device burst has precise replenishment without spending unrelated budgets`() {
         var now = 0L
         val admission = ReplayAdmission({ now })
         repeat(12) { assertNull(admission.admit(ReplayTraffic.CHUNK, "abusive", "nat")) }
         repeat(100) {
             val blocked = assertNotNull(admission.admit(ReplayTraffic.CHUNK, "abusive", "nat"))
-            assertEquals("player", blocked.scope)
+            assertEquals("device", blocked.scope)
             assertEquals(6, blocked.retryAfterSeconds)
         }
         repeat(4) { assertNull(admission.admit(ReplayTraffic.CHUNK, "peer-$it", "nat")) }
@@ -109,7 +109,7 @@ class ReplayAdmissionTest {
     }
 
     @Test
-    fun `IP rejection does not spend player or global tokens`() {
+    fun `IP budget bounds rotating device ids without spending device or global tokens`() {
         var now = 0L
         val admission = ReplayAdmission({ now })
         repeat(16) { index ->

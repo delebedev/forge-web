@@ -1,3 +1,4 @@
+import { DEVICE_ID_HEADER, deviceId } from '@shared/device-id'
 import { reportDiagnostic } from '@shared/reporting'
 import type { BrowserReplayCollector } from './browser-replay-collector'
 import {
@@ -317,6 +318,7 @@ export class BrowserReplayStreamer {
               credentials: 'same-origin',
               headers: {
                 'Content-Type': 'application/json',
+                [DEVICE_ID_HEADER]: deviceId(),
                 'X-Replay-After-Seq': String(this.cursor.seq),
               },
               body: chunk.body,

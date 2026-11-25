@@ -1,5 +1,4 @@
 import { useState, type FormEvent } from 'react'
-import { authStore } from '@shared/auth/auth'
 import { Button } from '@shared/ui/Button'
 import { TextArea } from '@shared/ui/Field'
 import { sendPuzzleRating } from './puzzle-api'
@@ -28,9 +27,6 @@ export function PuzzleRating({ puzzleId, outcome }: { puzzleId: string; outcome:
     setSaving(true)
     setError('')
     try {
-      if (!(await authStore.ensureSession())) {
-        throw new Error('Could not start a feedback session. Try again.')
-      }
       await sendPuzzleRating(puzzleId, {
         reaction,
         outcome,

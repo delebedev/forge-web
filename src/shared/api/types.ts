@@ -712,15 +712,15 @@ export interface paths {
             'text/plain': string
           }
         }
-        /** @description Unauthorized */
-        401: {
+        /** @description Not Found */
+        404: {
           headers: {
             [name: string]: unknown
           }
           content?: never
         }
-        /** @description Not Found */
-        404: {
+        /** @description Too Many Requests */
+        429: {
           headers: {
             [name: string]: unknown
           }

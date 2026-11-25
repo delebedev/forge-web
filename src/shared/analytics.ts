@@ -1,4 +1,5 @@
 import type { BrowserFailureSnapshot } from './browser-failure-snapshot'
+import { deviceId } from './device-id'
 /**
  * Umami custom event tracking.
  * Self-hosted at a.forgeweb.app; script loaded in index.html.
@@ -281,6 +282,7 @@ function track(name: string, data: AnalyticsProps = {}): void {
   try {
     syncAnalyticsIdentity()
     const payload: AnalyticsProps = {
+      device_id: deviceId(),
       ...(accountId ? { account_id: accountId } : {}),
       ...data,
       release: ANALYTICS_RELEASE,

@@ -39,17 +39,17 @@ class MatchReplayStoreTest {
             MatchReplayStore(config(root, maxBytes = 64 * 1024, maxMatchBytes = 64 * 1024)).use { store ->
                 val first = browserBundle("commander").copy(status = ReplayStatus(false, "feedback", false, "report-1"))
                 val body = Json.encodeToString(ReplayBundle.serializer(), first).toByteArray()
-                assertEquals(1, store.ingestBrowserChunk("account-1", first.matchId, 0, body))
+                assertEquals(1, store.ingestBrowserChunk(owner("account-1"), first.matchId, 0, body))
                 root.resolve("retained.bin").writeBytes(ByteArray((64 * 1024 - store.health().bytesUsed).toInt()))
                 store.cleanup()
                 val before = root.listFiles()!!.associate { it.name to it.readBytes() }
                 assertEquals(64L * 1024, store.health().bytesUsed)
-                assertEquals(1, store.ingestBrowserChunk("account-1", first.matchId, 0, body))
+                assertEquals(1, store.ingestBrowserChunk(owner("account-1"), first.matchId, 0, body))
                 val next =
                     first.copy(events = listOf(first.events.single().copy(seq = 2)), status = first.status.copy(reportId = "report-2"))
                 assertFailsWith<ReplayStorageCapacityExceeded> {
                     store.ingestBrowserChunk(
-                        "account-1",
+                        owner("account-1"),
                         first.matchId,
                         1,
                         Json.encodeToString(ReplayBundle.serializer(), next).toByteArray(),
@@ -74,12 +74,12 @@ class MatchReplayStoreTest {
                 val bundle = browserBundle(format)
                 val bytes = Json.encodeToString(ReplayBundle.serializer(), bundle).toByteArray()
 
-                assertEquals(1, store.ingestBrowserChunk("account-1", bundle.matchId, 0, bytes))
+                assertEquals(1, store.ingestBrowserChunk(owner("account-1"), bundle.matchId, 0, bytes))
                 assertEquals(format, assertNotNull(store.export(bundle.matchId)).context?.gameType)
                 assertFailsWith<IllegalArgumentException> {
-                    store.ingestBrowser("account-2", bundle.matchId, "${bundle.matchId}:full", bytes)
+                    store.ingestBrowser(owner("account-2"), bundle.matchId, "${bundle.matchId}:full", bytes)
                 }
-                assertTrue(store.ingestBrowser("account-1", bundle.matchId, "${bundle.matchId}:full", bytes))
+                assertTrue(store.ingestBrowser(owner("account-1"), bundle.matchId, "${bundle.matchId}:full", bytes))
 
                 val retained = assertNotNull(MatchReplayStore(config(root)).export(bundle.matchId))
                 assertEquals("account-1", retained.context?.accountId)
@@ -101,13 +101,13 @@ class MatchReplayStoreTest {
                 assertEquals(
                     "Invalid replay format",
                     assertFailsWith<IllegalArgumentException> {
-                        store.ingestBrowserChunk("account-1", bundle.matchId, 0, bytes)
+                        store.ingestBrowserChunk(owner("account-1"), bundle.matchId, 0, bytes)
                     }.message,
                 )
                 assertEquals(
                     "Invalid replay format",
                     assertFailsWith<IllegalArgumentException> {
-                        store.ingestBrowser("account-1", bundle.matchId, "${bundle.matchId}:full", bytes)
+                        store.ingestBrowser(owner("account-1"), bundle.matchId, "${bundle.matchId}:full", bytes)
                     }.message,
                 )
                 assertNull(store.export(bundle.matchId))
@@ -143,13 +143,13 @@ class MatchReplayStoreTest {
             fun bytes(bundle: ReplayBundle) = Json.encodeToString(ReplayBundle.serializer(), bundle).toByteArray()
             val first = bytes(chunk(1))
 
-            assertEquals(1, store.ingestBrowserChunk("account-1", matchId, 0, first))
+            assertEquals(1, store.ingestBrowserChunk(owner("account-1"), matchId, 0, first))
             assertEquals(1, assertNotNull(store.export(matchId)).events.size)
             assertFalse(assertNotNull(store.export(matchId)).status.complete)
-            assertEquals(1, store.ingestBrowserChunk("account-1", matchId, 0, first))
-            assertFailsWith<IllegalArgumentException> { store.ingestBrowserChunk("account-2", matchId, 1, bytes(chunk(2))) }
-            assertFailsWith<IllegalArgumentException> { store.ingestBrowserChunk("account-1", matchId, 2, bytes(chunk(3))) }
-            assertEquals(2, store.ingestBrowserChunk("account-1", matchId, 1, bytes(chunk(2, complete = true))))
+            assertEquals(1, store.ingestBrowserChunk(owner("account-1"), matchId, 0, first))
+            assertFailsWith<IllegalArgumentException> { store.ingestBrowserChunk(owner("account-2"), matchId, 1, bytes(chunk(2))) }
+            assertFailsWith<IllegalArgumentException> { store.ingestBrowserChunk(owner("account-1"), matchId, 2, bytes(chunk(3))) }
+            assertEquals(2, store.ingestBrowserChunk(owner("account-1"), matchId, 1, bytes(chunk(2, complete = true))))
             val exported = assertNotNull(store.export(matchId))
             assertEquals(listOf(1L, 2L), exported.events.map { it.seq })
             assertEquals(2, exported.batches.size)
@@ -186,10 +186,10 @@ class MatchReplayStoreTest {
                 )
             val bytes = Json.encodeToString(ReplayBundle.serializer(), bundle).toByteArray()
 
-            assertTrue(store.ingestBrowser("account-1", matchId, "$matchId:report-1", bytes))
-            assertFalse(store.ingestBrowser("account-1", matchId, "$matchId:report-1", bytes))
+            assertTrue(store.ingestBrowser(owner("account-1"), matchId, "$matchId:report-1", bytes))
+            assertFalse(store.ingestBrowser(owner("account-1"), matchId, "$matchId:report-1", bytes))
             assertFailsWith<IllegalArgumentException> {
-                store.ingestBrowser("account-2", matchId, "$matchId:report-1", bytes)
+                store.ingestBrowser(owner("account-2"), matchId, "$matchId:report-1", bytes)
             }
 
             val exported = assertNotNull(store.export(matchId))
@@ -306,13 +306,13 @@ class MatchReplayStoreTest {
             assertEquals(
                 "Replay storage quota is exhausted",
                 assertFailsWith<ReplayStorageCapacityExceeded> {
-                    store.ingestBrowser("account-1", bundle.matchId, "${bundle.matchId}:full", bytes)
+                    store.ingestBrowser(owner("account-1"), bundle.matchId, "${bundle.matchId}:full", bytes)
                 }.message,
             )
             assertEquals(
                 "Replay match quota exceeded",
                 assertFailsWith<IllegalArgumentException> {
-                    store.ingestBrowserChunk("account-1", bundle.matchId, 0, ByteArray(64 * 1024 + 1))
+                    store.ingestBrowserChunk(owner("account-1"), bundle.matchId, 0, ByteArray(64 * 1024 + 1))
                 }.message,
             )
             assertNotNull(store.export("unpinned"))
@@ -328,7 +328,7 @@ class MatchReplayStoreTest {
             val store = MatchReplayStore(config(root))
             val bundle = browserBundle("draft")
             store.ingestBrowser(
-                "account-1",
+                owner("account-1"),
                 bundle.matchId,
                 "${bundle.matchId}:full",
                 Json.encodeToString(ReplayBundle.serializer(), bundle).toByteArray(),
@@ -388,6 +388,48 @@ class MatchReplayStoreTest {
             assertEquals("no-store", response.headers[HttpHeaders.CacheControl])
         }
 
+    @Test
+    fun `later artifacts from the owning device keep the account the journal was created with`() =
+        runBlocking {
+            val store = MatchReplayStore(config(Files.createTempDirectory("replay-owner").toFile()))
+            val bundle = browserBundle("constructed")
+            val id = bundle.matchId
+            val bytes = Json.encodeToString(ReplayBundle.serializer(), bundle).toByteArray()
+            store.use {
+                assertTrue(it.ingestBrowser(ReplayOwner(DEVICE, "account-1"), id, "$id:created", bytes))
+                assertTrue(it.ingestBrowser(ReplayOwner(DEVICE, null), id, "$id:after-logout", bytes))
+                assertTrue(it.ingestBrowser(ReplayOwner(DEVICE, "account-2"), id, "$id:after-switch", bytes))
+                assertFailsWith<IllegalArgumentException> {
+                    it.ingestBrowser(ReplayOwner(OTHER_DEVICE, "account-1"), id, "$id:other-device", bytes)
+                }
+                val exported = assertNotNull(it.export(id))
+                assertEquals(DEVICE, exported.context?.deviceId)
+                assertEquals("account-1", exported.context?.accountId)
+            }
+        }
+
+    @Test
+    fun `journals stored before device ids stay owned by their account`() =
+        runBlocking {
+            val root = Files.createTempDirectory("replay-legacy-owner").toFile()
+            val bundle = browserBundle("constructed")
+            val id = bundle.matchId
+            val legacy = bundle.copy(context = bundle.context!!.copy(accountId = "account-1"))
+            root.resolve("$id.browser.json").writeText(Json.encodeToString(ReplayBundle.serializer(), legacy))
+            root.resolve(
+                "$id.browser-meta.json",
+            ).writeText("""{"accountId":"account-1","createdAtMs":${System.currentTimeMillis()},"artifacts":[]}""")
+            val bytes = Json.encodeToString(ReplayBundle.serializer(), bundle).toByteArray()
+            MatchReplayStore(config(root)).use {
+                assertTrue(it.ingestBrowser(ReplayOwner(DEVICE, "account-1"), id, "$id:first", bytes))
+                assertTrue(it.ingestBrowser(ReplayOwner(OTHER_DEVICE, "account-1"), id, "$id:second", bytes))
+                assertFailsWith<IllegalArgumentException> { it.ingestBrowser(ReplayOwner(DEVICE, null), id, "$id:third", bytes) }
+                val exported = assertNotNull(it.export(id))
+                assertEquals(null, exported.context?.deviceId)
+                assertEquals("account-1", exported.context?.accountId)
+            }
+        }
+
     private fun browserBundle(format: String?) =
         ReplayBundle(
             version = 2,
@@ -441,3 +483,9 @@ private class MutableClock(private var instant: Instant) : Clock() {
         instant = instant.plusSeconds(days * 86_400)
     }
 }
+
+/** Store tests give each account its own device. */
+internal fun owner(account: String) = ReplayOwner("device-$account", account)
+
+private const val DEVICE = "55555555-5555-4555-8555-555555555555"
+private const val OTHER_DEVICE = "66666666-6666-4666-8666-666666666666"

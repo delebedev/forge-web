@@ -64,9 +64,13 @@ external changes are reflected at startup or the next maintenance pass.
 
 Browser-local replay journals use the same viewer format but originate in the
 player tab because no server match transport exists. The client retains a
-20 MB complete prefix and sends ordered chunks every ten seconds during an
-authenticated match. The server acknowledges sequence numbers, deduplicates
-retries, and stores the journal under the same retention and pinning policy.
+20 MB complete prefix and sends ordered chunks every ten seconds during a
+match. Uploads need no account: each carries the browser's device id in
+`X-Device-Id`, and a journal belongs to the device that started it, plus the
+account when one was signed in. Admission limits each device, each client
+address and the whole server, because a caller can mint device ids. The server
+acknowledges sequence numbers, deduplicates retries, and stores the journal
+under the same retention and pinning policy.
 Uploads never gate game actions. A blocked upload, abruptly closed tab, or
 truncated prefix leaves an incomplete replay; client-supplied events are not
 proof that the engine accepted a submitted action. Public browser challenges
@@ -84,11 +88,13 @@ creates, completes or recovers server match outcomes during startup.
 The authenticated player UUID is the stable opaque account identifier. Session
 restore, login, guest creation, logout, and account replacement must update the
 analytics identity at the auth store boundary. Custom events also carry the UUID
-as `account_id`; browser and request-bound server error reports retain only this
-UUID as their user ID. Profile fields, email addresses, IP addresses, and deck
-names must never be sent.
+as `account_id`. Browser and request-bound server error reports retain only the
+account UUID as their user ID. Every custom event also carries `device_id`, a
+random UUID the browser keeps in localStorage, so players without an account
+can be counted and joined to their reports. Profile fields, email addresses, IP
+addresses, and deck names must never be sent.
 
-Every custom event carries `release`, `rollout`, and `traffic`. Match lifecycle
+Every custom event carries `release`, `rollout`, `traffic`, and `device_id`. Match lifecycle
 events carry `match_id` and `deck_id` when a persisted deck launched the match.
 Deck events use IDs, formats, counts, and operation names rather than deck or
 card names.
@@ -150,7 +156,7 @@ support status.
 A prepared bug form has one UUID `report_id`, which may be reused while its
 page context remains mounted. Primary opens send that value in the
 `bug-report-opened` event, and every form URL carries it in hidden parameters
-together with `account_id`, `match_id`, `deck_id`, `release`, `source`,
+together with `device_id`, `account_id`, `match_id`, `deck_id`, `release`, `source`,
 and `traffic` when available. Bounded connection-close context stays on the
 analytics event. Form opening and submission are independent records; support
 investigation treats the analytics join by `report_id` as authoritative.

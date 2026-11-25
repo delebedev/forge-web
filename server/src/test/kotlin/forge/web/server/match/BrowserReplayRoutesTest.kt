@@ -27,6 +27,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
+import forge.web.server.auth.DEVICE_ID_HEADER as DEVICE_HEADER
 
 class BrowserReplayRoutesTest {
     @Test
@@ -59,6 +60,7 @@ class BrowserReplayRoutesTest {
             suspend fun send(payload: String = body) =
                 client.post("/api/browser-replays/$id/chunks") {
                     header(HttpHeaders.Cookie, "web_session=${session.token}")
+                    header(DEVICE_HEADER, device(1))
                     header("X-Replay-After-Seq", "0")
                     setBody(payload)
                 }
@@ -66,6 +68,7 @@ class BrowserReplayRoutesTest {
             suspend fun artifact() =
                 client.post("/api/browser-replays/$id") {
                     header(HttpHeaders.Cookie, "web_session=${session.token}")
+                    header(DEVICE_HEADER, device(1))
                     header("X-Replay-Artifact", "$id:feedback")
                     setBody(body)
                 }
@@ -95,6 +98,7 @@ class BrowserReplayRoutesTest {
                 assertEquals(1, exported.responses.size)
                 assertEquals("commander", exported.context?.gameType)
                 assertEquals(session.player.playerId, exported.context?.accountId)
+                assertEquals(device(1), exported.context?.deviceId)
                 assertTrue(!exported.status.complete)
                 assertEquals(HttpStatusCode.Created, artifact().status)
                 assertEquals(HttpStatusCode.Conflict, artifact().status)
@@ -104,7 +108,7 @@ class BrowserReplayRoutesTest {
         }
 
     @Test
-    fun `trusted forwarded addresses distinguish independent players sharing the edge connection`() {
+    fun `trusted forwarded addresses distinguish independent devices sharing the edge connection`() {
         for (trustForwarding in listOf(false, true)) {
             testApplication {
                 var now = 0L
@@ -119,11 +123,10 @@ class BrowserReplayRoutesTest {
                 try {
                     val statuses =
                         (1..40).map { index ->
-                            val session = assertNotNull(auth.guestSession())
                             val id = matchId(index)
                             val response =
                                 client.post("/api/browser-replays/$id/chunks") {
-                                    header(HttpHeaders.Cookie, "web_session=${session.token}")
+                                    header(DEVICE_HEADER, device(index))
                                     header("X-Forwarded-For", "198.51.100.$index")
                                     header("X-Replay-After-Seq", "0")
                                     setBody(chunk(id))
@@ -131,7 +134,8 @@ class BrowserReplayRoutesTest {
                             now += 250
                             if (response.status == HttpStatusCode.OK) {
                                 assertEquals("1", response.bodyAsText())
-                                assertEquals(session.player.playerId, store.export(id)?.context?.accountId)
+                                assertEquals(device(index), store.export(id)?.context?.deviceId)
+                                assertEquals(null, store.export(id)?.context?.accountId)
                             } else {
                                 assertEquals(HttpStatusCode.TooManyRequests, response.status)
                                 assertTrue(assertNotNull(response.headers[HttpHeaders.RetryAfter]).toLong() >= 1)
@@ -155,7 +159,6 @@ class BrowserReplayRoutesTest {
         testApplication {
             var now = 0L
             val auth = auth()
-            val session = assertNotNull(auth.guestSession())
             val admission = ReplayAdmission({ now })
             val store = store()
             val id = matchId(1)
@@ -169,7 +172,7 @@ class BrowserReplayRoutesTest {
                 after: Int = seq - 1,
                 direction: String = "inbound",
             ) = client.post("/api/browser-replays/$id/chunks") {
-                header(HttpHeaders.Cookie, "web_session=${session.token}")
+                header(DEVICE_HEADER, device(1))
                 header("X-Replay-After-Seq", after)
                 setBody(chunk(id, seq, direction = direction))
             }
@@ -205,11 +208,10 @@ class BrowserReplayRoutesTest {
             }
             try {
                 for (index in 1..2) {
-                    val session = assertNotNull(auth.guestSession())
                     val id = matchId(index)
                     val response =
                         client.post("/api/browser-replays/$id/chunks") {
-                            header(HttpHeaders.Cookie, "web_session=${session.token}")
+                            header(DEVICE_HEADER, device(index))
                             header("X-Replay-After-Seq", "0")
                             setBody(chunk(id))
                         }
@@ -228,7 +230,6 @@ class BrowserReplayRoutesTest {
     fun `bounded streaming request accepts up to four MiB without trusting Content-Length`() =
         testApplication {
             val auth = auth()
-            val session = assertNotNull(auth.guestSession())
             val store = store()
             val id = matchId(1)
             application {
@@ -238,7 +239,7 @@ class BrowserReplayRoutesTest {
 
             suspend fun send(body: String) =
                 client.post("/api/browser-replays/$id/chunks") {
-                    header(HttpHeaders.Cookie, "web_session=${session.token}")
+                    header(DEVICE_HEADER, device(1))
                     header("X-Replay-After-Seq", "0")
                     setBody(
                         object : OutgoingContent.ReadChannelContent() {
@@ -263,7 +264,6 @@ class BrowserReplayRoutesTest {
     fun `full artifact retries keep created and duplicate response semantics`() =
         testApplication {
             val auth = auth()
-            val session = assertNotNull(auth.guestSession())
             val store = store()
             val id = matchId(1)
             application {
@@ -274,7 +274,7 @@ class BrowserReplayRoutesTest {
                 for (expected in listOf(HttpStatusCode.Created, HttpStatusCode.Conflict)) {
                     val response =
                         client.post("/api/browser-replays/$id") {
-                            header(HttpHeaders.Cookie, "web_session=${session.token}")
+                            header(DEVICE_HEADER, device(1))
                             header("X-Replay-Artifact", "$id:feedback")
                             setBody(chunk(id))
                         }
@@ -286,9 +286,50 @@ class BrowserReplayRoutesTest {
             }
         }
 
+    @Test
+    fun `anonymous journals belong to their device and keep that owner after sign-in`() =
+        testApplication {
+            val auth = auth()
+            val store = store()
+            val id = matchId(1)
+            val session = assertNotNull(auth.guestSession())
+            application {
+                installHttpErrorHandling(auth)
+                routing { route("/api") { installBrowserReplayRoutes(auth, store) } }
+            }
+
+            suspend fun send(
+                seq: Int,
+                device: String?,
+                cookie: String? = null,
+            ) = client.post("/api/browser-replays/$id/chunks") {
+                device?.let { header(DEVICE_HEADER, it) }
+                cookie?.let { header(HttpHeaders.Cookie, "web_session=$it") }
+                header("X-Replay-After-Seq", seq - 1)
+                setBody(chunk(id, seq))
+            }
+            try {
+                assertEquals(HttpStatusCode.BadRequest, send(1, device = null).status)
+                assertEquals(HttpStatusCode.BadRequest, send(1, device = "not-a-uuid").status)
+                assertEquals(null, store.export(id))
+                assertEquals("1", send(1, device(1)).bodyAsText())
+                assertEquals(HttpStatusCode.BadRequest, send(2, device(2)).status, "Another device cannot append")
+                assertEquals(HttpStatusCode.BadRequest, send(2, device(2), session.token).status)
+                assertEquals("2", send(2, device(1), session.token).bodyAsText(), "Signing in keeps the device's journal")
+                val exported = assertNotNull(store.export(id))
+                assertEquals(device(1), exported.context?.deviceId)
+                assertEquals(null, exported.context?.accountId)
+                assertEquals(listOf(1L, 2L), exported.events.map { it.seq })
+            } finally {
+                store.close()
+            }
+        }
+
     private fun auth() = WebAuthService(InMemoryWebAuthStore(), DevEmailSender(), DEV_WEB_AUTH_SECRET)
 
     private fun store() = MatchReplayStore(MatchReplayConfig(Files.createTempDirectory("replay-route").toFile(), "token"))
+
+    private fun device(index: Int) = "%08x-0000-4000-8000-000000000000".format(index)
 
     private fun matchId(index: Int) = "browser-${UUID.nameUUIDFromBytes("match-$index".toByteArray())}"
 
