@@ -5,6 +5,8 @@ import { courseRecordRoutes, type CourseRecordStore } from './course-records.ts'
 import { deckRoutes, type DeckStore } from './decks.ts'
 import { json, serveRoutes, type HttpOptions, type Routes } from './http.ts'
 import { puzzleRoutes } from './puzzles.ts'
+import { replayRoutes } from './replay-routes.ts'
+import type { MatchReplayStore } from './replay-store.ts'
 import { roadmapRoutes } from './roadmap.ts'
 
 export interface WebServices {
@@ -13,18 +15,20 @@ export interface WebServices {
   cardImages: CardImageIndex
   decks: DeckStore
   courseRecords: CourseRecordStore
+  replays: MatchReplayStore
   operatorToken: string
 }
 
 export function productRoutes(services: WebServices): Routes {
   return {
-    '/api/health': { GET: () => json({ status: 'ok' }) },
+    '/api/health': { GET: () => json({ status: 'ok', replay: services.replays.health() }) },
     ...authRoutes(services.auth, services.operatorToken),
     ...roadmapRoutes(services.auth, services.db),
     ...cardImageRoutes(services.cardImages),
     ...puzzleRoutes(services.auth, services.db),
     ...courseRecordRoutes(services.auth, services.courseRecords),
     ...deckRoutes(services.auth, services.decks),
+    ...replayRoutes(services.auth, services.replays, services.operatorToken),
   }
 }
 

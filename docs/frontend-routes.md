@@ -221,11 +221,12 @@ surface.
 The shared `src/shared/cards/DeckImportDialog.tsx` owns parsing, commander
 selection, validation, errors, and pending requests for lobby and library imports.
 The library opens the editor with the resolved deck. The lobby requires a playable
-deck for its selected format, then saves and selects it. Saved Commander decks
-require one eligible commander or a compatible pair on both create and update.
-Unmarked imports can select an optional second commander. Server validation and
-Browser execution use Forge Commander validation for pairing and the combined
-color identity of both commanders, including the mainboard and sideboard. The parser returns
+deck for its selected format, then saves and selects it. Unmarked imports can
+select an optional second commander. The browser engine checks Commander
+legality on import and save: commander eligibility, pairing, and the combined
+color identity of both commanders across the mainboard and sideboard. The server
+checks only a save's shape, including at most two commanders and a commander
+for Commander decks (see `docs/architecture.md`). The parser returns
 mainboard, sideboard and commandZone independently; companions remain rejected.
 POST /api/decks creates an account deck, PUT /api/decks/{deckId} updates it in
 place. Reads return commandZone. The editor preserves and displays commanders

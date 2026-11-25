@@ -7,6 +7,7 @@ import { CardImageIndex } from './card-images.ts'
 import { CourseRecordStore } from './course-records.ts'
 import { openPlayerDatabase } from './db.ts'
 import { DeckStore } from './decks.ts'
+import { MatchReplayStore } from './replay-store.ts'
 
 export const TEST_SECRET = 'a-32-char-secret-for-tests-0123456789'
 export const TEST_LOGIN_CODE = '123456'
@@ -35,6 +36,9 @@ export function testServer(overrides: Partial<WebServices> = {}) {
     cardImages: overrides.cardImages ?? CardImageIndex.empty(),
     decks: new DeckStore(db),
     courseRecords: new CourseRecordStore(db),
+    replays: new MatchReplayStore({
+      root: mkdtempSync(join(tmpdir(), 'forge-web-replays-')),
+    }),
     operatorToken: OPERATOR_TOKEN,
     ...overrides,
   }
