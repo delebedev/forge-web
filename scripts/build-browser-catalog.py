@@ -32,6 +32,14 @@ RESOURCE_FILES = (
 )
 
 
+# Sets offered for sealed and draft (SealedPoolGenerator.supportedSets). Draft bots
+# rank picks from these files; BrowserLimited rejects a set without one.
+LIMITED_SETS = (
+    "BLB", "BRO", "DFT", "DMU", "DSK", "ECL", "FDN", "FIN", "LCI",
+    "MKM", "MOM", "NEO", "ONE", "OTJ", "SNC", "TDM", "WOE",
+)
+
+
 def sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
@@ -127,6 +135,10 @@ def main() -> None:
 
     entries: list[tuple[str, bytes]] = [("res/cardsfolder/cardsfolder.zip", card_archive)]
     entries.extend((f"res/{name}", (forge_res / name).read_bytes()) for name in RESOURCE_FILES)
+    entries.extend(
+        (f"res/draft/rankings/{code.lower()}.rnk", (forge_res / "draft/rankings" / f"{code.lower()}.rnk").read_bytes())
+        for code in LIMITED_SETS
+    )
     for directory, pattern in (("ai", "*.ai"), ("editions", "*.txt"), ("blockdata", "*.txt"), ("tokenscripts", "*.txt")):
         root = forge_res / directory
         entries.extend(

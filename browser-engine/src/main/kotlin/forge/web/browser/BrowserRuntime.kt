@@ -1,6 +1,7 @@
 package forge.web.browser
 
 import forge.StaticData
+import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import leyline.bridge.bootstrap.GameBootstrap
@@ -175,6 +176,29 @@ object BrowserRuntime {
         check(handle == null) { "Close the current game before validating a puzzle" }
         json.encodeToString(leyline.game.generator.PuzzleValidation(checkNotNull(cards)).validate(PuzzleDefinition("candidate", text)))
     }
+
+    /** Replays `{set, seed, picks, catalogVersion}` and returns the next pack, or `complete`. */
+    @JvmStatic
+    fun draft(request: String): String = guarded {
+        val draft = json.decodeFromString<DraftRequest>(request).also { requireCatalog(it.catalogVersion) }
+        json.encodeToString(BrowserLimited.draft(draft.set, draft.seed, draft.picks))
+    }
+
+    /** Replays a finished draft and returns the player's pool and the seven bot decks. */
+    @JvmStatic
+    fun draftComplete(request: String): String = guarded {
+        val draft = json.decodeFromString<DraftRequest>(request).also { requireCatalog(it.catalogVersion) }
+        json.encodeToString(BrowserLimited.complete(draft.set, draft.seed, draft.picks))
+    }
+
+    @JvmStatic
+    fun sealed(request: String): String = guarded {
+        val sealed = json.decodeFromString<SealedRequest>(request).also { requireCatalog(it.catalogVersion) }
+        json.encodeToString(BrowserLimited.sealed(sealed.set, sealed.seed))
+    }
+
+    private fun requireCatalog(version: String) =
+        require(version == repository().catalogVersion) { "The card catalog changed since this pool was generated" }
 
     @JvmStatic
     fun advice(): String = guarded { json.encodeToString(checkNotNull(handle).copilotProposal()) }
