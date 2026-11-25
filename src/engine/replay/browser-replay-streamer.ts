@@ -365,8 +365,12 @@ export class BrowserReplayStreamer {
         if (chunk.final) {
           this.deliveredRevision = chunk.revision
         }
-        // Recheck the collector even after a successful retry: events and metadata
-        // can arrive while its immutable request is waiting for acknowledgement.
+        // A chunk that held the whole prefix ends the flush: observations that arrived during
+        // its round trip wait for the next interval, so a busy game sends one request per
+        // interval. A size-limited backlog or a status change made meanwhile continues now.
+        if (chunk.final && this.deliveredRevision === this.revision) {
+          return true
+        }
       }
       draining = true
       return true
