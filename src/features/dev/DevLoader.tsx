@@ -1,5 +1,3 @@
-import { DevelopmentPuzzleSchema } from '@shared/api/wire-schemas'
-import { readJson } from '@shared/api/decoding'
 /**
  * Standalone dev-only bootstrap for `/dev/game` and `/dev/puzzle/:puzzleId`.
  * Renders outside `AppShell`, same as `gre-play`: it establishes a dev
@@ -10,7 +8,7 @@ import { readJson } from '@shared/api/decoding'
 import { useEffect, useState } from 'react'
 import { devDefaultGreStartConfig, puzzleToGreStartConfig } from '@engine/runtime/gre-launch'
 import { greSession } from '@engine/runtime/gre-session'
-import { apiFetch } from '@shared/api/client'
+import { fetchDevPuzzle } from '@features/challenges/model/challenge'
 import styles from './DevLoader.module.css'
 
 export function DevLoader({
@@ -35,13 +33,13 @@ export function DevLoader({
       try {
         if (puzzleId) {
           setStatus(`Loading puzzle ${puzzleId}…`)
-          const metadata = await loadPuzzleMetadata(puzzleId)
-          if (!metadata) {
+          const puzzle = await fetchDevPuzzle(puzzleId)
+          if (!puzzle) {
             throw new Error('Puzzle content is unavailable')
           }
           greSession.startBrowser({
-            ...puzzleToGreStartConfig(puzzleId, metadata),
-            puzzleText: metadata.text,
+            ...puzzleToGreStartConfig(puzzleId, puzzle.challenge),
+            puzzleText: puzzle.text,
           })
         } else {
           setStatus('Starting constructed game…')
@@ -75,17 +73,4 @@ export function DevLoader({
       )}
     </div>
   )
-}
-
-async function loadPuzzleMetadata(
-  puzzleId: string,
-): Promise<{ name: string; objective: string; text: string } | null> {
-  const response = await apiFetch(`/api/dev/puzzles/${encodeURIComponent(puzzleId)}`)
-  if (!response.ok) {
-    return null
-  }
-  const body = await readJson(response, DevelopmentPuzzleSchema)
-  return typeof body.name === 'string' && typeof body.objective === 'string'
-    ? { name: body.name, objective: body.objective, text: body.text }
-    : null
 }

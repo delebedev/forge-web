@@ -48,128 +48,38 @@ describe('recent constructed decks', () => {
     const deck = recentDeckToDetail(summary!)
 
     const starts: GreStartConfig[] = []
-    const validated: string[] = []
-    const start = createGameSetupStarter({
-      validate: async (text) => {
-        validated.push(text)
-        return { ok: true }
-      },
-      start: (config) => starts.push(config),
-    })
+    const start = createGameSetupStarter({ start: (config) => starts.push(config) })
     expect(
-      await start({ gameType: 'constructed', mode: 'play', opponentMode: 'mirror' }, deck, null),
+      start({ gameType: 'constructed', mode: 'play', opponentMode: 'mirror' }, deck, null),
     ).toEqual({ ok: true })
-    expect(validated).toEqual(['60 Plains', '60 Plains'])
     expect(starts).toEqual([
       { seat1Deck: '60 Plains', seat2Deck: '60 Plains', deckId: 'deck-1', gameType: 'constructed' },
     ])
   })
 
-  it('validates a pasted deck and starts only once during concurrent clicks', async () => {
-    let finishValidation!: () => void
-    const validation = new Promise<void>((resolve) => {
-      finishValidation = resolve
-    })
+  it('sends distinct selected play seats in order', async () => {
     const starts: GreStartConfig[] = []
-    const start = createGameSetupStarter({
-      validate: async () => {
-        await validation
-        return { ok: true }
-      },
-      start: (config) => starts.push(config),
-    })
-
-    const first = start(
-      { gameType: 'constructed', mode: 'play', deckList: '60 Plains' },
-      null,
-      null,
-    )
-    const second = start(
-      { gameType: 'constructed', mode: 'play', deckList: '60 Plains' },
-      null,
-      null,
-    )
-    finishValidation()
-
-    expect(await first).toEqual({ ok: true })
-    expect(await second).toBeUndefined()
-    expect(starts).toEqual([{ seat1Deck: '60 Plains', gameType: 'constructed' }])
-  })
-
-  it('keeps an invalid pasted deck on setup with the server error', async () => {
-    const starts: GreStartConfig[] = []
-    const start = createGameSetupStarter({
-      validate: async () => ({ ok: false, errors: ['Card not found: Bogus'] }),
-      start: (config) => starts.push(config),
-    })
-
-    const result = await start(
-      { gameType: 'constructed', mode: 'play', deckList: '60 Bogus' },
-      null,
-      null,
-    )
-
-    expect(result).toEqual({ ok: false, error: 'Your deck: Card not found: Bogus' })
-    expect(starts).toEqual([])
-  })
-
-  it('rejects an invalid play opponent deck before starting', async () => {
-    const starts: GreStartConfig[] = []
-    const start = createGameSetupStarter({
-      validate: async (text) =>
-        text.includes('Bogus') ? { ok: false, errors: ['Card not found: Bogus'] } : { ok: true },
-      start: (config) => starts.push(config),
-    })
-
-    const result = await start(
-      {
-        gameType: 'constructed',
-        mode: 'play',
-        deckList: '60 Plains',
-        opponentDeckList: '60 Bogus',
-      },
-      null,
-      null,
-    )
-
-    expect(result).toEqual({ ok: false, error: 'Opponent deck: Card not found: Bogus' })
-    expect(starts).toEqual([])
-  })
-
-  it('validates distinct selected play seats in sent order', async () => {
-    const validated: string[] = []
-    const starts: GreStartConfig[] = []
-    const start = createGameSetupStarter({
-      validate: async (text) => {
-        validated.push(text)
-        return { ok: true }
-      },
-      start: (config) => starts.push(config),
-    })
+    const start = createGameSetupStarter({ start: (config) => starts.push(config) })
 
     expect(
-      await start(
+      start(
         { gameType: 'constructed', mode: 'play', opponentMode: 'pick' },
         selectedDeck('Plains'),
         selectedDeck('Island'),
       ),
     ).toEqual({ ok: true })
-    expect(validated).toEqual(['60 Plains', '60 Island'])
     expect(starts).toEqual([
       { seat1Deck: '60 Plains', seat2Deck: '60 Island', deckId: 'plains', gameType: 'constructed' },
     ])
   })
 
-  it('starts a valid commander deck after launch validation', async () => {
+  it('starts a commander deck for both seats', async () => {
     const deck = '[Commander]\n1 Krenko, Mob Boss\n99 Mountain'
     const starts: GreStartConfig[] = []
-    const start = createGameSetupStarter({
-      validate: async () => ({ ok: true }),
-      start: (config) => starts.push(config),
-    })
+    const start = createGameSetupStarter({ start: (config) => starts.push(config) })
 
     expect(
-      await start(
+      start(
         { gameType: 'commander', mode: 'play', deckList: deck, opponentMode: 'mirror' },
         null,
         null,
@@ -178,33 +88,11 @@ describe('recent constructed decks', () => {
     expect(starts).toEqual([{ seat1Deck: deck, seat2Deck: deck, gameType: 'commander' }])
   })
 
-  it('keeps an existing saved deck with an ineligible commander on setup', async () => {
-    const deck = {
-      ...selectedDeck('Vampire'),
-      hasCommander: true,
-      content: '[Commander]\n1 Bloodthirsty Conqueror\n[Deck]\n99 Swamp',
-    }
-    const starts: GreStartConfig[] = []
-    const start = createGameSetupStarter({
-      validate: async () => ({
-        ok: false,
-        errors: ["Bloodthirsty Conqueror can't be a commander."],
-      }),
-      start: (config) => starts.push(config),
-    })
-
-    expect(await start({ gameType: 'commander', mode: 'play' }, deck, null)).toEqual({
-      ok: false,
-      error: "Your deck: Bloodthirsty Conqueror can't be a commander.",
-    })
-    expect(starts).toEqual([])
-  })
-
   it('rejects an unavailable selected deck before starting', async () => {
     const starts: GreStartConfig[] = []
     const start = createGameSetupStarter({ start: (config) => starts.push(config) })
 
-    const result = await start({ gameType: 'constructed', mode: 'play' }, null, null)
+    const result = start({ gameType: 'constructed', mode: 'play' }, null, null)
 
     expect(result).toEqual({
       ok: false,
@@ -268,39 +156,5 @@ describe('recent constructed decks', () => {
         content: null,
       }),
     ).toBe(true)
-  })
-})
-
-describe('format-aware launch validation', () => {
-  it('checks both exact deck texts in the selected format before starting', async () => {
-    const starts: GreStartConfig[] = []
-    const validated: [string, string][] = []
-    const start = createGameSetupStarter({
-      validate: async (text, gameType) => {
-        validated.push([text, gameType])
-        return text.includes('[Commander]')
-          ? { ok: true }
-          : { ok: false, errors: ['Commander decks need a commander.'] }
-      },
-      start: (config) => starts.push(config),
-    })
-    const player = {
-      ...selectedDeck('Plains'),
-      hasCommander: true,
-      content: '[Commander]\n1 Isamaru, Hound of Konda\n[Deck]\n99 Plains',
-    }
-    const opponent = selectedDeck('Mountain')
-    const result = await start(
-      { gameType: 'commander', mode: 'play', opponentMode: 'pick' },
-      player,
-      opponent,
-    )
-    expect(result).toEqual({ ok: false, error: 'Opponent deck: Commander decks need a commander.' })
-    expect(validated).toEqual([
-      [player.content, 'commander'],
-      ['60 Mountain', 'commander'],
-    ])
-    expect(starts).toEqual([])
-    expect(opponent.cards[0]?.name).toBe('Mountain')
   })
 })

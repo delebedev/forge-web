@@ -4,8 +4,6 @@ import ch.qos.logback.classic.Level
 import ch.qos.logback.classic.Logger
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.read.ListAppender
-import forge.web.server.support.testCards
-import leyline.game.data.CardRepository
 import org.slf4j.LoggerFactory
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -46,19 +44,6 @@ class CardImageIndexTest {
 
         assertEquals(spell, images.find("Lightning Bolt", isToken = true))
         assertEquals(spell, images.findArtwork("Lightning Bolt", isToken = true))
-    }
-
-    @Test
-    fun `card metadata uses repository token identity when the name has no suffix`() {
-        val images = CardImageIndex.load()
-        val cards =
-            object : CardRepository by testCards() {
-                override fun findNameByGrpId(grpId: Int): String? = "Ajani's Pridemate"
-
-                override fun findTokenGrpIdByName(name: String): Int? = 2
-            }
-
-        assertEquals(images.find("Ajani's Pridemate", isToken = true), cards.cardMeta(2, images).imageUrl)
     }
 
     @Test

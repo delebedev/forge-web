@@ -12,7 +12,6 @@ import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.route
-import leyline.domain.PlayerId
 
 internal fun Route.installAuthRoutes(auth: WebAuthService) {
     route("/auth") {
@@ -20,23 +19,6 @@ internal fun Route.installAuthRoutes(auth: WebAuthService) {
             val player = auth.validate(call.request.cookies[WEB_SESSION_COOKIE])
             call.respond(AuthView(playerId = player?.playerId, guest = player?.let { isGuestEmail(it.email) } ?: false))
         }.contract { response<AuthView>() }
-        post("/guest") {
-            val existing = auth.validate(call.request.cookies[WEB_SESSION_COOKIE])
-            if (existing != null) {
-                call.respond(AuthView(playerId = existing.playerId, guest = isGuestEmail(existing.email)))
-                return@post
-            }
-            val result = auth.guestSession(call.request.origin.remoteHost, call.request.headers["User-Agent"])
-            if (result == null) {
-                call.respond(HttpStatusCode.TooManyRequests)
-                return@post
-            }
-            call.appendSessionCookie(result.token)
-            call.respond(AuthView(playerId = result.player.playerId, guest = true))
-        }.contract {
-            response<AuthView>()
-            empty(429)
-        }
         post("/request-code") {
             val request = call.receive<RequestLoginCodeRequest>()
             when (auth.requestCode(request.email, call.request.origin.remoteHost, call.request.headers["User-Agent"])) {
@@ -103,14 +85,14 @@ internal suspend fun ApplicationCall.authenticatedPlayer(auth: WebAuthService): 
             throw UnauthorizedPlayer()
         }
 
-internal suspend fun ApplicationCall.authenticatedPlayerId(auth: WebAuthService): PlayerId = PlayerId(authenticatedPlayer(auth).playerId)
+internal suspend fun ApplicationCall.authenticatedPlayerId(auth: WebAuthService): String = authenticatedPlayer(auth).playerId
 
 internal suspend fun ApplicationCall.ownedPlayerId(
     auth: WebAuthService,
     requested: String?,
-): PlayerId {
+): String {
     val playerId = authenticatedPlayerId(auth)
-    if (requested != null && requested != playerId.value) {
+    if (requested != null && requested != playerId) {
         respond(HttpStatusCode.Forbidden)
         throw UnauthorizedPlayer()
     }

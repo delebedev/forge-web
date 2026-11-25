@@ -1,26 +1,72 @@
 import { z } from 'zod'
 
+export { ParseDecklistErrorResponseSchema } from './wire-schemas'
 import type { components } from './types'
-import { GreCardMetaDtoSchema } from './wire-schemas'
-export {
-  DraftCardDtoSchema as DraftCardSchema,
-  DecklistCardDtoSchema as DecklistCardSchema,
-  ParseDecklistResponseSchema,
-  ParseDecklistErrorResponseSchema,
-} from './wire-schemas'
+
+// Card shapes come from the browser card index and browser engine, not the product server.
+const int32 = z.number().int().min(-2147483648).max(2147483647)
+
+export const GreMechanicHelpSchema = z.object({
+  keyword: z.string(),
+  title: z.string(),
+  description: z.string(),
+  cost: z.string().nullable(),
+})
+export const GreAbilityMetaSchema = z.object({
+  text: z.string(),
+  keyword: z.string().nullable(),
+  manaCost: z.string().nullable(),
+})
+export const GreCardMetaDtoSchema = z.object({
+  grpId: int32,
+  name: z.string().nullable(),
+  setCode: z.string().nullable(),
+  rarity: z.string().nullable(),
+  titleId: int32.nullable(),
+  manaCost: z.string().nullable(),
+  power: z.string().nullable(),
+  toughness: z.string().nullable(),
+  loyalty: z.string().nullable(),
+  defense: z.string().nullable(),
+  faceLayout: z.string().nullable(),
+  types: z.string().nullable(),
+  subtypes: z.string().nullable(),
+  rulesText: z.string().nullable(),
+  imageUrl: z.string().nullable(),
+  keywords: z.array(z.string()),
+  mechanicHelp: z.array(GreMechanicHelpSchema),
+  linkedFaceGrpIds: z.array(int32),
+  abilities: z.record(z.string(), GreAbilityMetaSchema),
+})
+export type GreCardMetaDto = z.output<typeof GreCardMetaDtoSchema>
+
+export const DraftCardSchema = z.object({
+  name: z.string(),
+  grpId: int32.nullable(),
+  manaCost: z.string().nullable(),
+  typeLine: z.string().nullable(),
+  rarity: z.string().nullable(),
+  colors: z.array(z.string()),
+  setCode: z.string().nullable(),
+  collectorNumber: z.string().nullable(),
+  score: z.number().nullable(),
+})
+export const DecklistCardSchema = z.object({ grpId: int32, quantity: int32, card: DraftCardSchema })
+export const ParseDecklistResponseSchema = z.object({
+  mainboard: z.array(DecklistCardSchema),
+  sideboard: z.array(DecklistCardSchema),
+  commandZone: z.array(DecklistCardSchema),
+})
 
 // Placeholder cards are view values. Fields follow the DTO; metadata may be unresolved.
-type WireDraftCard = components['schemas']['DraftCardDto']
+type WireDraftCard = z.output<typeof DraftCardSchema>
 export type DraftCard = Omit<WireDraftCard, 'grpId' | 'score'> &
   Partial<Pick<WireDraftCard, 'grpId' | 'score'>> &
   Partial<
-    Pick<
-      components['schemas']['GreCardMetaDto'],
-      'rulesText' | 'power' | 'toughness' | 'loyalty' | 'defense' | 'faceLayout'
-    >
-  > & { linkedFaces?: components['schemas']['GreCardMetaDto'][] }
-export type DecklistCard = components['schemas']['DecklistCardDto']
-export type ParseDecklistResponse = components['schemas']['ParseDecklistResponse']
+    Pick<GreCardMetaDto, 'rulesText' | 'power' | 'toughness' | 'loyalty' | 'defense' | 'faceLayout'>
+  > & { linkedFaces?: GreCardMetaDto[] }
+export type DecklistCard = z.output<typeof DecklistCardSchema>
+export type ParseDecklistResponse = z.output<typeof ParseDecklistResponseSchema>
 export type ParseDecklistErrorResponse = components['schemas']['ParseDecklistErrorResponse']
 /** A limited set as the browser card index lists it. */
 export const SealedSetSchema = z.object({

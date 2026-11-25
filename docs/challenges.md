@@ -72,17 +72,14 @@ board. It is unavailable in production.
 
 ## Entry and catalog
 
-`LEYLINE_WEB_DEV_TOOLS=true` enables the server catalog and explicit routes. The
-frontend flag defaults to false. The frontend development build exposes Challenges
-in desktop navigation.
+The Vite dev server serves Leyline fixtures at `/dev/puzzles/<id>.pzl`; release
+builds and the product server do not. The frontend development build exposes
+Challenges in desktop navigation.
 
 - `/challenges` lists a small curated set of useful fixtures.
 - `/challenges/:id` selects a curated fixture and starts it.
 - `/dev/puzzle/:id` preserves direct access to any existing fixture.
-- `GET /api/dev/challenges` returns curated fixture identity and display metadata.
-- `GET /api/dev/puzzles/{puzzleId}` returns metadata for a direct fixture link.
-
-Fixture metadata supplies the name, engine goal, turn limit, and supporting
+Each fixture's `[metadata]` section supplies the name, engine goal, turn limit, and supporting
 description. The launcher also accepts editable puzzle text. Validation loads
 the exact text through the engine and returns an opaque candidate id only when
 the puzzle is valid. Editing the text clears that id and any earlier validation
@@ -91,8 +88,7 @@ or trial result.
 Validated candidates are immutable, owner scoped, and held in bounded memory.
 The developer may run a bounded engine trial or play the candidate directly;
 a lost or inconclusive trial remains a trial result and does not make a loaded
-puzzle invalid. Candidate validation, trial, and launch routes are installed
-only when `LEYLINE_WEB_DEV_TOOLS=true`.
+puzzle invalid.
 
 ## Match ownership
 

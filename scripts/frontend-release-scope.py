@@ -18,9 +18,13 @@ def check_scope(checkout, backend):
                      'scripts/seo.ts', 'scripts/check-seo.ts',
                      'scripts/frontend-release-scope.py', 'scripts/test_frontend_release_scope.py',
                      '.github/workflows/publish-web.yml', '.github/workflows/web-ci.yml',
-                     'browser-engine/web/engine-worker.js', 'browser-engine/web/runtime-preload.json'}
+                     'scripts/build-browser-catalog.py', 'scripts/test_build_browser_catalog.py',
+                     'scripts/build-browser-release.mjs', 'scripts/browser-challenge-manifest.ts',
+                     # The product server builds without Leyline; the pin only feeds the browser engine.
+                     'leyline'}
     rejected = [p for p in changed if p and not (
-        p.startswith(('src/', 'public/', 'e2e/', 'docs/', '.storybook/', 'browser-engine/src/')) or p in allowed_files or
+        p.startswith(('src/', 'public/', 'e2e/', 'docs/', '.storybook/', 'browser-engine/', 'card-presentation/',
+                      'leyline/')) or p in allowed_files or
         re.fullmatch(r'tsconfig(?:\.[\w-]+)?\.json', p)
     )]
     if rejected:

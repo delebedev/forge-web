@@ -1,6 +1,5 @@
 package forge.web.server.http
 
-import forge.web.server.cards.DraftCardDto
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
@@ -22,7 +21,6 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import leyline.domain.json.productionJson
 import kotlin.reflect.typeOf
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -46,12 +44,16 @@ class HttpContractTest {
         val score: Double = 1.5,
         val choice: Choice? = null,
         val groups: Map<String, List<Int>> = emptyMap(),
-        val optionalCard: DraftCardDto? = null,
-        val cards: List<DraftCardDto> = emptyList(),
+        val optionalNested: Nested? = null,
+        val nested: List<Nested> = emptyList(),
     )
 
     @Serializable private data class Unsupported(
         @Contextual val value: Any,
+    )
+
+    @Serializable private data class Nested(
+        val score: Double? = null,
     )
 
     @Serializable private data class Recursive(val next: Recursive? = null)
@@ -95,13 +97,13 @@ class HttpContractTest {
             assertEquals(listOf("wire_name", "requiredNullable"), requiredInput)
             assertEquals(body.keys, output.getValue("required").jsonArray.map { it.jsonPrimitive.content }.toSet())
             val properties = output.getValue("properties").jsonObject
-            val cardRef = properties.getValue("optionalCard").jsonObject.getValue("\$ref").jsonPrimitive.content
-            assertTrue(cardRef.endsWith("DraftCardDtoNullable"))
-            val nonNullableCard = components.getValue("DraftCardDto").jsonObject
+            val cardRef = properties.getValue("optionalNested").jsonObject.getValue("\$ref").jsonPrimitive.content
+            assertTrue(cardRef.endsWith("NestedNullable"))
+            val nonNullableCard = components.getValue("Nested").jsonObject
             assertEquals("object", nonNullableCard.getValue("type").jsonPrimitive.content)
             assertTrue(
                 components.getValue(
-                    "DraftCardDtoNullable",
+                    "NestedNullable",
                 ).jsonObject.getValue("type").jsonArray.any { it.jsonPrimitive.content == "null" },
             )
             assertEquals("int64", properties.getValue("seed").jsonObject.getValue("format").jsonPrimitive.content)
@@ -111,11 +113,11 @@ class HttpContractTest {
         }
 
     @Test
-    fun `card score uses the production numeric serializer`() {
+    fun `nullable doubles use the production numeric serializer`() {
         val codec = productionJson { encodeDefaults = true }
-        val body = codec.encodeToJsonElement(DraftCardDto.serializer(), DraftCardDto("numeric", score = 1.25)).jsonObject
+        val body = codec.encodeToJsonElement(Nested.serializer(), Nested(score = 1.25)).jsonObject
         assertEquals("1.25", body.getValue("score").jsonPrimitive.content)
-        val schema = descriptorSchema(DraftCardDto.serializer().descriptor, input = false)
+        val schema = descriptorSchema(Nested.serializer().descriptor, input = false)
         val score = schema.getValue("properties").jsonObject.getValue("score").jsonObject
         assertEquals(listOf("number", "null"), score.getValue("type").jsonArray.map { it.jsonPrimitive.content })
     }

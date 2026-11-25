@@ -2,13 +2,8 @@ package forge.web.server.persistence
 
 import forge.web.server.auth.WebSession
 import forge.web.server.config.ServerConfigResolver
-import forge.web.server.support.testCards
-import leyline.domain.Deck
-import leyline.domain.DeckCard
-import leyline.domain.DeckId
-import leyline.domain.Format
-import leyline.domain.PlayerId
-import leyline.game.InMemoryCardRepository
+import forge.web.server.decks.CreateDeckRequest
+import forge.web.server.decks.WebDeckCard
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.io.File
 import java.nio.file.Files
@@ -17,6 +12,7 @@ import java.time.Instant
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class PlayerDatabaseTest {
@@ -25,11 +21,11 @@ class PlayerDatabaseTest {
         val baseDir = tempDirectory("config")
         val defaultState = tempDirectory("default-state")
         val overriddenState = tempDirectory("overridden-state")
-        val defaults = ServerConfigResolver(baseDir, configEnv, defaultState).resolve()
+        val defaults = ServerConfigResolver(configEnv, baseDir, defaultState).resolve()
         val overridden =
             ServerConfigResolver(
-                baseDir,
                 configEnv + ("LEYLINE_PATHS_STATE" to overriddenState.absolutePath),
+                baseDir,
                 defaultState,
             ).resolve()
 
@@ -41,24 +37,27 @@ class PlayerDatabaseTest {
     fun `fresh database migrates and preserves product and auth state across restart`() {
         val stateDir = File(tempDirectory("fresh"), "nested/state")
         val path = PlayerDatabasePath.fromStateDir(stateDir)
-        val playerId = PlayerId("player-1")
-        val deck = testDeck(playerId)
         val now = Instant.now()
 
-        PlayerDatabase.open(path).use { database ->
-            database.playerStore.bindCardCatalog(testCards())
-            database.playerStore.ensurePlayer(playerId, "Player")
-            database.playerStore.save(deck)
-            val authPlayer = database.authStore.findOrCreatePlayer("player@example.test")
-            database.authStore.saveSession(testSession(authPlayer.playerId, now))
-        }
+        val deck =
+            PlayerDatabase.open(path).use { database ->
+                val authPlayer = database.authStore.findOrCreatePlayer("player@example.test")
+                database.authStore.saveSession(testSession(authPlayer.playerId, now))
+                database.decks.create(
+                    authPlayer.playerId,
+                    CreateDeckRequest(authPlayer.playerId, "Restart Deck", mainDeck = listOf(WebDeckCard("Mountain", 60))),
+                )
+            }
 
         assertTrue(stateDir.isDirectory)
-        assertEquals(listOf("1", "2", "3", "4", "5", "6", "7", "8", "9"), migrationVersions(path.file))
+        assertEquals((1..10).map(Int::toString), migrationVersions(path.file))
         assertTrue(queryPlan(path.file, "SELECT * FROM decks WHERE player_id = 'p'").contains("USING INDEX decks_player_id"))
+        val tables = tableNames(path.file)
+        for (dropped in listOf("courses", "draft_sessions", "draft_pod_results", "course_plays", "product_metadata")) {
+            assertFalse(dropped in tables, dropped)
+        }
         PlayerDatabase.open(path).use { reopened ->
-            reopened.playerStore.bindCardCatalog(testCards())
-            assertEquals(deck, reopened.playerStore.findById(deck.id))
+            assertEquals(deck, reopened.decks.find(deck.playerId, deck.id))
             assertEquals("player@example.test", reopened.authStore.findSession("token-hash", now)?.email)
         }
     }
@@ -66,7 +65,7 @@ class PlayerDatabaseTest {
     @Test
     fun `bootstrap preserves existing archive rows without managing their table`() {
         val path = PlayerDatabasePath.fromStateDir(tempDirectory("archive"))
-        PlayerDatabase.open(path).use { it.playerStore.ensurePlayer(PlayerId("player-1"), "Player") }
+        PlayerDatabase.open(path).close()
         val archivedRow = listOf("deck-1", "player-1", "Saved list", "constructed", "[Main]\n4 Jungle Lion\n", "created", "updated")
         DriverManager.getConnection("jdbc:sqlite:${path.file.absolutePath}").use { connection ->
             connection.createStatement().executeUpdate(
@@ -78,13 +77,14 @@ class PlayerDatabaseTest {
                 )
                 """.trimIndent(),
             )
+            connection.createStatement().executeUpdate("INSERT INTO players (player_id, screen_name) VALUES ('player-1', 'Player')")
             connection.prepareStatement("INSERT INTO legacy_decks VALUES (?, ?, ?, ?, ?, ?, ?)").use { statement ->
                 archivedRow.forEachIndexed { index, value -> statement.setString(index + 1, value) }
                 statement.executeUpdate()
             }
         }
 
-        repeat(2) { PlayerDatabase.open(path).use { it.playerStore.bindCardCatalog(testCards()) } }
+        repeat(2) { PlayerDatabase.open(path).close() }
 
         DriverManager.getConnection("jdbc:sqlite:${path.file.absolutePath}").use { connection ->
             connection.createStatement().executeQuery("SELECT * FROM legacy_decks").use { rows ->
@@ -137,40 +137,6 @@ class PlayerDatabaseTest {
             }
             assertEquals(outcomes, rows("match_outcomes"))
             assertEquals(runs, rows("puzzle_generation_runs"))
-        }
-    }
-
-    @Test
-    fun `card names survive changed runtime ids`() {
-        val path = PlayerDatabasePath.fromStateDir(tempDirectory("catalog-version"))
-        val playerId = PlayerId("player-1")
-
-        PlayerDatabase.open(path).use { database ->
-            database.playerStore.bindCardCatalog(testCards())
-            database.playerStore.ensurePlayer(playerId, "Player")
-            database.playerStore.save(testDeck(playerId))
-        }
-
-        PlayerDatabase.open(path).use { reopened ->
-            reopened.playerStore.bindCardCatalog(shiftedCards())
-            assertEquals(101, reopened.playerStore.findById(DeckId("deck-1"))?.tileId)
-            assertEquals(listOf(DeckCard(101, 60)), reopened.playerStore.findById(DeckId("deck-1"))?.mainDeck)
-        }
-    }
-
-    @Test
-    fun `persisted card state without a format marker is rejected`() {
-        val path = PlayerDatabasePath.fromStateDir(tempDirectory("unknown-catalog"))
-        PlayerDatabase.open(path).close()
-        DriverManager.getConnection("jdbc:sqlite:${path.file.absolutePath}").use { connection ->
-            connection.createStatement().executeUpdate(
-                """INSERT INTO decks (deck_id, player_id, name, tile_name, cards)
-                    VALUES ('deck-1', 'player-1', 'Unknown Deck', 'Mountain', '{"MainDeck":[]}')""",
-            )
-        }
-        PlayerDatabase.open(path).use { database ->
-            val failure = assertFailsWith<IllegalStateException> { database.playerStore.bindCardCatalog(testCards()) }
-            assertTrue(failure.message.orEmpty().contains("explicit card-name-v1 migration"))
         }
     }
 
@@ -243,19 +209,6 @@ class PlayerDatabaseTest {
 
 private val configEnv = mapOf("LEYLINE_WEB_AUTH_SECRET" to "a-32-char-secret-for-tests-0123456789")
 
-private fun testDeck(playerId: PlayerId) =
-    Deck(
-        id = DeckId("deck-1"),
-        playerId = playerId,
-        name = "Restart Deck",
-        format = Format.Standard,
-        tileId = 1,
-        mainDeck = listOf(DeckCard(1, 60)),
-        sideboard = emptyList(),
-        commandZone = emptyList(),
-        companions = emptyList(),
-    )
-
 private fun testSession(
     playerId: String,
     now: Instant,
@@ -270,13 +223,6 @@ private fun testSession(
     ipHash = null,
     userAgent = null,
 )
-
-private fun shiftedCards(): InMemoryCardRepository =
-    InMemoryCardRepository().also {
-        it.register(50, "Aardvark")
-        it.register(101, "Mountain")
-        it.register(102, "Lightning Bolt")
-    }
 
 private fun tempDirectory(name: String): File = Files.createTempDirectory("forge-web-$name").toFile().also { it.deleteOnExit() }
 

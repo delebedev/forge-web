@@ -2,7 +2,6 @@ package forge.web.server.config
 
 import forge.web.server.auth.DEV_WEB_AUTH_SECRET
 import forge.web.server.persistence.PlayerDatabasePath
-import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.descriptors.PrimitiveKind
@@ -14,10 +13,6 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
-import leyline.config.DraftSettings
-import net.peanuuutz.tomlkt.Toml
-import net.peanuuutz.tomlkt.TomlElement
-import net.peanuuutz.tomlkt.TomlTable
 import java.io.File
 
 internal class ServerConfigException(
@@ -25,12 +20,11 @@ internal class ServerConfigException(
     cause: Throwable? = null,
 ) : RuntimeException(message, cause)
 
-internal enum class ConfigSource { DEFAULT, TOML, ENV }
+internal enum class ConfigSource { DEFAULT, ENV }
 
 /** Immutable product configuration resolved once at process startup. */
 internal class ServerConfig(
     val web: WebSettings,
-    val engine: ProductEngineSettings,
     val paths: ServerPaths,
     val baseDir: File,
     val instance: String?,
@@ -40,7 +34,7 @@ internal class ServerConfig(
     fun ensureDirectories() = paths.ensureDirectories()
 
     fun report(): String {
-        val settings = ServerSettings(web, engine, configuredPaths)
+        val settings = ServerSettings(web, configuredPaths)
         val tree = json.encodeToJsonElement(ServerSettings.serializer(), settings).jsonObject
         val bySection = SettingsSchema.leaves(ServerSettings.serializer().descriptor).groupBy { it.path.first() }
         return buildString {
@@ -57,7 +51,6 @@ internal class ServerConfig(
                 }
             }
             appendLine("  [resolved paths]")
-            appendLine("    content: ${paths.contentRoot.absolutePath}")
             appendLine("    state: ${paths.stateDir.absolutePath}")
             appendLine("    player_db: ${PlayerDatabasePath.fromStateDir(paths.stateDir).file.absolutePath}")
             appendLine("    artifacts: ${paths.artifactsRoot.absolutePath}")
@@ -84,11 +77,9 @@ internal class ServerConfig(
 internal data class WebSettings(
     val port: Int = 8080,
     val host: String = "127.0.0.1",
-    @SerialName("player_id") val playerId: String = "web-player",
     @SerialName("auth_secret") val authSecret: String = "",
     @SerialName("login_code") val loginCode: String = "",
     @SerialName("allow_fixed_login_code") val allowFixedLoginCode: Boolean = false,
-    @SerialName("dev_tools") val devTools: Boolean = false,
     @SerialName("resend_api_key") val resendApiKey: String = "",
     @SerialName("resend_from") val resendFrom: String = "login@localhost",
     @SerialName("rate_limit_enabled") val rateLimitEnabled: Boolean = true,
@@ -103,7 +94,6 @@ internal data class WebSettings(
     fun validate() {
         require(port in 1..65535) { "web.port must be in 1..65535, got $port" }
         require(host.isNotBlank()) { "web.host must not be blank" }
-        require(playerId.isNotBlank()) { "web.player_id must not be blank" }
         require(rateLimit > 0) { "web.rate_limit must be positive, got $rateLimit" }
         require(rateLimitWindowMs > 0) { "web.rate_limit_window_ms must be positive, got $rateLimitWindowMs" }
         require(replayRetentionDays > 0) { "web.replay_retention_days must be positive" }
@@ -130,38 +120,33 @@ internal data class WebSettings(
 }
 
 @Serializable
-internal data class ProductEngineSettings(val draft: DraftSettings = DraftSettings()) {
-    fun validate() = draft.validate()
-}
-
-@Serializable
 private data class ServerSettings(
     val web: WebSettings = WebSettings(),
-    val engine: ProductEngineSettings = ProductEngineSettings(),
     val paths: PathSettings = PathSettings(),
 ) {
     fun validate() {
         web.validate()
-        engine.validate()
         paths.validate()
     }
 }
 
+/**
+ * Resolves settings from typed defaults and `LEYLINE_*` environment overrides. The
+ * environment name derives from the key path: `web.port` → `LEYLINE_WEB_PORT`.
+ * Relative `paths.state` and `paths.artifacts` resolve against [baseDir], which is
+ * the process working directory unless a caller supplies another.
+ */
 internal class ServerConfigResolver(
-    private val baseDir: File,
     private val env: Map<String, String>,
+    private val baseDir: File = File(System.getProperty("user.dir")).absoluteFile,
     private val defaultStateDir: File = File(System.getProperty("user.home"), "Library/Application Support/dev.leyline"),
 ) {
-    private val toml = Toml { ignoreUnknownKeys = false }
     private val json = Json { encodeDefaults = true }
 
-    fun resolve(configFile: File = File(baseDir, "leyline.toml")): ServerConfig {
-        val text = configFile.takeIf(File::isFile)?.readText().orEmpty()
-        val (base, table) = decodeToml(text, configFile)
-        rejectTomlSecrets(table)
-        val baseJson = json.encodeToJsonElement(ServerSettings.serializer(), base).jsonObject
+    fun resolve(): ServerConfig {
+        val defaults = json.encodeToJsonElement(ServerSettings.serializer(), ServerSettings()).jsonObject
         val overrides = collectEnvOverrides()
-        val effectiveJson = overrides.fold(baseJson) { tree, (path, value) -> setAt(tree, path, value) }
+        val effectiveJson = overrides.fold(defaults) { tree, (path, value) -> setAt(tree, path, value) }
         val effective =
             try {
                 json.decodeFromJsonElement(ServerSettings.serializer(), effectiveJson)
@@ -169,48 +154,16 @@ internal class ServerConfigResolver(
                 throw ServerConfigException("Invalid effective configuration: ${cause.message}", cause)
             }
         validate(effective)
-        val instance = env["LEYLINE_INSTANCE"]?.takeIf { it.isNotBlank() }
+        val instance = instanceName()
+        val envPaths = overrides.map { it.first.joinToString(".") }.toSet()
         return ServerConfig(
             web = effective.web,
-            engine = effective.engine,
             paths = ServerPaths.resolve(baseDir, effective.paths, instance, defaultStateDir),
             baseDir = baseDir,
             instance = instance,
             configuredPaths = effective.paths,
-            provenance = buildProvenance(table, overrides),
+            provenance = envPaths.associateWith { ConfigSource.ENV },
         )
-    }
-
-    private fun decodeToml(
-        text: String,
-        configFile: File,
-    ): Pair<ServerSettings, TomlTable> =
-        try {
-            val table = toml.parseToTomlTable(text)
-            val unknownSections = table.keys - PRODUCT_SECTIONS
-            require(unknownSections.isEmpty()) { "Unknown configuration section(s): ${unknownSections.sorted().joinToString()}" }
-            ServerSettings(
-                web = decodeSection(table, "web", WebSettings.serializer(), WebSettings()),
-                engine =
-                    (table["engine"] as? TomlTable)?.let { section ->
-                        Toml { ignoreUnknownKeys = true }.decodeFromTomlElement(ProductEngineSettings.serializer(), section)
-                    } ?: ProductEngineSettings(),
-                paths = decodeSection(table, "paths", PathSettings.serializer(), PathSettings()),
-            ) to table
-        } catch (cause: Exception) {
-            throw ServerConfigException("Failed to parse ${configFile.absolutePath}: ${cause.message}", cause)
-        }
-
-    private fun <T> decodeSection(
-        table: TomlTable,
-        name: String,
-        serializer: KSerializer<T>,
-        default: T,
-    ): T = table[name]?.let { toml.decodeFromTomlElement(serializer, it) } ?: default
-
-    private fun rejectTomlSecrets(table: TomlTable) {
-        val secret = PRODUCT_SECRET_PATHS.firstOrNull { valueAt(table, it.split('.')) != null } ?: return
-        throw ServerConfigException("$secret must be supplied through ${SettingsSchema.envNameOf(secret.split('.'))}")
     }
 
     private fun validate(settings: ServerSettings) {
@@ -269,31 +222,6 @@ internal class ServerConfigResolver(
             }
         return JsonObject(root + (head to updated))
     }
-
-    private fun buildProvenance(
-        table: TomlTable,
-        overrides: List<Pair<List<String>, JsonElement>>,
-    ): Map<String, ConfigSource> {
-        val envPaths = overrides.map { it.first.joinToString(".") }.toSet()
-        return SettingsSchema.leaves(ServerSettings.serializer().descriptor).associate { leaf ->
-            val key = leaf.path.joinToString(".")
-            key to
-                when {
-                    key in envPaths -> ConfigSource.ENV
-                    valueAt(table, leaf.path) != null -> ConfigSource.TOML
-                    else -> ConfigSource.DEFAULT
-                }
-        }
-    }
-
-    private fun valueAt(
-        root: TomlTable,
-        path: List<String>,
-    ): TomlElement? {
-        var current: TomlElement? = root
-        for (part in path) current = (current as? TomlTable)?.get(part) ?: return null
-        return current
-    }
 }
 
 private object SettingsSchema {
@@ -316,5 +244,4 @@ private object SettingsSchema {
     fun envNameOf(path: List<String>): String = "LEYLINE_" + path.joinToString("_") { it.uppercase() }
 }
 
-private val PRODUCT_SECTIONS = setOf("web", "engine", "paths", "native")
 private val PRODUCT_SECRET_PATHS = setOf("web.auth_secret", "web.login_code", "web.resend_api_key", "web.replay_operator_token")

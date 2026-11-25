@@ -1,7 +1,8 @@
-import { ChallengeSummarySchema } from '@shared/api/wire-schemas'
-import { readJson } from '@shared/api/decoding'
-import { apiFetch } from '@shared/api/client'
-import { challengeSummaryToChallenge, type Challenge } from '@features/challenges/model/challenge'
+import {
+  DEV_CHALLENGE_IDS,
+  fetchDevPuzzle,
+  type Challenge,
+} from '@features/challenges/model/challenge'
 
 /** Development challenge identity and display metadata. */
 export type { Challenge } from '@features/challenges/model/challenge'
@@ -48,12 +49,11 @@ class ChallengesStore {
     this.error = null
     this.notify()
     try {
-      const res = await apiFetch('/api/dev/challenges')
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`)
+      const puzzles = await Promise.all(DEV_CHALLENGE_IDS.map(fetchDevPuzzle))
+      if (puzzles.some((puzzle) => puzzle === null)) {
+        throw new Error('Development puzzles are served only by the Vite dev server')
       }
-      const data = await readJson(res, ChallengeSummarySchema.array())
-      this.list = data.map(challengeSummaryToChallenge)
+      this.list = puzzles.flatMap((puzzle) => (puzzle ? [puzzle.challenge] : []))
       this.loaded = true
     } catch (e) {
       this.error = e instanceof Error ? e.message : 'Failed to load challenges'

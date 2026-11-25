@@ -2,6 +2,7 @@ package forge.web.server.persistence
 
 import forge.web.server.auth.SqliteWebAuthStore
 import forge.web.server.config.ServerConfig
+import forge.web.server.decks.DeckStore
 import forge.web.server.limited.CourseRecordStore
 import forge.web.server.puzzles.PuzzleStore
 import forge.web.server.roadmap.RoadmapStore
@@ -36,7 +37,7 @@ internal data class PlayerDatabasePath(
 internal class PlayerDatabase private constructor(
     val path: PlayerDatabasePath,
     internal val database: Database,
-    val playerStore: SqlitePlayerStore,
+    val decks: DeckStore,
     val authStore: SqliteWebAuthStore,
     val puzzles: PuzzleStore,
     val roadmap: RoadmapStore,
@@ -55,10 +56,15 @@ internal class PlayerDatabase private constructor(
             val database = Database.connect(dataSource)
             return try {
                 PlayerDatabaseMigrator.migrate(dataSource)
-                val playerStore = SqlitePlayerStore(database)
-                val authStore = SqliteWebAuthStore(database)
-                val puzzles = PuzzleStore(database)
-                PlayerDatabase(path, database, playerStore, authStore, puzzles, RoadmapStore(database), CourseRecordStore(database))
+                PlayerDatabase(
+                    path,
+                    database,
+                    DeckStore(database),
+                    SqliteWebAuthStore(database),
+                    PuzzleStore(database),
+                    RoadmapStore(database),
+                    CourseRecordStore(database),
+                )
             } catch (cause: Exception) {
                 TransactionManager.closeAndUnregister(database)
                 throw IllegalStateException("Failed to open product database at ${path.file.absolutePath}: ${cause.message}", cause)

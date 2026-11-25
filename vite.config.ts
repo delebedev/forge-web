@@ -55,11 +55,33 @@ function devTranscripts(): Plugin {
   }
 }
 
+/** Serves Leyline puzzle fixtures to the development challenge pages. */
+function devPuzzles(): Plugin {
+  return {
+    name: 'forge-web-dev-puzzles',
+    apply: 'serve',
+    configureServer(server) {
+      server.middlewares.use('/dev/puzzles', (req, res, next) => {
+        const name = (req.url ?? '').replace(/^\//, '').split('?')[0] ?? ''
+        if (!/^[a-z0-9]+(?:-[a-z0-9]+)*\.pzl$/.test(name)) {
+          return next()
+        }
+        const file = fileURLToPath(new URL(`./leyline/data/puzzles/${name}`, import.meta.url))
+        if (!existsSync(file)) {
+          return next()
+        }
+        res.setHeader('Content-Type', 'text/plain; charset=utf-8')
+        createReadStream(file).pipe(res)
+      })
+    },
+  }
+}
+
 export default defineConfig({
   define: {
     __GIT_SHA__: JSON.stringify(gitSha()),
   },
-  plugins: [react(), devTranscripts(), seo()],
+  plugins: [react(), devTranscripts(), devPuzzles(), seo()],
   resolve: {
     alias: {
       '@app': fileURLToPath(new URL('./src/app', import.meta.url)),

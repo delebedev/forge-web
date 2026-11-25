@@ -29,7 +29,7 @@ class OpenApiContractTest {
             val auth = WebAuthService(InMemoryWebAuthStore(), DevEmailSender(), DEV_WEB_AUTH_SECRET, fixedLoginCode = "123456")
             application {
                 installServer(
-                    testServices(authService = auth, devToolsEnabled = true),
+                    testServices(authService = auth),
                 )
             }
             client.post("/api/auth/request-code") {
@@ -86,12 +86,6 @@ class OpenApiContractTest {
                 }
             assertEquals(401, unauthorized.status.value)
             contractSample("deck-unauthorized", "POST /api/decks", unauthorized)
-            val cards = client.get("/api/cards/search?q=Mountain")
-            assertEquals(200, cards.status.value)
-            contractSample("card-search", "GET /api/cards/search", cards)
-            val metadata = client.get("/api/public/cards/by-grpids?ids=1&abilities=true")
-            assertEquals(200, metadata.status.value)
-            contractSample("card-map", "GET /api/public/cards/by-grpids", metadata)
             val courses = client.get("/api/course-records") { header(HttpHeaders.Cookie, cookie) }
             assertEquals(200, courses.status.value)
             contractSample("course-records", "GET /api/course-records", courses)

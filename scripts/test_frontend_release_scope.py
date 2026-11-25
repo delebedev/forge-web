@@ -52,6 +52,15 @@ class FrontendScopeTest(unittest.TestCase):
             git('commit', '-qm', 'browser worker')
             scope.check_scope(directory, base)
             self.assertEqual('web', scope.classify(directory, base))
+            # The product server builds without Leyline, so engine inputs ship as a frontend release.
+            git('update-index', '--add', '--cacheinfo', f'160000,{base},leyline')
+            (root / 'card-presentation/src').mkdir(parents=True)
+            (root / 'card-presentation/src/projector.kt').write_text('card text')
+            (root / 'browser-engine/build.gradle.kts').write_text('engine build')
+            (root / 'scripts/build-browser-catalog.py').write_text('catalog')
+            git('add', 'card-presentation', 'browser-engine', 'scripts')
+            git('commit', '-qm', 'engine pin')
+            self.assertEqual('web', scope.classify(directory, base))
             frontend = git('rev-parse', 'HEAD')
             git('checkout', '-qb', 'squashed', base)
             git('cherry-pick', '--no-commit', frontend)
@@ -69,12 +78,6 @@ class FrontendScopeTest(unittest.TestCase):
             git('commit', '-qm', 'unknown script')
             with self.assertRaisesRegex(ValueError, 'scripts/server-build.ts'):
                 scope.check_scope(directory, backend)
-            # A changed submodule entry must also require a full deployment.
-            git('update-index', '--add', '--cacheinfo', f'160000,{base},leyline')
-            git('commit', '-qm', 'runtime pin')
-            with self.assertRaisesRegex(ValueError, 'leyline'):
-                scope.check_scope(directory, backend)
-            self.assertEqual('full', scope.classify(directory, backend))
             self.assertEqual('full', scope.classify(directory, '0' * 40))
 
 

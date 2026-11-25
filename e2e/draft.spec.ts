@@ -20,11 +20,7 @@ async function poolCount(pool: Locator): Promise<number> {
 }
 
 async function poolNames(pool: Locator): Promise<string[]> {
-  return (
-    await pool
-      .locator('[data-card]')
-      .evaluateAll((cards) => cards.map((card) => card.getAttribute('data-card') ?? ''))
-  ).sort()
+  return (await pool.getByRole('listitem').allInnerTexts()).map((name) => name.trim()).sort()
 }
 
 test('drafts a deck and enters a playable pod match', async ({ page, browser }, testInfo) => {
@@ -102,6 +98,8 @@ test('drafts a deck and enters a playable pod match', async ({ page, browser }, 
   await expect(page.getByText('Pick 2', { exact: true })).toBeVisible()
   const pickedBefore = await poolNames(pool)
   const countBefore = await poolCount(pool)
+  // Every picked card is listed, so the resume checks below compare real pools.
+  expect(pickedBefore).toHaveLength(countBefore)
   const packBefore = await page
     .locator('button[data-card]')
     .evaluateAll((cards) => cards.map((card) => card.getAttribute('data-card')))

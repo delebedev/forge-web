@@ -128,6 +128,7 @@ test('deck library import, editing and selection retain their controls at laptop
   await expect(page.getByRole('button', { name: 'Create', exact: true })).toBeEnabled()
   await page.getByRole('button', { name: 'Remove Island', exact: true }).click()
   await page.getByRole('button', { name: 'Create', exact: true }).click()
+  await page.waitForURL(/\/decks\/[^/]+$/)
   await page.goto('/decks')
   let detailReads = 0
   const countDetail = (request: Request) => {
@@ -183,7 +184,10 @@ test('deck library import, editing and selection retain their controls at laptop
   await expect(page.getByRole('button', { name: 'Cancel', exact: true })).toBeDisabled()
   await expect(page.getByRole('textbox', { name: 'Deck name', exact: true })).toBeDisabled()
   finishSave()
-  await expect(page.getByRole('button', { name: 'Edit', exact: true })).toBeVisible()
+  // After the reload, the save's legality check starts the browser engine cold.
+  await expect(page.getByRole('button', { name: 'Edit', exact: true })).toBeVisible({
+    timeout: 60_000,
+  })
   expect(new URL(page.url()).pathname).toBe(`/decks/${deckId}`)
   await page.reload()
   await expect(
@@ -237,22 +241,17 @@ test('opponent picker excludes incompatible decks and guards stale details in bo
   expect(login.ok()).toBe(true)
   const playerId = ((await login.json()) as { playerId: string }).playerId
   const decks = []
-  for (const [name, text] of [
-    ['Constructed fixture', '60 Forest'],
-    ['Commander fixture', '[Commander]\n1 Ezuri, Renegade Leader\n[Deck]\n99 Forest'],
-  ]) {
-    const parsed = await page.request.post('/api/cards/parse-decklist', { data: { text } })
-    expect(parsed.ok()).toBe(true)
-    const cards = await parsed.json()
-    const rows = (values: { card: { name: string }; quantity: number }[]) =>
-      values.map(({ card, quantity }) => ({ cardName: card.name, quantity }))
+  for (const [name, format, mainDeck, commandZone] of [
+    ['Constructed fixture', 'Standard', [{ cardName: 'Forest', quantity: 60 }], []],
+    [
+      'Commander fixture',
+      'Commander',
+      [{ cardName: 'Forest', quantity: 99 }],
+      [{ cardName: 'Ezuri, Renegade Leader', quantity: 1 }],
+    ],
+  ] as const) {
     const saved = await page.request.post('/api/decks', {
-      data: {
-        playerId,
-        name,
-        mainDeck: rows(cards.mainboard),
-        commandZone: rows(cards.commandZone),
-      },
+      data: { playerId, name, format, mainDeck, commandZone },
     })
     expect(saved.ok()).toBe(true)
     decks.push(await saved.json())

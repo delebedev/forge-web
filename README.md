@@ -44,6 +44,8 @@ Open the URL printed by Vite. The seeded development account is
 [Local iteration](docs/local-iteration.md) for worktrees, alternate ports, and
 remote browser feedback. Fixed login codes are for local development only.
 Keep `.env.local` and your state directory out of Git.
+A relative `LEYLINE_PATHS_STATE` resolves against the server's working directory,
+which is the repository root for `bun run server`.
 
 For UI work without a backend or engine build:
 

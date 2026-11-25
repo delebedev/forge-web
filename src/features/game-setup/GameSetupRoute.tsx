@@ -191,7 +191,7 @@ export function GameSetupRoute() {
     }
   }
 
-  async function handleDefaultGameStart(config: GameStartConfig): Promise<void> {
+  function handleDefaultGameStart(config: GameStartConfig): void {
     setDeckSelectionError(null)
     const unsupported = currentBrowserPreflight()
     if (unsupported) {
@@ -199,7 +199,7 @@ export function GameSetupRoute() {
       return
     }
     setBrowserAvailability({ status: 'available' })
-    const result = await startBrowserGame(
+    const result = startBrowserGame(
       { ...config, ...(seed == null ? {} : { seed }) },
       playerDeck,
       opponentDeck,
@@ -234,7 +234,7 @@ export function GameSetupRoute() {
           saveStoredDeck(STORAGE_KEY_GAME_PLAYER, deck)
         }}
         onPickDeck={openGameDeckPicker}
-        onStartDefault={(config) => void handleDefaultGameStart(config)}
+        onStartDefault={handleDefaultGameStart}
         onGameTypeChange={handleGameTypeChange}
         deckError={deckSelectionError}
         starting={starting}

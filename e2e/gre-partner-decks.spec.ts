@@ -69,7 +69,8 @@ for (const execution of ['Browser'] as const) {
         exact: true,
       })
       .click()
-    await expect(page).toHaveURL(/\/match\/commander$/)
+    // Setup checks both decks in the engine the match then reuses; after the reload it starts cold.
+    await expect(page).toHaveURL(/\/match\/commander$/, { timeout: 240_000 })
     await expect
       .poll(() => page.evaluate(() => window.__greState?.()?.connected), { timeout: 240_000 })
       .toBe(true)

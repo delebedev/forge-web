@@ -52,7 +52,7 @@ decks:
       decks. DecksView (src/features/decks/) shows list + detail pane;
       DeckEditor.tsx builds/edits constructed decks (card search, land
       controls, stats bar); DeckImportDialog.tsx parses Arena/MTGO/.dck
-      text via /api/cards/parse-decklist.
+      text in the browser engine.
 
   draft-sealed-pools:
     status: works

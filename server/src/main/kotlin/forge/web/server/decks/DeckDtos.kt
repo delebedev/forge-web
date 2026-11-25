@@ -28,3 +28,7 @@ data class DeckView(
     val sideboard: List<WebDeckCard>,
     val commandZone: List<WebDeckCard> = emptyList(),
 )
+
+/** Every reason a deck save was rejected. */
+@Serializable
+data class ParseDecklistErrorResponse(val errors: List<String>)

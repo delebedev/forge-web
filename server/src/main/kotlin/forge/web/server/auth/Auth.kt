@@ -303,15 +303,6 @@ class WebAuthService internal constructor(
         return createSession(store.findOrCreatePlayer(normalized, onPlayerCreated), ip, userAgent)
     }
 
-    fun guestSession(
-        ip: String? = null,
-        userAgent: String? = null,
-    ): VerifyLoginResult.Success? {
-        if (!allow("guest", null, ip, persistent = true)) return null
-        val player = store.findOrCreatePlayer("guest-${UUID.randomUUID()}@$GUEST_EMAIL_DOMAIN")
-        return createSession(player, ip, userAgent)
-    }
-
     fun validate(token: String?): WebPlayer? =
         token?.takeIf { it.isNotBlank() }?.let { store.findSession(hashSessionToken(it), clock.instant()) }
 

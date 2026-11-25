@@ -1151,7 +1151,8 @@ for (const execution of ['browser'] as const) {
 }
 
 test('independent draft sets preserve an active pool', async ({ page }, info) => {
-  test.setTimeout(120_000)
+  // Two cold browser-engine draft starts.
+  test.setTimeout(300_000)
   await page.route(/^https:\/\/(cards\.scryfall\.io|api\.scryfall\.com)\//, (route) =>
     route.fulfill({ status: 204 }),
   )
@@ -1194,7 +1195,10 @@ test('independent draft sets preserve an active pool', async ({ page }, info) =>
   })
   await expect(page.getByText('Pick 2', { exact: true })).toBeVisible()
   await page.screenshot({ path: info.outputPath('draft-preserved.png') })
-  await page.waitForTimeout(1_000)
+  if (recordDemos) {
+    // Hold the final frame in the demo video.
+    await page.waitForTimeout(1_000)
+  }
 })
 
 for (const execution of ['browser'] as const) {

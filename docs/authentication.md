@@ -5,9 +5,8 @@ Only saved decks, draft and sealed, and roadmap votes need an account. Play,
 challenges, watching, replay uploads and puzzle ratings work without one; the
 browser identifies itself to replay uploads and ratings with a random device id.
 
-The frontend no longer creates guest identities. The guest endpoint remains for
-older clients and reuses an existing valid session without creating another
-identity. Existing guest sessions keep working.
+The server no longer creates guest identities. Existing guest sessions keep
+working, and guest accounts cannot vote on the roadmap.
 
 Login codes expire after ten minutes, allow five incorrect attempts, and have a
 30-second resend cooldown. Sessions expire after 30 idle days or 90 absolute days.
@@ -29,16 +28,15 @@ Defaults per action:
 |---|---:|---:|---:|---:|---:|---:|
 | Request code | 5 | 20 | 100 | 5 | 20 | 100 |
 | Verify code | 5 | 20 | 100 | — | — | — |
-| Create guest | — | 5 | 100 | — | 20 | 100 |
 
 These are small-service shared-IP allowances, not per-browser quotas. Cooldown,
 failed-send and invalid-code attempts also count. An exhausted allowance returns
-429 without creating a challenge, sending mail, or creating a guest. Invalid email
+429 without creating a challenge or sending mail. Invalid email
 shape or excessive length returns 400 before persistence or sending. Verification
 also bounds code length. Surrounding whitespace and email case are normalized.
 
 `LEYLINE_WEB_RATE_LIMIT` and `LEYLINE_WEB_RATE_LIMIT_WINDOW_MS` default to
-5 and 60,000. They control the short email and guest-IP allowances; the rate
+5 and 60,000. They control the short email allowance; the rate
 limit value also controls the hourly email allowance. Aggregate defaults are owned
 by `AuthRateLimitConfig`. `LEYLINE_WEB_RATE_LIMIT_ENABLED=false` disables all these
 budgets for controlled development/tests, not public deployment.

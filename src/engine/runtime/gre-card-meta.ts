@@ -1,22 +1,11 @@
-import { responseSchemas } from '@shared/api/wire-schemas'
-import { readJson } from '@shared/api/decoding'
-import { apiFetch } from '@shared/api/client'
 import { isRecord, type CardMeta } from '@engine/state/gre-state'
 
-export async function fetchGreCardMeta(
-  grpIds: number[],
+/** Default for sources that carry no catalog, such as replays without embedded card metadata. */
+export async function noCardMeta(
+  _grpIds: number[],
   _authToken?: string,
 ): Promise<Map<number, CardMeta>> {
-  if (grpIds.length === 0) {
-    return new Map()
-  }
-  const path = `/api/public/cards/by-grpids?ids=${grpIds.join(',')}&abilities=true`
-  const res = await apiFetch(path)
-  if (!res.ok) {
-    return new Map()
-  }
-  const data = await readJson(res, responseSchemas['GET /api/public/cards/by-grpids'][200])
-  return parseGreCardMeta(data)
+  return new Map()
 }
 
 export function parseGreCardMeta(data: unknown): Map<number, CardMeta> {

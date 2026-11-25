@@ -1,7 +1,7 @@
 package forge.web.server.decks
 
-import forge.web.server.auth.AuthView
 import forge.web.server.installServer
+import forge.web.server.support.signIn
 import forge.web.server.support.testServices
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
@@ -20,73 +20,55 @@ import kotlin.test.assertEquals
 
 class DecksTest {
     @Test
-    fun `commander saves require an eligible commander and rejected updates preserve the deck`() =
+    fun `rejected saves report every error and leave the saved deck unchanged`() =
         testApplication {
-            application { installServer(testServices(canBeCommander = { it == "Mountain" })) }
-            val guest = client.post("/api/auth/guest")
-            val cookie = checkNotNull(guest.headers[HttpHeaders.SetCookie]).substringBefore(';')
-            val player = checkNotNull(Json.decodeFromString<AuthView>(guest.bodyAsText()).playerId)
+            application { installServer(testServices()) }
+            val (cookie, player) = client.signIn()
             val valid =
                 CreateDeckRequest(
                     player,
                     "Commander deck",
                     "Commander",
                     listOf(WebDeckCard("Mountain", 99)),
-                    commandZone = listOf(WebDeckCard("Mountain", 1)),
+                    commandZone = listOf(WebDeckCard("Krenko, Mob Boss", 1)),
                 )
-            for ((commandZone, error) in listOf(
-                emptyList<WebDeckCard>() to "Commander decks need a commander.",
-                listOf(WebDeckCard("Mountain", 0)) to "Mountain must have exactly one copy in the command zone.",
-                listOf(WebDeckCard("Mountain", -1)) to "Mountain must have exactly one copy in the command zone.",
-                listOf(WebDeckCard("Mountain", 2)) to "Mountain must have exactly one copy in the command zone.",
-                listOf(WebDeckCard("Lightning Bolt", 1)) to "Lightning Bolt can't be a commander",
-            )) {
-                val invalid = valid.copy(commandZone = commandZone)
-                val rejected =
-                    client.post("/api/decks") {
-                        header(HttpHeaders.Cookie, cookie)
-                        contentType(ContentType.Application.Json)
-                        setBody(Json.encodeToString(invalid))
-                    }
-                assertEquals(400, rejected.status.value)
-                assertEquals(true, rejected.bodyAsText().contains(error))
-                assertEquals("[]", client.get("/api/decks") { header(HttpHeaders.Cookie, cookie) }.bodyAsText())
+            val created =
+                client.post("/api/decks") {
+                    header(HttpHeaders.Cookie, cookie)
+                    contentType(ContentType.Application.Json)
+                    setBody(Json.encodeToString(valid))
+                }
+            assertEquals(200, created.status.value)
+            val saved = Json.decodeFromString<DeckView>(created.bodyAsText())
 
-                val created =
-                    client.post("/api/decks") {
-                        header(HttpHeaders.Cookie, cookie)
-                        contentType(ContentType.Application.Json)
-                        setBody(Json.encodeToString(valid))
-                    }
-                assertEquals(200, created.status.value)
-                val saved = Json.decodeFromString<DeckView>(created.bodyAsText())
-                val updated =
-                    client.put("/api/decks/${saved.id}") {
-                        header(HttpHeaders.Cookie, cookie)
-                        contentType(ContentType.Application.Json)
-                        setBody(Json.encodeToString(invalid))
-                    }
-                assertEquals(400, updated.status.value)
-                assertEquals(true, updated.bodyAsText().contains(error))
+            val invalid = valid.copy(name = "", commandZone = emptyList())
+            for (rejected in listOf(
+                client.post("/api/decks") {
+                    header(HttpHeaders.Cookie, cookie)
+                    contentType(ContentType.Application.Json)
+                    setBody(Json.encodeToString(invalid))
+                },
+                client.put("/api/decks/${saved.id}") {
+                    header(HttpHeaders.Cookie, cookie)
+                    contentType(ContentType.Application.Json)
+                    setBody(Json.encodeToString(invalid))
+                },
+            )) {
+                assertEquals(400, rejected.status.value)
                 assertEquals(
-                    saved,
-                    Json.decodeFromString<DeckView>(
-                        client.get("/api/decks/${saved.id}") {
-                            header(HttpHeaders.Cookie, cookie)
-                        }.bodyAsText(),
-                    ),
+                    ParseDecklistErrorResponse(listOf("Deck name must be 1 to 200 characters.", "Commander decks need a commander.")),
+                    Json.decodeFromString(rejected.bodyAsText()),
                 )
-                client.delete("/api/decks/${saved.id}") { header(HttpHeaders.Cookie, cookie) }
             }
+            val listed = client.get("/api/decks") { header(HttpHeaders.Cookie, cookie) }
+            assertEquals(listOf(saved), Json.decodeFromString<List<DeckView>>(listed.bodyAsText()))
         }
 
     @Test
     fun `saved command zone survives listing retrieval and in-place editing`() =
         testApplication {
             application { installServer(testServices()) }
-            val guest = client.post("/api/auth/guest")
-            val cookie = checkNotNull(guest.headers[HttpHeaders.SetCookie]).substringBefore(';')
-            val player = checkNotNull(Json.decodeFromString<AuthView>(guest.bodyAsText()).playerId)
+            val (cookie, player) = client.signIn()
             val input =
                 CreateDeckRequest(
                     player,
@@ -126,9 +108,7 @@ class DecksTest {
                 Json.decodeFromString<List<DeckView>>(client.get("/api/decks") { header(HttpHeaders.Cookie, cookie) }.bodyAsText()).size,
             )
 
-            val other = client.post("/api/auth/guest")
-            val otherCookie = checkNotNull(other.headers[HttpHeaders.SetCookie]).substringBefore(';')
-            val otherPlayer = checkNotNull(Json.decodeFromString<AuthView>(other.bodyAsText()).playerId)
+            val (otherCookie, otherPlayer) = client.signIn()
             val forbidden =
                 client.put("/api/decks/${deck.id}") {
                     header(HttpHeaders.Cookie, otherCookie)

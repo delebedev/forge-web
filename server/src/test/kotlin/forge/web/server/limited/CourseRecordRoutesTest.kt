@@ -1,11 +1,11 @@
 package forge.web.server.limited
 
 import forge.web.server.installServer
+import forge.web.server.support.signIn
 import forge.web.server.support.testServices
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.header
-import io.ktor.client.request.post
 import io.ktor.client.request.put
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
@@ -23,7 +23,7 @@ class CourseRecordRoutesTest {
         testApplication {
             application { installServer(testServices()) }
 
-            suspend fun session() = checkNotNull(client.post("/api/auth/guest").headers[HttpHeaders.SetCookie]).substringBefore(';')
+            suspend fun session() = client.signIn().cookie
             val owner = session()
             val other = session()
             val path = "/api/course-records/QuickDraft_FDN_20260223"

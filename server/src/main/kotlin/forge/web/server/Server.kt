@@ -15,8 +15,6 @@ import forge.web.server.http.installServerErrorReporting
 import forge.web.server.http.serverBackendRelease
 import forge.web.server.match.MatchReplayConfig
 import forge.web.server.match.MatchReplayStore
-import forge.web.server.match.developmentChallenges
-import forge.web.server.match.emptyChallenges
 import forge.web.server.persistence.PlayerDatabase
 import io.ktor.server.application.Application
 import io.ktor.server.application.ApplicationStarted
@@ -25,17 +23,12 @@ import io.ktor.server.application.install
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.netty.Netty
 import io.ktor.server.plugins.forwardedheaders.XForwardedHeaders
-import leyline.domain.PlayerId
-import leyline.domain.service.CollectionService
-import leyline.game.data.ForgeCardRepository
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 
 fun main(args: Array<String>) {
     require(args.isEmpty()) { "Usage: server" }
-    val leylineRoot = pinnedLeylineRoot()
-    System.setProperty("leyline.res.dir", File(leylineRoot, "forge/forge-gui/res").absolutePath)
-    val config = resolveServerConfig(leylineRoot).also(ServerConfig::ensureDirectories)
+    val config = resolveServerConfig().also(ServerConfig::ensureDirectories)
     val logDirectory =
         System.getProperty("LEYLINE_LOG_DIR")?.trim()?.takeIf(String::isNotEmpty)
             ?: System.getenv("LEYLINE_LOG_DIR")?.trim()?.takeIf(String::isNotEmpty)
@@ -76,17 +69,8 @@ internal fun serverServices(
 ): WebServices {
     val paths = config.paths
     val web = config.web
-    val cardRepo = ForgeCardRepository.open()
-    val cardImages = CardImageIndex.load()
-    val playerStore = database.playerStore
-    playerStore.bindCardCatalog(cardRepo)
-    val authStore = database.authStore
-    val starterDecks =
-        StarterDecks.load { name, set ->
-            cardRepo.findGrpIdByNameAndSet(name, set.orEmpty()) ?: cardRepo.findGrpIdByName(name)
-        }
-    val defaultPlayerId = PlayerId(web.playerId)
-    playerStore.ensurePlayer(defaultPlayerId, "Web Player")
+    val decks = database.decks
+    val starterDecks = StarterDecks.load()
 
     val serverRelease = serverBackendRelease(System.getenv())
     val replayStore =
@@ -101,7 +85,6 @@ internal fun serverServices(
             ),
         )
 
-    val challengeCatalog = if (web.devTools) developmentChallenges(paths.puzzlesDir) else emptyChallenges()
     val emailSender =
         if (web.resendApiKey.isNotBlank()) {
             ResendEmailSender(web.resendApiKey, web.resendFrom)
@@ -110,16 +93,14 @@ internal fun serverServices(
         }
 
     return WebServices(
-        decks = playerStore,
-        collectionService = CollectionService { cardRepo.findAllGrpIds() },
-        cardRepository = cardRepo,
-        cardImages = cardImages,
+        decks = decks,
+        cardImages = CardImageIndex.load(),
         roadmap = database.roadmap,
         courseRecords = database.courseRecords,
         replayStore = replayStore,
         authService =
             WebAuthService(
-                authStore,
+                database.authStore,
                 emailSender,
                 secret = web.authSecret,
                 rateLimitConfig =
@@ -129,19 +110,15 @@ internal fun serverServices(
                         loginWindowMs = web.rateLimitWindowMs,
                     ),
                 fixedLoginCode = web.loginCode.takeIf { it.isNotBlank() },
-                onPlayerCreated = { starterDecks.seed(PlayerId(it.playerId), playerStore) },
+                onPlayerCreated = { starterDecks.seed(it.playerId, decks) },
             ),
-        challengeCatalog = challengeCatalog,
-        devToolsEnabled = web.devTools,
         puzzleStore = database.puzzles,
     )
 }
 
-private fun pinnedLeylineRoot(): File = File(System.getProperty("user.dir"), "leyline")
-
-private fun resolveServerConfig(leylineRoot: File): ServerConfig {
+private fun resolveServerConfig(): ServerConfig {
     return try {
-        ServerConfigResolver(baseDir = leylineRoot, env = System.getenv()).resolve()
+        ServerConfigResolver(env = System.getenv()).resolve()
     } catch (e: ServerConfigException) {
         error("Configuration error: ${e.message}")
     }

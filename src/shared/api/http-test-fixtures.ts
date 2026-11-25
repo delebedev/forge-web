@@ -1,6 +1,6 @@
-import type { components } from './types'
+import type { GreCardMetaDto } from './schemas'
 
-type Card = components['schemas']['GreCardMetaDto']
+type Card = GreCardMetaDto
 
 /** Synthetic HTTP output with the production codec's emitted defaults. */
 export function httpCardMeta(grpId: number, fields: Partial<Card> = {}): Card {

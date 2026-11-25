@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test'
-import { AuthViewSchema, DraftCardDtoSchema, CreateDeckRequestInputSchema } from './wire-schemas'
+import { DraftCardSchema } from './schemas'
+import { AuthViewSchema, CreateDeckRequestInputSchema } from './wire-schemas'
 
 test('request defaults differ from required response fields and explicit nullability', () => {
   expect(
@@ -22,7 +23,7 @@ test('numeric contract values remain numbers and reject out-of-range card identi
     collectorNumber: null,
     score: 1.25,
   }
-  expect(DraftCardDtoSchema.parse(card).score).toBe(1.25)
-  expect(DraftCardDtoSchema.safeParse({ ...card, score: '1.25' }).success).toBe(false)
-  expect(DraftCardDtoSchema.safeParse({ ...card, grpId: 2 ** 31 }).success).toBe(false)
+  expect(DraftCardSchema.parse(card).score).toBe(1.25)
+  expect(DraftCardSchema.safeParse({ ...card, score: '1.25' }).success).toBe(false)
+  expect(DraftCardSchema.safeParse({ ...card, grpId: 2 ** 31 }).success).toBe(false)
 })

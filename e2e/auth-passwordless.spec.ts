@@ -59,10 +59,7 @@ test('public landing spectator does not require auth', async ({ page }) => {
   await expect(page.getByText('Sign in to watch the live GRE spectator.')).toHaveCount(0)
 })
 
-test('guest can sign in from the roadmap', async ({ page }, testInfo) => {
-  const guest = await page.request.post('/api/auth/guest')
-  expect(guest.ok()).toBe(true)
-
+test('a visitor can sign in from the roadmap', async ({ page }, testInfo) => {
   await page.goto('/roadmap')
   await expect(page.getByRole('link', { name: 'Share feedback' })).toHaveAttribute(
     'href',

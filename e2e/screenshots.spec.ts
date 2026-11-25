@@ -46,33 +46,27 @@ async function seedDeck(page: Page, name: string): Promise<string> {
   const playerId = ((await me.json()) as { playerId?: string }).playerId
   expect(playerId).toBeTruthy()
 
-  const parsed = await page.request.post('/api/cards/parse-decklist', {
-    data: {
-      text: [
-        '4 Savannah Lions',
-        '4 Vampire Nighthawk',
-        '4 Llanowar Elves',
-        '4 Path to Exile',
-        '4 Doom Blade',
-        '4 Giant Growth',
-        '8 Plains',
-        '4 Swamp',
-        '4 Forest',
-      ].join('\n'),
-    },
+  const mainboard = [
+    '4 Savannah Lions',
+    '4 Vampire Nighthawk',
+    '4 Llanowar Elves',
+    '4 Path to Exile',
+    '4 Doom Blade',
+    '4 Giant Growth',
+    '8 Plains',
+    '4 Swamp',
+    '4 Forest',
+  ].map((row) => {
+    const [, quantity, cardName] = row.match(/^(\d+) (.+)$/)!
+    return { cardName: cardName!, quantity: Number(quantity) }
   })
-  expect(parsed.ok()).toBe(true)
-  const { mainboard } = (await parsed.json()) as {
-    mainboard: { card: { name: string }; quantity: number }[]
-  }
-  expect(mainboard.length).toBeGreaterThan(0)
 
   const created = await page.request.post('/api/decks', {
     data: {
       playerId,
       name,
       format: 'Standard',
-      mainDeck: mainboard.map(({ card, quantity }) => ({ cardName: card.name, quantity })),
+      mainDeck: mainboard,
       sideboard: [],
     },
   })
