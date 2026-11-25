@@ -1,4 +1,5 @@
 import { startHttpServer } from './app.ts'
+import { CourseRecordStore } from './course-records.ts'
 import { WebAuth, devEmailSender, resendEmailSender } from './auth.ts'
 import { CardImageIndex } from './card-images.ts'
 import {
@@ -8,10 +9,11 @@ import {
   resolveServerConfig,
 } from './config.ts'
 import { openPlayerDatabase } from './db.ts'
+import { DeckStore, loadStarterDecks, starterDeckSeeder } from './decks.ts'
 import { backendRelease } from './http.ts'
 import { Logger, configureLogging } from './log.ts'
 import { installErrorReporting } from './reporting.ts'
-import { cardImagesFile } from './resources.ts'
+import { cardImagesFile, starterDeckFiles } from './resources.ts'
 
 const env = process.env
 
@@ -35,6 +37,7 @@ console.log(config.report())
 
 const db = openPlayerDatabase(playerDatabaseFile(config.stateDir))
 const { web } = config
+const decks = new DeckStore(db)
 const auth = new WebAuth({
   db,
   secret: web.authSecret,
@@ -47,12 +50,15 @@ const auth = new WebAuth({
     loginWindowMs: web.rateLimitWindowMs,
   },
   fixedLoginCode: web.loginCode.trim() || null,
+  onPlayerCreated: starterDeckSeeder(decks, loadStarterDecks(starterDeckFiles)),
 })
 const server = startHttpServer(
   {
     db,
     auth,
     cardImages: await CardImageIndex.load(cardImagesFile),
+    decks,
+    courseRecords: new CourseRecordStore(db),
     operatorToken: web.replayOperatorToken,
   },
   {

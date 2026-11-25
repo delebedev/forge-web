@@ -4,7 +4,9 @@ import { join } from 'node:path'
 import { startHttpServer, type WebServices } from './app.ts'
 import { WebAuth, type WebAuthOptions } from './auth.ts'
 import { CardImageIndex } from './card-images.ts'
+import { CourseRecordStore } from './course-records.ts'
 import { openPlayerDatabase } from './db.ts'
+import { DeckStore } from './decks.ts'
 
 export const TEST_SECRET = 'a-32-char-secret-for-tests-0123456789'
 export const TEST_LOGIN_CODE = '123456'
@@ -31,6 +33,8 @@ export function testServer(overrides: Partial<WebServices> = {}) {
     db,
     auth: overrides.auth ?? testAuth({ db }),
     cardImages: overrides.cardImages ?? CardImageIndex.empty(),
+    decks: new DeckStore(db),
+    courseRecords: new CourseRecordStore(db),
     operatorToken: OPERATOR_TOKEN,
     ...overrides,
   }
