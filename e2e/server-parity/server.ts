@@ -118,9 +118,14 @@ export async function startServer({
     child = null
     // The shell can exit before the server it started, so wait for the whole group to release the port.
     signalGroup(proc.pid, 'SIGTERM')
-    const deadline = Date.now() + 15_000
+    const killAt = Date.now() + 15_000
+    const giveUpAt = killAt + 5_000
     while (signalGroup(proc.pid, 0)) {
-      if (Date.now() > deadline) {
+      if (Date.now() > giveUpAt) {
+        console.warn(`Server process group ${proc.pid} survived SIGKILL; cleanup is incomplete`)
+        return
+      }
+      if (Date.now() > killAt) {
         signalGroup(proc.pid, 'SIGKILL')
       }
       await Bun.sleep(50)

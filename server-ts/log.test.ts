@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import {
+  chmodSync,
   existsSync,
   mkdtempSync,
   readFileSync,
@@ -116,5 +117,26 @@ describe('RollingLogFile', () => {
       `forge-web.${day(1)}.0.log.gz`,
       'forge-web.log',
     ])
+  })
+})
+
+describe('configureLogging', () => {
+  test('a log directory that cannot be created leaves stdout logging running', () => {
+    const parent = mkdtempSync(join(tmpdir(), 'forge-web-log-'))
+    chmodSync(parent, 0o500)
+    const directory = join(parent, 'logs')
+    const script = `
+      import { Logger, configureLogging } from ${JSON.stringify(join(import.meta.dir, 'log.ts'))}
+      configureLogging({ directory: ${JSON.stringify(directory)} })
+      new Logger('probe').info('still logging')
+    `
+    const run = Bun.spawnSync(['bun', '-e', script])
+    chmodSync(parent, 0o700)
+    const stdout = run.stdout.toString()
+    expect(run.exitCode).toBe(0)
+    expect(stdout).toContain('WARN  forge.web.server.Logging')
+    expect(stdout).toContain('File logging disabled')
+    expect(stdout).toContain('INFO  probe')
+    expect(existsSync(directory)).toBe(false)
   })
 })
