@@ -39,7 +39,7 @@ test('only bounded build cleanup remains cancellation resistant', () => {
     .filter((step) => /always\(/.test(step.if ?? ''))
   assert.deepEqual(
     resistant.map((step) => step.name),
-    ['Stop build JVMs', 'Stop build JVMs'],
+    ['Stop build JVMs'],
   )
   for (const step of resistant) {
     assert.equal(step['timeout-minutes'], 1)

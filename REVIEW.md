@@ -5,7 +5,7 @@ to every reviewer, human or tool. [AGENTS.md](AGENTS.md) routes each owner to
 its rules and owns the completion and PR-evidence policy; this file says how to
 judge a change against them.
 
-Forge Web is the React browser client and Kotlin product server in front of the
+Forge Web is the React browser client and Bun product server in front of the
 pinned Leyline runtime. The engine owns game rules and legal actions; the
 browser presents them.
 

@@ -248,9 +248,7 @@ const repo = resolve(import.meta.dir, '..')
 
 async function main(): Promise<void> {
   const options = parseOptions(process.argv.slice(2))
-  const output = resolve(
-    options.output ?? resolve(repo, 'server/src/main/resources/card-images.sqlite'),
-  )
+  const output = resolve(options.output ?? resolve(repo, 'server/card-images.sqlite'))
   const input = options.input
 
   let cards: Iterable<unknown> | AsyncIterable<unknown>

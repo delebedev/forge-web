@@ -160,7 +160,7 @@ def main() -> None:
     write_atomic(args.output / "catalog.zip", archive)
     write_atomic(args.output / "manifest.json", (json.dumps(manifest, indent=2) + "\n").encode())
     write_image_index(
-        repo / "server/src/main/resources/card-images.sqlite",
+        repo / "server/card-images.sqlite",
         args.output / "card-images.json.gz",
         rebalanced,
     )

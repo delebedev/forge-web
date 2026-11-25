@@ -15,7 +15,7 @@ RELATIVE_IMPORT = re.compile(r'''(?:\bfrom\s*|\bimport\s*\(?\s*)(['"])(\.{1,2}/.
 
 def server_inputs():
     """Repository files reachable from the product server entry point through relative imports."""
-    found, pending = set(), [ROOT / 'server-ts/main.ts']
+    found, pending = set(), [ROOT / 'server/main.ts']
     while pending:
         path = pending.pop()
         if path in found:
@@ -106,7 +106,7 @@ class FrontendScopeTest(unittest.TestCase):
 
     def test_server_frontend_inputs_match_server_imports(self):
         inputs = server_inputs()
-        self.assertIn('server-ts/resources.ts', inputs)
+        self.assertIn('server/resources.ts', inputs)
         self.assertEqual(scope.SERVER_FRONTEND_INPUTS, {path for path in inputs if scope.frontend_only(path)})
 
     def test_a_frontend_file_the_server_bundles_requires_a_full_release(self):

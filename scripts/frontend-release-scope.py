@@ -6,7 +6,7 @@ import sys
 
 
 # The compiled product server bundles these otherwise frontend-only files, so changing one
-# changes the backend. test_frontend_release_scope.py keeps this equal to server-ts's imports.
+# changes the backend. test_frontend_release_scope.py keeps this equal to the server's imports.
 SERVER_FRONTEND_INPUTS = frozenset()
 
 ALLOWED_FILES = {'index.html', 'package.json', 'bun.lock', 'vite.config.ts',

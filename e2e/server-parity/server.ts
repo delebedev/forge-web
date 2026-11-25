@@ -17,7 +17,7 @@ export function defaultServerCommand(): string {
   if (process.env['FORGE_WEB_SERVER_DIST']) {
     return 'bash scripts/run-ci-server.sh'
   }
-  return 'bun server-ts/main.ts'
+  return 'bun server/main.ts'
 }
 
 export function tempStateDir(): string {
@@ -41,7 +41,7 @@ export interface ParityServer {
 
 /**
  * Starts a product server by shell command and waits for `/api/health`.
- * The command runs in its own process group so wrappers such as Gradle stop with it.
+ * The command runs in its own process group so wrappers such as `docker run` stop with it.
  */
 export async function startServer({
   cmd = defaultServerCommand(),

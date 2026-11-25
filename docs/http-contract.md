@@ -30,7 +30,7 @@ live route over HTTP only: status codes, headers, the session cookie, text and
 JSON error bodies, and JSON bodies decoded through `responseSchemas`. Each test
 file starts its own server on a fresh temporary state directory.
 
-The default target is the server source, `bun server-ts/main.ts`.
+The default target is the server source, `bun server/main.ts`.
 `FORGE_WEB_SERVER_DIST` runs a tested distribution through
 `scripts/run-ci-server.sh`, as the CI server job does.
 `FORGE_WEB_PARITY_SERVER_CMD` selects any other command. `startServer` in

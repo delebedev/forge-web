@@ -22,10 +22,10 @@ as shown below. Do not use these fixed-login settings on a reachable deployment.
 
 Browser execution is the only gameplay host. Unsupported browsers show an error and retry. Run `bun run browser:assets`
 once per worktree, and again after changing the engine or catalog, to serve the
-browser release from Vite. The build requires Java 17 alongside Java 21.
+browser release from Vite. The build requires Java 17 alongside Java 21, which compiles Leyline's build scripts.
 
 The backend serves product APIs and catalog data. It does not run games. `bun run server` runs
-`server-ts/main.ts` from source; `bun run server:build` compiles the binary that releases ship.
+`server/main.ts` from source; `bun run server:build` compiles the binary that releases ship.
 Start these in durable terminals or a process supervisor:
 
 ```bash
