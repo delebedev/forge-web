@@ -113,16 +113,19 @@ internal fun readAppendedJournal(
     val responses = mutableListOf<JsonElement>()
     val events = mutableListOf<ReplayEvent>()
     var decoded = 0L
-    // GZIPInputStream reads concatenated members; a byte array keeps its member detection exact.
-    GZIPInputStream(ByteArrayInputStream(compressed)).bufferedReader(StandardCharsets.UTF_8).useLines { lines ->
-        for (line in lines) {
-            decoded += line.length + 1
-            require(decoded <= maxDecodedBytes) { "Replay match quota exceeded" }
-            val delta = journalJson.decodeFromString(ReplayDelta.serializer(), line)
-            batches += delta.batches
-            cards.putAll(delta.cards)
-            responses += delta.responses
-            events += delta.events
+    // GZIPInputStream reads concatenated members; a byte array keeps its member detection exact. A journal whose
+    // chunks carried only status commits no member, and GZIPInputStream rejects an empty stream.
+    if (compressed.isNotEmpty()) {
+        GZIPInputStream(ByteArrayInputStream(compressed)).bufferedReader(StandardCharsets.UTF_8).useLines { lines ->
+            for (line in lines) {
+                decoded += line.length + 1
+                require(decoded <= maxDecodedBytes) { "Replay match quota exceeded" }
+                val delta = journalJson.decodeFromString(ReplayDelta.serializer(), line)
+                batches += delta.batches
+                cards.putAll(delta.cards)
+                responses += delta.responses
+                events += delta.events
+            }
         }
     }
     check(events.isEmpty() || events.last().seq == journal.seq) { "Replay journal does not match its commit record" }

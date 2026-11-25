@@ -284,8 +284,10 @@ internal class MatchReplayStore(
     /**
      * Stores [replay] as a new journal generation, then removes the previous generation and any snapshot copy.
      * [modifiedAtMs] keeps a migrated journal's age so migration does not make it look recently active. An
-     * [admitted] write reserves quota first; maintenance migration replaces a copy of about the same size and
-     * does not.
+     * [admitted] write reserves quota first. Maintenance migration writes one gzip member of the same content,
+     * which is usually slightly smaller than the snapshot copy but can be larger. It evicts nothing, so it skips
+     * a conversion that would grow usage past the eviction target and returns null; the snapshot copy stays
+     * readable.
      */
     private fun replaceBrowserJournal(
         matchId: String,
@@ -294,7 +296,7 @@ internal class MatchReplayStore(
         reportId: String?,
         modifiedAtMs: Long?,
         admitted: Boolean,
-    ): BrowserJournalMetadata {
+    ): BrowserJournalMetadata? {
         check(storageReady) { "Replay storage usage is unavailable" }
         val line = encodeDelta(replay.delta())
         require(line.size <= config.maxMatchBytes) { "Replay match quota exceeded" }
@@ -323,6 +325,13 @@ internal class MatchReplayStore(
                     (metadataBytes.size - browserMetadataFile(matchId).length()) +
                     (pin?.let { it.size - pinFile(matchId).length() } ?: 0)
             if (!reserve(delta, matchId)) throw ReplayStorageCapacityExceeded()
+        } else {
+            val replacedBytes =
+                (listOfNotNull(previous) + plainBrowserReplayFile(matchId) + compressedBrowserReplayFile(matchId)).sumOf(
+                    File::length,
+                )
+            val growth = member.size + metadataBytes.size - browserMetadataFile(matchId).length() - replacedBytes
+            if (growth > 0 && lastMeasuredBytesUsed + growth > config.maxBytes - config.evictionHeadroomBytes) return null
         }
         writeAccounted(segment, member, modifiedAtMs)
         writeAccounted(browserMetadataFile(matchId), metadataBytes, modifiedAtMs)

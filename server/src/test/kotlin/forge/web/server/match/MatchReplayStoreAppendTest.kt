@@ -68,6 +68,28 @@ class MatchReplayStoreAppendTest {
         }
 
     @Test
+    fun `a journal whose only chunk carries status exports that status`() =
+        runBlocking<Unit> {
+            val root = directory()
+            MatchReplayStore(MatchReplayConfig(root, "token")).use { store ->
+                assertEquals(
+                    0L,
+                    store.ingestBrowserChunk(
+                        owner("account"),
+                        MATCH_ID,
+                        0,
+                        chunk(1, cards = 0, complete = true, reportId = "report", empty = true),
+                    ),
+                )
+                assertEquals(0L, appendedJournalFile(root, MATCH_ID, 0).length())
+                val exported = assertNotNull(store.export(MATCH_ID))
+                assertTrue(exported.events.isEmpty())
+                assertTrue(exported.status.complete)
+                assertEquals("report", exported.status.reportId)
+            }
+        }
+
+    @Test
     fun `a full artifact replaces the appended journal with a new generation`() =
         runBlocking<Unit> {
             val root = directory()
@@ -111,6 +133,8 @@ class MatchReplayStoreAppendTest {
         seq: Long,
         cards: Int = 1,
         complete: Boolean = false,
+        reportId: String? = null,
+        empty: Boolean = false,
     ): ByteArray {
         val bundle =
             ReplayBundle(
@@ -120,11 +144,11 @@ class MatchReplayStoreAppendTest {
                 viewerSeatId = 1,
                 matchId = MATCH_ID,
                 release = "test",
-                batches = listOf(ReplayBatch(listOf(JsonObject(mapOf("seq" to JsonPrimitive(seq)))))),
+                batches = if (empty) emptyList() else listOf(ReplayBatch(listOf(JsonObject(mapOf("seq" to JsonPrimitive(seq)))))),
                 cards = (1..cards).associate { "card-${seq + it - 1}" to JsonPrimitive("Card $seq") },
                 responses = emptyList(),
-                events = listOf(ReplayEvent(seq, seq * 1_000, "outbound", 1, (seq - 1).toInt())),
-                status = ReplayStatus(complete, if (complete) "completed" else "streaming", false),
+                events = if (empty) emptyList() else listOf(ReplayEvent(seq, seq * 1_000, "outbound", 1, (seq - 1).toInt())),
+                status = ReplayStatus(complete, if (complete) "completed" else "streaming", false, reportId),
                 context = BrowserReplayContext("browser", ATTEMPT_ID, MATCH_ID, "constructed"),
             )
         return Json.encodeToString(ReplayBundle.serializer(), bundle).toByteArray()

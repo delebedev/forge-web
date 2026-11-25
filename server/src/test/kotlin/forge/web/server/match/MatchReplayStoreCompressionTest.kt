@@ -173,7 +173,7 @@ class MatchReplayStoreCompressionTest {
         runBlocking<Unit> {
             val root = directory()
             val clock = ReplayClock()
-            val created = clock.millis() - 86_400_000
+            val created = clock.millis() - 2 * 86_400_000
             val original = bundle(1).let { it.copy(context = it.context?.copy(deviceId = "device-account", accountId = "account")) }
             // The whole-snapshot layout: gzip of the merged bundle, owner metadata and a report pin.
             root.resolve("${original.matchId}.browser.json.gz").apply {
@@ -200,10 +200,43 @@ class MatchReplayStoreCompressionTest {
                 assertEquals(root.listFiles()!!.sumOf(File::length), store.health().bytesUsed)
             }
             clock.advanceDays(2)
-            MatchReplayStore(MatchReplayConfig(root, "token", retentionDays = 1), clock).use { store ->
+            MatchReplayStore(MatchReplayConfig(root, "token", retentionDays = 3), clock).use { store ->
                 store.cleanup()
-                // Retention still counts from the original creation time.
+                // Four days from the original creation time expire it; a creation time reset by migration would not.
                 assertTrue(root.listFiles()!!.isEmpty())
+            }
+        }
+
+    @Test
+    fun `maintenance skips a conversion that would grow usage past the eviction target`() =
+        runBlocking<Unit> {
+            val root = directory()
+            val random = java.util.Random(7)
+            val words = listOf("battlefield", "graveyard", "instance", "annotation", "priority", "zone")
+            val original = bundle(1, payload = (1..20_000).joinToString(" ") { words[random.nextInt(words.size)] })
+            // A snapshot compressed harder than the journal's fast gzip grows on conversion.
+            val snapshot =
+                root.resolve("${original.matchId}.browser.json.gz").apply {
+                    outputStream().use { out ->
+                        object : java.util.zip.GZIPOutputStream(out) {
+                            init {
+                                def.setLevel(java.util.zip.Deflater.BEST_COMPRESSION)
+                            }
+                        }.use { it.write(bytes(original)) }
+                    }
+                }
+            assertTrue(gzipReplay(bytes(original)).size > snapshot.length())
+            val full = MatchReplayConfig(root, "token", maxBytes = 1L shl 20, maxMatchBytes = 1L shl 20, evictionHeadroomBytes = 1L shl 20)
+            MatchReplayStore(full).use { store ->
+                store.cleanup()
+                assertTrue(snapshot.isFile)
+                assertFalse(appended(root, original.matchId).exists())
+                assertNotNull(store.export(original.matchId))
+            }
+            MatchReplayStore(full.copy(evictionHeadroomBytes = 0)).use { store ->
+                store.cleanup()
+                assertFalse(snapshot.exists())
+                assertTrue(appended(root, original.matchId).isFile)
             }
         }
 
