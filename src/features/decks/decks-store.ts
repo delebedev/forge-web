@@ -273,6 +273,9 @@ export class DecksStore {
     this.commit({ mutating: true, error: null })
     try {
       const checked = await this.check(draft)
+      if (!current()) {
+        return null
+      }
       if (!checked.ok) {
         throw new Error(checked.errors.join(' '))
       }

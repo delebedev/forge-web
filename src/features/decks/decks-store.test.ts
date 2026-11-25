@@ -308,6 +308,18 @@ test('a legality check in flight cannot let its save replace a newer selection',
   expect(store.snapshot().selectedDeck?.id).toBe('B')
 })
 
+test('a save invalidated during its legality check sends no request', async () => {
+  const check = deferred<DecklistValidationResult>()
+  const { store, requests } = harness(undefined, undefined, () => check.promise)
+  await store.fetchDecks()
+  const original = (await store.fetchDeckDetail('A'))!
+  const saving = store.saveDeck({ ...store.draft(original), name: 'Saved' })
+  store.reset()
+  check.resolve({ ok: true })
+  expect(await saving).toBeNull()
+  expect(requests.some(({ init }) => init?.method === 'PUT')).toBe(false)
+})
+
 test('an illegal deck is rejected before any save request', async () => {
   const { store, requests } = harness(undefined, undefined, async () => ({
     ok: false,
