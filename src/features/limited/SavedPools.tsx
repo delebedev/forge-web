@@ -4,8 +4,35 @@
  */
 
 import { useEffect, useState } from 'react'
-import { deleteCourse, listCourses, type Course } from '@shared/api/course-records'
+import { CourseConflict, deleteCourse, listCourses, type Course } from '@shared/api/course-records'
 import styles from './SavedPools.module.css'
+
+/** Saved courses the list shows: those with a deck. */
+async function savedCourses(): Promise<Course[]> {
+  return (await listCourses()).filter((course) => course.document.deck != null)
+}
+
+/**
+ * Deletes the course as listed. A course another window changed since stays;
+ * the returned list replaces the shown one so a retry deletes the current revision.
+ */
+export async function deleteSavedCourse(
+  course: Course,
+): Promise<{ courses: Course[] | null; error: string | null }> {
+  try {
+    await deleteCourse(course)
+    return { courses: null, error: null }
+  } catch (err) {
+    if (!(err instanceof CourseConflict)) {
+      throw err
+    }
+    return {
+      courses: await savedCourses(),
+      error:
+        'This course changed in another window. The list has been refreshed; delete again to remove it.',
+    }
+  }
+}
 
 export function SavedPools({
   formats,
@@ -36,7 +63,7 @@ export function SavedPools({
       // `formats` follows the draft/sealed tab, which switches without
       // remounting this component, so filtering here would freeze the list
       // to whichever tab happened to be open when the fetch ran.
-      setCourses((await listCourses()).filter((course) => course.document.deck != null))
+      setCourses(await savedCourses())
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Network error')
     } finally {
@@ -66,8 +93,9 @@ export function SavedPools({
     setBusyEvent(course.eventName)
     setActionError(null)
     try {
-      await deleteCourse(course)
-      setCourses((prev) => prev.filter((c) => c.eventName !== course.eventName))
+      const result = await deleteSavedCourse(course)
+      setCourses(result.courses ?? ((prev) => prev.filter((c) => c.eventName !== course.eventName)))
+      setActionError(result.error)
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'Network error')
     } finally {

@@ -221,7 +221,8 @@ export class SealedStore {
     this.eventName = course.eventName
     this.pool = pool
     this.submitting = false
-    this.phase = 'deck_build'
+    // A course another window finished takes no more decks.
+    this.phase = course.document.phase === 'finished' ? 'finished' : 'deck_build'
   }
 
   /**

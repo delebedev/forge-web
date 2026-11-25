@@ -75,6 +75,15 @@ it('a second submit while the deck saves is ignored', async () => {
   expect(store.snapshot()).toMatchObject({ phase: 'playing', submitting: false, error: null })
 })
 
+it('a stale deck against a course another window finished shows it finished', async () => {
+  const store = new SealedStore(engine)
+  expect(await store.startSealed('FDN')).toBe(true)
+  server.put(EVENT, { ...server.document(EVENT), losses: 3, phase: 'finished' }, 2)
+  await store.submitDeck(['Bear'], [])
+  expect(store.snapshot()).toMatchObject({ phase: 'finished', matchLaunch: null })
+  expect(server.document(EVENT)).toMatchObject({ phase: 'finished', deck: null })
+})
+
 it('a stale deck reloads the course another window saved', async () => {
   const store = new SealedStore(engine)
   expect(await store.startSealed('FDN')).toBe(true)
