@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { CardView, SelectionPromptView } from '@engine/state/gre-state'
 import type { SelectionControls } from '@engine/runtime/prompts/family'
 import { TextField } from '@shared/ui/Field'
+import { matchesCardName } from '@shared/cards/card-search'
 import { ChoiceLabel } from './ChoiceLabel'
 import { cx } from '@shared/react/cx'
 import styles from './PromptDock.module.css'
@@ -26,9 +27,8 @@ export function SelectionPrompt(props: SelectionPromptProps) {
 
 function StaticSelectionPrompt(props: SelectionPromptProps) {
   const [query, setQuery] = useState('')
-  const match = query.trim().toLowerCase()
   const candidates = props.view.selectNCandidates.filter((candidate) =>
-    candidate.name.toLowerCase().includes(match),
+    matchesCardName(candidate.name, query),
   )
   return (
     <>

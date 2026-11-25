@@ -7,6 +7,7 @@
 import { z } from 'zod'
 import { releaseAssetBytes } from '@engine/runtime/browser-release'
 import { SealedSetSchema, type GreCardMetaDto, type SealedSet } from '@shared/api/contracts'
+import { cardSearchKey } from './card-search'
 
 type GreCardMeta = GreCardMetaDto
 export type IndexedCard = GreCardMeta & {
@@ -55,7 +56,7 @@ const CardSchema = z
   })
   .transform(({ searchNames, ...card }) => ({
     card: { ...card, ...gameplayDefaults } satisfies IndexedCard,
-    names: [card.name, ...searchNames].map(lookupKey),
+    names: [card.name, ...searchNames].map(cardSearchKey),
   }))
 const CardIndexSchema = z.object({
   catalogVersion: z.string(),
@@ -100,10 +101,13 @@ export class CardIndex {
     return this.byGrpId.get(grpId)
   }
 
-  /** Case-insensitive substring match over each card's catalog names, in catalog name order. */
+  /** Substring match over each card's catalog names that ignores case, punctuation and spacing, in catalog order. */
   search(query: string, limit = SEARCH_LIMIT): IndexedCard[] {
-    const needle = lookupKey(query)
+    const needle = cardSearchKey(query)
     const results: IndexedCard[] = []
+    if (needle.length === 0) {
+      return results
+    }
     for (let row = 0; row < this.cards.length && results.length < limit; row++) {
       if (this.searchNames[row]!.some((name) => name.includes(needle))) {
         results.push(this.cards[row]!)

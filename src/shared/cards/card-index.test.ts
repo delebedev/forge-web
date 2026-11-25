@@ -21,6 +21,9 @@ const index = testCardIndex(
       searchNames: ['Stomp', 'Bonecrusher Giant // Stomp'],
     },
     { grpId: 4, name: 'Isamaru, Hound of Konda', canBeCommander: true },
+    { grpId: 6, name: 'Ghalta the Immovable' },
+    { grpId: 7, name: "Wizard's Staff" },
+    { grpId: 8, name: 'Lim-Dûl the Necromancer' },
   ],
   [],
   {
@@ -37,6 +40,19 @@ test('search matches card and face names case-insensitively in catalog order', (
   expect(index.search('ic', 1).map((card) => card.name)).toEqual(['Fire // Ice'])
   expect(index.search('stomp').map((card) => card.name)).toEqual(['Bonecrusher Giant'])
   expect(index.search('giant // stomp').map((card) => card.name)).toEqual(['Bonecrusher Giant'])
+})
+
+test('search ignores punctuation, spacing and diacritics on both sides', () => {
+  expect(index.search('ghalta, the immovable').map((card) => card.name)).toEqual([
+    'Ghalta the Immovable',
+  ])
+  expect(index.search('isamaru hound').map((card) => card.name)).toEqual([
+    'Isamaru, Hound of Konda',
+  ])
+  expect(index.search('wizards staff').map((card) => card.name)).toEqual(["Wizard's Staff"])
+  expect(index.search('lim dul').map((card) => card.name)).toEqual(['Lim-Dûl the Necromancer'])
+  expect(index.search('fire ice').map((card) => card.name)).toEqual(['Fire // Ice'])
+  expect(index.search(', //')).toEqual([])
 })
 
 test('cards are identified by name and keep the DTO defaults', () => {
