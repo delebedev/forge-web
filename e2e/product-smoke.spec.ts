@@ -18,6 +18,8 @@ function localStart(page: Page) {
 }
 
 async function waitForLocalBoard(page: Page): Promise<void> {
+  // A cold worker start can take most of a minute on CI; give the wait below room to run.
+  test.setTimeout(180_000)
   await expect
     .poll(
       () =>
@@ -395,7 +397,7 @@ test('all Commander starters have playable saved deck contents', async ({ page }
     expect(commandZone, name).toHaveLength(1)
     expect(commandZone[0]!.quantity, name).toBe(1)
     for (const card of [...detail.mainDeck, ...commandZone]) {
-      expect(card.grpId, name).toBeGreaterThan(0)
+      expect(card.cardName, name).toBeTruthy()
       expect(card.quantity, name).toBeGreaterThan(0)
     }
   }

@@ -10,12 +10,13 @@ import { formatDecklist } from '@shared/cards/parse-decklist'
 import { cmcOf } from '@shared/cards/deck-builder'
 
 export type DeckView = WebComponents['schemas']['DeckView']
+type WebDeckCard = WebComponents['schemas']['WebDeckCard']
 export type CardMetadata = WebComponents['schemas']['GreCardMetaDto'] & {
   linkedFaces?: WebComponents['schemas']['GreCardMetaDto'][]
   colors?: string[]
   collectorNumber?: string | null
 }
-export type LibraryCard = DeckCard & DraftCard & { grpId: number; metadataAvailable: boolean }
+export type LibraryCard = DeckCard & DraftCard & { metadataAvailable: boolean }
 export type DeckContent = {
   name: string
   format: string
@@ -27,13 +28,9 @@ export type SavedDeck = DeckDetail & DeckContent & { metadataComplete: boolean }
 /** The draft keeps the account that authorized its edit, even across a later sign-in. */
 export type DeckDraft = DeckContent & { id: string | null; accountId: string }
 
-export function libraryCard(card: DraftCard, quantity: number, grpId = card.grpId): LibraryCard {
-  if (!grpId) {
-    throw new Error(`Cannot save ${card.name}: card identity is unavailable.`)
-  }
+export function libraryCard(card: DraftCard, quantity: number): LibraryCard {
   return {
     ...card,
-    grpId,
     quantity,
     cmc: cmcOf(card),
     power: card.power ?? null,
@@ -43,11 +40,11 @@ export function libraryCard(card: DraftCard, quantity: number, grpId = card.grpI
 }
 
 function mergeCardQuantities(cards: LibraryCard[]): LibraryCard[] {
-  const merged = new Map<number, LibraryCard>()
+  const merged = new Map<string, LibraryCard>()
   for (const card of cards) {
-    const existing = merged.get(card.grpId)
+    const existing = merged.get(card.name)
     merged.set(
-      card.grpId,
+      card.name,
       existing ? { ...existing, quantity: existing.quantity + card.quantity } : card,
     )
   }
@@ -60,9 +57,7 @@ export function importedContent(
   format: string,
 ): DeckContent {
   const rows = (entries: typeof deck.mainboard) =>
-    mergeCardQuantities(
-      entries.map(({ card, quantity, grpId }) => libraryCard(card, quantity, grpId)),
-    )
+    mergeCardQuantities(entries.map(({ card, quantity }) => libraryCard(card, quantity)))
   return {
     name,
     format,
@@ -72,13 +67,10 @@ export function importedContent(
   }
 }
 
-export function hydratedCard(
-  row: { grpId: number; quantity: number },
-  meta?: CardMetadata,
-): LibraryCard {
+export function hydratedCard(row: WebDeckCard, meta?: CardMetadata): LibraryCard {
   const card: DraftCard = {
-    grpId: row.grpId,
-    name: meta?.name ?? `Card ${row.grpId}`,
+    ...(meta?.grpId ? { grpId: meta.grpId } : {}),
+    name: row.cardName,
     manaCost: meta?.manaCost ?? null,
     typeLine: [meta?.types, meta?.subtypes].filter(Boolean).join(' — ') || null,
     colors: meta?.colors ?? [...new Set(meta?.manaCost?.match(/[WUBRG]/g) ?? [])],
@@ -99,11 +91,11 @@ export function hydratedCard(
   }
 }
 
-export function savedDeck(deck: DeckView, metadata: ReadonlyMap<number, LibraryCard>): SavedDeck {
+export function savedDeck(deck: DeckView, metadata: ReadonlyMap<string, LibraryCard>): SavedDeck {
   const hydrate = (rows: DeckView['mainDeck']) =>
     mergeCardQuantities(
       rows.map((row) => {
-        const card = metadata.get(row.grpId)
+        const card = metadata.get(row.cardName)
         return card ? { ...card, quantity: row.quantity } : hydratedCard(row)
       }),
     )
@@ -119,12 +111,7 @@ export function savedDeck(deck: DeckView, metadata: ReadonlyMap<number, LibraryC
     const bucket = String(Math.min(6, card.cmc))
     manaCurve[bucket] = (manaCurve[bucket] ?? 0) + card.quantity
   }
-  const rows = (cards: LibraryCard[]) =>
-    cards.map((card) => ({
-      card: { ...card, score: card.score ?? null },
-      grpId: card.grpId,
-      quantity: card.quantity,
-    }))
+  const rows = (cards: LibraryCard[]) => cards.map((card) => ({ card, quantity: card.quantity }))
   return {
     id: deck.id,
     name: deck.name,

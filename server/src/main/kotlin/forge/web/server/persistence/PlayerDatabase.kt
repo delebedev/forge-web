@@ -2,6 +2,7 @@ package forge.web.server.persistence
 
 import forge.web.server.auth.SqliteWebAuthStore
 import forge.web.server.config.ServerConfig
+import forge.web.server.limited.CourseRecordStore
 import forge.web.server.puzzles.PuzzleStore
 import forge.web.server.roadmap.RoadmapStore
 import org.flywaydb.core.Flyway
@@ -39,6 +40,7 @@ internal class PlayerDatabase private constructor(
     val authStore: SqliteWebAuthStore,
     val puzzles: PuzzleStore,
     val roadmap: RoadmapStore,
+    val courseRecords: CourseRecordStore,
 ) : AutoCloseable {
     override fun close() {
         TransactionManager.closeAndUnregister(database)
@@ -56,7 +58,7 @@ internal class PlayerDatabase private constructor(
                 val playerStore = SqlitePlayerStore(database)
                 val authStore = SqliteWebAuthStore(database)
                 val puzzles = PuzzleStore(database)
-                PlayerDatabase(path, database, playerStore, authStore, puzzles, RoadmapStore(database))
+                PlayerDatabase(path, database, playerStore, authStore, puzzles, RoadmapStore(database), CourseRecordStore(database))
             } catch (cause: Exception) {
                 TransactionManager.closeAndUnregister(database)
                 throw IllegalStateException("Failed to open product database at ${path.file.absolutePath}: ${cause.message}", cause)

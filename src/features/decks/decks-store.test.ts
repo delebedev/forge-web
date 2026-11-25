@@ -19,11 +19,11 @@ const fixture = (id = 'A'): DeckView => ({
   name: id,
   format: 'Commander',
   mainDeck: [
-    { grpId: 1, quantity: 2 },
-    { grpId: 2, quantity: 22 },
+    { cardName: 'Creature', quantity: 2 },
+    { cardName: 'Swamp', quantity: 22 },
   ],
-  sideboard: [{ grpId: 3, quantity: 3 }],
-  commandZone: [{ grpId: 4, quantity: 1 }],
+  sideboard: [{ cardName: 'Side spell', quantity: 3 }],
+  commandZone: [{ cardName: 'Commander', quantity: 1 }],
 })
 const cardMetadata = (card: Pick<CardMetadata, 'grpId'> & Partial<CardMetadata>): CardMetadata => ({
   name: null,
@@ -137,7 +137,7 @@ test('select edit save reopen preserves exact card identities, metadata and all 
     averageCmc: 8 / 3,
   })
   expect(selected.cards[0]).toMatchObject({
-    grpId: 1,
+    name: 'Creature',
     manaCost: '{1}{G}',
     typeLine: 'Creature — Elf',
     power: '2',
@@ -147,13 +147,13 @@ test('select edit save reopen preserves exact card identities, metadata and all 
   const saved = (await store.saveDeck({
     ...draft,
     name: 'Renamed',
-    cards: draft.cards.map((card) => (card.grpId === 1 ? { ...card, quantity: 3 } : card)),
+    cards: draft.cards.map((card) => (card.name === 'Creature' ? { ...card, quantity: 3 } : card)),
   }))!
   const request = requests.find(({ init }) => init?.method === 'PUT')!
   expect(JSON.parse(request.init!.body as string)).toMatchObject({
     mainDeck: [
-      { grpId: 1, quantity: 3 },
-      { grpId: 2, quantity: 22 },
+      { cardName: 'Creature', quantity: 3 },
+      { cardName: 'Swamp', quantity: 22 },
     ],
     sideboard: fixture().sideboard,
     commandZone: fixture().commandZone,
@@ -322,8 +322,8 @@ test('card index failure after creation still commits the saved identity and nev
     id: 'new',
     metadataComplete: false,
     cards: [
-      { grpId: 1, quantity: 2 },
-      { grpId: 2, quantity: 22 },
+      { name: 'Creature', quantity: 2 },
+      { name: 'Swamp', quantity: 22 },
     ],
   })
   expect(store.snapshot()).toMatchObject({

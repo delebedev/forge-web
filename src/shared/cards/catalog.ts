@@ -3,14 +3,10 @@ import { loadCardIndex, type CardIndex, type IndexedCard } from './card-index'
 
 type WebDeckCard = WebComponents['schemas']['WebDeckCard']
 
-/**
- * Limited endpoints return bare grpIds. Keep a placeholder when the card index
- * is unavailable.
- */
-export function webDraftCard(grpId: number): DraftCard {
+/** A card known only by name, for when the card index is unavailable. */
+export function webDraftCard(name: string): DraftCard {
   return {
-    name: `Card ${grpId}`,
-    grpId,
+    name,
     manaCost: null,
     typeLine: null,
     rarity: null,
@@ -50,58 +46,20 @@ async function optionalCardIndex(): Promise<CardIndex | null> {
 }
 
 /** Hydrates limited cards from the card index, preserving pack order. */
-export async function webDraftCards(grpIds: number[]): Promise<DraftCard[]> {
+export async function webDraftCards(names: string[]): Promise<DraftCard[]> {
   // The draft remains playable with placeholders when the card index is unavailable.
   const index = await optionalCardIndex()
-  return grpIds.map((grpId) => {
-    const card = index?.cardById(grpId)
-    return card ? indexDraftCard(card) : webDraftCard(grpId)
+  return names.map((name) => {
+    const card = index?.card(name)
+    return card ? indexDraftCard(card) : webDraftCard(name)
   })
 }
 
-const BASIC_LAND_NAMES = new Set(['Plains', 'Island', 'Swamp', 'Mountain', 'Forest'])
-
-/**
- * Resolve grpId -> card name for a set of grpIds, e.g. to render a persisted
- * deck's {grpId,quantity} rows (mainDeck/sideboard) as readable text. Identities
- * missing from the card index are simply absent from the result.
- */
-export async function grpIdsToNames(grpIds: number[]): Promise<Map<number, string>> {
-  const index = await optionalCardIndex()
-  const result = new Map<number, string>()
-  for (const grpId of grpIds) {
-    const card = index?.cardById(grpId)
-    if (card) {
-      result.set(grpId, card.name)
-    }
-  }
-  return result
-}
-
-/** Count card names against a pool (by name) into grpId+quantity pairs for SubmitDeckRequest. */
-export async function toWebDeckCards(names: string[], pool: DraftCard[]): Promise<WebDeckCard[]> {
-  const counts = new Map<number, number>()
-  const unresolvedLands: string[] = []
+/** Counts card names into the name and quantity rows that deck and course requests carry. */
+export function toWebDeckCards(names: string[]): WebDeckCard[] {
+  const counts = new Map<string, number>()
   for (const name of names) {
-    const card = pool.find((candidate) => candidate.name === name)
-    if (card?.grpId) {
-      counts.set(card.grpId, (counts.get(card.grpId) ?? 0) + 1)
-      continue
-    }
-    if (BASIC_LAND_NAMES.has(name)) {
-      unresolvedLands.push(name)
-    }
+    counts.set(name, (counts.get(name) ?? 0) + 1)
   }
-  // Auto-filled basic lands are not part of the limited pool; any identity for the
-  // name works because the engine only needs the name once the deck becomes Forge text.
-  if (unresolvedLands.length > 0) {
-    const index = await optionalCardIndex()
-    for (const name of unresolvedLands) {
-      const grpId = index?.card(name)?.grpId
-      if (grpId) {
-        counts.set(grpId, (counts.get(grpId) ?? 0) + 1)
-      }
-    }
-  }
-  return Array.from(counts.entries()).map(([grpId, quantity]) => ({ grpId, quantity }))
+  return Array.from(counts, ([cardName, quantity]) => ({ cardName, quantity }))
 }

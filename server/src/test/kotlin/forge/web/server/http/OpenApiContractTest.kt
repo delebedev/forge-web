@@ -57,7 +57,8 @@ class OpenApiContractTest {
             val deck =
                 postJson(
                     "/api/decks",
-                    """{"playerId":"$playerId","name":"Contract deck","format":"Standard","mainDeck":[{"grpId":1,"quantity":60}]}""",
+                    """{"playerId":"$playerId","name":"Contract deck","format":"Standard",""" +
+                        """"mainDeck":[{"cardName":"Mountain","quantity":60}]}""",
                 )
             assertEquals(200, deck.status.value)
             contractSample("deck-created", "POST /api/decks", deck)

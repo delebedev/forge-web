@@ -42,7 +42,7 @@ for (const file of (await readdir(directory, { recursive: true }))
   }
   const text = await readFile(new URL(file, directory), 'utf8')
   const parsed = await api('/api/cards/parse-decklist', { text })
-  const cards = (rows) => rows.map(({ grpId, quantity }) => ({ grpId, quantity }))
+  const cards = (rows) => rows.map(({ card, quantity }) => ({ cardName: card.name, quantity }))
   const commandZone = cards(parsed.commandZone ?? [])
   const total =
     parsed.mainboard.reduce((total, card) => total + card.quantity, 0) +

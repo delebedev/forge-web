@@ -38,7 +38,7 @@ internal fun Route.installDeckRoutes(
     route("/decks") {
         get {
             val playerId = call.ownedPlayerId(auth, call.request.queryParameters["playerId"])
-            call.respond(savedDecks.findAll(playerId).map(::deckView))
+            call.respond(savedDecks.findAll(playerId).map { deckView(it, cards) })
         }.contract {
             query<String>("playerId")
             response<List<DeckView>>()
@@ -47,7 +47,7 @@ internal fun Route.installDeckRoutes(
         post {
             val request = call.receive<CreateDeckRequest>()
             val playerId = call.ownedPlayerId(auth, request.playerId)
-            val deck = request.toDeck(playerId)
+            val deck = request.toDeck(playerId, cards)
             validateCommanderCards(
                 cards,
                 deck.toDeckCards(),
@@ -57,7 +57,7 @@ internal fun Route.installDeckRoutes(
             )
             validateCopies(deck.toDeckCards(), deckCopyFormat(deck.format.name))
             savedDecks.save(deck)
-            call.respond(deckView(deck))
+            call.respond(deckView(deck, cards))
         }.contract {
             request<CreateDeckRequest>()
             response<DeckView>()
@@ -72,7 +72,7 @@ internal fun Route.installDeckRoutes(
                 call.respond(HttpStatusCode.NotFound)
             } else {
                 val deck =
-                    request.toDeck(playerId).copy(
+                    request.toDeck(playerId, cards).copy(
                         id = existing.id,
                         companions = existing.companions,
                         isFavorite = existing.isFavorite,
@@ -86,7 +86,7 @@ internal fun Route.installDeckRoutes(
                 )
                 validateCopies(deck.toDeckCards(), deckCopyFormat(deck.format.name))
                 savedDecks.save(deck)
-                call.respond(deckView(deck))
+                call.respond(deckView(deck, cards))
             }
         }.contract {
             request<CreateDeckRequest>()
@@ -97,7 +97,7 @@ internal fun Route.installDeckRoutes(
         get("/{deckId}") {
             val playerId = call.authenticatedPlayerId(auth)
             val deck = savedDecks.find(playerId, DeckId(call.parameters["deckId"].orEmpty()))
-            if (deck == null) call.respond(HttpStatusCode.NotFound) else call.respond(deckView(deck))
+            if (deck == null) call.respond(HttpStatusCode.NotFound) else call.respond(deckView(deck, cards))
         }.contract {
             response<DeckView>()
             empty(401, 404)
@@ -113,30 +113,45 @@ internal fun Route.installDeckRoutes(
     }
 }
 
-private fun deckView(deck: Deck) =
-    DeckView(
-        id = deck.id.value,
-        playerId = deck.playerId.value,
-        name = deck.name,
-        format = deck.format.name,
-        mainDeck = deck.mainDeck.toWebDeckCards(),
-        sideboard = deck.sideboard.toWebDeckCards(),
-        commandZone = deck.commandZone.toWebDeckCards(),
-    )
+private fun deckView(
+    deck: Deck,
+    cards: CardRepository,
+) = DeckView(
+    id = deck.id.value,
+    playerId = deck.playerId.value,
+    name = deck.name,
+    format = deck.format.name,
+    mainDeck = deck.mainDeck.toWebDeckCards(cards),
+    sideboard = deck.sideboard.toWebDeckCards(cards),
+    commandZone = deck.commandZone.toWebDeckCards(cards),
+)
 
-private fun CreateDeckRequest.toDeck(playerId: PlayerId) =
-    Deck(
+private fun CreateDeckRequest.toDeck(
+    playerId: PlayerId,
+    cards: CardRepository,
+): Deck {
+    val mainDeck = mainDeck.toDomainDeckCards(cards)
+    val commandZone = commandZone.toDomainDeckCards(cards)
+    return Deck(
         id = DeckId(UUID.randomUUID().toString()),
         playerId = playerId,
         name = name,
         format = Format.valueOf(format),
         tileId = commandZone.firstOrNull()?.grpId ?: mainDeck.firstOrNull()?.grpId ?: 0,
-        mainDeck = mainDeck.toDomainDeckCards(),
-        sideboard = sideboard.toDomainDeckCards(),
-        commandZone = commandZone.toDomainDeckCards(),
+        mainDeck = mainDeck,
+        sideboard = sideboard.toDomainDeckCards(cards),
+        commandZone = commandZone,
         companions = emptyList(),
     )
+}
 
-internal fun List<WebDeckCard>.toDomainDeckCards(): List<DeckCard> = map { DeckCard(it.grpId, it.quantity) }
+/** Card names are the HTTP identity; runtime ids exist only inside this process. */
+internal fun List<WebDeckCard>.toDomainDeckCards(cards: CardRepository): List<DeckCard> =
+    map { DeckCard(cards.requiredGrpId(it.cardName), it.quantity) }
 
-private fun List<DeckCard>.toWebDeckCards(): List<WebDeckCard> = map { WebDeckCard(it.grpId, it.quantity) }
+internal fun List<DeckCard>.toWebDeckCards(cards: CardRepository): List<WebDeckCard> =
+    map { WebDeckCard(cards.requiredName(it.grpId), it.quantity) }
+
+internal fun CardRepository.requiredGrpId(name: String): Int = requireNotNull(findGrpIdByName(name)) { "Unknown card: $name" }
+
+internal fun CardRepository.requiredName(grpId: Int): String = checkNotNull(findNameByGrpId(grpId)) { "Card $grpId has no name" }

@@ -63,7 +63,7 @@ async function seedDeck(page: Page, name: string): Promise<string> {
   })
   expect(parsed.ok()).toBe(true)
   const { mainboard } = (await parsed.json()) as {
-    mainboard: { grpId: number; quantity: number }[]
+    mainboard: { card: { name: string }; quantity: number }[]
   }
   expect(mainboard.length).toBeGreaterThan(0)
 
@@ -72,7 +72,7 @@ async function seedDeck(page: Page, name: string): Promise<string> {
       playerId,
       name,
       format: 'Standard',
-      mainDeck: mainboard.map((card) => ({ grpId: card.grpId, quantity: card.quantity })),
+      mainDeck: mainboard.map(({ card, quantity }) => ({ cardName: card.name, quantity })),
       sideboard: [],
     },
   })

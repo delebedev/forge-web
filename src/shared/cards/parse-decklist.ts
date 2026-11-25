@@ -43,8 +43,14 @@ export function commanderCandidates(
   )
 }
 
-export function formatDecklist(deck: ParseDecklistResponse): string {
-  const rows = (cards: ParseDecklistResponse['mainboard']) =>
+type DecklistRow = { card: { name: string }; quantity: number }
+
+export function formatDecklist(deck: {
+  mainboard: DecklistRow[]
+  sideboard: DecklistRow[]
+  commandZone: DecklistRow[]
+}): string {
+  const rows = (cards: DecklistRow[]) =>
     cards.map(({ card, quantity }) => `${quantity} ${card.name}`).join('\n')
   return [
     ...(deck.commandZone.length ? [`[Commander]\n${rows(deck.commandZone)}`] : []),

@@ -783,7 +783,7 @@ test('casts a spell from the graveyard through its visible action', async ({ pag
   await attachState(testInfo, 'flashback-state', state)
 })
 
-type DeckResponse = { id: string; mainDeck: Array<{ grpId: number; quantity: number }> }
+type DeckResponse = { id: string; mainDeck: Array<{ cardName: string; quantity: number }> }
 
 async function authenticate(page: Page): Promise<void> {
   const email = `forge-catalog-${Date.now()}-${Math.random().toString(16).slice(2)}@example.test`

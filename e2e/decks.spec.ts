@@ -244,8 +244,8 @@ test('opponent picker excludes incompatible decks and guards stale details in bo
     const parsed = await page.request.post('/api/cards/parse-decklist', { data: { text } })
     expect(parsed.ok()).toBe(true)
     const cards = await parsed.json()
-    const rows = (values: { grpId: number; quantity: number }[]) =>
-      values.map(({ grpId, quantity }) => ({ grpId, quantity }))
+    const rows = (values: { card: { name: string }; quantity: number }[]) =>
+      values.map(({ card, quantity }) => ({ cardName: card.name, quantity }))
     const saved = await page.request.post('/api/decks', {
       data: {
         playerId,

@@ -54,7 +54,7 @@ class PlayerDatabaseTest {
         }
 
         assertTrue(stateDir.isDirectory)
-        assertEquals(listOf("1", "2", "3", "4", "5", "6", "7", "8"), migrationVersions(path.file))
+        assertEquals(listOf("1", "2", "3", "4", "5", "6", "7", "8", "9"), migrationVersions(path.file))
         assertTrue(queryPlan(path.file, "SELECT * FROM decks WHERE player_id = 'p'").contains("USING INDEX decks_player_id"))
         PlayerDatabase.open(path).use { reopened ->
             reopened.playerStore.bindCardCatalog(testCards())

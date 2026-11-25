@@ -153,7 +153,7 @@ it('clears a pick error after a successful retry', async () => {
             packNumber: 1,
             pickNumber: 1,
             interrupted: false,
-            draftPack: [101],
+            draftPack: ['Card 101'],
             pickedCards: [],
           }),
       } as Response)
@@ -173,8 +173,8 @@ it('clears a pick error after a successful retry', async () => {
             packNumber: 1,
             pickNumber: 2,
             interrupted: false,
-            draftPack: [102],
-            pickedCards: [101],
+            draftPack: ['Card 102'],
+            pickedCards: ['Card 101'],
           }),
       } as Response)
     }
@@ -203,8 +203,8 @@ it('preserves interrupted picks until explicit discard and never submits a stale
         status: 'PickNext',
         packNumber: 2,
         pickNumber: 3,
-        draftPack: [201],
-        pickedCards: [202, 202],
+        draftPack: ['Card 201'],
+        pickedCards: ['Card 202', 'Card 202'],
         interrupted: true,
       })
     }
@@ -215,7 +215,7 @@ it('preserves interrupted picks until explicit discard and never submits a stale
   }) as typeof fetch
   expect(await draftStore.startDraft('FDN')).toBe(true)
   expect(draftStore.snapshot().phase).toBe('interrupted')
-  expect(draftStore.snapshot().pool.map((card) => card.grpId)).toEqual([202, 202])
+  expect(draftStore.snapshot().pool.map((card) => card.name)).toEqual(['Card 202', 'Card 202'])
   await draftStore.pickCard('Card 201')
   expect(requests.some((request) => request.path.endsWith('/api/draft/pick'))).toBe(false)
   expect(requests.some((request) => request.method === 'DELETE')).toBe(false)
@@ -236,8 +236,8 @@ it('turns a server-restart pick conflict into recovery without losing the saved 
         status: 'PickNext',
         packNumber: 2,
         pickNumber: 3,
-        draftPack: [301],
-        pickedCards: [302],
+        draftPack: ['Card 301'],
+        pickedCards: ['Card 302'],
         interrupted: false,
       })
     }
@@ -250,7 +250,7 @@ it('turns a server-restart pick conflict into recovery without losing the saved 
   await draftStore.startDraft('FDN')
   await draftStore.pickCard('Card 301')
   expect(draftStore.snapshot().phase).toBe('interrupted')
-  expect(draftStore.snapshot().pool.map((card) => card.grpId)).toEqual([302])
+  expect(draftStore.snapshot().pool.map((card) => card.name)).toEqual(['Card 302'])
   expect(draftStore.snapshot().error).toBeNull()
   await draftStore.pickCard('Card 301')
   expect(picks).toBe(1)

@@ -169,7 +169,7 @@ class ServerServicesTest {
                 val resumed = post("/api/draft/start", """{"playerId":"${player.value}","eventName":"$event"}""")
                 assertEquals(200, resumed.status.value, resumed.bodyAsText())
                 assertTrue(Json.decodeFromString<DraftSessionView>(resumed.bodyAsText()).interrupted)
-                val rejected = post("/api/draft/pick", """{"playerId":"${player.value}","eventName":"$event","cardId":$forest}""")
+                val rejected = post("/api/draft/pick", """{"playerId":"${player.value}","eventName":"$event","cardName":"Forest"}""")
                 assertEquals(409, rejected.status.value)
                 assertEquals(active, drafts.findById(active.id))
                 assertEquals(7, drafts.findPodResults(active.id).size)
@@ -178,7 +178,7 @@ class ServerServicesTest {
                     post(
                         "/api/draft/deck",
                         """{"playerId":"${player.value}","eventName":"$completedEvent","name":"Completed pool",
-                        "mainDeck":[{"grpId":$forest,"quantity":40}]}""",
+                        "mainDeck":[{"cardName":"Forest","quantity":40}]}""",
                     )
                 assertEquals(200, deck.status.value, deck.bodyAsText())
                 val launch = post("/api/draft/play", """{"playerId":"${player.value}","eventName":"$completedEvent"}""")
@@ -195,7 +195,10 @@ class ServerServicesTest {
                 assertFalse(fresh.interrupted)
                 assertTrue(fresh.draftPack.isNotEmpty())
                 val picked =
-                    post("/api/draft/pick", """{"playerId":"${player.value}","eventName":"$event","cardId":${fresh.draftPack.first()}}""")
+                    post(
+                        "/api/draft/pick",
+                        """{"playerId":"${player.value}","eventName":"$event","cardName":"${fresh.draftPack.first()}"}""",
+                    )
                 assertEquals(200, picked.status.value, picked.bodyAsText())
                 assertFalse(Json.decodeFromString<DraftSessionView>(picked.bodyAsText()).interrupted)
                 assertNotNull(drafts.findById(completed.id))

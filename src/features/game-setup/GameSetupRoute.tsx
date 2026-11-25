@@ -18,7 +18,6 @@ import {
 } from '@engine/runtime/gre-launch'
 import { greSession } from '@engine/runtime/gre-session'
 import { decksStore } from '@features/decks/decks-store'
-import { grpIdsToNames } from '@shared/cards/catalog'
 import type { DeckDetail } from '@shared/api/contracts'
 import { COMMANDER_DECKS } from './preconstructed'
 import { COMMANDER_VARIANTS, type GameTypeId } from './game-types'
@@ -129,12 +128,7 @@ export function GameSetupRoute() {
           .map(asRecentUserDeck)
           .filter((deck): deck is RecentUserDeck => deck != null)
           .filter(isPlayableRecentDeck)
-        const names = await grpIdsToNames(
-          decks.flatMap((deck) => deck.mainDeck.map((card) => card.grpId)),
-        )
-        const launchableDecks = decks
-          .map((deck) => recentDeckToDetail(deck, names))
-          .filter((deck): deck is DeckDetail => deck != null)
+        const launchableDecks = decks.map(recentDeckToDetail)
         // Bail after unmount too: the writes below persist to storage, so a
         // late response would outlive the route it was filling in for.
         if (launchableDecks.length === 0 || cancelled) {

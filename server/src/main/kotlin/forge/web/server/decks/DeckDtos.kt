@@ -4,7 +4,7 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class WebDeckCard(
-    val grpId: Int,
+    val cardName: String,
     val quantity: Int,
 )
 

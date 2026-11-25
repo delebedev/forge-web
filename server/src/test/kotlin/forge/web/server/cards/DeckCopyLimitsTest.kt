@@ -92,8 +92,8 @@ class DeckCopyLimitsTest {
                     player,
                     "Incomplete",
                     "Timeless",
-                    listOf(WebDeckCard(1, 2), WebDeckCard(2, 2)),
-                    sideboard = listOf(WebDeckCard(2, 2)),
+                    listOf(WebDeckCard("Mountain", 2), WebDeckCard("Lightning Bolt", 2)),
+                    sideboard = listOf(WebDeckCard("Lightning Bolt", 2)),
                 )
             val create =
                 client.post("/api/decks") {
@@ -103,7 +103,7 @@ class DeckCopyLimitsTest {
                 }
             assertEquals(200, create.status.value)
             val saved = Json.decodeFromString<DeckView>(create.bodyAsText())
-            val invalid = draft.copy(sideboard = listOf(WebDeckCard(2, 3)))
+            val invalid = draft.copy(sideboard = listOf(WebDeckCard("Lightning Bolt", 3)))
             val rejectedCreate =
                 client.post("/api/decks") {
                     header(HttpHeaders.Cookie, cookie)

@@ -37,9 +37,9 @@ export function DeckEditorColumns({
   mainCount: number
   sideCount: number
   onSectionChange: (section: EditableSection) => void
-  onMoveCard: (grpId: number) => void
+  onMoveCard: (name: string) => void
   landCounts: BasicLandCounts
-  onRemoveCard: (grpId: number) => void
+  onRemoveCard: (name: string) => void
   onIncrementLand: (land: LandName) => void
   onDecrementLand: (land: LandName) => void
   onCardHover: (card: DraftCard, y: number) => void
@@ -79,17 +79,17 @@ export function DeckEditorColumns({
             </div>
             <div className={styles.cardStack}>
               {group.cards.map((card) => {
-                const entry = mainboard.find((c) => c.grpId === card.grpId)
+                const entry = mainboard.find((c) => c.name === card.name)
                 if (!entry) {
                   return null
                 }
                 return (
-                  <div key={card.grpId} className={styles.cardRow}>
+                  <div key={card.name} className={styles.cardRow}>
                     <button
                       className={styles.cardEntry}
                       type="button"
                       aria-label={`Remove one ${entry.name}`}
-                      onClick={() => onRemoveCard(entry.grpId)}
+                      onClick={() => onRemoveCard(entry.name)}
                       onMouseEnter={(e) =>
                         onCardHover(card, e.currentTarget.getBoundingClientRect().top)
                       }
@@ -107,7 +107,7 @@ export function DeckEditorColumns({
                       size="compact"
                       variant="secondary"
                       aria-label={`Move one ${entry.name} to ${section === 'mainboard' ? 'sideboard' : 'main deck'}`}
-                      onClick={() => onMoveCard(entry.grpId)}
+                      onClick={() => onMoveCard(entry.name)}
                     >
                       → {section === 'mainboard' ? 'Sideboard' : 'Main'}
                     </Button>

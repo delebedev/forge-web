@@ -175,6 +175,7 @@ internal fun serverServices(
         cardImages = cardImages,
         roadmap = database.roadmap,
         coursePlay = coursePlay,
+        courseRecords = database.courseRecords,
         replayStore = replayStore,
         authService =
             WebAuthService(

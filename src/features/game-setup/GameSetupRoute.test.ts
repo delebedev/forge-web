@@ -4,7 +4,7 @@ import type { DeckDetail } from '@shared/api/contracts'
 import { asRecentUserDeck, recentDeckToDetail, shouldReplaceAutoDeck } from './recent-decks'
 import { createGameSetupStarter } from './setup-game-start'
 
-function selectedDeck(name: string, grpId: number): DeckDetail {
+function selectedDeck(name: string): DeckDetail {
   return {
     id: name.toLowerCase(),
     name,
@@ -12,7 +12,6 @@ function selectedDeck(name: string, grpId: number): DeckDetail {
     cards: [
       {
         name,
-        grpId,
         quantity: 60,
         manaCost: null,
         typeLine: null,
@@ -43,10 +42,10 @@ describe('recent constructed decks', () => {
       id: 'deck-1',
       name: 'Plains',
       format: 'Standard',
-      mainDeck: [{ grpId: 102732, quantity: 60 }],
+      mainDeck: [{ cardName: 'Plains', quantity: 60 }],
     })
     expect(summary).not.toBeNull()
-    const deck = recentDeckToDetail(summary!, new Map([[102732, 'Plains']]))
+    const deck = recentDeckToDetail(summary!)
 
     const starts: GreStartConfig[] = []
     const validated: string[] = []
@@ -64,18 +63,6 @@ describe('recent constructed decks', () => {
     expect(starts).toEqual([
       { seat1Deck: '60 Plains', seat2Deck: '60 Plains', deckId: 'deck-1', gameType: 'constructed' },
     ])
-  })
-
-  it('does not auto-select a deck whose cards cannot be resolved', () => {
-    const summary = asRecentUserDeck({
-      id: 'deck-1',
-      name: 'Unknown',
-      format: 'Standard',
-      mainDeck: [{ grpId: 99, quantity: 60 }],
-    })
-
-    expect(recentDeckToDetail(summary!, new Map())).toBeNull()
-    expect(recentDeckToDetail(summary!, new Map([[99, 'Card 99']]))).toBeNull()
   })
 
   it('validates a pasted deck and starts only once during concurrent clicks', async () => {
@@ -163,8 +150,8 @@ describe('recent constructed decks', () => {
     expect(
       await start(
         { gameType: 'constructed', mode: 'play', opponentMode: 'pick' },
-        selectedDeck('Plains', 1),
-        selectedDeck('Island', 2),
+        selectedDeck('Plains'),
+        selectedDeck('Island'),
       ),
     ).toEqual({ ok: true })
     expect(validated).toEqual(['60 Plains', '60 Island'])
@@ -193,7 +180,7 @@ describe('recent constructed decks', () => {
 
   it('keeps an existing saved deck with an ineligible commander on setup', async () => {
     const deck = {
-      ...selectedDeck('Vampire', 1),
+      ...selectedDeck('Vampire'),
       hasCommander: true,
       content: '[Commander]\n1 Bloodthirsty Conqueror\n[Deck]\n99 Swamp',
     }
@@ -258,7 +245,6 @@ describe('recent constructed decks', () => {
         cards: [
           {
             name: 'Card 99',
-            grpId: 99,
             quantity: 60,
             manaCost: null,
             typeLine: null,
@@ -299,11 +285,11 @@ describe('format-aware launch validation', () => {
       start: (config) => starts.push(config),
     })
     const player = {
-      ...selectedDeck('Plains', 1),
+      ...selectedDeck('Plains'),
       hasCommander: true,
       content: '[Commander]\n1 Isamaru, Hound of Konda\n[Deck]\n99 Plains',
     }
-    const opponent = selectedDeck('Mountain', 2)
+    const opponent = selectedDeck('Mountain')
     const result = await start(
       { gameType: 'commander', mode: 'play', opponentMode: 'pick' },
       player,

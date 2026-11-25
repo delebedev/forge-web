@@ -66,16 +66,16 @@ export function DeckEditor({
   const [hoveredCard, setHoveredCard] = useState<DraftCard | null>(null)
   const [tooltipY, setTooltipY] = useState(0)
 
-  const [initialMetadata, setInitialMetadata] = useState<Map<number, DraftCard>>(new Map())
+  const [initialMetadata, setInitialMetadata] = useState<Map<string, DraftCard>>(new Map())
   useEffect(() => {
     let current = true
-    const ids = [...initialDeck.cards, ...initialDeck.sideboard, ...initialDeck.commandZone].map(
-      (card) => card.grpId,
+    const names = [...initialDeck.cards, ...initialDeck.sideboard, ...initialDeck.commandZone].map(
+      (card) => card.name,
     )
-    void webDraftCards(ids).then((cards) => {
+    void webDraftCards(names).then((cards) => {
       if (current) {
         setInitialMetadata(
-          new Map(cards.filter((card) => card.typeLine != null).map((card) => [card.grpId!, card])),
+          new Map(cards.filter((card) => card.typeLine != null).map((card) => [card.name, card])),
         )
       }
     })
@@ -84,7 +84,7 @@ export function DeckEditor({
     }
   }, [initialDeck])
   const inspectedCard = hoveredCard
-    ? { ...hoveredCard, ...initialMetadata.get(hoveredCard.grpId ?? 0) }
+    ? { ...hoveredCard, ...initialMetadata.get(hoveredCard.name) }
     : null
 
   const totalLands = mainboard
@@ -102,9 +102,9 @@ export function DeckEditor({
     }))
   }
 
-  function removeCard(grpId: number): void {
+  function removeCard(name: string): void {
     setSections((prev) => {
-      const card = prev[section].find((entry) => entry.grpId === grpId)
+      const card = prev[section].find((entry) => entry.name === name)
       return card ? { ...prev, [section]: changeCardQuantity(prev[section], card, -1) } : prev
     })
   }
@@ -124,7 +124,7 @@ export function DeckEditor({
   function decrementLand(land: LandName): void {
     const card = activeCards.find((card) => card.name === land)
     if (card) {
-      removeCard(card.grpId)
+      removeCard(card.name)
     }
   }
 
@@ -226,7 +226,7 @@ export function DeckEditor({
           mainCount={mainboardCount}
           sideCount={sections.sideboard.reduce((sum, card) => sum + card.quantity, 0)}
           onSectionChange={setSection}
-          onMoveCard={(grpId) => setSections((prev) => moveDeckCard(prev, section, grpId))}
+          onMoveCard={(name) => setSections((prev) => moveDeckCard(prev, section, name))}
           landCounts={landCounts}
           onRemoveCard={removeCard}
           onIncrementLand={(land) => void incrementLand(land)}

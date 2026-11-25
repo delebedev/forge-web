@@ -69,6 +69,7 @@ internal fun testServices(
         cardImages = cardImages,
         authService = authService,
         coursePlay = forge.web.server.limited.CoursePlayService(productDatabase.database, coordinator, courseService, cards),
+        courseRecords = productDatabase.courseRecords,
         challengeCatalog = developmentChallenges(puzzlesDir),
         devToolsEnabled = devToolsEnabled,
         replayStore = replayStore,
