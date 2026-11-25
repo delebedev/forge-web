@@ -62,7 +62,8 @@ export async function fetchDevPuzzle(
     return null
   }
   const response = await fetch(`/dev/puzzles/${id}.pzl`)
-  if (!response.ok) {
+  // A missing fixture falls through to Vite's HTML fallback, which also answers 200.
+  if (!response.ok || !response.headers.get('Content-Type')?.startsWith('text/plain')) {
     return null
   }
   const text = await response.text()

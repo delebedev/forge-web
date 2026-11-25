@@ -28,7 +28,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 fun main(args: Array<String>) {
     require(args.isEmpty()) { "Usage: server" }
-    val config = resolveServerConfig(File(System.getProperty("user.dir"))).also(ServerConfig::ensureDirectories)
+    val config = resolveServerConfig().also(ServerConfig::ensureDirectories)
     val logDirectory =
         System.getProperty("LEYLINE_LOG_DIR")?.trim()?.takeIf(String::isNotEmpty)
             ?: System.getenv("LEYLINE_LOG_DIR")?.trim()?.takeIf(String::isNotEmpty)
@@ -116,9 +116,9 @@ internal fun serverServices(
     )
 }
 
-private fun resolveServerConfig(baseDir: File): ServerConfig {
+private fun resolveServerConfig(): ServerConfig {
     return try {
-        ServerConfigResolver(baseDir = baseDir, env = System.getenv()).resolve()
+        ServerConfigResolver(env = System.getenv()).resolve()
     } catch (e: ServerConfigException) {
         error("Configuration error: ${e.message}")
     }

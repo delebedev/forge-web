@@ -1,5 +1,6 @@
 package forge.web.cards
 
+import forge.deck.DeckFormat
 import leyline.domain.deck.DeckCards
 import leyline.domain.deck.DecklistException
 import leyline.game.InMemoryCardRepository
@@ -110,9 +111,22 @@ class WebDecklistTest {
         cards.validate(main, "constructed")
         cards.validate(commander, "commander")
         cards.validate(commander, null)
-        for (unsupported in listOf("brawl", "oathbreaker", "unknown")) {
+        for (unsupported in listOf("oathbreaker", "unknown")) {
             assertContains(rejection { cards.validate(commander, unsupported) }, "Unsupported game format")
         }
+    }
+
+    @Test
+    fun `brawl keeps its copy limits without a command zone`() {
+        val formats = mutableListOf<DeckFormat>()
+        val validate = { gameType: String? ->
+            cards.validateWebDecklist("60 Mountain", gameType, { true }, { null }) { _, format -> formats += format }
+        }
+
+        validate("brawl")
+        validate(null)
+
+        assertEquals(listOf(DeckFormat.Brawl, DeckFormat.Constructed), formats)
     }
 
     @Test

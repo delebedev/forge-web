@@ -133,11 +133,12 @@ private data class ServerSettings(
 /**
  * Resolves settings from typed defaults and `LEYLINE_*` environment overrides. The
  * environment name derives from the key path: `web.port` → `LEYLINE_WEB_PORT`.
- * Relative paths resolve against [baseDir].
+ * Relative `paths.state` and `paths.artifacts` resolve against [baseDir], which is
+ * the process working directory unless a caller supplies another.
  */
 internal class ServerConfigResolver(
-    private val baseDir: File,
     private val env: Map<String, String>,
+    private val baseDir: File = File(System.getProperty("user.dir")).absoluteFile,
     private val defaultStateDir: File = File(System.getProperty("user.home"), "Library/Application Support/dev.leyline"),
 ) {
     private val json = Json { encodeDefaults = true }

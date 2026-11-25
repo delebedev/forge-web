@@ -35,7 +35,10 @@ fun CardRepository.importWebDecklist(
     return resolved
 }
 
-/** Validate a decklist for a game type: `constructed`, `commander`, or null to infer from its command zone. */
+/**
+ * Validate a decklist for a game type: `constructed`, `commander`, `brawl` (a saved deck
+ * format; its commander is optional), or null to infer from its command zone.
+ */
 fun CardRepository.validateWebDecklist(
     text: String,
     gameType: String?,
@@ -54,6 +57,7 @@ fun CardRepository.validateWebDecklist(
                 false
             }
             "commander" -> true
+            "brawl" -> false
             else -> throw DecklistException(listOf("Unsupported game format."))
         }
     validateCommanderCards(this, cards, canBeCommander, commanderRequired, commanderProblem)

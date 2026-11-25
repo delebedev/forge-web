@@ -8,6 +8,11 @@ fi
 # The product server stores accounts, decks, courses and replays; gameplay and card
 # rules run in the browser engine. Its distribution must carry no engine code.
 lib_dir=server/build/install/server/lib
+if [[ ! -f "$lib_dir/server.jar" ]]; then
+  echo "Product distribution is missing: $lib_dir/server.jar" >&2
+  exit 1
+fi
+archives=$(find "$lib_dir" -type f -name '*.jar' -print)
 while IFS= read -r archive; do
   name=${archive##*/}
   case "$name" in
@@ -21,6 +26,6 @@ while IFS= read -r archive; do
     echo "Product distribution includes engine classes: $name:$engine" >&2
     exit 1
   fi
-done < <(find "$lib_dir" -type f -name '*.jar' -print)
+done <<< "$archives"
 
 echo 'Product distribution contains no Leyline, Forge or card-presentation code.'

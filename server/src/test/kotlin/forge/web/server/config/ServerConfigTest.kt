@@ -31,7 +31,7 @@ class ServerConfigTest {
     fun `unset state uses the existing user state directory`() {
         val root = tempDirectory()
 
-        val config = ServerConfigResolver(root, mapOf("LEYLINE_WEB_AUTH_SECRET" to TEST_CONFIG_SECRET)).resolve()
+        val config = ServerConfigResolver(mapOf("LEYLINE_WEB_AUTH_SECRET" to TEST_CONFIG_SECRET), root).resolve()
 
         assertEquals(
             File(System.getProperty("user.home"), "Library/Application Support/dev.leyline").absolutePath,
@@ -82,6 +82,23 @@ class ServerConfigTest {
         assertEquals(File(root, "out/logs").absolutePath, config.paths.artifactsRoot.absolutePath)
         assertTrue(config.paths.stateDir.isDirectory)
         assertTrue(config.paths.artifactsRoot.isDirectory)
+    }
+
+    @Test
+    fun `relative paths default to the process working directory`() {
+        val workingDirectory = File(System.getProperty("user.dir")).absoluteFile
+
+        val config =
+            ServerConfigResolver(
+                mapOf(
+                    "LEYLINE_WEB_AUTH_SECRET" to TEST_CONFIG_SECRET,
+                    "LEYLINE_PATHS_STATE" to "dev-state.local",
+                    "LEYLINE_PATHS_ARTIFACTS" to "logs",
+                ),
+            ).resolve()
+
+        assertEquals(File(workingDirectory, "dev-state.local/player.db"), PlayerDatabasePath.from(config).file.absoluteFile)
+        assertEquals(File(workingDirectory, "logs"), config.paths.artifactsRoot.absoluteFile)
     }
 
     @Test
@@ -152,8 +169,8 @@ class ServerConfigTest {
         defaultStateDir: File = File(root, "default-state"),
     ): ServerConfigResolver =
         ServerConfigResolver(
-            root,
             mapOf("LEYLINE_WEB_AUTH_SECRET" to TEST_CONFIG_SECRET) + env,
+            root,
             defaultStateDir,
         )
 

@@ -1,5 +1,10 @@
-import { expect, it } from 'bun:test'
-import { puzzleChallenge } from './challenge'
+import { afterEach, expect, it } from 'bun:test'
+import { fetchDevPuzzle, puzzleChallenge } from './challenge'
+
+const originalFetch = globalThis.fetch
+afterEach(() => {
+  globalThis.fetch = originalFetch
+})
 
 it('reads challenge context from puzzle metadata', () => {
   const text = [
@@ -23,4 +28,15 @@ it('reads challenge context from puzzle metadata', () => {
     name: 'bare',
     objective: 'Win.',
   })
+})
+
+it('rejects the HTML fallback served for a missing fixture', async () => {
+  const serve = (body: string, type: string) => {
+    globalThis.fetch = (async () =>
+      new Response(body, { headers: { 'Content-Type': type } })) as unknown as typeof fetch
+  }
+  serve('<!doctype html><html></html>', 'text/html')
+  expect(await fetchDevPuzzle('missing-fixture')).toBeNull()
+  serve('[metadata]\nName:Bolt\n', 'text/plain; charset=utf-8')
+  expect((await fetchDevPuzzle('bolt'))?.challenge.name).toBe('Bolt')
 })

@@ -21,11 +21,11 @@ class PlayerDatabaseTest {
         val baseDir = tempDirectory("config")
         val defaultState = tempDirectory("default-state")
         val overriddenState = tempDirectory("overridden-state")
-        val defaults = ServerConfigResolver(baseDir, configEnv, defaultState).resolve()
+        val defaults = ServerConfigResolver(configEnv, baseDir, defaultState).resolve()
         val overridden =
             ServerConfigResolver(
-                baseDir,
                 configEnv + ("LEYLINE_PATHS_STATE" to overriddenState.absolutePath),
+                baseDir,
                 defaultState,
             ).resolve()
 

@@ -22,6 +22,9 @@ import { formatDecklist, validateDecklist } from '@shared/cards/parse-decklist'
 import styles from './DecksView.module.css'
 import { importedContent, type DeckDraft } from './deck-value'
 
+/** Saved formats whose legality differs from the decklist's inferred game type. */
+const SAVE_GAME_TYPES: Partial<Record<string, string>> = { Commander: 'commander', Brawl: 'brawl' }
+
 export function DecksView({
   pickMode = false,
   requireCommander = false,
@@ -134,7 +137,7 @@ export function DecksView({
         sideboard: rows(draft.sideboard),
         commandZone: rows(draft.commandZone),
       }),
-      draft.format === 'Commander' ? 'commander' : undefined,
+      SAVE_GAME_TYPES[draft.format],
     )
     if (!checked.ok) {
       throw new Error(checked.errors.join(' '))
