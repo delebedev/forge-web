@@ -82,6 +82,20 @@ class MatchReplayStoreEvictionTest {
             }
         }
 
+    @Test
+    fun `a retried chunk keeps a later pin for another report`() =
+        runBlocking<Unit> {
+            val root = tempRoot("replay-pin-precedence")
+            MatchReplayStore(config(root), clock).use { store ->
+                val original = chunkBody(2, 1, reportId = "report-a")
+                assertEquals(1L, store.ingestBrowserChunk(owner("account"), matchId(2), 0, original))
+                assertTrue(store.pin(matchId(2), "report-b"))
+                assertEquals(1L, store.ingestBrowserChunk(owner("account"), matchId(2), 0, original))
+                assertEquals("report-b", assertNotNull(store.export(matchId(2))).status.reportId)
+                assertAccounted(root, store)
+            }
+        }
+
     /** Commits two chunks of match 2; the second carries a report whose pin write fails after the metadata commit. */
     private suspend fun commitWithFailedPin(
         root: File,

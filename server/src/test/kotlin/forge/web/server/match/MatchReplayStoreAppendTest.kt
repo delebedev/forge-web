@@ -9,6 +9,7 @@ import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
@@ -112,6 +113,24 @@ class MatchReplayStoreAppendTest {
         }
 
     @Test
+    fun `the match size limit counts the exported header and status`() =
+        runBlocking<Unit> {
+            val root = directory()
+            val limit = 64L * 1024
+            MatchReplayStore(MatchReplayConfig(root, "token", maxMatchBytes = limit)).use { store ->
+                store.ingestBrowserChunk(owner("account"), MATCH_ID, 0, chunk(1, cards = 2_000))
+                // The status-only chunk adds no delta, but its label makes the exported bundle exceed the limit.
+                val oversized = chunk(2, cards = 0, empty = true, label = "y".repeat(30_000))
+                assertTrue(oversized.size <= limit)
+                assertFailsWith<IllegalArgumentException> { store.ingestBrowserChunk(owner("account"), MATCH_ID, 1, oversized) }
+                val exported = assertNotNull(store.export(MATCH_ID))
+                assertEquals("Browser match", exported.label)
+                assertEquals(2_000, exported.cards.size)
+                assertTrue(Json.encodeToString(ReplayBundle.serializer(), exported).length <= limit)
+            }
+        }
+
+    @Test
     fun `a full artifact replaces the appended journal with a new generation`() =
         runBlocking<Unit> {
             val root = directory()
@@ -157,11 +176,12 @@ class MatchReplayStoreAppendTest {
         complete: Boolean = false,
         reportId: String? = null,
         empty: Boolean = false,
+        label: String = "Browser match",
     ): ByteArray {
         val bundle =
             ReplayBundle(
                 version = 2,
-                label = "Browser match",
+                label = label,
                 source = "forge-web-browser",
                 viewerSeatId = 1,
                 matchId = MATCH_ID,

@@ -213,13 +213,14 @@ internal class MatchReplayStore(
         val batches = (prior?.batches ?: 0) + chunk.batches.size
         require(events <= 100_000 && batches <= 50_000) { "Replay is too complex" }
         val decodedBytes = (prior?.decodedBytes ?: 0) + line.size
-        require(decodedBytes <= config.maxMatchBytes) { "Replay match quota exceeded" }
+        val header = chunk.header().copy(context = prior?.header?.context ?: context.copy(deviceId = deviceId, accountId = accountId))
+        require(decodedBytes + bundleEnvelopeBytes(header, status) <= config.maxMatchBytes) { "Replay match quota exceeded" }
         val member = if (line.isEmpty()) line else gzipReplay(line)
         val journal =
             AppendedJournal(
                 generation = prior?.generation ?: 0,
                 bytes = (prior?.bytes ?: 0) + member.size,
-                header = chunk.header().copy(context = prior?.header?.context ?: context.copy(deviceId = deviceId, accountId = accountId)),
+                header = header,
                 status = status,
                 seq = chunk.events.lastOrNull()?.seq ?: committedSeq,
                 events = events,
@@ -297,13 +298,13 @@ internal class MatchReplayStore(
 
     /**
      * A retried chunk or artifact whose first attempt committed but failed to write its pin returns as a duplicate;
-     * this writes the missing pin.
+     * this writes the pin only when none is stored, so a later pin for another report keeps precedence.
      */
     private fun restorePin(
         matchId: String,
         reportId: String?,
     ) {
-        if (reportId == null || readPin(matchId)?.string("reportId") == reportId) return
+        if (reportId == null || runCatching { readPin(matchId) }.getOrNull() != null) return
         pinFile(matchId, reportId)
     }
 
@@ -325,7 +326,7 @@ internal class MatchReplayStore(
     ): BrowserJournalMetadata? {
         check(storageReady) { "Replay storage usage is unavailable" }
         val line = encodeDelta(replay.delta())
-        require(line.size <= config.maxMatchBytes) { "Replay match quota exceeded" }
+        require(line.size + bundleEnvelopeBytes(replay.header(), replay.status) <= config.maxMatchBytes) { "Replay match quota exceeded" }
         val member = gzipReplay(line)
         val previous = base.journal?.let { appendedJournalFile(config.root, matchId, it.generation) }
         val journal =

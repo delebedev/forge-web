@@ -146,6 +146,35 @@ internal fun readAppendedJournal(
     )
 }
 
+/**
+ * Encoded size of an exported bundle with [header] and [status] and no replay data. The match size limit applies to
+ * the exported bundle, so it counts this envelope beside the stored deltas.
+ */
+internal fun bundleEnvelopeBytes(
+    header: ReplayHeader,
+    status: ReplayStatus,
+): Long =
+    journalJson
+        .encodeToString(
+            ReplayBundle.serializer(),
+            ReplayBundle(
+                version = header.version,
+                label = header.label,
+                source = header.source,
+                viewerSeatId = header.viewerSeatId,
+                matchId = header.matchId,
+                release = header.release,
+                batches = emptyList(),
+                cards = emptyMap(),
+                responses = emptyList(),
+                events = emptyList(),
+                status = status,
+                context = header.context,
+            ),
+        ).toByteArray(StandardCharsets.UTF_8)
+        .size
+        .toLong()
+
 internal val journalJson =
     Json {
         encodeDefaults = true
