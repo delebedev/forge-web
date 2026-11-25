@@ -7,6 +7,7 @@ import forge.web.cards.importWebDecklist
 import forge.web.cards.validateWebDecklist
 import kotlinx.serialization.Serializable
 import leyline.bridge.bootstrap.DeckLoader
+import leyline.bridge.bootstrap.DeckRealizationException
 import leyline.domain.DeckCard
 import leyline.domain.deck.DeckSource
 import leyline.domain.deck.DecklistException
@@ -42,6 +43,31 @@ internal object BrowserDecks {
             Checked(errors = listOf(error.message ?: "Could not parse decklist"))
         }
 
+    @Serializable
+    data class Rejection(val seat: Int, val problem: String, val detail: String)
+
+    /**
+     * Checks both launch decks and names the first unplayable seat. A missing commander has
+     * its own [Rejection.problem] so the player can be told exactly what to fix.
+     */
+    fun rejection(decks: List<String>, commander: Boolean): Rejection? =
+        decks.withIndex().firstNotNullOfOrNull { (index, text) ->
+            val detail =
+                try {
+                    validate(text, commander)
+                    null
+                } catch (error: IllegalArgumentException) {
+                    error.message.orEmpty()
+                } catch (error: DeckRealizationException) {
+                    error.message.orEmpty()
+                }
+            detail?.let {
+                Rejection(index + 1, if (it == NO_COMMANDER) "no-commander" else "invalid", it)
+            }
+        }
+
+    private const val NO_COMMANDER = "Commander section is empty"
+
     fun validate(text: String, commander: Boolean = false): Deck {
         require(text.isNotBlank()) { "Decklist is blank" }
         require(text.length <= MAX_TEXT_LENGTH) { "Decklist exceeds $MAX_TEXT_LENGTH characters" }
@@ -65,7 +91,7 @@ internal object BrowserDecks {
         }
         require(mainCards > 0) { "Deck main section is empty" }
         if (commander) {
-            require(commanderCards > 0) { "Commander section is empty" }
+            require(commanderCards > 0) { NO_COMMANDER }
             require(deck.get(DeckSection.Commander).all { it.value == 1 }) {
                 "Commanders must each have exactly one copy"
             }

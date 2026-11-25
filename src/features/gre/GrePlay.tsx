@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { priority } from '@engine/priority/priority'
 import { canRespondOf } from '@engine/priority/priority-derive'
 import { recordCourseResult } from '@shared/api/course-records'
+import { BrowserDeckRejected } from '@engine/runtime/browser-engine'
 import { greSession } from '@engine/runtime/gre-session'
 import { greStore } from '@engine/runtime/gre-store'
 import { useBoardSnapshot } from '@engine/runtime/hooks'
@@ -29,9 +30,12 @@ function isAbortError(error: unknown): boolean {
   )
 }
 
-type LaunchError = { message: string }
+type LaunchError = { message: string; deckRejected: boolean }
 function launchFailure(error: unknown, fallback: string): LaunchError {
-  return { message: error instanceof Error ? error.message : fallback }
+  return {
+    message: error instanceof Error ? error.message : fallback,
+    deckRejected: error instanceof BrowserDeckRejected,
+  }
 }
 
 export function GrePlay({
@@ -519,12 +523,18 @@ export function GrePlay({
 
         {launchError && (
           <section className={styles.launchError} role="alert">
-            <strong>Browser game could not start</strong>
+            <strong>
+              {launchError.deckRejected
+                ? "This deck can't be played"
+                : 'Browser game could not start'}
+            </strong>
             <p>{launchError.message}</p>
             <div>
-              <button type="button" onClick={restartGame}>
-                Retry in browser
-              </button>
+              {!launchError.deckRejected && (
+                <button type="button" onClick={restartGame}>
+                  Retry in browser
+                </button>
+              )}
               {onBackToPlay && (
                 <button type="button" onClick={leaveGame}>
                   Back to Play

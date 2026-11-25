@@ -130,7 +130,9 @@ format, and seed. Its bounded stages are `attempt`, `worker-online`, `initializi
 bounded reason, operation, failure kind, and last successful stage. A command
 deadline also carries bounded command phase, queue duration, host-timer
 lateness, and heartbeat state. These distinguish a command that failed to
-dispatch from one that started and stopped progressing. The attempt
+dispatch from one that started and stopped progressing. A launch deck the
+engine refuses ends the attempt with `failed`, `reason=deck-rejected` and
+`operation=start`; it sends no failure report. The attempt
 and startup stages also carry bounded `warmup` (`none`, `partial`, `complete`,
 or `failed`), aggregate `warmup_bytes`, and `warmup_duration_ms`. Segment
 Play-to-first-engine-stage duration by warmup and engine build; do not interpret

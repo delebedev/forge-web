@@ -26,6 +26,41 @@ export class BrowserEngineFailure extends Error {
   }
 }
 
+/** The engine refused a launch deck. The engine stays healthy and no match exists. */
+export class BrowserDeckRejected extends Error {
+  readonly seat: 1 | 2
+  readonly problem: 'no-commander' | 'invalid'
+
+  constructor(seat: 1 | 2, problem: 'no-commander' | 'invalid', detail: string) {
+    super(deckRejectionMessage(seat, problem, detail))
+    this.name = 'BrowserDeckRejected'
+    this.seat = seat
+    this.problem = problem
+  }
+}
+
+function deckRejectionMessage(seat: 1 | 2, problem: string, detail: string): string {
+  if (problem === 'no-commander') {
+    return seat === 1
+      ? 'Your deck has no commander. Open it in Decks and choose a commander, or pick another deck.'
+      : 'The opponent deck has no commander. Choose a Commander deck for your opponent.'
+  }
+  const reason = detail.replace(/\.$/, '')
+  return seat === 1
+    ? `Your deck can't be played in this game: ${reason}. Open it in Decks to fix it, or pick another deck.`
+    : `The opponent deck can't be played in this game: ${reason}. Choose another opponent deck.`
+}
+
+function deckRejectionOf(launch: Record<string, unknown>): BrowserDeckRejected | null {
+  const rejected = launch['deckRejected']
+  if (!isRecord(rejected)) {
+    return null
+  }
+  const seat = rejected['seat'] === 2 ? 2 : 1
+  const problem = rejected['problem'] === 'no-commander' ? 'no-commander' : 'invalid'
+  return new BrowserDeckRejected(seat, problem, String(rejected['detail'] ?? ''))
+}
+
 const MAX_MATCHES_PER_WORKER = 5
 const INITIALIZATION_TIMEOUT_MS = 180_000
 const COMMAND_TIMEOUT_MS = 60_000
@@ -293,6 +328,12 @@ export class BrowserEngine implements BrowserMatchHost {
       ...(puzzle ? { puzzleId: puzzle.id, puzzleText: puzzle.text } : {}),
       ...(matchId ? { matchId } : {}),
     })
+    const rejected = isRecord(launch) ? deckRejectionOf(launch) : null
+    if (rejected) {
+      this.hasMatchHandle = false
+      this.matches -= 1
+      throw rejected
+    }
     if (!isRecord(launch) || typeof launch['matchId'] !== 'string') {
       throw new Error('Missing browser match identity')
     }
