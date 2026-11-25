@@ -19,7 +19,7 @@ class CiScopeTest(unittest.TestCase):
                      'src/shell/AppShell.tsx', 'src/shared/react/create-external-store.ts',
                      'src/new-feature.ts', 'public/challenges/bolt.pzl',
                      'public/browser-engine/release.json', 'browser-engine/web/engine-worker.js',
-                     'server/src/main.kt', 'leyline', 'package.json', 'bunfig.toml',
+                     'server/app.ts', 'leyline', 'package.json', 'bunfig.toml',
                      'scripts/ci_scope.py', 'index.html', 'unknown-input',
                      'scripts/release-notes/history.md', 'public/whats-new.md']:
             with self.subTest(path=path):
@@ -70,7 +70,7 @@ class ProofBreadthTest(unittest.TestCase):
         for path in ['scripts/ci_scope.py', 'scripts/ci-browser-selection.mjs',
                      '.github/workflows/web-ci.yml', 'playwright.config.ts',
                      'e2e/gre-acceptance.ts', 'e2e/gre-test.ts', 'e2e/new-family.spec.ts',
-                     'e2e/fixtures/new.pzl', 'server/src/main.kt', 'browser-engine/web/index.js',
+                     'e2e/fixtures/new.pzl', 'server/app.ts', 'browser-engine/web/index.js',
                      'package.json', 'unknown-input']:
             self.assertEqual('full', ci_scope.proof_breadth(['leyline', path]))
         self.assertEqual('full', ci_scope.proof_breadth([]))

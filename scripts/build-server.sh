@@ -6,4 +6,4 @@ out=server/build/install/server
 rm -rf "$out"
 # bun build --compile can leave its temporary executable in the working directory.
 trap 'rm -f ./.*.bun-build' EXIT
-bun build --compile ${1:+"--target=$1"} server-ts/main.ts --outfile "$out/bin/server"
+bun build --compile ${1:+"--target=$1"} server/main.ts --outfile "$out/bin/server"

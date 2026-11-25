@@ -142,7 +142,7 @@ jobs:
     env:
       FORGE_CI_REPORT_DIR: test-results/ci
   server:
-    name: Server (Bun + Kotlin parity)
+    name: Server (Bun)
     needs: changes
     if: needs.changes.outputs.run-tests == 'true' && needs.changes.outputs.kind == 'full'
     runs-on: ubuntu-latest
@@ -154,11 +154,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '21'
-          cache: ''
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.11
@@ -166,15 +161,13 @@ jobs:
         run: bun install --frozen-lockfile
       - name: Build and validate Bun server
         run: python3 scripts/ci-measure.py server bash -eo pipefail -c 'bun run server:check && bun run server:build:release && bun run server:build && bun run runtime:check --no-build'
-      - name: Build Kotlin server for the handoff test
-        run: python3 scripts/ci-measure.py server-kotlin bash -eo pipefail -c './leyline/gradlew :server:installDist -Pkotlin.compiler.execution.strategy=in-process'
       - name: Seal server distribution
         run: |-
           node scripts/runtime-artifact.mjs seal server server/build/install/server
           mkdir -p runtime-artifacts
           tar -czf runtime-artifacts/server.tgz -C server/build/install server
       - name: Check server HTTP parity
-        run: python3 scripts/ci-measure.py server-parity bash -eo pipefail -c 'FORGE_WEB_SERVER_DIST=server/build/install/server FORGE_WEB_KOTLIN_SERVER_DIST=server/build/kotlin-install/server bun run server:parity'
+        run: python3 scripts/ci-measure.py server-parity bash -eo pipefail -c 'FORGE_WEB_SERVER_DIST=server/build/install/server bun run server:parity'
       - uses: actions/upload-artifact@v4
         with:
           name: runtime-server
@@ -182,17 +175,12 @@ jobs:
           if-no-files-found: error
           retention-days: 1
           overwrite: true
-      - name: Stop build JVMs
-        if: always()
-        timeout-minutes: 1
-        run: ./leyline/gradlew --stop
       - name: Upload test results
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
           name: test-results-server
           path: |-
-            server/build/test-results/
             test-results/ci/
           if-no-files-found: ignore
           retention-days: 1

@@ -10,7 +10,8 @@ unofficial project with no human-versus-human matchmaking.
 
 Requires Git, Node.js 24, Bun 1.3+, JDK 21, Maven 3.9+, Python 3, and
 [just](https://just.systems/). Install JDK 17 as well for browser execution.
-The product server needs only Bun; the JDKs build the browser engine.
+The product server needs only Bun; the JDKs build the browser engine, whose
+Leyline build scripts compile with JDK 21.
 Ensure Java installations are discoverable by Gradle. macOS and Linux are the
 current development targets. Bootstrap downloads the pinned submodules and
 build dependencies. Sibling caches are optional; production credentials are
@@ -71,8 +72,7 @@ Server execution can be used without those browser assets.
 ## Repository
 
 - `src/` — React application and GRE client.
-- `server-ts/` — product server, authentication, persistence, and replays.
-- `server/` — previous Kotlin server; its migrations and card image index feed `server-ts/`.
+- `server/` — product server (TypeScript on Bun), authentication, persistence, and replays.
 - `e2e/` — browser journeys and screenshots.
 - `dev/decks/` — development deck fixtures.
 - `docs/` — product, architecture, and development documentation.

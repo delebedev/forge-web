@@ -768,7 +768,7 @@ export class MatchReplayStore {
       if (freeable >= excess) {
         break
       }
-      freeable += await this.matchBytes(matchId)
+      freeable += (await this.evictableBytes(matchId)) ?? 0
     }
     if (freeable < excess) {
       log.warn(
@@ -783,7 +783,10 @@ export class MatchReplayStore {
       if (this.bytesUsed + required <= target) {
         break
       }
-      const bytes = await this.matchBytes(matchId)
+      const bytes = await this.evictableBytes(matchId)
+      if (bytes === null) {
+        continue
+      }
       try {
         await this.evict(matchId)
         evicted++
@@ -798,6 +801,16 @@ export class MatchReplayStore {
       `Replay eviction pass (journals=${evicted}, usedBytes=${this.bytesUsed}, maxBytes=${this.maxBytes}, oldestRetainedCreatedAtMs=${this.retention.oldestCreatedAtMs})`,
     )
     return this.bytesUsed + required <= this.maxBytes
+  }
+
+  /** A candidate's size, or null when its commit record cannot be read and the journal must be kept. */
+  private async evictableBytes(matchId: string): Promise<number | null> {
+    try {
+      return await this.matchBytes(matchId)
+    } catch (cause) {
+      log.warn(`Replay eviction skipped an unreadable journal (matchId=${matchId})`, {}, cause)
+      return null
+    }
   }
 
   private async evict(matchId: string) {

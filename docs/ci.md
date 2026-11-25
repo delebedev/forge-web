@@ -129,16 +129,14 @@ Cancelled runs do not produce a successful proof receipt. This follows
 
 UI validation and the two runtime builders use separate `ubuntu-latest` hosted runners.
 The server builder validates and packages the compiled Bun server and
-cross-compiles the linux-arm64 release binary. It also builds the Kotlin server
-with Java 21, only for the cross-server replay handoff test in the parity suite.
-Neither server needs Forge, so this builder checks out Leyline without its
-nested submodules.
+cross-compiles the linux-arm64 release binary. It needs neither Java nor Forge,
+so it checks out Leyline without its nested submodules.
 The browser runtime builder prepares pinned Forge dependencies, then builds
 Leyline once for Java 17. It runs the card-presentation and browser-engine tests
 and packages the Browser Local distribution. Gradle itself runs on Java 21.
 Gradle caches task outputs using its tracked input fingerprints. Browser tests use the same
 pruning setting as the shipped distribution. Root configuration
-caching is enabled; OpenAPI response cleanup keeps no live Project reference.
+caching is enabled.
 CI uses the compiler inside the Gradle process and stops Gradle after assembly.
 Build and dependency caches remain local to each ephemeral hosted job.
 Bun installs enforce `bun.lock`; the workflow adds no persistent cache.

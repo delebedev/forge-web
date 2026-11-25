@@ -7,7 +7,7 @@ both the product server and the browser engine read it; neither asks
 
 ## What the index is
 
-`server/src/main/resources/card-images.sqlite` holds one row per artwork
+`server/card-images.sqlite` holds one row per artwork
 identity:
 
 - `card_images(lookup_name, is_token, normal_url, back_url)` — the primary key
@@ -23,7 +23,7 @@ gets a combined-name row pointing at its first face.
 
 ## Where it is used
 
-- **Product server:** `server/src/main/kotlin/forge/web/server/cards/CardImageIndex.kt`
+- **Product server:** `CardImageIndex` in `server/card-images.ts`
   loads the bundled file and resolves a name plus token flag to `normal` or
   `back` artwork. A lookup that misses under the caller's token flag falls back
   to the same name under the other flag; the flag is a hint, not a reason to
@@ -67,7 +67,7 @@ bun run browser:assets
 ```
 
 `bun run cards:index` downloads the current Oracle bulk file, streams it, and
-rewrites `server/src/main/resources/card-images.sqlite` atomically. To reuse an
+rewrites `server/card-images.sqlite` atomically. To reuse an
 already-downloaded file instead of downloading again, pass `--input` with a
 `.jsonl.gz` bulk file or a JSON array of Oracle cards, plus the export's own
 publication date:
@@ -94,7 +94,7 @@ release manifest from the new file.
 
 ```bash
 bun test scripts/build-card-image-index.test.ts
-sqlite3 server/src/main/resources/card-images.sqlite \
+sqlite3 server/card-images.sqlite \
   "select count(*) from card_images; select * from metadata;"
 ```
 

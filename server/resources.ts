@@ -1,14 +1,14 @@
 // Static imports embed these files in a compiled binary; `bun run` reads them from the repository.
-import v1 from '../server/src/main/resources/db/migration/V1__product_schema.sql' with { type: 'text' }
-import v2 from '../server/src/main/resources/db/migration/V2__index_decks_by_player.sql' with { type: 'text' }
-import v3 from '../server/src/main/resources/db/migration/V3__match_outcomes.sql' with { type: 'text' }
-import v4 from '../server/src/main/resources/db/migration/V4__generated_puzzles.sql' with { type: 'text' }
-import v5 from '../server/src/main/resources/db/migration/V5__roadmap.sql' with { type: 'text' }
-import v6 from '../server/src/main/resources/db/migration/V6__ship_draft_and_play.sql' with { type: 'text' }
-import v7 from '../server/src/main/resources/db/migration/V7__browser_course_plays.sql' with { type: 'text' }
-import v8 from '../server/src/main/resources/db/migration/V8__puzzle_rating_device.sql' with { type: 'text' }
-import v9 from '../server/src/main/resources/db/migration/V9__course_records.sql' with { type: 'text' }
-import v10 from '../server/src/main/resources/db/migration/V10__drop_engine_tables.sql' with { type: 'text' }
+import v1 from './migrations/V1__product_schema.sql' with { type: 'text' }
+import v2 from './migrations/V2__index_decks_by_player.sql' with { type: 'text' }
+import v3 from './migrations/V3__match_outcomes.sql' with { type: 'text' }
+import v4 from './migrations/V4__generated_puzzles.sql' with { type: 'text' }
+import v5 from './migrations/V5__roadmap.sql' with { type: 'text' }
+import v6 from './migrations/V6__ship_draft_and_play.sql' with { type: 'text' }
+import v7 from './migrations/V7__browser_course_plays.sql' with { type: 'text' }
+import v8 from './migrations/V8__puzzle_rating_device.sql' with { type: 'text' }
+import v9 from './migrations/V9__course_records.sql' with { type: 'text' }
+import v10 from './migrations/V10__drop_engine_tables.sql' with { type: 'text' }
 import starter0 from '../dev/decks/Pauper Green Stompy.txt' with { type: 'text' }
 import starter1 from '../dev/decks/Pauper Red Burn.txt' with { type: 'text' }
 import starter2 from '../dev/decks/Pauper Blue Tempo.txt' with { type: 'text' }
@@ -19,7 +19,7 @@ import starter6 from '../dev/decks/commander/Krenko - Goblin Swarm.txt' with { t
 import starter7 from '../dev/decks/commander/Teval - Graveyard Lands.txt' with { type: 'text' }
 import starter8 from '../dev/decks/commander/Vivi - Spellslinger.txt' with { type: 'text' }
 import starter9 from "../dev/decks/commander/Y'shtola - Spell Control.txt" with { type: 'text' }
-import cardImagesPath from '../server/src/main/resources/card-images.sqlite' with { type: 'file' }
+import cardImagesPath from './card-images.sqlite' with { type: 'file' }
 
 export interface MigrationScript {
   script: string

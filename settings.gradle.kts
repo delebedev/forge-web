@@ -6,7 +6,6 @@ pluginManagement {
 }
 
 rootProject.name = "forge-web"
-include("server")
 include("card-presentation")
 include("browser-engine")
 

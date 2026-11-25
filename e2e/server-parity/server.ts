@@ -17,7 +17,7 @@ export function defaultServerCommand(): string {
   if (process.env['FORGE_WEB_SERVER_DIST']) {
     return 'bash scripts/run-ci-server.sh'
   }
-  return 'bun server-ts/main.ts'
+  return 'bun server/main.ts'
 }
 
 export function tempStateDir(): string {
@@ -41,7 +41,7 @@ export interface ParityServer {
 
 /**
  * Starts a product server by shell command and waits for `/api/health`.
- * The command runs in its own process group so wrappers such as Gradle stop with it.
+ * The command runs in its own process group so wrappers such as `docker run` stop with it.
  */
 export async function startServer({
   cmd = defaultServerCommand(),
@@ -119,14 +119,15 @@ export async function startServer({
     // The shell can exit before the server it started, so wait for the whole group to release the port.
     signalGroup(proc.pid, 'SIGTERM')
     const killAt = Date.now() + 15_000
-    const giveUpAt = killAt + 5_000
+    // Set when SIGKILL is sent, so a pause past both deadlines still sends it before giving up.
+    let giveUpAt: number | null = null
     while (signalGroup(proc.pid, 0)) {
-      if (Date.now() > giveUpAt) {
+      if (giveUpAt === null && Date.now() > killAt) {
+        signalGroup(proc.pid, 'SIGKILL')
+        giveUpAt = Date.now() + 5_000
+      } else if (giveUpAt !== null && Date.now() > giveUpAt) {
         console.warn(`Server process group ${proc.pid} survived SIGKILL; cleanup is incomplete`)
         return
-      }
-      if (Date.now() > killAt) {
-        signalGroup(proc.pid, 'SIGKILL')
       }
       await Bun.sleep(50)
     }

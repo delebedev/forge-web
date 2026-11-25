@@ -1,6 +1,5 @@
 import { describe, expect, test } from 'bun:test'
 import {
-  chmodSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -141,16 +140,16 @@ describe('RollingLogFile', () => {
 
 describe('configureLogging', () => {
   test('a log directory that cannot be created leaves stdout logging running', () => {
-    const parent = mkdtempSync(join(tmpdir(), 'forge-web-log-'))
-    chmodSync(parent, 0o500)
-    const directory = join(parent, 'logs')
+    // A regular file as a path component fails even for root, unlike a permission change.
+    const blocker = join(mkdtempSync(join(tmpdir(), 'forge-web-log-')), 'not-a-directory')
+    writeFileSync(blocker, '')
+    const directory = join(blocker, 'logs')
     const script = `
       import { Logger, configureLogging } from ${JSON.stringify(join(import.meta.dir, 'log.ts'))}
       configureLogging({ directory: ${JSON.stringify(directory)} })
       new Logger('probe').info('still logging')
     `
     const run = Bun.spawnSync(['bun', '-e', script])
-    chmodSync(parent, 0o700)
     const stdout = run.stdout.toString()
     expect(run.exitCode).toBe(0)
     expect(stdout).toContain('WARN  forge.web.server.Logging')

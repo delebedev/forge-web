@@ -11,7 +11,7 @@ import {
   type ParityServer,
 } from './server'
 
-// Server starts and restarts may include JVM startup.
+// Server starts and restarts may include a container start.
 const SERVER_TIMEOUT_MS = 120_000
 
 type Schemas = typeof responseSchemas
@@ -87,7 +87,7 @@ export function cookieAttributes(header: string) {
   const [pair = '', ...attributes] = header.split(';').map((part) => part.trim())
   return {
     pair,
-    // Ktor appends a private `$x-enc` marker that browsers ignore.
+    // The session cookie carries a private `$x-enc` marker that browsers ignore.
     attributes: attributes.filter((attribute) => !attribute.startsWith('$')).sort(),
   }
 }
