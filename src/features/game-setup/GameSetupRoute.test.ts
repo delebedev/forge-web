@@ -73,6 +73,25 @@ describe('recent constructed decks', () => {
     ])
   })
 
+  it('refuses a remembered opponent deck from the other format', async () => {
+    const starts: GreStartConfig[] = []
+    const start = createGameSetupStarter({ start: (config) => starts.push(config) })
+    const commanderDeck = {
+      ...selectedDeck('Island'),
+      content: '[Commander]\n1 Empress Galina\n[Deck]\n99 Island',
+      hasCommander: true,
+    }
+
+    expect(
+      start(
+        { gameType: 'commander', mode: 'play', opponentMode: 'pick' },
+        commanderDeck,
+        selectedDeck('Forest'),
+      ),
+    ).toEqual({ ok: false, error: 'Choose an opponent deck for this format.' })
+    expect(starts).toEqual([])
+  })
+
   it('starts a commander deck for both seats', async () => {
     const deck = '[Commander]\n1 Krenko, Mob Boss\n99 Mountain'
     const starts: GreStartConfig[] = []

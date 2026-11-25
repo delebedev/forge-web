@@ -8,6 +8,7 @@ import type { DeckDetail, AiMode } from '@shared/api/contracts'
 import { deckDetailToGreDeck } from '@engine/runtime/gre-match'
 import type { GameTypeId } from './game-types'
 import { PRECONSTRUCTED_DECKS, COMMANDER_DECKS, pastedDeck } from './preconstructed'
+import { deckFitsGameType } from './setup-game-start'
 import styles from './GameSetup.module.css'
 
 export interface GameStartConfig {
@@ -73,11 +74,12 @@ export function GameSetup({
     (deck) => !visibleDecks.some((saved) => saved.name.replace(/^Pauper /, '') === deck.name),
   )
   const usable = playerDeck && Boolean(playerDeck.hasCommander) === commander
+  const opponentUsable = deckFitsGameType(opponentDeck, gameType)
   const cover =
     playerDeck?.commandZone?.[0] ??
     playerDeck?.cards.find((card) => !/^(Forest|Mountain|Plains|Island|Swamp)$/.test(card.name)) ??
     playerDeck?.cards[0]
-  const opponentDeckList = deckDetailToGreDeck(opponentDeck)
+  const opponentDeckList = opponentUsable ? deckDetailToGreDeck(opponentDeck) : null
   const formatSelections = useRef<Partial<Record<GameTypeId, DeckDetail>>>({})
 
   function startConfig(): GameStartConfig {
@@ -295,7 +297,7 @@ export function GameSetup({
                 className={styles.pickOpponent}
                 onClick={() => onPickDeck('opponent')}
               >
-                {opponentDeck?.name ?? 'Choose opponent deck'}
+                {opponentUsable ? opponentDeck.name : 'Choose opponent deck'}
               </button>
               {opponentDeckList && (
                 <details className={styles.deckList} aria-label="Opponent deck list">
@@ -321,7 +323,7 @@ export function GameSetup({
               !usable ||
               starting ||
               library.loadingDetail ||
-              (aiMode === 'pick' && !opponentDeck)
+              (aiMode === 'pick' && !opponentUsable)
             }
             aria-describedby={
               browserAvailability.status === 'unavailable' ? 'browser-availability' : undefined

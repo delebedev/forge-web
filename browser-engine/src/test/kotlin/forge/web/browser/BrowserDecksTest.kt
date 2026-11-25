@@ -78,6 +78,19 @@ class BrowserDecksTest {
     }
 
     @Test
+    fun `names the first unplayable seat and a missing commander`() {
+        val commander = "99 Island\nCommander\n1 Empress Galina"
+
+        assertNull(BrowserDecks.rejection(listOf(commander, commander), commander = true))
+        assertEquals(
+            BrowserDecks.Rejection(2, "no-commander", "Commander section is empty"),
+            BrowserDecks.rejection(listOf(commander, "99 Island"), commander = true),
+        )
+        assertEquals("invalid", BrowserDecks.rejection(listOf("  \n", commander), commander = true)?.problem)
+        assertEquals(1, BrowserDecks.rejection(listOf("1 Not A Real Card", "60 Island"), commander = false)?.seat)
+    }
+
+    @Test
     fun `browser runtime carries stable identity and Commander variant`() {
         val commander = BrowserRuntime.runtimeConfig("browser-stable", "deck one", "deck two", "commander")
         val constructed = BrowserRuntime.runtimeConfig("browser-other", "deck one", "deck two", "constructed")

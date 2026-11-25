@@ -316,6 +316,9 @@ async function dispatch(data, enqueuedAt) {
           throw new Error('Match launch failed; see engine error')
         }
         result = JSON.parse(response)
+        if (result.deckRejected) {
+          break
+        }
         activeMatchId = result.matchId
         report('started', result)
         break

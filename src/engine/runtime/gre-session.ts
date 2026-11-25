@@ -1,5 +1,5 @@
 import { clearGreMatchConfig, loadGreMatchConfig, saveGreMatchConfig } from './gre-match'
-import { BrowserEngine, BrowserEngineFailure } from './browser-engine'
+import { BrowserDeckRejected, BrowserEngine, BrowserEngineFailure } from './browser-engine'
 import { replayBrowserMatch } from './browser-match-recovery'
 import type { TranscriptBundle } from '@engine/replay/gre-transcript'
 import { browserWarmupState } from './browser-release'
@@ -300,7 +300,13 @@ export class GreSessionStore {
       this.notify()
       return match.matchId
     } catch (error) {
-      if (generation === this.browserLaunchGeneration && !signal?.aborted) {
+      if (
+        error instanceof BrowserDeckRejected &&
+        generation === this.browserLaunchGeneration &&
+        !signal?.aborted
+      ) {
+        this.rejectBrowserDeck()
+      } else if (generation === this.browserLaunchGeneration && !signal?.aborted) {
         await this.failBrowser(error, {
           category: 'runtime',
           operation: 'start',
@@ -634,6 +640,21 @@ export class GreSessionStore {
     this.browserWatchdog = null
     this.browserEngine?.dispose()
     this.browserEngine = null
+  }
+
+  /** An unplayable deck ends the attempt without a crash report; the engine stays reusable. */
+  private rejectBrowserDeck(): void {
+    const context = this.browserContext()
+    if (context && this.markBrowserTerminal(context)) {
+      trackBrowserLifecycle('failed', context, {
+        reason: 'deck-rejected',
+        operation: 'start',
+        lastStage: this.browserLastStage,
+      })
+    }
+    this.browserPhase = 'idle'
+    this.browserStatus = ''
+    this.notify()
   }
 
   private async failBrowser(error: unknown, fallback?: BrowserFailureDiagnostic): Promise<void> {

@@ -3,7 +3,7 @@ import { encodeMessage } from '@engine/wire/gre-proto'
 import type { GreFrameBatch, GreFrameSink } from './gre-frame-source'
 import { BrowserMatchSource, type BrowserEngineEvent } from './browser-match-source'
 import { BrowserDiagnostics } from './browser-diagnostics'
-import { BrowserEngine, BrowserEngineFailure } from './browser-engine'
+import { BrowserDeckRejected, BrowserEngine, BrowserEngineFailure } from './browser-engine'
 import type { BrowserRelease } from './browser-release'
 import { sanitizeBrowserFailureSnapshot } from '@shared/browser-failure-snapshot'
 
@@ -17,6 +17,7 @@ class FakeWorker {
   terminated = false
   respond = true
   failNextStart = false
+  rejectNextStart: Record<string, unknown> | null = null
   failNextClose = false
   failNextInitialize = false
   respondDiagnostic = true
@@ -86,6 +87,12 @@ class FakeWorker {
       if (command.type === 'start' && this.failNextStart) {
         this.failNextStart = false
         this.emit({ event: 'reply', data: { id: command.id, error: 'launch failed' }, at: 0 })
+        return
+      }
+      if (command.type === 'start' && this.rejectNextStart) {
+        const deckRejected = this.rejectNextStart
+        this.rejectNextStart = null
+        this.emit({ event: 'reply', data: { id: command.id, result: { deckRejected } }, at: 0 })
         return
       }
       if (command.type === 'close' && this.failNextClose) {
@@ -261,6 +268,37 @@ describe('BrowserEngine', () => {
       gameType: 'commander',
       seed: 42,
     })
+    engine.dispose()
+  })
+
+  it('reports an unplayable launch deck without failing the engine', async () => {
+    const worker = new FakeWorker()
+    const engine = engineWith(worker)
+    worker.rejectNextStart = {
+      seat: 2,
+      problem: 'no-commander',
+      detail: 'Commander section is empty',
+    }
+
+    const error: unknown = await engine
+      .createMatch('99 Island\nCommander\n1 Empress Galina', '60 Forest', 42, 'commander')
+      .then(
+        () => null,
+        (error: unknown) => error,
+      )
+
+    expect(error).toBeInstanceOf(BrowserDeckRejected)
+    expect(error).not.toBeInstanceOf(BrowserEngineFailure)
+    expect((error as BrowserDeckRejected).seat).toBe(2)
+    expect((error as Error).message).toBe(
+      'The opponent deck has no commander. Choose a Commander deck for your opponent.',
+    )
+    expect(engine.diagnostics().failed).toBe(false)
+    expect(worker.terminated).toBe(false)
+
+    const next = await engine.createMatch('deck 1', 'deck 2', 43)
+    expect(next.matchId).toBe('match-1')
+    expect(worker.commands.map((command) => command.type)).toEqual(['initialize', 'start', 'start'])
     engine.dispose()
   })
 

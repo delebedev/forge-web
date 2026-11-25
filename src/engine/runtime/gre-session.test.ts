@@ -1,7 +1,7 @@
 import { afterEach, expect, it, spyOn } from 'bun:test'
 import { GreSessionStore } from './gre-session'
 import { parseGreMatchConfig } from './gre-match'
-import { BrowserEngine } from './browser-engine'
+import { BrowserDeckRejected, BrowserEngine } from './browser-engine'
 import type { BrowserEngineEvent } from './browser-match-source'
 import { greStore } from './gre-store'
 import type { GreFrameSink, GreFrameSource } from './gre-frame-source'
@@ -281,6 +281,46 @@ it('routes native start rejection through browser failure recovery', async () =>
     session.clear()
     retained.mockRestore()
     navigate.mockRestore()
+  }
+})
+
+it('ends an unplayable deck launch without a crash report and keeps the engine', async () => {
+  const engine = new BrowserEngine(() => {})
+  const rejected = new BrowserDeckRejected(1, 'no-commander', 'Commander section is empty')
+  const createMatch = spyOn(engine, 'createMatch').mockImplementation(() =>
+    Promise.reject(rejected),
+  )
+  const navigate = spyOn(router, 'reactNavigate').mockImplementation(() => {})
+  const reported = spyOn(reporting, 'reportBrowserFailure').mockImplementation(() => {})
+  const lifecycle = spyOn(analytics, 'trackBrowserLifecycle').mockImplementation(() => {})
+  const session = new GreSessionStore(null, () => engine)
+
+  try {
+    session.startBrowser({
+      gameType: 'commander',
+      seat1Deck: '99 Island',
+      seat2Deck: '99 Mountain\nCommander\n1 Zo-Zu the Punisher',
+      seed: 42,
+    })
+    const failure = await session.connectBrowser(session.config!).catch((error: unknown) => error)
+
+    expect(failure).toBe(rejected)
+    expect(reported).not.toHaveBeenCalled()
+    expect(lifecycle).toHaveBeenCalledWith(
+      'failed',
+      expect.anything(),
+      expect.objectContaining({ reason: 'deck-rejected', operation: 'start' }),
+    )
+    expect(session.snapshot().browserPhase).toBe('idle')
+    expect(session.snapshot().browserError).toBe('')
+    expect(engine.diagnostics().disposed).toBe(false)
+  } finally {
+    session.clear()
+    createMatch.mockRestore()
+    lifecycle.mockRestore()
+    reported.mockRestore()
+    navigate.mockRestore()
+    engine.dispose()
   }
 })
 

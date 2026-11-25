@@ -106,8 +106,10 @@ object BrowserRuntime {
             require(puzzleId.matches(Regex("[a-z0-9]+(?:-[a-z0-9]+)*")) && puzzleText.isNotBlank()) { "Puzzle definition is required" }
         } else {
             require(puzzleId.isEmpty() && puzzleText.isEmpty()) { "Deck matches cannot include a puzzle" }
-            BrowserDecks.validate(deck1, commander)
-            BrowserDecks.validate(deck2, commander)
+            // An unplayable deck is a launch result, not an engine failure: no match is created.
+            BrowserDecks.rejection(listOf(deck1, deck2), commander)?.let { rejected ->
+                return@guarded json.encodeToString(StartRejected(rejected))
+            }
         }
         val stableMatchId = matchId.trim().ifEmpty { "browser-$seed-${++matchSerial}" }
         val runtime = InProcessMatchRuntime(
@@ -134,6 +136,9 @@ object BrowserRuntime {
         }
         json.encodeToString(launched.response)
     }
+
+    @kotlinx.serialization.Serializable
+    internal data class StartRejected(val deckRejected: BrowserDecks.Rejection)
 
     internal fun runtimeConfig(matchId: String, deck1: String, deck2: String, gameType: String, puzzleId: String = "", puzzleText: String = "") =
         RuntimeMatchConfig(
