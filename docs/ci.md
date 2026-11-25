@@ -127,15 +127,16 @@ Cancelled runs do not produce a successful proof receipt. This follows
 
 ## Build and test pyramid
 
-UI validation and runtime assembly use separate `ubuntu-latest` hosted runners.
-One builder prepares pinned Forge dependencies once, then
-validates and packages the compiled Bun server and the Java 17 Browser Local distribution.
-It also cross-compiles the linux-arm64 release binary and builds the Kotlin server with Java 21,
-only for the cross-server replay handoff test in the parity suite.
-Gradle caches task outputs using its tracked input fingerprints. The shared
-Leyline/card-presentation outputs and root Gradle project caches are separated
-by Java target. Included-build task history remains shared, so switching targets
-can still rerun some shared-module compilation. Browser tests use the same
+UI validation and the two runtime builders use separate `ubuntu-latest` hosted runners.
+The server builder validates and packages the compiled Bun server and
+cross-compiles the linux-arm64 release binary. It also builds the Kotlin server
+with Java 21, only for the cross-server replay handoff test in the parity suite.
+Neither server needs Forge, so this builder checks out Leyline without its
+nested submodules.
+The browser runtime builder prepares pinned Forge dependencies, then builds
+Leyline once for Java 17. It runs the card-presentation and browser-engine tests
+and packages the Browser Local distribution. Gradle itself runs on Java 21.
+Gradle caches task outputs using its tracked input fingerprints. Browser tests use the same
 pruning setting as the shipped distribution. Root configuration
 caching is enabled; OpenAPI response cleanup keeps no live Project reference.
 CI uses the compiler inside the Gradle process and stops Gradle after assembly.
@@ -143,7 +144,7 @@ Build and dependency caches remain local to each ephemeral hosted job.
 Bun installs enforce `bun.lock`; the workflow adds no persistent cache.
 
 After UI and builder success, hosted runners execute product, catalog, four GRE
-shards and Browser Local independently. Their distributions are sealed with the tested Git
+shards and Browser Local independently. Browser Local waits only for the browser runtime builder. Their distributions are sealed with the tested Git
 tree, Leyline pin, artifact variant, producer run/attempt and every file's SHA-256.
 Consumers
 reject missing, stale, damaged or differently targeted artifacts. Failed-job

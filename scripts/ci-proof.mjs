@@ -24,6 +24,7 @@ export function assertGate(needs, reused, scope, breadth) {
     changes: 'success',
     ui: reused ? 'skipped' : 'success',
     server: !reused && scope === 'full' ? 'success' : 'skipped',
+    'browser-runtime': !reused && scope === 'full' ? 'success' : 'skipped',
     runtime: !reused && scope === 'full' ? 'success' : 'skipped',
     'browser-local': !reused && scope === 'full' ? 'success' : 'skipped',
   }

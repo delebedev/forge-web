@@ -29,10 +29,6 @@ jobs:
             17
             21
 
-      - uses: stCarolas/setup-maven@v5
-        with:
-          maven-version: 3.9.9
-
       - uses: extractions/setup-just@v2
 
       - uses: oven-sh/setup-bun@v2
@@ -87,10 +83,6 @@ jobs:
           java-version: |
             17
             21
-
-      - uses: stCarolas/setup-maven@v5
-        with:
-          maven-version: 3.9.9
 
       - uses: extractions/setup-just@v2
       - uses: oven-sh/setup-bun@v2

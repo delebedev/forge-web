@@ -75,7 +75,7 @@ test('partial, stale, missing and foreign receipts cannot authorize reuse', () =
 
 test('gate rejects failures and unintended skips including Browser Local', () => {
   const needs = Object.fromEntries(
-    ['changes', 'ui', 'server', 'runtime', 'browser-local'].map((job) => [
+    ['changes', 'ui', 'server', 'browser-runtime', 'runtime', 'browser-local'].map((job) => [
       job,
       { result: 'success' },
     ]),
