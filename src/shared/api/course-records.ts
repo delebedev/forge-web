@@ -22,6 +22,8 @@ export const CourseDocumentSchema = z.object({
   botDecks: z.array(z.array(z.string())),
   wins: z.number().int().nonnegative(),
   losses: z.number().int().nonnegative(),
+  /** Each recorded game's outcome in order; a migrated course starts without its earlier games. */
+  results: z.array(z.enum(['win', 'loss'])).default([]),
   phase: z.enum(['drafting', 'deck_build', 'games', 'finished']),
 })
 
@@ -64,6 +66,7 @@ export async function listCourses(): Promise<Course[]> {
     .filter((course): course is Course => course != null)
 }
 
+/** The saved course, or null when there is none. A course this release cannot read is an error, so it is never replaced. */
 export async function loadCourse(eventName: string): Promise<Course | null> {
   const response = await apiFetch(path(eventName))
   if (response.status === 404) {
@@ -72,7 +75,13 @@ export async function loadCourse(eventName: string): Promise<Course | null> {
   if (!response.ok) {
     throw new Error(`The course could not be loaded (${response.status}).`)
   }
-  return decode(await readJson(response, CourseRecordSchema))
+  const course = decode(await readJson(response, CourseRecordSchema))
+  if (!course) {
+    throw new Error(
+      'This course was saved by a newer version of Forge Web. Reload the page to update.',
+    )
+  }
+  return course
 }
 
 /** Saves against the revision the course was read at; revision 0 creates it. */
@@ -95,8 +104,14 @@ export async function saveCourse(course: Course): Promise<Course> {
   return { ...course, revision: saved.revision }
 }
 
-export async function deleteCourse(eventName: string): Promise<void> {
-  const response = await apiFetch(path(eventName), { method: 'DELETE' })
+/** Deletes the course as it was read; a course changed since then conflicts and stays. */
+export async function deleteCourse(course: Pick<Course, 'eventName' | 'revision'>): Promise<void> {
+  const response = await apiFetch(`${path(course.eventName)}?revision=${course.revision}`, {
+    method: 'DELETE',
+  })
+  if (response.status === 409) {
+    throw new CourseConflict()
+  }
   if (!response.ok && response.status !== 404) {
     throw new Error(`The course could not be deleted (${response.status}).`)
   }
@@ -106,7 +121,8 @@ export async function deleteCourse(eventName: string): Promise<void> {
  * Records one game's result. `seed` names the course run the game launched
  * from, so a result never lands on a newer course of the same event. `game` is
  * the number of games the course had finished when this one launched, so a
- * repeated report saves nothing.
+ * repeated report of the same outcome saves nothing and a different outcome
+ * for a recorded game is refused.
  */
 export async function recordCourseResult(
   eventName: string,
@@ -123,7 +139,17 @@ export async function recordCourseResult(
     if (document.seed !== seed) {
       throw new Error('A new course replaced the one this game was played for.')
     }
-    if (document.wins + document.losses !== game) {
+    const outcome = won ? 'win' : 'loss'
+    const played = document.wins + document.losses
+    if (played < game) {
+      throw new Error('The saved course is missing earlier games.')
+    }
+    if (played > game) {
+      // Earlier games of a migrated course have no recorded outcome to compare.
+      const recorded = document.results[game - (played - document.results.length)]
+      if (recorded != null && recorded !== outcome) {
+        throw new Error(`This game's result was already saved as a ${recorded}.`)
+      }
       return { wins: document.wins, losses: document.losses }
     }
     if (document.phase !== 'games') {
@@ -135,7 +161,13 @@ export async function recordCourseResult(
     try {
       await saveCourse({
         ...course,
-        document: { ...document, wins, losses, phase: finished ? 'finished' : 'games' },
+        document: {
+          ...document,
+          wins,
+          losses,
+          results: [...document.results, outcome],
+          phase: finished ? 'finished' : 'games',
+        },
       })
       return { wins, losses }
     } catch (error) {

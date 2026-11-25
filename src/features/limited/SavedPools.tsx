@@ -66,7 +66,7 @@ export function SavedPools({
     setBusyEvent(course.eventName)
     setActionError(null)
     try {
-      await deleteCourse(course.eventName)
+      await deleteCourse(course)
       setCourses((prev) => prev.filter((c) => c.eventName !== course.eventName))
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'Network error')

@@ -4,7 +4,8 @@ export function courseRecordServer() {
   const requests: string[] = []
   let conflictNext = false
   const fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
-    const path = new URL(String(input), 'http://test').pathname
+    const url = new URL(String(input), 'http://test')
+    const path = url.pathname
     const method = init?.method ?? 'GET'
     requests.push(`${method} ${path}`)
     if (path === '/api/course-records') {
@@ -18,6 +19,9 @@ export function courseRecordServer() {
         : new Response(null, { status: 404 })
     }
     if (method === 'DELETE') {
+      if (current && Number(url.searchParams.get('revision')) !== current.revision) {
+        return new Response('stale', { status: 409 })
+      }
       records.delete(eventName)
       return new Response(null, { status: current ? 204 : 404 })
     }

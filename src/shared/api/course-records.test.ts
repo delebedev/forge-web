@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it } from 'bun:test'
-import { recordCourseResult } from './course-records'
+import { CourseConflict, deleteCourse, loadCourse, recordCourseResult } from './course-records'
 import { courseRecordServer } from './course-records-test-server'
 
 const EVENT = 'Sealed_FDN_20260307'
@@ -44,6 +44,38 @@ it('a result from an earlier run of the event does not advance the new course', 
   )
   expect(refused).toContain('A new course replaced')
   expect(server.document(EVENT)).toMatchObject({ revision: 1, wins: 0, losses: 0 })
+})
+
+it('a repeat report with a different outcome is refused', async () => {
+  server.put(EVENT, course(0, 0))
+  expect(await recordCourseResult(EVENT, 1, 0, true)).toEqual({ wins: 1, losses: 0 })
+  const refused = await recordCourseResult(EVENT, 1, 0, false).then(
+    () => null,
+    (error: Error) => error.message,
+  )
+  expect(refused).toContain('already saved as a win')
+  expect(server.document(EVENT)).toMatchObject({ revision: 2, wins: 1, losses: 0 })
+})
+
+it('an unreadable course is reported and never replaced', async () => {
+  server.put(EVENT, { ...course(0, 0), phase: 'sideboarding' })
+  const refused = await loadCourse(EVENT).then(
+    () => null,
+    (error: Error) => error.message,
+  )
+  expect(refused).toContain('newer version')
+})
+
+it('a delete against a changed course conflicts and keeps it', async () => {
+  server.put(EVENT, course(0, 0), 2)
+  const refused = await deleteCourse({ eventName: EVENT, revision: 1 }).then(
+    () => null,
+    (error: unknown) => error,
+  )
+  expect(refused).toBeInstanceOf(CourseConflict)
+  expect(server.document(EVENT)).toMatchObject({ revision: 2 })
+  await deleteCourse({ eventName: EVENT, revision: 2 })
+  expect(server.document(EVENT)).toBeUndefined()
 })
 
 it('the third loss finishes the course', async () => {

@@ -28,6 +28,8 @@ export interface SealedSnapshot {
   eventName: string | null
   pool: DraftCard[]
   matchLaunch: LimitedMatchLaunch | null
+  /** A deck save is pending; the builder takes no second submit. */
+  submitting: boolean
   error: string | null
 }
 
@@ -40,6 +42,7 @@ export class SealedStore {
   eventName: string | null = null
   pool: DraftCard[] = []
   matchLaunch: LimitedMatchLaunch | null = null
+  submitting = false
   error: string | null = null
 
   private course: Course | null = null
@@ -59,6 +62,7 @@ export class SealedStore {
       eventName: this.eventName,
       pool: this.pool,
       matchLaunch: this.matchLaunch,
+      submitting: this.submitting,
       error: this.error,
     }
   }
@@ -152,10 +156,11 @@ export class SealedStore {
   async submitDeck(mainboard: string[], sideboard: string[]): Promise<void> {
     const course = this.course
     const eventName = this.eventName
-    if (!course || !eventName) {
+    if (!course || !eventName || this.submitting) {
       return
     }
     const session = this.session
+    this.submitting = true
     this.error = null
     this.notify()
     try {
@@ -177,6 +182,9 @@ export class SealedStore {
         this.error = err instanceof Error ? err.message : 'network_error'
       }
     } finally {
+      if (session === this.session) {
+        this.submitting = false
+      }
       this.notify()
     }
   }
@@ -197,6 +205,7 @@ export class SealedStore {
     this.course = null
     this.pool = []
     this.matchLaunch = null
+    this.submitting = false
     this.error = null
     this.engine.release()
     this.notify()
@@ -211,6 +220,7 @@ export class SealedStore {
     this.course = course
     this.eventName = course.eventName
     this.pool = pool
+    this.submitting = false
     this.phase = 'deck_build'
   }
 

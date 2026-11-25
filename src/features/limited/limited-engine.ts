@@ -30,11 +30,13 @@ export type LimitedEngine = {
 /** Kept between picks so each pick skips the worker's cold start. */
 const IDLE_MS = 5 * 60_000
 
-type LimitedWorker = Pick<BrowserEngine, 'catalogVersion' | 'limited' | 'dispose'>
+type LimitedWorker = Pick<BrowserEngine, 'catalogVersion' | 'limited' | 'dispose'> & {
+  diagnostics(): { failed: boolean }
+}
 
 /**
  * The draft and sealed stores share one worker. It is disposed by an explicit
- * release once no command runs, after a failed command, or when idle.
+ * release once no command runs, when the worker itself fails, or when idle.
  */
 export function createLimitedEngine(
   create: () => LimitedWorker = () => new BrowserEngine(() => {}),
@@ -64,8 +66,8 @@ export function createLimitedEngine(
     try {
       return await command(current)
     } catch (error) {
-      // A failed command may leave the worker unusable; the next one starts fresh.
-      if (engine === current) {
+      // A command error rejects only that command; a dead worker is replaced on the next one.
+      if (engine === current && current.diagnostics().failed) {
         dispose()
       }
       throw error

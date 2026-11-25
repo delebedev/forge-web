@@ -149,6 +149,16 @@ it('deck editing refuses a draft still picking', async () => {
   expect(picking.snapshot().phase).toBe('idle')
 })
 
+it('a deck cannot be submitted into a draft still picking', async () => {
+  const store = new DraftStore(fakeEngine().engine)
+  expect(await store.startDraft('FDN')).toBe(true)
+  const before = server.document(EVENT)
+  await store.submitDeck(['Bear'], [])
+  expect(store.snapshot().error).toContain('still picking')
+  expect(store.snapshot().matchLaunch).toBeNull()
+  expect(server.document(EVENT)).toEqual(before)
+})
+
 it('a draft another window starts first opens instead of failing', async () => {
   const { engine } = fakeEngine()
   const draft = engine.draft

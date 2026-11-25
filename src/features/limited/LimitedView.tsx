@@ -69,6 +69,7 @@ export function LimitedView({
   const router = useRouter()
   const store = mode === 'draft' ? draftStore : sealedStore
   const active = mode === 'draft' ? draft : sealed
+  const submitting = active.submitting
 
   const cfg = CONFIG[mode]
   const { phase, pool, error } = active
@@ -171,7 +172,7 @@ export function LimitedView({
   }
 
   function handleReset(): void {
-    if ((mode === 'draft' && draft.submitting) || enteringGame) {
+    if (submitting || enteringGame) {
       return
     }
     if (mode === 'draft') {
@@ -182,7 +183,7 @@ export function LimitedView({
   }
 
   function handleBack(): void {
-    if ((mode === 'draft' && draft.submitting) || enteringGame) {
+    if (submitting || enteringGame) {
       return
     }
     store.reset()
@@ -311,7 +312,7 @@ export function LimitedView({
             variant="secondary"
             size="compact"
             onClick={handleBack}
-            disabled={(mode === 'draft' && draft.submitting) || enteringGame}
+            disabled={submitting || enteringGame}
           >
             Back to Saved Pools
           </Button>
@@ -321,7 +322,7 @@ export function LimitedView({
             className={styles.newBtn}
             type="button"
             onClick={handleReset}
-            disabled={(mode === 'draft' && draft.submitting) || enteringGame}
+            disabled={submitting || enteringGame}
           >
             {cfg.newLabel}
           </button>
@@ -332,7 +333,7 @@ export function LimitedView({
             initialSide={cfg.initialSide}
             poolLabel={cfg.poolLabel}
             error={error}
-            submitting={mode === 'draft' && draft.submitting}
+            submitting={submitting}
             onSubmit={(m, s) => void handleSubmitDeck(m, s)}
           />
         </div>

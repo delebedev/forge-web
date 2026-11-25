@@ -246,11 +246,11 @@ export class DraftStore {
     this.discarding = true
     try {
       await this.pickInFlight
-      if (!this.sessionId) {
+      if (!this.course) {
         this.reset()
         return
       }
-      await deleteCourse(this.sessionId)
+      await deleteCourse(this.course)
       this.reset()
     } catch (err) {
       this.setError(err instanceof Error ? err.message : 'network_error')

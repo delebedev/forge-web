@@ -52,6 +52,29 @@ it('a deck that saves after the player left does not reopen the course', async (
   expect(server.document(EVENT)).toMatchObject({ phase: 'games' })
 })
 
+it('a second submit while the deck saves is ignored', async () => {
+  const store = new SealedStore(engine)
+  expect(await store.startSealed('FDN')).toBe(true)
+  let release!: () => void
+  const gate = new Promise<void>((resolve) => (release = resolve))
+  const puts: string[] = []
+  globalThis.fetch = (async (input, init) => {
+    if (init?.method === 'PUT') {
+      puts.push(String(input))
+      await gate
+    }
+    return server.fetch(input, init)
+  }) as typeof fetch
+  const first = store.submitDeck(['Bear'], [])
+  await Promise.resolve()
+  expect(store.snapshot().submitting).toBe(true)
+  await store.submitDeck(['Bear'], [])
+  release()
+  await first
+  expect(puts).toHaveLength(1)
+  expect(store.snapshot()).toMatchObject({ phase: 'playing', submitting: false, error: null })
+})
+
 it('a stale deck reloads the course another window saved', async () => {
   const store = new SealedStore(engine)
   expect(await store.startSealed('FDN')).toBe(true)

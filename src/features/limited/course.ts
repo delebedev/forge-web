@@ -41,6 +41,7 @@ export function emptyCourse(
     botDecks: [],
     wins: 0,
     losses: 0,
+    results: [],
     phase: kind === 'draft' ? 'drafting' : 'deck_build',
   }
 }
@@ -75,7 +76,10 @@ export function courseMatch(course: Course): LimitedMatchLaunch {
   }
 }
 
-/** Deck editing opens only a finished pool; a draft still picking resumes from its set instead. */
+/**
+ * Deck editing and submission take only a finished pool; a draft still picking
+ * resumes from its set instead, and a finished course takes no more games.
+ */
 export function requireEditable(course: Course): void {
   if (course.document.phase !== 'deck_build' && course.document.phase !== 'games') {
     throw new Error(
@@ -92,9 +96,7 @@ export async function submitCourseDeck(
   mainboard: string[],
   sideboard: string[],
 ): Promise<{ course: Course; launch: LimitedMatchLaunch }> {
-  if (course.document.phase === 'finished') {
-    throw new Error('This course is complete. Start a new one to play again.')
-  }
+  requireEditable(course)
   const saved = await saveCourse({
     ...course,
     document: {

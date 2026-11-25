@@ -72,7 +72,8 @@ test('drafts a deck and enters a playable pod match', async ({ page, browser }, 
   await page.getByRole('button', { name: 'Start Draft' }).click()
 
   const firstCard = page.locator('button[data-card]').first()
-  await expect(firstCard).toBeVisible({ timeout: 30_000 })
+  // The first pack waits for the browser engine's cold start.
+  await expect(firstCard).toBeVisible({ timeout: 120_000 })
   await expect(page.getByRole('button', { name: 'Get Advice' })).toHaveCount(0)
   await expect(page.getByText('Round 1', { exact: true })).toBeVisible()
   await firstCard.click()
