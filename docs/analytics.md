@@ -110,7 +110,7 @@ card names.
 | `turn-milestone` | start fields, `turn` in `1`, `5`, `10`, `20` |
 | `game-recovery` | `execution=browser`, opaque match/attempt IDs and browser context, bounded `outcome` (`started`, `succeeded`, `failed`, `cancelled`), terminal `duration_ms` |
 | `deck-paste` | `cardCount`, `inputLength`, `lineCount` |
-| `deck-search` | `queryLength`, bounded `outcome`, optional `resultCount`, `status` |
+| `deck-search` | `queryLength`, bounded `outcome` (`network` when the card index cannot load), optional `resultCount` |
 | `deck-saved` | `deck_id`, `operation`, `format`, `cardCount` |
 | `deck-deleted` | `deck_id` |
 | `bug-report-opened` | `report_id`, `source` (`header`, `sidebar`, or `board`), optional `match_id`, `deck_id`, `close_category`, numeric `close_code`, `connection_status` |

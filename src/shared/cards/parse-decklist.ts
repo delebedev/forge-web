@@ -1,9 +1,8 @@
-import { apiFetch } from '@shared/api/client'
-import {
-  ParseDecklistErrorResponseSchema,
-  ParseDecklistResponseSchema,
-  type ParseDecklistResponse,
-} from '@shared/api/contracts'
+import { z } from 'zod'
+import { BrowserEngine } from '@engine/runtime/browser-engine'
+import type { DecklistCard, ParseDecklistResponse } from '@shared/api/contracts'
+import { indexDraftCard } from './catalog'
+import { loadCardIndex, loadedCardIndex } from './card-index'
 
 export type ParseDecklistResult =
   { ok: true; deck: ParseDecklistResponse } | { ok: false; errors: string[] }
@@ -34,6 +33,16 @@ export function selectCommanders(
   return { ...deck, mainboard, commandZone: commanders }
 }
 
+/** Main-deck rows the card index marks as able to be a commander, with their row index. */
+export function commanderCandidates(
+  mainboard: DecklistCard[],
+): { card: DecklistCard; index: number }[] {
+  const index = loadedCardIndex()
+  return mainboard.flatMap((card, row) =>
+    index?.card(card.card.name)?.canBeCommander ? [{ card, index: row }] : [],
+  )
+}
+
 export function formatDecklist(deck: ParseDecklistResponse): string {
   const rows = (cards: ParseDecklistResponse['mainboard']) =>
     cards.map(({ card, quantity }) => `${quantity} ${card.name}`).join('\n')
@@ -44,46 +53,129 @@ export function formatDecklist(deck: ParseDecklistResponse): string {
   ].join('\n')
 }
 
-export async function parseDecklist(text: string): Promise<ParseDecklistResult> {
-  const result = await postDecklist('/api/cards/parse-decklist', text)
+const CheckedRowSchema = z.object({ name: z.string(), quantity: z.number().int().positive() })
+const CheckedDecklistSchema = z.object({
+  mainboard: z.array(CheckedRowSchema),
+  sideboard: z.array(CheckedRowSchema),
+  commandZone: z.array(CheckedRowSchema),
+  errors: z.array(z.string()),
+})
+type CheckedDecklist = z.output<typeof CheckedDecklistSchema>
+export type DecklistChecker = (
+  text: string,
+  gameType: string | undefined,
+  isImport: boolean,
+) => Promise<unknown>
+
+/**
+ * Keeps one engine warm from an import's parse to its validation. A passing
+ * validation ends the import, so the engine is released then, before a match
+ * engine can start.
+ */
+const DECK_ENGINE_IDLE_MS = 60_000
+let deckEngine: BrowserEngine | null = null
+let deckEngineChecks = 0
+let deckEngineIdle: ReturnType<typeof setTimeout> | null = null
+
+async function checkInEngine(
+  text: string,
+  gameType: string | undefined,
+  isImport: boolean,
+): Promise<unknown> {
+  if (deckEngineIdle) {
+    clearTimeout(deckEngineIdle)
+    deckEngineIdle = null
+  }
+  const engine = (deckEngine ??= new BrowserEngine(() => {}))
+  deckEngineChecks++
+  let finished = false
+  try {
+    const result = await engine.checkDecklist(text, gameType, isImport)
+    finished = !isImport && CheckedDecklistSchema.safeParse(result).data?.errors.length === 0
+    return result
+  } catch (error) {
+    if (deckEngine === engine) {
+      deckEngine = null
+      engine.dispose()
+    }
+    throw error
+  } finally {
+    deckEngineChecks--
+    if (deckEngine === engine && deckEngineChecks === 0) {
+      const release = () => {
+        deckEngine = null
+        engine.dispose()
+      }
+      if (finished) {
+        release()
+      } else {
+        deckEngineIdle = setTimeout(release, DECK_ENGINE_IDLE_MS)
+      }
+    }
+  }
+}
+
+async function check(
+  text: string,
+  gameType: string | undefined,
+  isImport: boolean,
+  checker: DecklistChecker,
+): Promise<{ ok: true; deck: CheckedDecklist } | { ok: false; errors: string[] }> {
+  try {
+    const deck = CheckedDecklistSchema.parse(await checker(text, gameType, isImport))
+    return deck.errors.length ? { ok: false, errors: deck.errors } : { ok: true, deck }
+  } catch {
+    return { ok: false, errors: ['Could not check this decklist. Try again.'] }
+  }
+}
+
+/** Resolves a pasted decklist with the engine's rules; card fields come from the card index. */
+export async function parseDecklist(
+  text: string,
+  checker: DecklistChecker = checkInEngine,
+): Promise<ParseDecklistResult> {
+  const [result, index] = await Promise.all([
+    check(text, undefined, true, checker),
+    loadCardIndex().catch(() => null),
+  ])
   if (!result.ok) {
     return result
   }
-  const success = ParseDecklistResponseSchema.safeParse(result.body)
-  return success.success
-    ? { ok: true, deck: success.data }
-    : { ok: false, errors: ['Could not parse decklist'] }
+  if (!index) {
+    return { ok: false, errors: ['Could not load card details. Try again.'] }
+  }
+  const missing: string[] = []
+  const rows = (entries: CheckedDecklist['mainboard']) =>
+    entries.flatMap(({ name, quantity }) => {
+      const card = index.card(name)
+      if (!card) {
+        missing.push(name)
+        return []
+      }
+      return [
+        {
+          grpId: card.grpId,
+          quantity,
+          card: { ...indexDraftCard(card), grpId: card.grpId, score: null },
+        },
+      ]
+    })
+  const deck = {
+    mainboard: rows(result.deck.mainboard),
+    sideboard: rows(result.deck.sideboard),
+    commandZone: rows(result.deck.commandZone),
+  }
+  return missing.length
+    ? { ok: false, errors: missing.map((name) => `Card details are unavailable: ${name}`) }
+    : { ok: true, deck }
 }
 
+/** Validates a decklist for a game type with the engine's rules. */
 export async function validateDecklist(
   text: string,
   gameType?: string,
+  checker: DecklistChecker = checkInEngine,
 ): Promise<DecklistValidationResult> {
-  const result = await postDecklist('/api/cards/validate-decklist', text, gameType)
+  const result = await check(text, gameType, false, checker)
   return result.ok ? { ok: true } : result
-}
-
-async function postDecklist(
-  path: string,
-  text: string,
-  gameType?: string,
-): Promise<{ ok: true; body: unknown } | { ok: false; errors: string[] }> {
-  try {
-    const response = await apiFetch(path, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, ...(gameType == null ? {} : { gameType }) }),
-    })
-    const body = await response.json().catch(() => null)
-    if (response.ok) {
-      return { ok: true, body }
-    }
-    const failure = ParseDecklistErrorResponseSchema.safeParse(body)
-    return {
-      ok: false,
-      errors: failure.success ? failure.data.errors : ['Could not parse decklist'],
-    }
-  } catch {
-    return { ok: false, errors: ['Could not parse decklist'] }
-  }
 }

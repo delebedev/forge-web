@@ -1,3 +1,5 @@
+import { loadedCardIndex } from './card-index'
+
 type ScryfallCard = {
   name: string
   setCode?: string | null
@@ -38,9 +40,14 @@ export function artCropUrl(imageUrl: string): string {
   return imageUrl
 }
 
+/** Artwork from the loaded card index; the image route serves surfaces that render before it loads. */
 export function scryfallUrl(card: ScryfallCard): string {
   if (card.isFaceDown) {
     return CARD_BACK_URL
+  }
+  const index = loadedCardIndex()
+  if (index) {
+    return index.imageUrl(card.name, card.isTransformed) ?? CARD_BACK_URL
   }
   const face = card.isTransformed ? '&face=back' : ''
   return `/api/public/cards/image?name=${encodeURIComponent(card.name)}&version=normal${face}`

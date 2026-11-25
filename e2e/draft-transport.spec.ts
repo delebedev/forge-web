@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import type { WebComponents } from '../src/shared/api/contracts'
-import { httpCardMeta } from '../src/shared/api/http-test-fixtures'
+import { routeCardIndex } from './card-index-route'
 
 type DraftSessionView = WebComponents['schemas']['DraftSessionView']
 
@@ -15,6 +15,12 @@ async function mockDraft(page: Page, interrupted = false) {
     pickedCards: state.deleted ? (state.picks > 0 ? [101] : []) : [101],
     interrupted: interrupted && !state.deleted,
   })
+  await routeCardIndex(
+    page,
+    [{ grpId: 101, name: 'Grizzly Bears', types: 'Creature', manaCost: '{1}{G}' }],
+    [{ code: 'FDN', name: 'Foundations' }],
+  )
+  await page.route('https://cards.scryfall.io/**', (route) => route.fulfill({ status: 204 }))
   await page.route('**/api/**', async (route) => {
     const request = route.request()
     const url = new URL(request.url())
@@ -25,31 +31,8 @@ async function mockDraft(page: Page, interrupted = false) {
     switch (url.pathname) {
       case '/api/auth/me':
         return json({ playerId: 'draft-fixture', guest: false })
-      case '/api/sealed/sets':
-        return json([
-          {
-            code: 'FDN',
-            name: 'Foundations',
-            date: null,
-            type: null,
-            cardCount: null,
-            description: null,
-            mechanics: null,
-            archetypes: null,
-          },
-        ])
       case '/api/courses':
         return json([])
-      case '/api/public/cards/image':
-        return route.fulfill({ status: 204 })
-      case '/api/public/cards/by-grpids':
-        return json({
-          101: httpCardMeta(101, {
-            name: 'Grizzly Bears',
-            types: 'Creature',
-            manaCost: '{1}{G}',
-          }),
-        })
       case '/api/draft/start':
         state.starts += 1
         return json(draftView())

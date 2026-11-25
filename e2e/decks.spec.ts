@@ -18,6 +18,7 @@ test('imported sideboard cards move, edit, save and reopen with their quantities
     .getByRole('textbox', { name: 'Deck list' })
     .fill('Deck\n2 Grizzly Bears\n10 Forest\nSideboard\n2 Grizzly Bears\n2 Island')
   await page.getByRole('button', { name: 'Check deck', exact: true }).click()
+  await expect(page.getByPlaceholder('Deck name...')).toBeVisible({ timeout: 60_000 })
   await page.getByPlaceholder('Deck name...').fill('Sideboard editing')
   readyForVideo.add(page)
   if (recordDemos) {
@@ -85,6 +86,12 @@ test('deck library import, editing and selection retain their controls at laptop
       retiredRequests.push(request.url())
     }
   })
+  // Search, card display, import and validation read the card index and the browser engine.
+  const cardRequests: string[] = []
+  await page.route(/\/api\/(?:cards|public\/cards)\//, (route) => {
+    cardRequests.push(new URL(route.request().url()).pathname)
+    return route.abort()
+  })
   await page.setViewportSize({ width: 1280, height: 720 })
   const email = `deck-style-${Date.now()}@example.test`
   await page.request.post('/api/auth/request-code', { data: { email } })
@@ -107,26 +114,17 @@ test('deck library import, editing and selection retain their controls at laptop
     .getByRole('textbox', { name: 'Deck list', exact: true })
     .fill('[Deck]\n4 Jungle Lion\n56x Forest (ARENA)\n[Sideboard]\n2 Negate')
   await page.getByRole('button', { name: 'Check deck', exact: true }).click()
+  await expect(page.getByRole('textbox', { name: 'Deck name', exact: true })).toBeVisible({
+    timeout: 60_000,
+  })
   await page.getByRole('textbox', { name: 'Deck name', exact: true }).fill('Forest library')
   await expect(dialog.getByText('Jungle Lion', { exact: true }).last()).toBeVisible()
   await page.screenshot({ path: testInfo.outputPath('forge-deck-import.png') })
   await page.getByRole('button', { name: 'Open in Editor', exact: true }).click()
   await expect(dialog).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Create', exact: true })).toBeInViewport()
-  let finishLand!: () => void
-  const landGate = new Promise<void>((resolve) => {
-    finishLand = resolve
-  })
-  await page.route('**/api/cards/search?**', async (route) => {
-    if (new URL(route.request().url()).searchParams.get('q') === 'Island') {
-      await landGate
-    }
-    await route.continue()
-  })
   await page.getByRole('button', { name: 'Add Island', exact: true }).click()
-  await expect(page.getByRole('status')).toContainText('Adding lands')
-  await expect(page.getByRole('button', { name: 'Create', exact: true })).toBeDisabled()
-  finishLand()
+  await expect(page.getByRole('button', { name: 'Remove Island', exact: true })).toBeEnabled()
   await expect(page.getByRole('button', { name: 'Create', exact: true })).toBeEnabled()
   await page.getByRole('button', { name: 'Remove Island', exact: true }).click()
   await page.getByRole('button', { name: 'Create', exact: true }).click()

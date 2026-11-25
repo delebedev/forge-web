@@ -79,9 +79,10 @@ const startupAssets = [
     .filter(Boolean)
     .map((entry) => `catalog/${entry.file}`),
 ]
-for (const path of startupAssets) {
+// The product UI loads the card index lazily on the main thread, so it is not a startup asset.
+for (const path of [...startupAssets, 'catalog/card-index.json.gz']) {
   if (!assets.some((asset) => asset.path === path)) {
-    throw new Error(`Missing startup asset: ${path}`)
+    throw new Error(`Missing release asset: ${path}`)
   }
 }
 

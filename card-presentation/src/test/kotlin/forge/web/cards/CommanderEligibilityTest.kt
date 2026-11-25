@@ -1,4 +1,4 @@
-package forge.web.server.cards
+package forge.web.cards
 
 import leyline.bridge.bootstrap.DeckLoader
 import leyline.bridge.bootstrap.GameBootstrap

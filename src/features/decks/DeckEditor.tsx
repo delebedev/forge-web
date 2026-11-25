@@ -1,5 +1,3 @@
-import { DraftCardDtoSchema } from '@shared/api/wire-schemas'
-import { readJson } from '@shared/api/decoding'
 /** Owns the editable main deck and sideboard, card search, and save draft. */
 
 import { useEffect, useRef, useState } from 'react'
@@ -18,8 +16,8 @@ import {
   type EditableSections,
   type EditableSection,
 } from './deck-editing'
-import { apiFetch } from '@shared/api/client'
-import { webDraftCards } from '@shared/cards/catalog'
+import { indexDraftCard, webDraftCards } from '@shared/cards/catalog'
+import { loadCardIndex } from '@shared/cards/card-index'
 import { trackDeckSearch } from '@shared/analytics'
 import type { DraftCard } from '@shared/api/contracts'
 import { CardHoverPreview } from '@features/gre/board/CardHoverPreview'
@@ -138,25 +136,13 @@ export function DeckEditor({
     }
     setSearching(true)
     try {
-      const params = new URLSearchParams({ q: query, limit: '20' })
-      const resp = await apiFetch(`/api/cards/search?${params}`)
-      if (resp.ok) {
-        const results = await readJson(resp, DraftCardDtoSchema.array())
-        const metadata = await webDraftCards(
-          results.flatMap((card) => (card.grpId != null ? [card.grpId] : [])),
-        )
-        const byId = new Map(
-          metadata.filter((card) => card.typeLine != null).map((card) => [card.grpId, card]),
-        )
-        setSearchResults(results.map((card) => ({ ...card, ...byId.get(card.grpId) })))
-        trackDeckSearch({
-          queryLength: query.length,
-          outcome: 'success',
-          resultCount: results.length,
-        })
-      } else {
-        trackDeckSearch({ queryLength: query.length, outcome: 'server', status: resp.status })
-      }
+      const results = (await loadCardIndex()).search(query).map(indexDraftCard)
+      setSearchResults(results)
+      trackDeckSearch({
+        queryLength: query.length,
+        outcome: 'success',
+        resultCount: results.length,
+      })
     } catch {
       trackDeckSearch({ queryLength: query.length, outcome: 'network' })
     } finally {

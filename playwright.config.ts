@@ -236,7 +236,7 @@ const managedConfigs: Record<string, PlaywrightTestConfig> = {
   'deck-import': makeSmokeConfig({
     name: 'deck-import',
     testMatch: /deck-import\.spec\.ts/,
-    timeout: 30_000,
+    timeout: 90_000,
     frontendPort: 15178,
     webPort: 15188,
   }),

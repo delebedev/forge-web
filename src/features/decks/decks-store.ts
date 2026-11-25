@@ -1,9 +1,10 @@
-import { DeckViewSchema, DraftCardDtoSchema, responseSchemas } from '@shared/api/wire-schemas'
+import { DeckViewSchema } from '@shared/api/wire-schemas'
 import { readJson } from '@shared/api/decoding'
 import type { DeckSummary } from '@shared/api/contracts'
 import { ParseDecklistErrorResponseSchema } from '@shared/api/contracts'
 import { apiFetch } from '@shared/api/client'
-import { hydrateLinkedFaces } from '@shared/cards/catalog'
+import { indexDraftCard } from '@shared/cards/catalog'
+import { loadCardIndex, type CardIndex } from '@shared/cards/card-index'
 import { authStore } from '@shared/auth/auth'
 import {
   deckSummary,
@@ -16,8 +17,6 @@ import {
   type SavedDeck,
   type LibraryCard,
 } from './deck-value'
-
-const METADATA_BATCH_SIZE = 500
 
 export interface DecksSnapshot {
   accountId: string | null
@@ -39,18 +38,20 @@ export class DecksStore {
   private selectedId: string | null = null
   private listVersion = 0
   private fetched = false
-  private metadata = new Map<number, LibraryCard>()
   private subscribers = new Set<() => void>()
 
   private account: Pick<typeof authStore, 'snapshot' | 'subscribe'>
   private request: typeof apiFetch
+  private cards: () => Promise<CardIndex>
 
   constructor(
     account: Pick<typeof authStore, 'snapshot' | 'subscribe'> = authStore,
     request: typeof apiFetch = apiFetch,
+    cards: () => Promise<CardIndex> = loadCardIndex,
   ) {
     this.account = account
     this.request = request
+    this.cards = cards
     this.state = this.emptyState()
     account.subscribe(() => {
       if (this.accountId() !== this.state.accountId) {
@@ -120,85 +121,26 @@ export class DecksStore {
     this.selectionVersion++
     this.listVersion++
     this.fetched = false
-    this.metadata = new Map()
     this.commit(this.emptyState())
   }
 
-  private async loadMetadata(
-    decks: DeckView[],
-    generation: number,
-    known: LibraryCard[] = [],
-  ): Promise<ReadonlyMap<number, LibraryCard>> {
-    if (generation !== this.generation) {
-      return new Map()
+  private async loadMetadata(decks: DeckView[]): Promise<ReadonlyMap<number, LibraryCard>> {
+    let index: CardIndex | null = null
+    try {
+      index = await this.cards()
+    } catch {
+      /* Retain persisted identities when the card index is unavailable. */
     }
-    const ids = [
-      ...new Set(
-        decks.flatMap((deck) =>
-          [...deck.mainDeck, ...deck.sideboard, ...deck.commandZone].map((row) => row.grpId),
-        ),
-      ),
-    ].filter((id) => !this.metadata.has(id))
-    for (const card of known) {
-      if (card.metadataAvailable) {
-        const existing = this.metadata.get(card.grpId)
-        this.metadata.set(card.grpId, {
-          ...existing,
-          ...card,
-          power: card.power ?? existing?.power ?? null,
-          toughness: card.toughness ?? existing?.toughness ?? null,
-          rulesText: card.rulesText ?? existing?.rulesText ?? null,
-          loyalty: card.loyalty ?? existing?.loyalty ?? null,
-          defense: card.defense ?? existing?.defense ?? null,
-          faceLayout: card.faceLayout ?? existing?.faceLayout ?? null,
-          linkedFaces: card.linkedFaces ?? existing?.linkedFaces,
-        })
+    const metadata = new Map<number, LibraryCard>()
+    for (const deck of decks) {
+      for (const row of [...deck.mainDeck, ...deck.sideboard, ...deck.commandZone]) {
+        const card = index?.cardById(row.grpId)
+        if (card && !metadata.has(row.grpId)) {
+          metadata.set(row.grpId, hydratedCard({ grpId: row.grpId, quantity: 1 }, card))
+        }
       }
     }
-    for (let index = 0; index < ids.length; index += METADATA_BATCH_SIZE) {
-      if (generation !== this.generation) {
-        return new Map()
-      }
-      const batch = ids.slice(index, index + METADATA_BATCH_SIZE)
-      try {
-        const response = await this.request(`/api/public/cards/by-grpids?ids=${batch.join(',')}`)
-        if (!response.ok) {
-          continue
-        }
-        const cards = await readJson(
-          response,
-          responseSchemas['GET /api/public/cards/by-grpids']['200'],
-        )
-        if (generation !== this.generation) {
-          return new Map()
-        }
-        const hydrated = await hydrateLinkedFaces(cards, this.request)
-        if (generation !== this.generation) {
-          return new Map()
-        }
-        for (const card of hydrated) {
-          if (card.name) {
-            const loaded = hydratedCard({ grpId: card.grpId, quantity: 1 }, card)
-            const existing = this.metadata.get(card.grpId)
-            this.metadata.set(card.grpId, {
-              ...loaded,
-              ...existing,
-              power: existing?.power ?? loaded.power,
-              toughness: existing?.toughness ?? loaded.toughness,
-              rulesText: existing?.rulesText ?? loaded.rulesText,
-              loyalty: existing?.loyalty ?? loaded.loyalty,
-              defense: existing?.defense ?? loaded.defense,
-              faceLayout: existing?.faceLayout ?? loaded.faceLayout,
-              linkedFaces: existing?.linkedFaces ?? loaded.linkedFaces,
-              metadataAvailable: Boolean(existing?.metadataAvailable || loaded.metadataAvailable),
-            })
-          }
-        }
-      } catch {
-        /* Retain persisted identities and known cards when presentation metadata is unavailable. */
-      }
-    }
-    return generation === this.generation ? new Map(this.metadata) : new Map()
+    return metadata
   }
 
   async fetchDecks(refresh = false): Promise<void> {
@@ -216,7 +158,7 @@ export class DecksStore {
         throw new Error('Failed to load decks')
       }
       const raw = await readJson(response, DeckViewSchema.array())
-      const metadata = await this.loadMetadata(raw, generation)
+      const metadata = await this.loadMetadata(raw)
       const decks = raw.map((deck) => savedDeck(deck, metadata))
       if (current()) {
         this.fetched = true
@@ -250,7 +192,7 @@ export class DecksStore {
         throw new Error('Could not load this deck.')
       }
       const raw = await readJson(response, DeckViewSchema)
-      const deck = savedDeck(raw, await this.loadMetadata([raw], generation))
+      const deck = savedDeck(raw, await this.loadMetadata([raw]))
       if (!current()) {
         return null
       }
@@ -287,13 +229,11 @@ export class DecksStore {
   }
 
   async basicLand(name: string): Promise<LibraryCard> {
-    const response = await this.request(`/api/cards/search?q=${encodeURIComponent(name)}&limit=20`)
-    const cards = response.ok ? await readJson(response, DraftCardDtoSchema.array()) : []
-    const card = cards.find((card) => card.name === name && card.grpId)
+    const card = (await this.cards().catch(() => null))?.card(name)
     if (!card) {
       throw new Error(`Could not load ${name}. Try again.`)
     }
-    return libraryCard(card, 1)
+    return libraryCard(indexDraftCard(card), 1)
   }
 
   async saveDeck(draft: DeckDraft): Promise<SavedDeck | null> {
@@ -332,12 +272,7 @@ export class DecksStore {
         throw new Error(parsed.success ? parsed.data.errors.join(' ') : 'Could not save your deck.')
       }
       const raw = await readJson(response, DeckViewSchema)
-      const metadata = await this.loadMetadata([raw], generation, [
-        ...draft.cards,
-        ...draft.sideboard,
-        ...draft.commandZone,
-      ])
-      const deck = savedDeck(raw, metadata)
+      const deck = savedDeck(raw, await this.loadMetadata([raw]))
       if (!current()) {
         return null
       }

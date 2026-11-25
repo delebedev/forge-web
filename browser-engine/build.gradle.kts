@@ -60,6 +60,15 @@ tasks.register<JavaExec>("catalogIndex") {
     maxHeapSize = "512m"
 }
 
+tasks.register<JavaExec>("cardIndex") {
+    dependsOn(tasks.classes)
+    classpath = sourceSets.main.get().runtimeClasspath
+    mainClass.set("forge.web.browser.BrowserCardIndex")
+    javaLauncher.set(javaToolchains.launcherFor { languageVersion.set(JavaLanguageVersion.of(17)) })
+    args(rootProject.file("public/browser-engine/catalog").absolutePath)
+    maxHeapSize = "1g"
+}
+
 tasks.register<Sync>("browserDistribution") {
     dependsOn(tasks.jar)
     from(tasks.jar)

@@ -2,6 +2,8 @@ package forge.web.server.cards
 
 import forge.web.cards.GreCardMetaDto
 import forge.web.cards.cardPresentation
+import forge.web.cards.importWebDecklist
+import forge.web.cards.validateWebDecklist
 import forge.web.server.http.contract
 import forge.web.server.http.requiredQuery
 import io.ktor.http.HttpHeaders
@@ -16,10 +18,6 @@ import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.route
 import leyline.domain.deck.DeckCards
-import leyline.domain.deck.Decklist
-import leyline.domain.deck.DecklistSection
-import leyline.domain.deck.parseDecklist
-import leyline.domain.deck.resolveCards
 import leyline.game.data.CardRepository
 import wotc.mtgo.gre.external.messaging.Messages.CardColor
 
@@ -62,21 +60,7 @@ internal fun Route.installCardRoutes(
         }
         post("/validate-decklist") {
             val request = call.receive<ValidateDecklistRequest>()
-            val cards = resolveDecklist(cardRepository, parseDecklistRequest(request.text))
-            val commanderRequired =
-                when (request.gameType) {
-                    null -> false
-                    "constructed" -> {
-                        if (cards.commandZone.isNotEmpty()) {
-                            throw leyline.domain.deck.DecklistException(listOf("Constructed decks cannot include a commander."))
-                        }
-                        false
-                    }
-                    "commander" -> true
-                    else -> throw leyline.domain.deck.DecklistException(listOf("Unsupported game format."))
-                }
-            validateCommanderCards(cardRepository, cards, canBeCommander, commanderRequired, commanderProblem)
-            validateCopies(cards, deckCopyFormat(request.gameType ?: if (cards.commandZone.isNotEmpty()) "commander" else null))
+            cardRepository.validateWebDecklist(request.text, request.gameType, canBeCommander, commanderProblem, validateCopies)
             call.respond(HttpStatusCode.NoContent)
         }.contract {
             request<ValidateDecklistRequest>()
@@ -193,14 +177,6 @@ private fun searchCards(
 
 private val WUBRG = setOf("W", "U", "B", "R", "G")
 
-/** Upper bound on decklist text size — a generous Commander list is well under this. */
-private const val MAX_DECKLIST_CHARS = 20_000
-
-/**
- * Parse and fully resolve a Web-import decklist. All-or-nothing: any malformed line or
- * unresolved card name throws [leyline.domain.deck.DecklistException] with every failure.
- * Companion sections are rejected until the Web deck editor can persist them.
- */
 private fun parseDecklistForWeb(
     cardRepository: CardRepository,
     cardImages: CardImageIndex,
@@ -208,16 +184,7 @@ private fun parseDecklistForWeb(
     commanderProblem: (DeckCards) -> String?,
     text: String,
 ): ParseDecklistResponse {
-    val decklist = parseDecklistRequest(text)
-    val unsupported = decklist.entries.filter { it.section == DecklistSection.Companion }
-    if (unsupported.isNotEmpty()) {
-        throw leyline.domain.deck.DecklistException(
-            unsupported.map { "${it.section} section is not supported for Web import: ${it.name}" },
-        )
-    }
-
-    val resolved = resolveDecklist(cardRepository, decklist)
-    validateCommanderCards(cardRepository, resolved, canBeCommander, commanderProblem = commanderProblem)
+    val resolved = cardRepository.importWebDecklist(text, canBeCommander, commanderProblem)
 
     fun toDtos(cards: List<leyline.domain.DeckCard>) =
         cards.map { card ->
@@ -234,20 +201,6 @@ private fun parseDecklistForWeb(
         commandZone = toDtos(resolved.commandZone),
     )
 }
-
-private fun parseDecklistRequest(text: String): Decklist {
-    require(text.isNotBlank()) { "empty decklist" }
-    require(text.length <= MAX_DECKLIST_CHARS) { "decklist too large (max $MAX_DECKLIST_CHARS chars)" }
-    return parseDecklist(text)
-}
-
-private fun resolveDecklist(
-    cardRepository: CardRepository,
-    decklist: Decklist,
-): DeckCards =
-    decklist.resolveCards { name, setCode ->
-        setCode?.let { cardRepository.findDeckGrpIdByNameAndSet(name, it) } ?: cardRepository.findDeckGrpIdByName(name)
-    }
 
 internal fun CardRepository.cardMeta(
     grpId: Int,

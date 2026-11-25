@@ -166,6 +166,11 @@ object BrowserRuntime {
     fun metadata(ids: String): String = guarded { checkNotNull(cards).metadata(ids) }
 
     @JvmStatic
+    fun decklist(text: String, gameType: String, import: Boolean): String = guarded {
+        json.encodeToString(BrowserDecks.check(checkNotNull(cards), text, gameType.ifEmpty { null }, import))
+    }
+
+    @JvmStatic
     fun validatePuzzle(text: String): String = guarded {
         check(handle == null) { "Close the current game before validating a puzzle" }
         json.encodeToString(leyline.game.generator.PuzzleValidation(checkNotNull(cards)).validate(PuzzleDefinition("candidate", text)))

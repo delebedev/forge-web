@@ -1,11 +1,11 @@
 package forge.web.server.decks
 
+import forge.web.cards.deckCopyFormat
+import forge.web.cards.validateCommanderCards
 import forge.web.server.auth.WebAuthService
 import forge.web.server.auth.authenticatedPlayerId
 import forge.web.server.auth.ownedPlayerId
 import forge.web.server.cards.ParseDecklistErrorResponse
-import forge.web.server.cards.deckCopyFormat
-import forge.web.server.cards.validateCommanderCards
 import forge.web.server.http.contract
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.call

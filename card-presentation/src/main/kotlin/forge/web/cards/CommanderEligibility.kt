@@ -1,4 +1,4 @@
-package forge.web.server.cards
+package forge.web.cards
 
 import forge.deck.Deck
 import forge.deck.DeckFormat
@@ -9,7 +9,7 @@ import leyline.domain.deck.DeckSource
 import leyline.domain.deck.DecklistException
 import leyline.game.data.CardRepository
 
-internal fun validateCommanderCards(
+fun validateCommanderCards(
     cards: CardRepository,
     deck: DeckCards,
     canBeCommander: (String) -> Boolean,
@@ -38,12 +38,12 @@ internal fun validateCommanderCards(
     }
 }
 
-internal fun commanderDeckProblem(
+fun commanderDeckProblem(
     cards: CardRepository,
     deck: DeckCards,
 ): String? = commanderDeckProblem(DeckLoader.load(DeckSource.Cards(deck), cards::findNameByGrpId))
 
-internal fun commanderDeckProblem(deck: Deck): String? {
+fun commanderDeckProblem(deck: Deck): String? {
     if (deck.get(DeckSection.Commander)?.any { it.value != 1 } == true) {
         return "must have exactly one copy of each commander"
     }

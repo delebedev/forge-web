@@ -176,6 +176,11 @@ export class BrowserEngine implements BrowserMatchHost {
     this.assertAvailable()
     return this.request('validate-puzzle', { text })
   }
+  async checkDecklist(text: string, gameType: string | undefined, isImport: boolean) {
+    await this.initialize()
+    this.assertAvailable()
+    return this.request('decklist', { text, gameType, import: isImport })
+  }
   async advice(): Promise<unknown> {
     return this.request('advice')
   }

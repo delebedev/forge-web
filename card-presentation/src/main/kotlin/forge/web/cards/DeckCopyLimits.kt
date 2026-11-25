@@ -1,4 +1,4 @@
-package forge.web.server.cards
+package forge.web.cards
 
 import forge.StaticData
 import forge.deck.Deck
@@ -9,7 +9,7 @@ import leyline.domain.deck.DeckSource
 import leyline.domain.deck.DecklistException
 import leyline.game.data.CardRepository
 
-internal fun deckCopyFormat(name: String?): DeckFormat =
+fun deckCopyFormat(name: String?): DeckFormat =
     when (name?.trim()?.lowercase()) {
         "commander" -> DeckFormat.Commander
         "brawl" -> DeckFormat.Brawl
@@ -17,13 +17,13 @@ internal fun deckCopyFormat(name: String?): DeckFormat =
         else -> DeckFormat.Constructed
     }
 
-internal fun validateDeckCopies(
+fun validateDeckCopies(
     cards: CardRepository,
     deck: DeckCards,
     format: DeckFormat,
 ) = validateDeckCopies(DeckLoader.load(DeckSource.Cards(deck), cards::findNameByGrpId), format)
 
-internal fun validateDeckCopies(
+fun validateDeckCopies(
     deck: Deck,
     format: DeckFormat,
 ) {

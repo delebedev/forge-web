@@ -13,7 +13,7 @@
     "dev": "vite",
     "dev:seed": "bun scripts/seed-dev.mjs",
     "build": "bun run challenge:manifest:check && bun run css:types:check && tsc && vite build",
-    "browser:assets": "bun run challenge:manifest && python3 scripts/build-browser-catalog.py && ./leyline/gradlew :browser-engine:browserDistribution :browser-engine:catalogIndex -PruntimeJavaVersion=17 -PbrowserPrune=true && node scripts/build-browser-release.mjs",
+    "browser:assets": "bun run challenge:manifest && python3 scripts/build-browser-catalog.py && ./leyline/gradlew :browser-engine:browserDistribution :browser-engine:catalogIndex :browser-engine:cardIndex -PruntimeJavaVersion=17 -PbrowserPrune=true && node scripts/build-browser-release.mjs",
     "browser:build": "bun run browser:assets && bun run css:types:check && tsc && vite build --config browser-engine/vite.config.ts",
     "browser-alpha:build": "bun run browser:assets && bun run build",
     "browser:preview": "vite preview --config browser-engine/vite.config.ts --host 127.0.0.1 --port 5179 --strictPort",

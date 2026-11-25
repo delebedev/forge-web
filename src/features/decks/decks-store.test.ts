@@ -1,7 +1,9 @@
 import { expect, test } from 'bun:test'
 import { DecksStore } from './decks-store'
 import type { AuthSnapshot } from '@shared/auth/auth'
-import { libraryCard, type DeckView, type CardMetadata } from './deck-value'
+import { type DeckView, type CardMetadata } from './deck-value'
+import type { CardIndex } from '@shared/cards/card-index'
+import { testCardIndex } from '@shared/cards/card-index-test-fixtures'
 
 function deferred<T>() {
   let resolve!: (value: T) => void
@@ -60,7 +62,13 @@ const metadata: Record<string, CardMetadata> = {
   3: cardMetadata({ grpId: 3, name: 'Side spell', types: 'Instant', manaCost: '{5}{U}' }),
   4: cardMetadata({ grpId: 4, name: 'Commander', types: 'Legendary Creature', manaCost: '{3}{G}' }),
 }
-function harness(handler?: (path: string, init?: RequestInit) => Promise<Response> | Response) {
+const cardIndex = testCardIndex(
+  Object.values(metadata).map((card) => ({ ...card, name: card.name! })),
+)
+function harness(
+  handler?: (path: string, init?: RequestInit) => Promise<Response> | Response,
+  cards: () => Promise<CardIndex> = () => Promise.resolve(cardIndex),
+) {
   let id: string | null = 'account-A'
   const listeners = new Set<() => void>()
   const requests: { path: string; init?: RequestInit }[] = []
@@ -82,26 +90,27 @@ function harness(handler?: (path: string, init?: RequestInit) => Promise<Respons
       }
     },
   }
-  const store = new DecksStore(account, async (path, init) => {
-    requests.push({ path, init })
-    if (handler) {
-      return handler(path, init)
-    }
-    if (path.startsWith('/api/public/')) {
-      return json(metadata)
-    }
-    if (init?.method === 'DELETE') {
-      values.delete(path.split('/').at(-1)!)
-      return new Response(null, { status: 204 })
-    }
-    if (init?.method === 'POST' || init?.method === 'PUT') {
-      const body = JSON.parse(init.body as string) as Omit<DeckView, 'id'>
-      const deck = { ...body, id: init.method === 'POST' ? 'created' : path.split('/').at(-1)! }
-      values.set(deck.id, deck)
-      return json(deck)
-    }
-    return json(path.includes('?') ? [...values.values()] : values.get(path.split('/').at(-1)!))
-  })
+  const store = new DecksStore(
+    account,
+    async (path, init) => {
+      requests.push({ path, init })
+      if (handler) {
+        return handler(path, init)
+      }
+      if (init?.method === 'DELETE') {
+        values.delete(path.split('/').at(-1)!)
+        return new Response(null, { status: 204 })
+      }
+      if (init?.method === 'POST' || init?.method === 'PUT') {
+        const body = JSON.parse(init.body as string) as Omit<DeckView, 'id'>
+        const deck = { ...body, id: init.method === 'POST' ? 'created' : path.split('/').at(-1)! }
+        values.set(deck.id, deck)
+        return json(deck)
+      }
+      return json(path.includes('?') ? [...values.values()] : values.get(path.split('/').at(-1)!))
+    },
+    cards,
+  )
   return {
     store,
     requests,
@@ -138,9 +147,7 @@ test('select edit save reopen preserves exact card identities, metadata and all 
   const saved = (await store.saveDeck({
     ...draft,
     name: 'Renamed',
-    cards: draft.cards.map((card) =>
-      card.grpId === 1 ? { ...card, quantity: 3, colors: ['R'], collectorNumber: '17' } : card,
-    ),
+    cards: draft.cards.map((card) => (card.grpId === 1 ? { ...card, quantity: 3 } : card)),
   }))!
   const request = requests.find(({ init }) => init?.method === 'PUT')!
   expect(JSON.parse(request.init!.body as string)).toMatchObject({
@@ -151,7 +158,7 @@ test('select edit save reopen preserves exact card identities, metadata and all 
     sideboard: fixture().sideboard,
     commandZone: fixture().commandZone,
   })
-  expect(saved.cards[0]).toMatchObject({ colors: ['R'], collectorNumber: '17' })
+  expect(saved.cards[0]).toMatchObject({ quantity: 3, colors: ['G'], typeLine: 'Creature — Elf' })
   expect(store.snapshot().selectedDeck).toBe(saved)
   expect(store.snapshot().decks.find((deck) => deck.id === 'A')).toMatchObject({
     name: 'Renamed',
@@ -159,17 +166,13 @@ test('select edit save reopen preserves exact card identities, metadata and all 
   })
   expect(await store.fetchDeckDetail('A')).toEqual(saved)
   expect(saved.content).toContain('[Sideboard]\n3 Side spell')
-  expect(
-    requests.filter(({ path }) => path.includes('metadata') || path.includes('/search')),
-  ).toEqual([])
+  expect(requests.filter(({ path }) => path.includes('/cards/'))).toEqual([])
 })
 
 test('only the latest detail selection can publish, including loading and errors', async () => {
   const a = deferred<Response>(),
     b = deferred<Response>()
-  const { store } = harness((path) =>
-    path.startsWith('/api/public/') ? json(metadata) : path.endsWith('/A') ? a.promise : b.promise,
-  )
+  const { store } = harness((path) => (path.endsWith('/A') ? a.promise : b.promise))
   const first = store.fetchDeckDetail('A'),
     second = store.fetchDeckDetail('B')
   b.resolve(json(fixture('B')))
@@ -187,11 +190,7 @@ test('account switch synchronously clears library, filters and cached metadata a
   const pending = deferred<Response>()
   let delayed = false
   const { store, switchAccount, requests } = harness((path) =>
-    path.startsWith('/api/public/')
-      ? json(metadata)
-      : delayed
-        ? pending.promise
-        : json(path.includes('?') ? [fixture()] : fixture()),
+    delayed ? pending.promise : json(path.includes('?') ? [fixture()] : fixture()),
   )
   await store.fetchDecks()
   const draft = store.draft((await store.fetchDeckDetail('A'))!)
@@ -215,20 +214,13 @@ test('account switch synchronously clears library, filters and cached metadata a
     'account changed',
   )
   expect(requests.some(({ init }) => init?.method === 'PUT')).toBe(false)
-  delayed = false
-  await store.fetchDecks()
-  expect(requests.filter(({ path }) => path.startsWith('/api/public/'))).toHaveLength(2)
 })
 
 test('reset invalidates pending list and detail without late publications', async () => {
   const listResponse = deferred<Response>(),
     detailResponse = deferred<Response>()
   const { store } = harness((path) =>
-    path.startsWith('/api/public/')
-      ? json(metadata)
-      : path.includes('?')
-        ? listResponse.promise
-        : detailResponse.promise,
+    path.includes('?') ? listResponse.promise : detailResponse.promise,
   )
   const list = store.fetchDecks(),
     detail = store.fetchDeckDetail('A')
@@ -252,9 +244,7 @@ test('save and delete failure retain committed values and expose errors', async 
   const { store } = harness((path, init) =>
     init
       ? json({ errors: ['Rejected deck'] }, 400)
-      : path.startsWith('/api/public/')
-        ? json(metadata)
-        : json(path.includes('?') ? [fixture()] : fixture()),
+      : json(path.includes('?') ? [fixture()] : fixture()),
   )
   await store.fetchDecks()
   const selected = (await store.fetchDeckDetail('A'))!
@@ -281,13 +271,11 @@ test('saved deck cannot replace a newer selection and deleted detail cannot reap
       ? save.promise
       : init?.method === 'DELETE'
         ? new Response(null, { status: 204 })
-        : path.startsWith('/api/public/')
-          ? json(metadata)
-          : path.includes('?')
-            ? json([fixture(), fixture('B')])
-            : delayDetail
-              ? detail.promise
-              : json(fixture(path.split('/').at(-1))),
+        : path.includes('?')
+          ? json([fixture(), fixture('B')])
+          : delayDetail
+            ? detail.promise
+            : json(fixture(path.split('/').at(-1))),
   )
   await store.fetchDecks()
   const original = (await store.fetchDeckDetail('A'))!
@@ -308,14 +296,12 @@ test('saved deck cannot replace a newer selection and deleted detail cannot reap
 test('successful create during initial list loading reconciles the complete library internally', async () => {
   const oldList = deferred<Response>()
   let reads = 0
-  const { store } = harness((path, init) =>
-    path.startsWith('/api/public/')
-      ? json(metadata)
-      : init?.method === 'POST'
-        ? json(fixture('new'))
-        : ++reads === 1
-          ? oldList.promise
-          : json([fixture(), fixture('new')]),
+  const { store } = harness((_path, init) =>
+    init?.method === 'POST'
+      ? json(fixture('new'))
+      : ++reads === 1
+        ? oldList.promise
+        : json([fixture(), fixture('new')]),
   )
   const loading = store.fetchDecks()
   const saved = await store.saveDeck(store.draft())
@@ -326,13 +312,10 @@ test('successful create during initial list loading reconciles the complete libr
   expect(store.snapshot().selectedDeck?.id).toBe('new')
 })
 
-test('metadata failure after creation still commits the saved identity and never invites a duplicate retry', async () => {
-  const { store, requests } = harness((path, init) =>
-    path.startsWith('/api/public/')
-      ? json({}, 503)
-      : init?.method === 'POST'
-        ? json(fixture('new'))
-        : json([fixture('new')]),
+test('card index failure after creation still commits the saved identity and never invites a duplicate retry', async () => {
+  const { store, requests } = harness(
+    (_path, init) => (init?.method === 'POST' ? json(fixture('new')) : json([fixture('new')])),
+    () => Promise.reject(new Error('index unavailable')),
   )
   const saved = await store.saveDeck(store.draft())
   expect(saved).toMatchObject({
@@ -355,11 +338,7 @@ test('old-account save and delete completions cannot change the new account libr
   for (const method of ['save', 'delete'] as const) {
     const pending = deferred<Response>()
     const { store, switchAccount } = harness((path, init) =>
-      init
-        ? pending.promise
-        : path.startsWith('/api/public/')
-          ? json(metadata)
-          : json(path.includes('?') ? [fixture()] : fixture()),
+      init ? pending.promise : json(path.includes('?') ? [fixture()] : fixture()),
     )
     await store.fetchDecks()
     const deck = (await store.fetchDeckDetail('A'))!
@@ -378,104 +357,4 @@ test('old-account save and delete completions cannot change the new account libr
     })
     expect(published).toBe(0)
   }
-})
-
-test('library loading batches shared identities once across decks with at most 500 ids per request', async () => {
-  const decks = Array.from({ length: 600 }, (_, i) => ({
-    ...fixture(String(i)),
-    mainDeck: [
-      { grpId: i + 1, quantity: 1 },
-      { grpId: 1, quantity: 2 },
-    ],
-    sideboard: [],
-    commandZone: [],
-  }))
-  let active = 0,
-    peak = 0
-  const { store, requests } = harness(async (path) => {
-    if (!path.startsWith('/api/public/')) {
-      return json(decks)
-    }
-    active++
-    peak = Math.max(peak, active)
-    await Promise.resolve()
-    active--
-    return json({})
-  })
-  await store.fetchDecks()
-  const batches = requests
-    .filter(({ path }) => path.startsWith('/api/public/'))
-    .map(({ path }) =>
-      new URL(path, 'http://localhost').searchParams.get('ids')!.split(',').map(Number),
-    )
-  expect(batches.map((ids) => ids.length)).toEqual([500, 100])
-  expect(new Set(batches.flat()).size).toBe(600)
-  expect(peak).toBe(1)
-  expect(store.snapshot().decks).toHaveLength(600)
-})
-
-test('metadata outage retains imported names and metadata through save and same-page reopen', async () => {
-  const wire = {
-    ...fixture(),
-    mainDeck: [{ grpId: 1, quantity: 3 }],
-    sideboard: [],
-    commandZone: [],
-  }
-  const { store } = harness((path) =>
-    path.startsWith('/api/public/') ? json({}, 503) : json(path.includes('?') ? [wire] : wire),
-  )
-  const known = libraryCard(
-    {
-      grpId: 1,
-      name: 'Known creature',
-      manaCost: '{1}{G}',
-      typeLine: 'Creature',
-      colors: ['G'],
-      setCode: 'TEST',
-      collectorNumber: '17',
-      rarity: 'Common',
-    },
-    3,
-  )
-  const saved = (await store.saveDeck({ ...store.draft(), cards: [known] }))!
-  const reopened = (await store.fetchDeckDetail('A'))!
-  expect(reopened.cards).toEqual(saved.cards)
-  expect(reopened.metadataComplete).toBe(true)
-  expect(reopened.stats.creatures).toBe(3)
-  expect(reopened.content).toBe('[Deck]\n3 Known creature')
-})
-
-test('late metadata hydration preserves newer colors and collector fields from a save', async () => {
-  const waiting = deferred<Response>()
-  const { store } = harness((path, init) => {
-    if (path.startsWith('/api/public/')) {
-      return path.endsWith('ids=5') ? waiting.promise : json(metadata)
-    }
-    if (init?.method === 'PUT') {
-      return json(fixture())
-    }
-    if (path.includes('?')) {
-      return json([fixture()])
-    }
-    return json(
-      path.endsWith('/B')
-        ? { ...fixture('B'), mainDeck: [{ grpId: 5, quantity: 1 }], sideboard: [], commandZone: [] }
-        : fixture(),
-    )
-  })
-  await store.fetchDecks()
-  const original = (await store.fetchDeckDetail('A'))!
-  const draft = store.draft(original)
-  const pending = store.fetchDeckDetail('B')
-  const saved = (await store.saveDeck({
-    ...draft,
-    cards: draft.cards.map((card) =>
-      card.grpId === 1 ? { ...card, colors: ['R'], collectorNumber: '17' } : card,
-    ),
-  }))!
-  waiting.resolve(json({ 5: cardMetadata({ grpId: 5, name: 'Other', types: 'Creature' }) }))
-  await pending
-  const reopened = (await store.fetchDeckDetail('A'))!
-  expect(reopened.cards[0]).toMatchObject({ colors: ['R'], collectorNumber: '17' })
-  expect(reopened.cards).toEqual(saved.cards)
 })

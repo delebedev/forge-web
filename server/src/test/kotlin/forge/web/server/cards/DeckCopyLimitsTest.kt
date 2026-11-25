@@ -1,6 +1,8 @@
 package forge.web.server.cards
 
 import forge.deck.DeckFormat
+import forge.web.cards.deckCopyFormat
+import forge.web.cards.validateDeckCopies
 import forge.web.server.auth.DEV_WEB_AUTH_SECRET
 import forge.web.server.auth.DevEmailSender
 import forge.web.server.auth.InMemoryWebAuthStore

@@ -38,6 +38,12 @@ gets a combined-name row pointing at its first face.
   `imageUrl` from the local map. Forge card identity and rules metadata remain
   authoritative — image lookup never substitutes a different gameplay card.
 
+- **Product UI:** card surfaces outside gameplay load `card-images.json.gz`
+  with the static card index (`card-index.json.gz`, built by the
+  `browser-engine` `cardIndex` task) and verify both against the release
+  manifest. Once loaded, `scryfallUrl` resolves artwork from this map; a surface
+  that renders before the index loads still uses the server image route.
+
 A missing identity yields no URL and never falls back to the Scryfall API. A
 missing or mismatched release asset fails browser engine initialization like
 any other engine asset.
