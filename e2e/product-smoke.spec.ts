@@ -18,6 +18,8 @@ function localStart(page: Page) {
 }
 
 async function waitForLocalBoard(page: Page): Promise<void> {
+  // A cold worker start can take most of a minute on CI; give the wait below room to run.
+  test.setTimeout(180_000)
   await expect
     .poll(
       () =>
