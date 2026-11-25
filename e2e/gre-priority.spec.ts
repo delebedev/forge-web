@@ -1156,17 +1156,14 @@ test('independent draft sets preserve an active pool', async ({ page }, info) =>
     route.fulfill({ status: 204 }),
   )
   await authenticateShell(page, 'draft-isolation')
-  const account = await (await page.request.get('/api/auth/me')).json()
-  const playerId = account.playerId
-  const eventName = 'QuickDraft_TDM_20260223'
-  const start = await page.request.post('/api/draft/start', { data: { playerId, eventName } })
-  expect(start.ok()).toBe(true)
-  const tdm = await start.json()
-  const picked = await page.request.post('/api/draft/pick', {
-    data: { playerId, eventName, cardName: tdm.draftPack[0] },
-  })
-  expect(picked.ok()).toBe(true)
-  const saved = await picked.json()
+  await page.goto('/play/limited?mode=draft')
+  await page.getByRole('button', { name: 'Change set', exact: true }).click()
+  await page.getByRole('textbox', { name: 'Search sets' }).fill('TDM')
+  await page.getByRole('button', { name: /TDM.*Tarkir/ }).click()
+  await page.getByRole('button', { name: 'Start Draft', exact: true }).click()
+  await page.locator('button[data-card]').first().click()
+  await expect(page.getByRole('complementary', { name: 'Draft pool' })).toContainText('1 cards')
+  const saved = await (await page.request.get('/api/course-records/QuickDraft_TDM_20260223')).json()
   await page.goto('/play/limited?mode=draft')
   await expect(page.getByRole('heading', { name: 'Booster Draft' })).toBeVisible()
   readyForVideo.add(page)
@@ -1175,21 +1172,26 @@ test('independent draft sets preserve an active pool', async ({ page }, info) =>
   await page.getByRole('button', { name: /NEO.*Kamigawa/ }).click()
   await expect(page.getByRole('region', { name: 'New Draft' })).toContainText('NEO')
   await page.waitForTimeout(1_000)
-  const neoStart = page.waitForResponse((response) => response.url().endsWith('/api/draft/start'))
+  const neoStart = page.waitForResponse(
+    (response) =>
+      response.url().endsWith('/api/course-records/QuickDraft_NEO_20260223') &&
+      response.request().method() === 'PUT',
+  )
   await page.getByRole('button', { name: 'Start Draft', exact: true }).click()
-  expect((await (await neoStart).json()).eventName).toBe('QuickDraft_NEO_20260223')
+  expect((await neoStart).ok()).toBe(true)
   await expect(page.getByRole('complementary', { name: 'Draft pool' })).toBeVisible()
   await expect(page.getByText('Round 1', { exact: true })).toBeVisible()
   await page.screenshot({ path: info.outputPath('draft-after.png') })
-  const resume = await page.request.post('/api/draft/start', { data: { playerId, eventName } })
-  expect(resume.ok()).toBe(true)
+  const resume = await page.request.get('/api/course-records/QuickDraft_TDM_20260223')
   expect(await resume.json()).toEqual(saved)
   await page.goto('/play/limited?mode=draft')
   await page.getByRole('button', { name: 'Change set', exact: true }).click()
   await page.getByRole('textbox', { name: 'Search sets' }).fill('TDM')
   await page.getByRole('button', { name: /TDM.*Tarkir/ }).click()
   await page.getByRole('button', { name: 'Start Draft', exact: true }).click()
-  await expect(page.getByRole('complementary', { name: 'Draft pool' })).toContainText('1 cards')
+  await expect(page.getByRole('complementary', { name: 'Draft pool' })).toContainText('1 cards', {
+    timeout: 60_000,
+  })
   await expect(page.getByText('Pick 2', { exact: true })).toBeVisible()
   await page.screenshot({ path: info.outputPath('draft-preserved.png') })
   await page.waitForTimeout(1_000)

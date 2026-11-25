@@ -1,257 +1,271 @@
 import { afterEach, beforeEach, expect, it } from 'bun:test'
 import { authStore } from '@shared/auth/auth'
+import { courseRecordServer } from '@shared/api/course-records-test-server'
 import { installCardIndexForTest } from '@shared/cards/card-index'
 import { testCardIndex } from '@shared/cards/card-index-test-fixtures'
-import { draftStore } from './draft-store'
+import { emptyCourse } from './course'
+import { DraftStore } from './draft-store'
+import type { DraftRequest, LimitedEngine } from './limited-engine'
 
+const EVENT = 'QuickDraft_FDN_20260223'
+const PICKS_PER_DRAFT = 3
 const originalFetch = globalThis.fetch
 
-beforeEach(() => installCardIndexForTest(testCardIndex([])))
+/** A draft whose packs depend only on seed and picks, like the worker's replay. */
+function fakeEngine(catalogVersion = 'catalog-1') {
+  const draftCalls: DraftRequest[] = []
+  const pack = (request: DraftRequest) => [
+    `a${request.seed}-${request.picks.length}`,
+    `b${request.seed}-${request.picks.length}`,
+  ]
+  const engine: LimitedEngine = {
+    catalogVersion: async () => catalogVersion,
+    draft: async (request) => {
+      draftCalls.push(request)
+      const complete = request.picks.length >= PICKS_PER_DRAFT
+      return {
+        packNumber: Math.min(request.picks.length, PICKS_PER_DRAFT - 1),
+        pickNumber: 0,
+        pack: complete ? [] : pack(request),
+        pool: request.picks,
+        complete,
+      }
+    },
+    completeDraft: async (request) => ({
+      pool: request.picks,
+      botDecks: [['Bot One', 'Bot One'], ['Bot Two']],
+    }),
+    sealed: async () => [],
+    release: () => {},
+  }
+  return { engine, draftCalls }
+}
+
+let server: ReturnType<typeof courseRecordServer>
+
+beforeEach(() => {
+  installCardIndexForTest(testCardIndex([]))
+  authStore.setAuthenticated({ id: 'player-1', name: 'Player' })
+  server = courseRecordServer()
+  globalThis.fetch = server.fetch
+})
 
 afterEach(() => {
   globalThis.fetch = originalFetch
-  draftStore.reset()
   authStore.clear()
   installCardIndexForTest(null)
 })
 
-it('starts only one course match during concurrent deck submissions', async () => {
-  authStore.setAuthenticated({ id: 'player-1', name: 'Player' })
-  draftStore.loadSavedPool(
-    [
-      {
-        name: 'Draft Card',
-        grpId: 1,
-        manaCost: null,
-        typeLine: null,
-        rarity: null,
-        colors: [],
-        setCode: null,
-        collectorNumber: null,
-      },
-    ],
-    'draft-event',
+async function draftTwoPicks(store: DraftStore) {
+  expect(await store.startDraft('FDN')).toBe(true)
+  await store.pickCard(store.snapshot().pack[0]!.name)
+  await store.pickCard(store.snapshot().pack[1]!.name)
+}
+
+it('saves the course after every pick and resumes the same picks in another browser', async () => {
+  const first = new DraftStore(fakeEngine().engine)
+  await draftTwoPicks(first)
+  const saved = server.document(EVENT)
+  expect(saved).toMatchObject({ revision: 3, kind: 'draft', set: 'FDN', phase: 'drafting' })
+  expect(saved.picks).toHaveLength(2)
+
+  const other = fakeEngine()
+  const resumed = new DraftStore(other.engine)
+  expect(await resumed.unfinishedSet()).toBe('FDN')
+  expect(await resumed.startDraft('FDN')).toBe(true)
+  expect(other.draftCalls).toEqual([
+    { set: 'FDN', seed: saved.seed, picks: saved.picks, catalogVersion: 'catalog-1' },
+  ])
+  expect(resumed.snapshot()).toMatchObject({ phase: 'drafting', sessionId: EVENT, poolSize: 2 })
+  expect(resumed.snapshot().pack.map((card) => card.name)).toEqual(
+    first.snapshot().pack.map((card) => card.name),
+  )
+})
+
+it('a completed draft saves its pool and bot decks, and the deck launches against the pod', async () => {
+  const store = new DraftStore(fakeEngine().engine)
+  await draftTwoPicks(store)
+  await store.pickCard(store.snapshot().pack[0]!.name)
+  expect(store.snapshot().phase).toBe('deck_build')
+  expect(server.document(EVENT)).toMatchObject({
+    phase: 'deck_build',
+    botDecks: [['Bot One', 'Bot One'], ['Bot Two']],
+  })
+
+  await store.submitDeck(['Forest', 'Forest', 'Bear'], ['Elk'])
+  expect(server.document(EVENT)).toMatchObject({
+    phase: 'games',
+    deck: {
+      mainDeck: [
+        { cardName: 'Forest', quantity: 2 },
+        { cardName: 'Bear', quantity: 1 },
+      ],
+      sideboard: [{ cardName: 'Elk', quantity: 1 }],
+    },
+  })
+  expect(store.snapshot().matchLaunch).toEqual({
+    seat1Deck: '[Deck]\n2 Forest\n1 Bear\n[Sideboard]\n1 Elk',
+    seat2Deck: '[Deck]\n2 Bot One',
+    courseEvent: EVENT,
+    courseSeed: server.document(EVENT).seed,
+    courseGame: 0,
+  })
+})
+
+it('discarding during a pick deletes the course after the pick saves', async () => {
+  const { engine } = fakeEngine()
+  const store = new DraftStore(engine)
+  expect(await store.startDraft('FDN')).toBe(true)
+  let release!: () => void
+  const gate = new Promise<void>((resolve) => (release = resolve))
+  const draft = engine.draft
+  engine.draft = async (request) => {
+    await gate
+    return draft(request)
+  }
+  const pick = store.pickCard(store.snapshot().pack[0]!.name)
+  const discard = store.discardDraft()
+  release()
+  await Promise.all([pick, discard])
+  const writes = server.requests.filter((request) => !request.startsWith('GET'))
+  expect(writes.slice(-2)).toEqual([
+    `PUT /api/course-records/${EVENT}`,
+    `DELETE /api/course-records/${EVENT}`,
+  ])
+  expect(server.document(EVENT)).toBeUndefined()
+  expect(store.snapshot().phase).toBe('idle')
+})
+
+it('deck editing refuses a draft still picking', async () => {
+  const store = new DraftStore(fakeEngine().engine)
+  expect(await store.startDraft('FDN')).toBe(true)
+  const picking = new DraftStore(fakeEngine().engine)
+  const course = { eventName: EVENT, revision: 1, document: server.document(EVENT) }
+  const refused = await picking.editCourse(course).then(
+    () => null,
+    (error: Error) => error.message,
+  )
+  expect(refused).toContain('still picking')
+  expect(picking.snapshot().phase).toBe('idle')
+})
+
+it('a deck cannot be submitted into a draft still picking', async () => {
+  const store = new DraftStore(fakeEngine().engine)
+  expect(await store.startDraft('FDN')).toBe(true)
+  const before = server.document(EVENT)
+  await store.submitDeck(['Bear'], [])
+  expect(store.snapshot().error).toContain('still picking')
+  expect(store.snapshot().matchLaunch).toBeNull()
+  expect(server.document(EVENT)).toEqual(before)
+})
+
+it('a draft another window starts first opens instead of failing', async () => {
+  const { engine } = fakeEngine()
+  const draft = engine.draft
+  let raced = false
+  engine.draft = async (request) => {
+    if (!raced) {
+      raced = true
+      server.put(EVENT, { ...emptyCourse('draft', 'FDN', 7, 'catalog-1'), picks: ['a7-0'] })
+    }
+    return draft(request)
+  }
+  const store = new DraftStore(engine)
+  expect(await store.startDraft('FDN')).toBe(true)
+  expect(store.snapshot()).toMatchObject({ phase: 'drafting', poolSize: 1 })
+  expect(store.snapshot().pool.map((card) => card.name)).toEqual(['a7-0'])
+  expect(store.snapshot().error).toBe(
+    'This course changed in another window. It has been reloaded.',
+  )
+  expect(server.document(EVENT)).toMatchObject({ revision: 1, seed: 7 })
+})
+
+it('a stale pick reloads the pick another window saved and continues from it', async () => {
+  const store = new DraftStore(fakeEngine().engine)
+  expect(await store.startDraft('FDN')).toBe(true)
+  await store.pickCard(store.snapshot().pack[0]!.name)
+  const other = new DraftStore(fakeEngine().engine)
+  expect(await other.startDraft('FDN')).toBe(true)
+  const otherPick = other.snapshot().pack[1]!.name
+  await other.pickCard(otherPick)
+  const theirs = server.document(EVENT)
+
+  await store.pickCard(store.snapshot().pack[0]!.name)
+  expect(server.document(EVENT)).toEqual(theirs)
+  expect(store.snapshot().pool.map((card) => card.name)).toEqual(theirs.picks)
+  expect(store.snapshot().pool.map((card) => card.name)).toContain(otherPick)
+  expect(store.snapshot().error).toBe(
+    'This course changed in another window. It has been reloaded.',
   )
 
-  let finishDeck!: () => void
-  const deckResponse = new Promise<Response>((resolve) => {
-    finishDeck = () => resolve({ ok: true, status: 200 } as Response)
-  })
-  const requests: string[] = []
-  globalThis.fetch = ((input: RequestInfo | URL) => {
-    const path = String(input)
-    requests.push(path)
-    if (path.endsWith('/api/draft/deck')) {
-      return deckResponse
-    }
-    return Promise.resolve({
-      ok: true,
-      status: 200,
-      json: () =>
-        Promise.resolve({
-          coursePlayId: 'course-play-1',
-          seat1Deck: '40 Mountain',
-          seat2Deck: '40 Plains',
-        }),
-    } as Response)
-  }) as typeof fetch
-
-  const first = draftStore.submitDeck(['Draft Card'], [])
-  const second = draftStore.submitDeck(['Draft Card'], [])
-
-  expect(draftStore.snapshot().submitting).toBe(true)
-
-  finishDeck()
-  await Promise.all([first, second])
-
-  expect(requests).toEqual(['/api/draft/deck', '/api/draft/play'])
-  expect(draftStore.snapshot().submitting).toBe(false)
+  await store.pickCard(store.snapshot().pack[0]!.name)
+  expect(server.document(EVENT)).toMatchObject({ revision: theirs.revision + 1 })
+  expect(server.document(EVENT).picks).toEqual([...theirs.picks, expect.any(String)])
 })
 
-it('keeps a submitted course until its match launch completes', async () => {
-  authStore.setAuthenticated({ id: 'player-1', name: 'Player' })
-  draftStore.loadSavedPool(
-    [
-      {
-        name: 'Draft Card',
-        grpId: 1,
-        manaCost: null,
-        typeLine: null,
-        rarity: null,
-        colors: [],
-        setCode: null,
-        collectorNumber: null,
-      },
-    ],
-    'draft-event',
+it('a changed catalog keeps the picks visible until the draft is discarded', async () => {
+  await draftTwoPicks(new DraftStore(fakeEngine('catalog-1').engine))
+  const updated = fakeEngine('catalog-2')
+  const store = new DraftStore(updated.engine)
+  expect(await store.startDraft('FDN')).toBe(true)
+  expect(store.snapshot()).toMatchObject({ phase: 'interrupted', poolSize: 2, pack: [] })
+  expect(updated.draftCalls).toEqual([])
+  await store.pickCard('anything')
+  expect(server.document(EVENT).picks).toHaveLength(2)
+
+  await store.discardDraft()
+  expect(server.document(EVENT)).toBeUndefined()
+  expect(store.snapshot().phase).toBe('idle')
+  expect(await store.startDraft('FDN')).toBe(true)
+  expect(server.document(EVENT)).toMatchObject({ revision: 1, catalogVersion: 'catalog-2' })
+})
+
+it('a migrated course without a seed opens at deck building and plays its games', async () => {
+  server.put(EVENT, {
+    kind: 'draft',
+    set: 'FDN',
+    seed: null,
+    picks: [],
+    catalogVersion: null,
+    pool: ['Bear', 'Elk'],
+    deck: { mainDeck: [{ cardName: 'Bear', quantity: 40 }], sideboard: [] },
+    botDecks: [['Bot One'], ['Bot Two']],
+    wins: 1,
+    losses: 0,
+    phase: 'games',
+  })
+  const { engine, draftCalls } = fakeEngine()
+  const store = new DraftStore(engine)
+  expect(await store.startDraft('FDN')).toBe(true)
+  expect(store.snapshot()).toMatchObject({ phase: 'deck_build', poolSize: 2 })
+  expect(draftCalls).toEqual([])
+  await store.submitDeck(['Bear'], [])
+  expect(store.snapshot().matchLaunch).toMatchObject({
+    seat2Deck: '[Deck]\n1 Bot Two',
+    courseGame: 1,
+  })
+})
+
+it('a finished course is replaced by a new draft', async () => {
+  server.put(
+    EVENT,
+    {
+      kind: 'draft',
+      set: 'FDN',
+      seed: null,
+      picks: [],
+      catalogVersion: null,
+      pool: [],
+      deck: null,
+      botDecks: [],
+      wins: 7,
+      losses: 1,
+      phase: 'finished',
+    },
+    4,
   )
-
-  let finishPlay!: () => void
-  let playStarted!: () => void
-  const playRequest = new Promise<void>((resolve) => {
-    playStarted = resolve
-  })
-  const playResponse = new Promise<Response>((resolve) => {
-    finishPlay = () =>
-      resolve({
-        ok: true,
-        status: 200,
-        json: () =>
-          Promise.resolve({
-            coursePlayId: 'course-play-1',
-            seat1Deck: '40 Mountain',
-            seat2Deck: '40 Plains',
-          }),
-      } as Response)
-  })
-  const requests: string[] = []
-  globalThis.fetch = ((input: RequestInfo | URL) => {
-    const path = String(input)
-    requests.push(path)
-    if (path.endsWith('/api/draft/deck')) {
-      return Promise.resolve({ ok: true, status: 200 } as Response)
-    }
-    if (path.endsWith('/api/draft/play')) {
-      playStarted()
-      return playResponse
-    }
-    return Promise.resolve({ ok: true, status: 200 } as Response)
-  }) as typeof fetch
-
-  const submit = draftStore.submitDeck(['Draft Card'], [])
-  await playRequest
-  await draftStore.discardDraft()
-
-  expect(requests).toEqual(['/api/draft/deck', '/api/draft/play'])
-  expect(draftStore.snapshot().submitting).toBe(true)
-
-  finishPlay()
-  await submit
-
-  expect(draftStore.snapshot().phase).toBe('playing')
-  expect(draftStore.snapshot().matchLaunch).toEqual({
-    coursePlayId: 'course-play-1',
-    seat1Deck: '40 Mountain',
-    seat2Deck: '40 Plains',
-  })
-})
-
-it('clears a pick error after a successful retry', async () => {
-  authStore.setAuthenticated({ id: 'player-1', name: 'Player' })
-
-  let pickAttempts = 0
-  globalThis.fetch = ((input: RequestInfo | URL) => {
-    const path = String(input)
-    if (path.endsWith('/api/draft/start')) {
-      return Promise.resolve({
-        ok: true,
-        status: 200,
-        json: () =>
-          Promise.resolve({
-            eventName: 'draft-event',
-            status: 'Drafting',
-            packNumber: 1,
-            pickNumber: 1,
-            interrupted: false,
-            draftPack: ['Card 101'],
-            pickedCards: [],
-          }),
-      } as Response)
-    }
-    if (path.endsWith('/api/draft/pick')) {
-      pickAttempts += 1
-      if (pickAttempts === 1) {
-        return Promise.resolve({ ok: false, status: 500 } as Response)
-      }
-      return Promise.resolve({
-        ok: true,
-        status: 200,
-        json: () =>
-          Promise.resolve({
-            eventName: 'draft-event',
-            status: 'Drafting',
-            packNumber: 1,
-            pickNumber: 2,
-            interrupted: false,
-            draftPack: ['Card 102'],
-            pickedCards: ['Card 101'],
-          }),
-      } as Response)
-    }
-    return Promise.reject(new Error(`Unexpected request: ${path}`))
-  }) as typeof fetch
-
-  expect(await draftStore.startDraft('FDN')).toBe(true)
-
-  await draftStore.pickCard('Card 101')
-  expect(draftStore.snapshot().error).toBe('draft_pick_500')
-
-  await draftStore.pickCard('Card 101')
-  expect(draftStore.snapshot().error).toBeNull()
-  expect(draftStore.snapshot().pick).toBe(2)
-})
-
-it('preserves interrupted picks until explicit discard and never submits a stale pick', async () => {
-  authStore.setAuthenticated({ id: 'player-1', name: 'Player' })
-  const requests: { path: string; method?: string }[] = []
-  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
-    const path = String(input)
-    requests.push({ path, method: init?.method })
-    if (path.endsWith('/api/draft/start')) {
-      return Response.json({
-        eventName: 'draft-event',
-        status: 'PickNext',
-        packNumber: 2,
-        pickNumber: 3,
-        draftPack: ['Card 201'],
-        pickedCards: ['Card 202', 'Card 202'],
-        interrupted: true,
-      })
-    }
-    if (init?.method === 'DELETE') {
-      return new Response(null, { status: 204 })
-    }
-    throw new Error(`Unexpected request: ${path}`)
-  }) as typeof fetch
-  expect(await draftStore.startDraft('FDN')).toBe(true)
-  expect(draftStore.snapshot().phase).toBe('interrupted')
-  expect(draftStore.snapshot().pool.map((card) => card.name)).toEqual(['Card 202', 'Card 202'])
-  await draftStore.pickCard('Card 201')
-  expect(requests.some((request) => request.path.endsWith('/api/draft/pick'))).toBe(false)
-  expect(requests.some((request) => request.method === 'DELETE')).toBe(false)
-  await draftStore.discardDraft()
-  expect(requests.filter((request) => request.method === 'DELETE')).toHaveLength(1)
-  expect(draftStore.snapshot().phase).toBe('idle')
-  expect(draftStore.snapshot().pool).toEqual([])
-})
-
-it('turns a server-restart pick conflict into recovery without losing the saved pool', async () => {
-  authStore.setAuthenticated({ id: 'player-1', name: 'Player' })
-  let picks = 0
-  globalThis.fetch = (async (input: RequestInfo | URL) => {
-    const path = String(input)
-    if (path.endsWith('/api/draft/start')) {
-      return Response.json({
-        eventName: 'draft-event',
-        status: 'PickNext',
-        packNumber: 2,
-        pickNumber: 3,
-        draftPack: ['Card 301'],
-        pickedCards: ['Card 302'],
-        interrupted: false,
-      })
-    }
-    if (path.endsWith('/api/draft/pick')) {
-      picks += 1
-      return new Response('Draft interrupted', { status: 409 })
-    }
-    throw new Error(`Unexpected request: ${path}`)
-  }) as typeof fetch
-  await draftStore.startDraft('FDN')
-  await draftStore.pickCard('Card 301')
-  expect(draftStore.snapshot().phase).toBe('interrupted')
-  expect(draftStore.snapshot().pool.map((card) => card.name)).toEqual(['Card 302'])
-  expect(draftStore.snapshot().error).toBeNull()
-  await draftStore.pickCard('Card 301')
-  expect(picks).toBe(1)
+  const store = new DraftStore(fakeEngine().engine)
+  expect(await store.startDraft('FDN')).toBe(true)
+  expect(store.snapshot().phase).toBe('drafting')
+  expect(server.document(EVENT)).toMatchObject({ revision: 5, phase: 'drafting', wins: 0 })
 })

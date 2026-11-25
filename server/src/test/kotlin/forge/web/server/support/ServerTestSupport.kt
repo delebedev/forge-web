@@ -8,15 +8,9 @@ import forge.web.server.cards.CardImageIndex
 import forge.web.server.http.WebServices
 import forge.web.server.match.MatchReplayStore
 import forge.web.server.match.developmentChallenges
-import leyline.domain.CollationPool
-import leyline.domain.PlayerId
 import leyline.domain.deck.DeckCards
 import leyline.domain.repo.InMemoryDeckRepository
 import leyline.domain.service.CollectionService
-import leyline.domain.service.CourseService
-import leyline.domain.service.DraftService
-import leyline.domain.service.GeneratedPool
-import leyline.domain.service.RepositoryMatchCoordinator
 import leyline.game.InMemoryCardRepository
 import leyline.game.data.AbilityLocalization
 import leyline.game.data.CardData
@@ -46,20 +40,7 @@ internal fun testServices(
             ),
         )
     productDatabase.playerStore.bindCardCatalog(cards)
-    val courses = productDatabase.playerStore
-    val drafts = productDatabase.playerStore.asDraftSessionRepository()
-    val courseService =
-        CourseService(courses) {
-            GeneratedPool(
-                cards = listOf(1),
-                byCollation = listOf(CollationPool(0, listOf(1))),
-                collationId = 0,
-            )
-        }
-    val coordinator = RepositoryMatchCoordinator(PlayerId("web-player"), decks, courseService, drafts)
     return WebServices(
-        draftService = DraftService(drafts, StaticDraftDriver, courseService),
-        courseService = courseService,
         decks = decks,
         collectionService = CollectionService { emptyList() },
         cardRepository = cards,
@@ -68,7 +49,6 @@ internal fun testServices(
         validateCopies = validateCopies,
         cardImages = cardImages,
         authService = authService,
-        coursePlay = forge.web.server.limited.CoursePlayService(productDatabase.database, coordinator, courseService, cards),
         courseRecords = productDatabase.courseRecords,
         challengeCatalog = developmentChallenges(puzzlesDir),
         devToolsEnabled = devToolsEnabled,
@@ -130,17 +110,3 @@ internal fun testCards(): InMemoryCardRepository =
             ),
         )
     }
-
-private object StaticDraftDriver : DraftService.Driver {
-    override fun start(
-        sessionKey: String,
-        setCode: String,
-    ): List<Int> = emptyList()
-
-    override fun pick(
-        sessionKey: String,
-        grpId: Int,
-    ) = DraftService.PickOutcome(1, 1, emptyList(), complete = true)
-
-    override fun complete(sessionKey: String) = DraftService.PodOutcome(emptyList(), emptyList())
-}

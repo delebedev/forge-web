@@ -1,6 +1,5 @@
 import { DeckDetailSchema, type DeckDetail } from '@shared/api/contracts'
 import {
-  DEFAULT_GRE_LIMITED_OPPONENT_DECK,
   DEFAULT_GRE_OPPONENT_DECK,
   DEFAULT_GRE_PLAYER_DECK,
   deckDetailToGreDeck,
@@ -64,17 +63,6 @@ export function gameSetupToGreStartConfig(
     ...(!config.deckList?.trim() && playerDeck?.id ? { deckId: playerDeck.id } : {}),
     gameType: config.gameType,
     ...(config.seed == null ? {} : { seed: config.seed }),
-  }
-}
-
-export function limitedDeckToGreStartConfig(
-  deckText: string,
-  gameType: 'draft' | 'sealed',
-): GreStartConfig {
-  return {
-    seat1Deck: deckText,
-    seat2Deck: DEFAULT_GRE_LIMITED_OPPONENT_DECK,
-    gameType,
   }
 }
 

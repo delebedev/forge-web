@@ -104,7 +104,7 @@ game-modes:
     status: works
     notes: >
       Draft is available from the signed-in navigation. Players draft three
-      packs over REST, build and submit a 40-card deck, then enter a GRE match
+      packs in the browser engine, build and submit a 40-card deck, then enter a GRE match
       against an opponent deck from the same pod. The product browser suite
       covers a manual pick, the full draft, deck submission, mulligan, and a
       live game action.
@@ -112,12 +112,9 @@ game-modes:
   sealed:
     status: partial
     notes: >
-      sealedStore (src/features/limited/sealed-store.ts) opens a pool via REST
-      (/api/sealed/start returns the course with its cardPool directly) into
-      LimitedDeckBuilder.tsx, submits via /api/sealed/deck, launches via
-      /api/sealed/play the same way draft does. Refresh-resume reads
-      GET /api/courses. Play returns decks and a result receipt for local launch. SEALED_ENABLED
-      (src/shared/flags.ts) remains off, so the browser path is gated behind the flag.
+      sealedStore (src/features/limited/sealed-store.ts) opens six boosters in
+      the browser engine and saves the pool as a course document. The player
+      builds a deck and plays against a copy of it; sealed has no pod opponents.
 
   curated-watch:
     status: works

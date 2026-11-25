@@ -202,8 +202,7 @@ const transportPort = managedPorts(
 const managedConfigs: Record<string, PlaywrightTestConfig> = {
   transport: defineConfig({
     testDir: './e2e',
-    testMatch:
-      /(?:(?:gre-prompt|gre-static-choice|draft)-transport|match-route|course-result)\.spec\.ts/,
+    testMatch: /(?:(?:gre-prompt|gre-static-choice)-transport|match-route|course-result)\.spec\.ts/,
     timeout: 30_000,
     retries: 0,
     use: {
@@ -266,7 +265,7 @@ const managedConfigs: Record<string, PlaywrightTestConfig> = {
   product: makeSmokeConfig({
     name: 'product',
     testMatch:
-      /(?:auth-passwordless|bootstrap|deck-import|decks|draft|product-smoke|react-challenge|whats-new)\.spec\.ts$/,
+      /(?:auth-passwordless|bootstrap|deck-import|decks|draft|limited-course|product-smoke|react-challenge|whats-new)\.spec\.ts$/,
     timeout: 60_000,
     frontendPort: 15174,
     webPort: 15184,

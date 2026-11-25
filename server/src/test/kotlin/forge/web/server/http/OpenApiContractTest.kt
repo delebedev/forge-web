@@ -92,8 +92,8 @@ class OpenApiContractTest {
             val metadata = client.get("/api/public/cards/by-grpids?ids=1&abilities=true")
             assertEquals(200, metadata.status.value)
             contractSample("card-map", "GET /api/public/cards/by-grpids", metadata)
-            val courses = client.get("/api/courses") { header(HttpHeaders.Cookie, cookie) }
+            val courses = client.get("/api/course-records") { header(HttpHeaders.Cookie, cookie) }
             assertEquals(200, courses.status.value)
-            contractSample("courses", "GET /api/courses", courses)
+            contractSample("course-records", "GET /api/course-records", courses)
         }
 }

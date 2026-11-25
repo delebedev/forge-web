@@ -114,27 +114,25 @@ Generation and server engine trials have no product route.
 ### Draft
 ```
 /play/limited?mode=draft → pick set → Start Draft
-  → draftStore.startDraft() → POST /api/draft/start → {draftPack, pickedCards}
-  → pick cards (3 rounds) → POST /api/draft/pick per pick
-  → status: Completed → deck_build phase → LimitedDeckBuilder
-  → confirm deck → submit → POST /api/draft/deck → {deckId}
-  → POST /api/draft/play → {coursePlayId, seat1Deck, seat2Deck}
-  → greSession.startBrowser({coursePlayId, seat1Deck, seat2Deck, gameType: 'draft'})
-  → terminal result → POST /api/courses/result → saved course progress
+  → draftStore.startDraft() → worker `draft` {set, seed, picks: []} → PUT /api/course-records/{event}
+  → pick cards (3 rounds) → worker `draft` with the new pick → PUT per pick
+  → complete → worker `draft-complete` → pool + bot decks → deck_build phase → LimitedDeckBuilder
+  → confirm deck → PUT the deck → {seat1Deck, seat2Deck, courseEvent, courseGame}
+  → greSession.startBrowser({seat1Deck, seat2Deck, courseEvent, courseGame, gameType: 'draft'})
+  → terminal result → PUT the course's wins/losses
 ```
 
 ### Sealed
 ```
 /play/limited?mode=sealed → pick set → Open Packs
-  → sealedStore.startSealed() → POST /api/sealed/start → {cardPool}
+  → sealedStore.startSealed() → worker `sealed` {set, seed} → PUT /api/course-records/{event}
   → deck_build phase → LimitedDeckBuilder (pool pre-populated)
-  → confirm deck → submit → POST /api/sealed/deck → {deckId}
-  → POST /api/sealed/play → {coursePlayId, seat1Deck, seat2Deck}
-  → greSession.startBrowser({coursePlayId, seat1Deck, seat2Deck, gameType: 'sealed'})
-  → terminal result → POST /api/courses/result → saved course progress
+  → confirm deck → PUT the deck → {seat1Deck, seat2Deck, courseEvent, courseGame}
+  → greSession.startBrowser({seat1Deck, seat2Deck, courseEvent, courseGame, gameType: 'sealed'})
+  → terminal result → PUT the course's wins/losses
 
-Refresh mid-build: sealedStore.tryResume() → GET /api/courses → restore the
-course with a pool but no deckId yet (no session WebSocket to reconnect).
+Refresh mid-draft or mid-build: {draft,sealed}Store.tryResume() → GET /api/course-records
+→ replay the saved picks or reopen the saved pool.
 ```
 
 ### Play saved deck
@@ -188,8 +186,8 @@ progress use REST. Static watch streams use saved transcripts.
 |---|---|
 | `forge:gre:lastMatchConfig` | Current tab's local launch config; refresh ends the game and offers restart; cleared on retirement |
 
-Draft/sealed deck-building refresh-resume reads course state from
-`GET /api/courses` instead of a stored session ID.
+Draft/sealed refresh-resume reads course state from
+`GET /api/course-records` instead of a stored session ID.
 
 ## Auth gate (ShellRoot)
 

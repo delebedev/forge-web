@@ -1,27 +1,37 @@
-import type { WebComponents } from '@shared/api/contracts'
-import { CourseViewSchema } from '@shared/api/wire-schemas'
-import { readJson } from '@shared/api/decoding'
 /**
- * Leaf-ish container: lists saved draft/sealed courses (submitted decks) with
- * play/edit/delete actions.
- *
- * A "saved limited deck" has no standalone row anywhere — /api/{mode}/deck
- * writes the submitted deck onto the Course record (deckId + cardPool),
- * never into DeckService (/api/decks stays empty for draft/sealed). So the
- * saved-pool list, replay, and delete actions all key off the course's
- * eventName via /api/courses, not a deck id.
+ * Leaf-ish container: lists saved draft and sealed courses that have a deck,
+ * with play, edit and delete actions keyed by the course's event name.
  */
 
 import { useEffect, useState } from 'react'
-import { apiFetch } from '@shared/api/client'
-import { authStore } from '@shared/auth/auth'
+import { CourseConflict, deleteCourse, listCourses, type Course } from '@shared/api/course-records'
 import styles from './SavedPools.module.css'
 
-type SavedCourse = WebComponents['schemas']['CourseView']
+/** Saved courses the list shows: those with a deck. */
+async function savedCourses(): Promise<Course[]> {
+  return (await listCourses()).filter((course) => course.document.deck != null)
+}
 
-/** Matches the eventName-prefix convention already used by sealedStore.tryResume(). */
-function courseFormat(eventName: string): 'draft' | 'sealed' {
-  return eventName.startsWith('Sealed_') ? 'sealed' : 'draft'
+/**
+ * Deletes the course as listed. A course another window changed since stays;
+ * the returned list replaces the shown one so a retry deletes the current revision.
+ */
+export async function deleteSavedCourse(
+  course: Course,
+): Promise<{ courses: Course[] | null; error: string | null }> {
+  try {
+    await deleteCourse(course)
+    return { courses: null, error: null }
+  } catch (err) {
+    if (!(err instanceof CourseConflict)) {
+      throw err
+    }
+    return {
+      courses: await savedCourses(),
+      error:
+        'This course changed in another window. The list has been refreshed; delete again to remove it.',
+    }
+  }
 }
 
 export function SavedPools({
@@ -34,7 +44,7 @@ export function SavedPools({
   onplay: (eventName: string) => Promise<void>
   onedit: (eventName: string) => void
 }) {
-  const [courses, setCourses] = useState<SavedCourse[]>([])
+  const [courses, setCourses] = useState<Course[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [busyEvent, setBusyEvent] = useState<string | null>(null)
@@ -48,27 +58,14 @@ export function SavedPools({
   async function fetchCourses(): Promise<void> {
     setLoading(true)
     setError(null)
-    const playerId = authStore.player?.id
-    if (!playerId) {
-      setLoading(false)
-      return
-    }
     try {
-      const res = await apiFetch(`/api/courses?playerId=${encodeURIComponent(playerId)}`)
-      if (!res.ok) {
-        setError(`Failed to load (${res.status})`)
-        return
-      }
-      const data = await readJson(res, CourseViewSchema.array())
-      if (Array.isArray(data)) {
-        // Keep every playable course and narrow by format at render time.
-        // `formats` follows the draft/sealed tab, which switches without
-        // remounting this component, so filtering here would freeze the list
-        // to whichever tab happened to be open when the fetch ran.
-        setCourses(data.filter((c) => c.deckId != null))
-      }
-    } catch {
-      setError('Network error')
+      // Keep every course with a deck and narrow by format at render time.
+      // `formats` follows the draft/sealed tab, which switches without
+      // remounting this component, so filtering here would freeze the list
+      // to whichever tab happened to be open when the fetch ran.
+      setCourses(await savedCourses())
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Network error')
     } finally {
       setLoading(false)
     }
@@ -89,36 +86,24 @@ export function SavedPools({
     }
   }
 
-  async function handleDelete(course: SavedCourse): Promise<void> {
+  async function handleDelete(course: Course): Promise<void> {
     if (busyEvent) {
       return
     }
     setBusyEvent(course.eventName)
     setActionError(null)
     try {
-      const mode = courseFormat(course.eventName)
-      const playerId = authStore.player?.id
-      if (!playerId) {
-        setActionError('Not signed in')
-        return
-      }
-      const res = await apiFetch(
-        `/api/${mode}?playerId=${encodeURIComponent(playerId)}&eventName=${encodeURIComponent(course.eventName)}`,
-        { method: 'DELETE' },
-      )
-      if (!res.ok) {
-        setActionError(`Delete failed (${res.status})`)
-        return
-      }
-      setCourses((prev) => prev.filter((c) => c.eventName !== course.eventName))
-    } catch {
-      setActionError('Network error')
+      const result = await deleteSavedCourse(course)
+      setCourses(result.courses ?? ((prev) => prev.filter((c) => c.eventName !== course.eventName)))
+      setActionError(result.error)
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Network error')
     } finally {
       setBusyEvent(null)
     }
   }
 
-  const visible = courses.filter((c) => formats.includes(courseFormat(c.eventName)))
+  const visible = courses.filter((course) => formats.includes(course.document.kind))
 
   if (loading) {
     return <div className={styles.savedLoading}>Loading saved decks...</div>
@@ -145,15 +130,15 @@ export function SavedPools({
             <div className={styles.savedInfo}>
               <span className={styles.savedEvent}>{course.eventName}</span>
               <span className={styles.savedRecord}>
-                {course.wins}-{course.losses}
+                {course.document.wins}-{course.document.losses}
               </span>
-              <span className={styles.savedPool}>{course.cardPool.length} card pool</span>
+              <span className={styles.savedPool}>{course.document.pool.length} card pool</span>
             </div>
             <div className={styles.savedActions}>
               <button
                 className={styles.playBtn}
                 type="button"
-                disabled={busyEvent != null}
+                disabled={busyEvent != null || course.document.phase !== 'games'}
                 onClick={() => void handlePlay(course.eventName)}
               >
                 {busyEvent === course.eventName ? 'Starting...' : 'Play'}

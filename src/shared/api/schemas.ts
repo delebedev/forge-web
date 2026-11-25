@@ -7,7 +7,6 @@ export {
   DecklistCardDtoSchema as DecklistCardSchema,
   ParseDecklistResponseSchema,
   ParseDecklistErrorResponseSchema,
-  LimitedSetViewSchema as SealedSetSchema,
 } from './wire-schemas'
 
 // Placeholder cards are view values. Fields follow the DTO; metadata may be unresolved.
@@ -23,7 +22,20 @@ export type DraftCard = Omit<WireDraftCard, 'grpId' | 'score'> &
 export type DecklistCard = components['schemas']['DecklistCardDto']
 export type ParseDecklistResponse = components['schemas']['ParseDecklistResponse']
 export type ParseDecklistErrorResponse = components['schemas']['ParseDecklistErrorResponse']
-export type SealedSet = components['schemas']['LimitedSetView']
+/** A limited set as the browser card index lists it. */
+export const SealedSetSchema = z.object({
+  code: z.string(),
+  name: z.string(),
+  date: z.string().nullable(),
+  type: z.string().nullable(),
+  cardCount: z.number().int().nullable(),
+  description: z.string().nullable(),
+  mechanics: z.array(z.string()).nullable(),
+  archetypes: z
+    .array(z.object({ pair: z.string(), name: z.string(), strategy: z.string().nullable() }))
+    .nullable(),
+})
+export type SealedSet = z.output<typeof SealedSetSchema>
 
 // Advice and deck browser values are presentation models, not product HTTP DTOs.
 export const DraftAdviceRecommendationSchema = z.object({

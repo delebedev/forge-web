@@ -141,17 +141,6 @@ export const ParseDecklistResponseSchema: z.ZodType<
 export const ValidateDecklistRequestInputSchema: z.ZodType<
   components['schemas']['ValidateDecklistRequestInput']
 > = z.object({ text: z.string(), gameType: z.string().nullable().optional() })
-export const CourseViewSchema: z.ZodType<components['schemas']['CourseView']> = z.object({
-  eventName: z.string(),
-  module: z.string(),
-  wins: z.number().int().min(-2147483648).max(2147483647),
-  losses: z.number().int().min(-2147483648).max(2147483647),
-  cardPool: z.array(z.string()),
-  deckId: z.string().nullable(),
-})
-export const CourseResultRequestInputSchema: z.ZodType<
-  components['schemas']['CourseResultRequestInput']
-> = z.object({ coursePlayId: z.string(), won: z.boolean() })
 export const CourseRecordSchema: z.ZodType<components['schemas']['CourseRecord']> = z.object({
   eventName: z.string(),
   revision: z.number().int().min(-2147483648).max(2147483647),
@@ -184,50 +173,6 @@ export const CreateDeckRequestInputSchema: z.ZodType<
   mainDeck: z.array(z.lazy(() => WebDeckCardInputSchema)),
   sideboard: z.array(z.lazy(() => WebDeckCardInputSchema)).optional(),
   commandZone: z.array(z.lazy(() => WebDeckCardInputSchema)).optional(),
-})
-export const StartDraftRequestInputSchema: z.ZodType<
-  components['schemas']['StartDraftRequestInput']
-> = z.object({ playerId: z.string(), eventName: z.string() })
-export const DraftSessionViewSchema: z.ZodType<components['schemas']['DraftSessionView']> =
-  z.object({
-    eventName: z.string(),
-    status: z.string(),
-    packNumber: z.number().int().min(-2147483648).max(2147483647),
-    pickNumber: z.number().int().min(-2147483648).max(2147483647),
-    draftPack: z.array(z.string()),
-    pickedCards: z.array(z.string()),
-    interrupted: z.boolean(),
-  })
-export const PickDraftRequestInputSchema: z.ZodType<
-  components['schemas']['PickDraftRequestInput']
-> = z.object({ playerId: z.string(), eventName: z.string(), cardName: z.string() })
-export const SubmitDeckRequestInputSchema: z.ZodType<
-  components['schemas']['SubmitDeckRequestInput']
-> = z.object({
-  playerId: z.string(),
-  eventName: z.string(),
-  name: z.string().optional(),
-  deckId: z.string().nullable().optional(),
-  mainDeck: z.array(z.lazy(() => WebDeckCardInputSchema)),
-  sideboard: z.array(z.lazy(() => WebDeckCardInputSchema)).optional(),
-})
-export const PlayDraftRequestInputSchema: z.ZodType<
-  components['schemas']['PlayDraftRequestInput']
-> = z.object({ playerId: z.string(), eventName: z.string() })
-export const CoursePlayResponseSchema: z.ZodType<components['schemas']['CoursePlayResponse']> =
-  z.object({ coursePlayId: z.string(), seat1Deck: z.string(), seat2Deck: z.string() })
-export const LimitedSetArchetypeViewSchema: z.ZodType<
-  components['schemas']['LimitedSetArchetypeView']
-> = z.object({ pair: z.string(), name: z.string(), strategy: z.string().nullable() })
-export const LimitedSetViewSchema: z.ZodType<components['schemas']['LimitedSetView']> = z.object({
-  code: z.string(),
-  name: z.string(),
-  date: z.string().nullable(),
-  type: z.string().nullable(),
-  cardCount: z.number().int().min(-2147483648).max(2147483647).nullable(),
-  description: z.string().nullable(),
-  mechanics: z.array(z.string()).nullable(),
-  archetypes: z.array(z.lazy(() => LimitedSetArchetypeViewSchema)).nullable(),
 })
 export const responseSchemas = {
   'GET /api/auth/me': {
@@ -285,12 +230,6 @@ export const responseSchemas = {
   'POST /api/cards/validate-decklist': {
     '400': z.lazy(() => ParseDecklistErrorResponseSchema),
   },
-  'GET /api/courses': {
-    '200': z.array(z.lazy(() => CourseViewSchema)),
-  },
-  'POST /api/courses/result': {
-    '200': z.lazy(() => CourseViewSchema),
-  },
   'GET /api/course-records': {
     '200': z.array(z.lazy(() => CourseRecordSchema)),
   },
@@ -316,33 +255,4 @@ export const responseSchemas = {
   'GET /api/decks/{deckId}': {
     '200': z.lazy(() => DeckViewSchema),
   },
-  'POST /api/draft/start': {
-    '200': z.lazy(() => DraftSessionViewSchema),
-  },
-  'POST /api/draft/pick': {
-    '200': z.lazy(() => DraftSessionViewSchema),
-  },
-  'GET /api/draft/status': {
-    '200': z.lazy(() => DraftSessionViewSchema),
-  },
-  'POST /api/draft/deck': {
-    '200': z.lazy(() => CourseViewSchema),
-  },
-  'POST /api/draft/play': {
-    '200': z.lazy(() => CoursePlayResponseSchema),
-  },
-  'DELETE /api/draft': {},
-  'GET /api/sealed/sets': {
-    '200': z.array(z.lazy(() => LimitedSetViewSchema)),
-  },
-  'POST /api/sealed/start': {
-    '200': z.lazy(() => CourseViewSchema),
-  },
-  'POST /api/sealed/deck': {
-    '200': z.lazy(() => CourseViewSchema),
-  },
-  'POST /api/sealed/play': {
-    '200': z.lazy(() => CoursePlayResponseSchema),
-  },
-  'DELETE /api/sealed': {},
 } as const

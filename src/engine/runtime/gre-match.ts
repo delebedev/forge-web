@@ -5,7 +5,6 @@ const STORAGE_KEY = 'forge:gre:lastMatchConfig'
 
 export const DEFAULT_GRE_PLAYER_DECK = '20 Raging Goblin\n20 Shock\n20 Mountain'
 export const DEFAULT_GRE_OPPONENT_DECK = '60 Plains'
-export const DEFAULT_GRE_LIMITED_OPPONENT_DECK = '16 Raging Goblin\n8 Shock\n16 Mountain'
 
 export function deckDetailToGreDeck(deck: DeckDetail | null | undefined): string | null {
   const content = deck?.content?.trim()
@@ -73,8 +72,12 @@ export function parseGreMatchConfig(raw: string): GreStartConfig | null {
     if (parsed['execution'] === 'browser') {
       config.execution = parsed['execution']
     }
-    if (typeof parsed['coursePlayId'] === 'string') {
-      config.coursePlayId = parsed['coursePlayId']
+    if (typeof parsed['courseEvent'] === 'string' && Number.isSafeInteger(parsed['courseGame'])) {
+      config.courseEvent = parsed['courseEvent']
+      config.courseSeed = Number.isSafeInteger(parsed['courseSeed'])
+        ? Number(parsed['courseSeed'])
+        : null
+      config.courseGame = Number(parsed['courseGame'])
     }
     if (typeof parsed['attemptId'] === 'string') {
       config.attemptId = parsed['attemptId']

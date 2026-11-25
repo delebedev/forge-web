@@ -17,12 +17,14 @@ it('restores authored local puzzle context for an honest restart', () => {
   expect(parseGreMatchConfig(JSON.stringify(config))).toEqual(config)
 })
 
-it('restores local course decks and the result receipt', () => {
+it('restores local course decks and the course game', () => {
   const config: GreStartConfig = {
     execution: 'browser',
     attemptId: 'attempt-2',
     matchId: 'browser-2',
-    coursePlayId: 'course-play-1',
+    courseEvent: 'QuickDraft_FDN_20260223',
+    courseSeed: 41,
+    courseGame: 2,
     gameType: 'draft',
     seat1Deck: '40 Plains',
     seat2Deck: '40 Forest',

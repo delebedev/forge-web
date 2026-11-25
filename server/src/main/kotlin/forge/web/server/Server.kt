@@ -13,7 +13,6 @@ import forge.web.server.http.WebServices
 import forge.web.server.http.installHttpApplication
 import forge.web.server.http.installServerErrorReporting
 import forge.web.server.http.serverBackendRelease
-import forge.web.server.limited.LimitedSetView
 import forge.web.server.match.MatchReplayConfig
 import forge.web.server.match.MatchReplayStore
 import forge.web.server.match.developmentChallenges
@@ -26,19 +25,10 @@ import io.ktor.server.application.install
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.netty.Netty
 import io.ktor.server.plugins.forwardedheaders.XForwardedHeaders
-import leyline.domain.CollationPool
-import leyline.domain.DraftStatus
 import leyline.domain.PlayerId
 import leyline.domain.service.CollectionService
-import leyline.domain.service.CourseService
-import leyline.domain.service.DraftService
-import leyline.domain.service.GeneratedPool
-import leyline.domain.service.RepositoryMatchCoordinator
 import leyline.game.data.ForgeCardRepository
-import leyline.game.generator.ForgeBoosterDraftDriver
-import leyline.game.generator.SealedPoolGenerator
 import java.io.File
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 
 fun main(args: Array<String>) {
@@ -86,7 +76,6 @@ internal fun serverServices(
 ): WebServices {
     val paths = config.paths
     val web = config.web
-    val engineSettings = config.engine
     val cardRepo = ForgeCardRepository.open()
     val cardImages = CardImageIndex.load()
     val playerStore = database.playerStore
@@ -99,49 +88,6 @@ internal fun serverServices(
     val defaultPlayerId = PlayerId(web.playerId)
     playerStore.ensurePlayer(defaultPlayerId, "Web Player")
 
-    val sealedPoolGenerator = SealedPoolGenerator(cardRepo::findGrpIdByName)
-    val courseService =
-        CourseService(playerStore) { setCode ->
-            val pool = sealedPoolGenerator.generate(setCode)
-            GeneratedPool(
-                cards = pool.grpIds,
-                byCollation = listOf(CollationPool(pool.collationId, pool.grpIds)),
-                collationId = pool.collationId,
-            )
-        }
-    val draftRepo = playerStore.asDraftSessionRepository()
-    val draftDriver =
-        ForgeBoosterDraftDriver(
-            cardRepo::findGrpIdByName,
-            engineSettings.draft.copy(modelDir = paths.draftModelDir(engineSettings.draft.modelDir).absolutePath),
-        )
-    val activeDraftSessions = ConcurrentHashMap.newKeySet<String>()
-    val draftService =
-        DraftService(
-            draftRepo,
-            object : DraftService.Driver {
-                override fun start(
-                    sessionKey: String,
-                    setCode: String,
-                ): List<Int> = draftDriver.start(sessionKey, setCode).also { activeDraftSessions.add(sessionKey) }
-
-                override fun pick(
-                    sessionKey: String,
-                    grpId: Int,
-                ): DraftService.PickOutcome {
-                    val result = draftDriver.pick(sessionKey, grpId)
-                    return DraftService.PickOutcome(result.packNumber, result.pickNumber, result.nextPack, result.complete)
-                }
-
-                override fun complete(sessionKey: String): DraftService.PodOutcome {
-                    val result = draftDriver.complete(sessionKey)
-                    activeDraftSessions.remove(sessionKey)
-                    return DraftService.PodOutcome(result.playerPool, result.botDecks)
-                }
-            },
-            courseService,
-        )
-    val coordinator = RepositoryMatchCoordinator(defaultPlayerId, playerStore, courseService, draftRepo)
     val serverRelease = serverBackendRelease(System.getenv())
     val replayStore =
         MatchReplayStore(
@@ -156,7 +102,6 @@ internal fun serverServices(
         )
 
     val challengeCatalog = if (web.devTools) developmentChallenges(paths.puzzlesDir) else emptyChallenges()
-    val coursePlay = forge.web.server.limited.CoursePlayService(database.database, coordinator, courseService, cardRepo)
     val emailSender =
         if (web.resendApiKey.isNotBlank()) {
             ResendEmailSender(web.resendApiKey, web.resendFrom)
@@ -165,16 +110,11 @@ internal fun serverServices(
         }
 
     return WebServices(
-        draftService = draftService,
-        draftInterrupted = { it.status == DraftStatus.PickNext && it.id.value !in activeDraftSessions },
-        draftDropped = { activeDraftSessions.remove(it.value) },
-        courseService = courseService,
         decks = playerStore,
         collectionService = CollectionService { cardRepo.findAllGrpIds() },
         cardRepository = cardRepo,
         cardImages = cardImages,
         roadmap = database.roadmap,
-        coursePlay = coursePlay,
         courseRecords = database.courseRecords,
         replayStore = replayStore,
         authService =
@@ -194,11 +134,6 @@ internal fun serverServices(
         challengeCatalog = challengeCatalog,
         devToolsEnabled = web.devTools,
         puzzleStore = database.puzzles,
-        sealedSets = {
-            SealedPoolGenerator.supportedSets().map {
-                LimitedSetView(code = it.code, name = it.name, type = it.type, cardCount = it.cardCount)
-            }
-        },
     )
 }
 

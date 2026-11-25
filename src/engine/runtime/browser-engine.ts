@@ -69,6 +69,7 @@ export class BrowserEngine implements BrowserMatchHost {
   private failureCapture: Promise<void> | null = null
   private diagnosticReply: ((value: unknown) => void) | null = null
   private initialization: Promise<void> | null = null
+  private loadedCatalogVersion = ''
   private transition = Promise.resolve()
   private currentSource: BrowserMatchSource | null = null
   private lastGameStateId = 0
@@ -180,6 +181,20 @@ export class BrowserEngine implements BrowserMatchHost {
     await this.initialize()
     this.assertAvailable()
     return this.request('decklist', { text, gameType, import: isImport })
+  }
+  /** Runs a draft or sealed command; the worker replays it from the request alone. */
+  async limited(
+    type: 'draft' | 'draft-complete' | 'sealed',
+    request: Record<string, unknown>,
+  ): Promise<unknown> {
+    await this.initialize()
+    this.assertAvailable()
+    return this.request(type, { request })
+  }
+  /** The worker catalog's version, which limited requests must name. */
+  async catalogVersion(): Promise<string> {
+    await this.initialize()
+    return this.loadedCatalogVersion
   }
   async advice(): Promise<unknown> {
     return this.request('advice')
@@ -304,7 +319,9 @@ export class BrowserEngine implements BrowserMatchHost {
         }
         return this.request('initialize', { release, generation: this.generation })
       })
-      .then(() => undefined)
+      .then((version) => {
+        this.loadedCatalogVersion = String(version)
+      })
       .catch(async (error: unknown) => {
         this.fail(error instanceof Error ? error : new Error(String(error)))
         await this.failureCapture

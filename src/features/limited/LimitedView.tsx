@@ -1,8 +1,8 @@
 /**
  * Container for the limited (draft/sealed) surface: set-picker setup screen,
  * live phase transitions, deck build, and hand-off into a GRE match. Mounted
- * by `LimitedRoute` (`src/shell/LimitedRoute.tsx`), which supplies the
- * callbacks that talk to `/api/{draft,sealed}` and `greSession`.
+ * by `LimitedRoute`, which supplies the callbacks that read saved courses and
+ * start games through `greSession`.
  */
 
 import { useEffect, useRef, useState } from 'react'
@@ -12,6 +12,7 @@ import { loadCardIndex } from '@shared/cards/card-index'
 import { draftStore } from '@features/limited/draft-store'
 import { sealedStore } from '@features/limited/sealed-store'
 import { useRouter } from '@app/router'
+import type { LimitedMatchLaunch } from './course'
 import { useDraftSnapshot, useSealedSnapshot } from './limited-stores'
 import { DraftPicking } from './draft/DraftPicking'
 import { LimitedDeckBuilder } from './LimitedDeckBuilder'
@@ -53,22 +54,13 @@ const CONFIG = {
 export function LimitedView({
   mode,
   onPlaySaved,
-  onPlayBuilt,
   onPlayMatch,
   onEditSaved,
 }: {
   mode: 'draft' | 'sealed'
-  onPlaySaved?: (deckId: string) => Promise<void>
-  onPlayBuilt?: (
-    mainboard: string[],
-    sideboard: string[],
-    mode: 'draft' | 'sealed',
-  ) => Promise<void>
-  onPlayMatch?: (
-    launch: { coursePlayId: string; seat1Deck: string; seat2Deck: string },
-    mode: 'draft' | 'sealed',
-  ) => Promise<void>
-  onEditSaved?: (deckId: string) => void
+  onPlaySaved?: (eventName: string) => Promise<void>
+  onPlayMatch?: (launch: LimitedMatchLaunch, mode: 'draft' | 'sealed') => Promise<void>
+  onEditSaved?: (eventName: string) => void
 }) {
   // Rules of hooks: both snapshots are read unconditionally, then the active
   // one is picked by `mode`.
@@ -77,12 +69,15 @@ export function LimitedView({
   const router = useRouter()
   const store = mode === 'draft' ? draftStore : sealedStore
   const active = mode === 'draft' ? draft : sealed
+  const submitting = active.submitting
 
   const cfg = CONFIG[mode]
   const { phase, pool, error } = active
 
   const [sets, setSets] = useState<SealedSet[]>([])
   const [selectedSetCode, setSelectedSetCode] = useState('NEO')
+  // Set once the player picks a set; the unfinished-draft lookup then leaves the choice alone.
+  const pickedSet = useRef(false)
   const [loadingSets, setLoadingSets] = useState(true)
   const [starting, setStarting] = useState(false)
   const [enteringGame, setEnteringGame] = useState(false)
@@ -90,11 +85,24 @@ export function LimitedView({
   // Resume an in-progress build whenever the sealed tab becomes the active
   // one. The draft/sealed tabs swap this component's props without remounting
   // it, so checking only on mount would skip the resume for anyone who lands
-  // on draft first and switches over.
+  // on draft first and switches over. A draft resumes when its set is started,
+  // so the picker opens on the set of the account's unfinished draft.
   useEffect(() => {
     if (mode === 'sealed' && sealedStore.phase === 'idle') {
       void sealedStore.tryResume()
     }
+    if (mode === 'draft' && draftStore.phase === 'idle') {
+      let current = true
+      void draftStore.unfinishedSet().then((set) => {
+        if (set && current && !pickedSet.current) {
+          setSelectedSetCode(set)
+        }
+      })
+      return () => {
+        current = false
+      }
+    }
+    return undefined
   }, [mode])
 
   const mounted = useRef(false)
@@ -164,7 +172,7 @@ export function LimitedView({
   }
 
   function handleReset(): void {
-    if ((mode === 'draft' && draft.submitting) || enteringGame) {
+    if (submitting || enteringGame) {
       return
     }
     if (mode === 'draft') {
@@ -175,7 +183,7 @@ export function LimitedView({
   }
 
   function handleBack(): void {
-    if ((mode === 'draft' && draft.submitting) || enteringGame) {
+    if (submitting || enteringGame) {
       return
     }
     store.reset()
@@ -183,17 +191,6 @@ export function LimitedView({
 
   async function handleSubmitDeck(mainboard: string[], sideboard: string[]): Promise<void> {
     if (enteringGame) {
-      return
-    }
-    if (active.savedDeckId && onPlayBuilt) {
-      setEnteringGame(true)
-      setLimitedError(null)
-      try {
-        await onPlayBuilt(mainboard, sideboard, mode)
-      } catch (err) {
-        setLimitedError(err instanceof Error ? err.message : 'Failed to start game')
-        setEnteringGame(false)
-      }
       return
     }
     setLimitedError(null)
@@ -254,7 +251,10 @@ export function LimitedView({
               sets={sets}
               selectedCode={selectedSetCode}
               loading={loadingSets}
-              onSelect={setSelectedSetCode}
+              onSelect={(code) => {
+                pickedSet.current = true
+                setSelectedSetCode(code)
+              }}
             />
             <Button
               onClick={() => void handleStart()}
@@ -275,8 +275,8 @@ export function LimitedView({
       <section className={styles.setupScreen} aria-label="Interrupted draft">
         <h2 className={styles.setupTitle}>Draft interrupted</h2>
         <p className={styles.setupSubtitle}>
-          The server restarted during this draft, so its remaining picks cannot continue. Your
-          picked cards are still saved. Starting a new draft discards this draft and its pool.
+          The card catalog changed since this draft started, so its remaining picks cannot continue.
+          Starting a new draft discards this draft and its pool.
         </p>
         <ul aria-label="Saved draft pool">
           {pool.map((card, index) => (
@@ -312,7 +312,7 @@ export function LimitedView({
             variant="secondary"
             size="compact"
             onClick={handleBack}
-            disabled={(mode === 'draft' && draft.submitting) || enteringGame}
+            disabled={submitting || enteringGame}
           >
             Back to Saved Pools
           </Button>
@@ -322,7 +322,7 @@ export function LimitedView({
             className={styles.newBtn}
             type="button"
             onClick={handleReset}
-            disabled={(mode === 'draft' && draft.submitting) || enteringGame}
+            disabled={submitting || enteringGame}
           >
             {cfg.newLabel}
           </button>
@@ -333,7 +333,7 @@ export function LimitedView({
             initialSide={cfg.initialSide}
             poolLabel={cfg.poolLabel}
             error={error}
-            submitting={mode === 'draft' && draft.submitting}
+            submitting={submitting}
             onSubmit={(m, s) => void handleSubmitDeck(m, s)}
           />
         </div>

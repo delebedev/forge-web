@@ -16,7 +16,9 @@ async function terminalCourse(page: Page, unknown = false) {
       const { greStore } = await import(storePath)
       greSession.connectBrowser = async () => 'browser-course-ui'
       greSession.startBrowser({
-        coursePlayId: 'course-play-ui',
+        courseEvent: 'QuickDraft_FDN_20260223',
+        courseSeed: 1,
+        courseGame: 0,
         gameType: 'draft',
         seat1Deck: '40 Plains',
         seat2Deck: '40 Forest',
@@ -56,21 +58,33 @@ test('course save failure blocks a new game, warns on leave, and retries the sam
   page,
 }) => {
   const reports: unknown[] = []
-  await page.route('**/api/courses/result', async (route) => {
-    reports.push(route.request().postDataJSON())
+  const record = (revision: number, wins: number) => ({
+    eventName: 'QuickDraft_FDN_20260223',
+    revision,
+    document: JSON.stringify({
+      kind: 'draft',
+      set: 'FDN',
+      seed: 1,
+      picks: [],
+      catalogVersion: 'catalog',
+      pool: [],
+      deck: { mainDeck: [{ cardName: 'Plains', quantity: 40 }], sideboard: [] },
+      botDecks: [],
+      wins,
+      losses: 0,
+      phase: 'games',
+    }),
+  })
+  await page.route('**/api/course-records/QuickDraft_FDN_20260223', async (route) => {
+    if (route.request().method() === 'GET') {
+      return route.fulfill({ json: record(3, 0) })
+    }
+    const body = route.request().postDataJSON() as { revision: number; document: string }
+    reports.push({ revision: body.revision, ...JSON.parse(body.document) })
     if (reports.length === 1) {
       return route.fulfill({ status: 503 })
     }
-    return route.fulfill({
-      json: {
-        eventName: 'Draft',
-        module: 'CreateMatch',
-        wins: 1,
-        losses: 0,
-        cardPool: [],
-        deckId: 'deck-1',
-      },
-    })
+    return route.fulfill({ json: record(4, 1) })
   })
   await terminalCourse(page)
   await expect(page.getByRole('button', { name: 'Retry saving result', exact: true })).toBeVisible()
@@ -84,15 +98,15 @@ test('course save failure blocks a new game, warns on leave, and retries the sam
   ).toBeVisible()
   await expect(page.getByRole('button', { name: 'Play Again', exact: true })).toBeEnabled()
   expect(reports).toEqual([
-    { coursePlayId: 'course-play-ui', won: true },
-    { coursePlayId: 'course-play-ui', won: true },
+    expect.objectContaining({ revision: 3, wins: 1, losses: 0 }),
+    expect.objectContaining({ revision: 3, wins: 1, losses: 0 }),
   ])
 })
 
 test('unknown local course outcome is explicit and does not invent a report', async ({ page }) => {
   const reports: string[] = []
   page.on('request', (request) => {
-    if (request.url().endsWith('/api/courses/result')) {
+    if (new URL(request.url()).pathname.startsWith('/api/course-records')) {
       reports.push(request.url())
     }
   })

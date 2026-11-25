@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { priority } from '@engine/priority/priority'
 import { canRespondOf } from '@engine/priority/priority-derive'
-import { reportCourseResult } from '@engine/runtime/course-result'
+import { recordCourseResult } from '@shared/api/course-records'
 import { greSession } from '@engine/runtime/gre-session'
 import { greStore } from '@engine/runtime/gre-store'
 import { useBoardSnapshot } from '@engine/runtime/hooks'
@@ -113,15 +113,17 @@ export function GrePlay({
   const [courseError, setCourseError] = useState('')
   const [courseRetry, setCourseRetry] = useState(0)
   useEffect(() => {
-    const id = initialConfig?.coursePlayId
+    const event = initialConfig?.courseEvent
+    const game = initialConfig?.courseGame
+    const seed = initialConfig?.courseSeed ?? null
     const outcome = board.outcome?.viewerResult
-    if (!id || !board.gameOver || !outcome || outcome === 'unknown') {
+    if (!event || game == null || !board.gameOver || !outcome || outcome === 'unknown') {
       return
     }
     let active = true
     setCourseResult(null)
     setCourseError('')
-    void reportCourseResult(id, outcome === 'win').then(
+    void recordCourseResult(event, seed, game, outcome === 'win').then(
       (course) => {
         if (active) {
           setCourseResult(course)
@@ -136,8 +138,15 @@ export function GrePlay({
     return () => {
       active = false
     }
-  }, [initialConfig?.coursePlayId, board.gameOver, board.outcome?.viewerResult, courseRetry])
-  const courseUnsaved = !!initialConfig?.coursePlayId && board.gameOver && !courseResult
+  }, [
+    initialConfig?.courseEvent,
+    initialConfig?.courseGame,
+    initialConfig?.courseSeed,
+    board.gameOver,
+    board.outcome?.viewerResult,
+    courseRetry,
+  ])
+  const courseUnsaved = !!initialConfig?.courseEvent && board.gameOver && !courseResult
   const courseOutcomeUnknown =
     courseUnsaved && (!board.outcome?.viewerResult || board.outcome.viewerResult === 'unknown')
   const dropZoneElRef = useRef<HTMLElement | null>(null)
@@ -597,7 +606,7 @@ export function GrePlay({
             fullGameHref={fullGameHref}
             outcomeExtra={
               <>
-                {initialConfig?.coursePlayId && board.gameOver && (
+                {initialConfig?.courseEvent && board.gameOver && (
                   <section role={courseError ? 'alert' : 'status'}>
                     {courseResult ? (
                       <p>
