@@ -90,6 +90,28 @@ class MatchReplayStoreAppendTest {
         }
 
     @Test
+    fun `a status-only chunk drops an unacknowledged tail`() =
+        runBlocking<Unit> {
+            val root = directory()
+            val config = MatchReplayConfig(root, "token")
+            MatchReplayStore(config).use { store ->
+                store.ingestBrowserChunk(owner("account"), MATCH_ID, 0, chunk(1))
+            }
+            val segment = appendedJournalFile(root, MATCH_ID, 0)
+            val committed = segment.length()
+            segment.appendBytes(gzipReplay("""{"torn":""".toByteArray()).copyOf(9))
+            MatchReplayStore(config).use { store ->
+                assertEquals(
+                    1L,
+                    store.ingestBrowserChunk(owner("account"), MATCH_ID, 1, chunk(2, cards = 0, complete = true, empty = true)),
+                )
+                assertEquals(committed, segment.length())
+                assertTrue(assertNotNull(store.export(MATCH_ID)).status.complete)
+                assertEquals(root.listFiles()!!.sumOf(File::length), store.health().bytesUsed)
+            }
+        }
+
+    @Test
     fun `a full artifact replaces the appended journal with a new generation`() =
         runBlocking<Unit> {
             val root = directory()

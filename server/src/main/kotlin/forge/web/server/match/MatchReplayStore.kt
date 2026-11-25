@@ -138,7 +138,10 @@ internal class MatchReplayStore(
         val metadata = readBrowserMetadata(matchId)
         val storedContext = metadata?.journal?.header?.context ?: legacyBrowserReplay(matchId)?.context
         val (deviceId, accountId) = journalOwner(owner, metadata, storedContext)
-        if (metadata?.artifacts?.contains(artifactId) == true) return false
+        if (metadata?.artifacts?.contains(artifactId) == true) {
+            restorePin(matchId, submitted.status.reportId)
+            return false
+        }
         val normalized = submitted.copy(context = context.copy(deviceId = deviceId, accountId = accountId))
         val base =
             (metadata ?: BrowserJournalMetadata(deviceId = deviceId, accountId = accountId)).copy(
@@ -188,6 +191,7 @@ internal class MatchReplayStore(
             require(previouslyWritten == chunk.events && afterSeq + chunk.events.size <= committedSeq) {
                 "Replay chunk conflicts with stored sequence"
             }
+            restorePin(matchId, chunk.status.reportId)
             return committedSeq
         }
         require(afterSeq == committedSeq) { "Replay chunk has a gap" }
@@ -267,18 +271,40 @@ internal class MatchReplayStore(
                 (metadataBytes.size - browserMetadataFile(matchId).length()) +
                 (pin?.let { it.size - pinFile(matchId).length() } ?: 0)
         if (!reserve(delta, matchId)) throw ReplayStorageCapacityExceeded()
-        if (member.isNotEmpty() || !segment.exists()) {
-            val before = segment.length()
-            try {
-                appendJournalMember(segment, committedBytes, member)
-            } finally {
-                lastMeasuredBytesUsed += segment.length() - before
-            }
+        // An empty member still truncates an unacknowledged tail, which the reservation already subtracted.
+        val before = segment.length()
+        try {
+            appendJournalMember(segment, committedBytes, member)
+        } finally {
+            lastMeasuredBytesUsed += segment.length() - before
         }
         // The metadata write commits the appended member; the acknowledgement follows it.
         writeAccounted(browserMetadataFile(matchId), metadataBytes)
-        pin?.let { writeAccounted(pinFile(matchId), it) }
-        retention.written(matchId, clock.millis(), pinnedUntil) { metadata.createdAtMs ?: clock.millis() }
+        // Retention records the committed write before the pin write, which can fail.
+        retention.written(matchId, clock.millis(), null) { metadata.createdAtMs ?: clock.millis() }
+        writePin(matchId, pin, pinnedUntil)
+    }
+
+    private fun writePin(
+        matchId: String,
+        pin: ByteArray?,
+        pinnedUntil: Long?,
+    ) {
+        if (pin == null) return
+        writeAccounted(pinFile(matchId), pin)
+        retention.pinned(matchId, requireNotNull(pinnedUntil))
+    }
+
+    /**
+     * A retried chunk or artifact whose first attempt committed but failed to write its pin returns as a duplicate;
+     * this writes the missing pin.
+     */
+    private fun restorePin(
+        matchId: String,
+        reportId: String?,
+    ) {
+        if (reportId == null || readPin(matchId)?.string("reportId") == reportId) return
+        pinFile(matchId, reportId)
     }
 
     /**
@@ -335,10 +361,10 @@ internal class MatchReplayStore(
         }
         writeAccounted(segment, member, modifiedAtMs)
         writeAccounted(browserMetadataFile(matchId), metadataBytes, modifiedAtMs)
-        pin?.let { writeAccounted(pinFile(matchId), it) }
         if (modifiedAtMs == null) {
-            retention.written(matchId, clock.millis(), pinnedUntil) { metadata.createdAtMs ?: clock.millis() }
+            retention.written(matchId, clock.millis(), null) { metadata.createdAtMs ?: clock.millis() }
         }
+        writePin(matchId, pin, pinnedUntil)
         // Leftovers are unreferenced once the metadata commits; maintenance removes any that remain.
         (listOfNotNull(previous) + plainBrowserReplayFile(matchId) + compressedBrowserReplayFile(matchId))
             .forEach { file ->
