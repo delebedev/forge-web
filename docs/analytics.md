@@ -103,26 +103,29 @@ addresses, and deck names must never be sent.
 Every custom event carries `release`, `rollout`, `traffic`, and `device_id`. Match lifecycle
 events carry `match_id` and `deck_id` when a persisted deck launched the match.
 Deck events use IDs, formats, counts, and operation names rather than deck or
-card names.
+card names. Import rejection causes are the bounded categories in
+`src/shared/cards/decklist-rejection.ts`; the error text, which quotes card names
+and lines, stays in the dialog.
 
-| Event | Event-specific properties |
-|---|---|
-| `login` | `method`, `success`, optional bounded `reason` |
-| `game-start` | `mode`, `gameType`, `match_id`, optional `format`, `deck_id` |
-| `game-start-failed` | start fields when known, bounded `reason` |
-| `game-complete` | start fields, `result`, `durationSec`, `turn`, `lossReason` |
-| `game-left` (historical) | start fields, `phase`, `turn`, bounded `abandon_result`, optional HTTP `status`. Current leave events use `browser-lifecycle` with `stage=left`. |
-| `game-first-action` | start fields, bounded numeric `actionType` |
-| `turn-milestone` | start fields, `turn` in `1`, `5`, `10`, `20` |
-| `game-recovery` | `execution=browser`, opaque match/attempt IDs and browser context, bounded `outcome` (`started`, `succeeded`, `failed`, `cancelled`), terminal `duration_ms` |
-| `deck-paste` | `cardCount`, `inputLength`, `lineCount` |
-| `deck-search` | `queryLength`, bounded `outcome` (`network` when the card index cannot load), optional `resultCount` |
-| `deck-saved` | `deck_id`, `operation`, `format`, `cardCount` |
-| `deck-deleted` | `deck_id` |
-| `bug-report-opened` | `report_id`, `source` (`header`, `sidebar`, or `board`), optional `match_id`, `deck_id`, `close_category`, numeric `close_code`, `connection_status` |
-| `whats-new-opened` | `source` (`landing`, `header`, or `auto`), `latest_date` (ISO publication date or empty) |
-| `whats-new-closed` | `source` (`landing`, `header`, or `auto`), `latest_date` from that opening |
-| `challenge-opened`, `challenge-restart`, `challenge-first-action`, `challenge-solved`, `challenge-failed` | Bounded `challengeId`; first action includes numeric `actionType`, terminal events include `result` |
+| Event                                                                                                     | Event-specific properties                                                                                                                                                    |
+| --------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `login`                                                                                                   | `method`, `success`, optional bounded `reason`                                                                                                                               |
+| `game-start`                                                                                              | `mode`, `gameType`, `match_id`, optional `format`, `deck_id`                                                                                                                 |
+| `game-start-failed`                                                                                       | start fields when known, bounded `reason`                                                                                                                                    |
+| `game-complete`                                                                                           | start fields, `result`, `durationSec`, `turn`, `lossReason`                                                                                                                  |
+| `game-left` (historical)                                                                                  | start fields, `phase`, `turn`, bounded `abandon_result`, optional HTTP `status`. Current leave events use `browser-lifecycle` with `stage=left`.                             |
+| `game-first-action`                                                                                       | start fields, bounded numeric `actionType`                                                                                                                                   |
+| `turn-milestone`                                                                                          | start fields, `turn` in `1`, `5`, `10`, `20`                                                                                                                                 |
+| `game-recovery`                                                                                           | `execution=browser`, opaque match/attempt IDs and browser context, bounded `outcome` (`started`, `succeeded`, `failed`, `cancelled`), terminal `duration_ms`                 |
+| `deck-paste`                                                                                              | `cardCount`, `inputLength`, `lineCount`                                                                                                                                      |
+| `deck-import-rejected`                                                                                    | `stage` (`parse`, `prepare`, or `validate`), `errorCount`, `inputLength`, `lineCount`, `cause` (the most frequent cause), and one `cause_<category>` count per cause present |
+| `deck-search`                                                                                             | `queryLength`, bounded `outcome` (`network` when the card index cannot load), optional `resultCount`                                                                         |
+| `deck-saved`                                                                                              | `deck_id`, `operation`, `format`, `cardCount`                                                                                                                                |
+| `deck-deleted`                                                                                            | `deck_id`                                                                                                                                                                    |
+| `bug-report-opened`                                                                                       | `report_id`, `source` (`header`, `sidebar`, or `board`), optional `match_id`, `deck_id`, `close_category`, numeric `close_code`, `connection_status`                         |
+| `whats-new-opened`                                                                                        | `source` (`landing`, `header`, or `auto`), `latest_date` (ISO publication date or empty)                                                                                     |
+| `whats-new-closed`                                                                                        | `source` (`landing`, `header`, or `auto`), `latest_date` from that opening                                                                                                   |
+| `challenge-opened`, `challenge-restart`, `challenge-first-action`, `challenge-solved`, `challenge-failed` | Bounded `challengeId`; first action includes numeric `actionType`, terminal events include `result`                                                                          |
 
 Generated puzzle UUIDs use the `generated` challenge ID in these events; the
 per-puzzle identity remains in the private feedback store.
@@ -175,22 +178,23 @@ The event names below are the contract for comparing dashboards across client
 revisions. A removed event has no live caller and must not be interpreted as a
 zero count in the current release.
 
-| Historical event | Disposition | Current caller | Product question |
-|---|---|---|---|
-| `deck-paste` | Keep | `DeckImportDialog` after a valid parse | Does pasted-deck import reach a usable deck? |
-| `format-select` | Remove | Format remains on `game-start` and `deck-saved` | Which formats produce saved decks and launched games? |
-| `game-start` | Keep | `GreStore.recordGameStart` after match creation | Which player matches launch? |
-| `game-start-failed` | Remove | Browser failures use `browser-lifecycle` and diagnostic reports | Why does local startup fail? |
-| `game-complete` | Keep | `GreStore.recordGameComplete` on terminal state | Which player matches finish, and how? |
-| `game-concede`, `game-left` | Remove | Local lifecycle reports explicit leave | Where do players leave active matches? |
-| `prompt-response` | Replace with `game-first-action` | `GreStore.sendPerformAction` after the first sent non-pass action | Does a player progress from connection to actual play? |
-| `turn-milestone` | Keep, bounded | `GreStore.applyGsmPayload` at turns 1, 5, 10, and 20 | How deep do unfinished player matches progress? |
-| `login` | Keep | `LoginPage` after code verification | Does passwordless login succeed, and why does it fail? |
-| `challenge-opened` | Restore for browser links | `BrowserChallenge` on opening a curated link | Which challenge attempts open? |
-| `challenge-first-action` | Restore for browser links | `GreStore` after the first non-pass action | Which opened challenges reach interaction? |
-| `challenge-stack-opened` | Remove | The duplicate challenge action seam was removed | Which challenge attempts exercise the stack interaction? |
-| `spectator-start` | Remove | Public watch reads saved games | Historical live spectator launches |
-| `spectator-complete` | Remove | Public watch reads saved games | Historical live spectator outcomes |
+| Historical event            | Disposition                      | Current caller                                                                          | Product question                                         |
+| --------------------------- | -------------------------------- | --------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| `deck-paste`                | Keep                             | `DeckImportDialog` after a valid parse                                                  | Does pasted-deck import reach a usable deck?             |
+| `deck-import-rejected`      | New                              | `DeckImportDialog` when parsing, the dialog's deck checks, or validation refuse a paste | Why does pasted-deck import fail?                        |
+| `format-select`             | Remove                           | Format remains on `game-start` and `deck-saved`                                         | Which formats produce saved decks and launched games?    |
+| `game-start`                | Keep                             | `GreStore.recordGameStart` after match creation                                         | Which player matches launch?                             |
+| `game-start-failed`         | Remove                           | Browser failures use `browser-lifecycle` and diagnostic reports                         | Why does local startup fail?                             |
+| `game-complete`             | Keep                             | `GreStore.recordGameComplete` on terminal state                                         | Which player matches finish, and how?                    |
+| `game-concede`, `game-left` | Remove                           | Local lifecycle reports explicit leave                                                  | Where do players leave active matches?                   |
+| `prompt-response`           | Replace with `game-first-action` | `GreStore.sendPerformAction` after the first sent non-pass action                       | Does a player progress from connection to actual play?   |
+| `turn-milestone`            | Keep, bounded                    | `GreStore.applyGsmPayload` at turns 1, 5, 10, and 20                                    | How deep do unfinished player matches progress?          |
+| `login`                     | Keep                             | `LoginPage` after code verification                                                     | Does passwordless login succeed, and why does it fail?   |
+| `challenge-opened`          | Restore for browser links        | `BrowserChallenge` on opening a curated link                                            | Which challenge attempts open?                           |
+| `challenge-first-action`    | Restore for browser links        | `GreStore` after the first non-pass action                                              | Which opened challenges reach interaction?               |
+| `challenge-stack-opened`    | Remove                           | The duplicate challenge action seam was removed                                         | Which challenge attempts exercise the stack interaction? |
+| `spectator-start`           | Remove                           | Public watch reads saved games                                                          | Historical live spectator launches                       |
+| `spectator-complete`        | Remove                           | Public watch reads saved games                                                          | Historical live spectator outcomes                       |
 
 `game-first-action` excludes pass-priority actions, spectators, and puzzles.
 Turn milestones exclude spectators and puzzles, emit once per current match, and

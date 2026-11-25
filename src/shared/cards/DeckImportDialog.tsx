@@ -1,7 +1,8 @@
 /** Owns import validation until the caller commits the resolved deck. */
 
 import { useEffect, useRef, useState } from 'react'
-import { trackDeckPaste } from '@shared/analytics'
+import { trackDeckImportRejected, trackDeckPaste } from '@shared/analytics'
+import { decklistRejectionCauses } from '@shared/cards/decklist-rejection'
 import { parseManaSymbols } from '@shared/cards/mana'
 import {
   commanderCandidates,
@@ -59,6 +60,17 @@ export function DeckImportDialog({
     setErrors([])
   }
 
+  function reject(stage: 'parse' | 'prepare' | 'validate', rejection: string[]): void {
+    setErrors(rejection)
+    trackDeckImportRejected({
+      stage,
+      causes: decklistRejectionCauses(rejection),
+      errorCount: rejection.length,
+      inputLength: deckText.length,
+      lineCount: nonBlankLineCount(deckText),
+    })
+  }
+
   async function handleParse(): Promise<void> {
     if (!deckText.trim()) {
       return
@@ -79,7 +91,7 @@ export function DeckImportDialog({
         setPartnerIndex('')
         setParsed(true)
       } else {
-        setErrors(result.errors)
+        reject('parse', result.errors)
       }
     } finally {
       if (version === requestVersion.current) {
@@ -104,15 +116,15 @@ export function DeckImportDialog({
         const mainCount = selected.mainboard.reduce((total, card) => total + card.quantity, 0)
         const commandCount = selected.commandZone.reduce((total, card) => total + card.quantity, 0)
         if (format === 'Commander' && !commandCount) {
-          setErrors(['Choose a commander for this deck.'])
+          reject('prepare', ['Choose a commander for this deck.'])
           return
         }
         if (format === 'Timeless' && commandCount) {
-          setErrors(['Choose Commander to import a deck with a commander.'])
+          reject('prepare', ['Choose Commander to import a deck with a commander.'])
           return
         }
         if (format === 'Commander' ? mainCount + commandCount !== 100 : mainCount < 60) {
-          setErrors([
+          reject('prepare', [
             format === 'Commander'
               ? 'Commander decks need 100 cards including the commanders.'
               : 'Constructed decks need at least 60 main-deck cards. Sideboard cards do not count.',
@@ -125,7 +137,7 @@ export function DeckImportDialog({
         return
       }
       if (!validation.ok) {
-        setErrors(validation.errors)
+        reject('validate', validation.errors)
         return
       }
       trackDeckPaste({
@@ -134,7 +146,7 @@ export function DeckImportDialog({
           0,
         ),
         inputLength: deckText.length,
-        lineCount: deckText.split('\n').filter((line) => line.trim()).length,
+        lineCount: nonBlankLineCount(deckText),
       })
       setSaving(true)
       await onImport({ name: deckName.trim() || 'Imported deck', deck: selected })
@@ -357,4 +369,8 @@ export function DeckImportDialog({
       </div>
     </Modal>
   )
+}
+
+function nonBlankLineCount(text: string): number {
+  return text.split('\n').filter((line) => line.trim()).length
 }

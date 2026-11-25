@@ -47,5 +47,24 @@ fun commanderDeckProblem(deck: Deck): String? {
     if (deck.get(DeckSection.Commander)?.any { it.value != 1 } == true) {
         return "must have exactly one copy of each commander"
     }
-    return DeckFormat.Commander.getCommanderConformanceProblem(deck)
+    return DeckFormat.Commander.getCommanderConformanceProblem(deck)?.let(::namedColorIdentityProblem)
+}
+
+private const val FORGE_COLOR_IDENTITY_PROBLEM = "contains one or more cards that do not match the commanders color identity:"
+
+/**
+ * Forge lists the off-identity cards one per line after its summary; a player sees the
+ * error as one line, so name each card once in a comma-separated list.
+ */
+private fun namedColorIdentityProblem(problem: String): String {
+    if (!problem.startsWith(FORGE_COLOR_IDENTITY_PROBLEM)) return problem
+    val names =
+        problem
+            .removePrefix(FORGE_COLOR_IDENTITY_PROBLEM)
+            .lines()
+            .map(String::trim)
+            .filter(String::isNotEmpty)
+            .distinct()
+    if (names.isEmpty()) return "has cards outside its commanders' color identity"
+    return "has cards outside its commanders' color identity: ${names.joinToString(", ")}"
 }

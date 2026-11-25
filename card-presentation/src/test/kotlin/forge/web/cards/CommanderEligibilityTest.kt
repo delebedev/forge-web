@@ -6,6 +6,9 @@ import leyline.domain.deck.DeckSource
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertContains
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 import kotlin.test.assertNull
 
 class CommanderEligibilityTest {
@@ -33,7 +36,10 @@ class CommanderEligibilityTest {
     fun `uses the combined identity of both commanders`() {
         val pair = arrayOf("Akiri, Line-Slinger", "Thrasios, Triton Hero")
         assertNull(problem("25 Plains\n25 Island\n24 Forest\n24 Mountain", *pair))
-        assertContains(problem("97 Plains\n1 Swamp", *pair).orEmpty(), "color identity")
+        assertEquals(
+            "has cards outside its commanders' color identity: Swamp, Duress",
+            problem("94 Plains\n2 Swamp\n2 Duress", *pair),
+        )
         assertContains(problem("98 Plains", "Akiri, Line-Slinger", "Isamaru, Hound of Konda").orEmpty(), "illegal commander partnership")
     }
 
@@ -61,5 +67,13 @@ class CommanderEligibilityTest {
             problem("97 Plains", "Rograkh, Son of Rohgahh", "Yoshimaru, Ever Faithful", "Akiri, Line-Slinger").orEmpty(),
             "too many commanders",
         )
+    }
+
+    @Test
+    fun `legendary Spacecraft with power and toughness boxes can be commanders`() {
+        for (name in listOf("Inspirit, Flagship Vessel", "Hearthhull, the Worldseed", "Infinite Guideline Station")) {
+            assertTrue(forgeCanBeCommander(name), name)
+        }
+        assertFalse(forgeCanBeCommander("Harmonized Crescendo"))
     }
 }
