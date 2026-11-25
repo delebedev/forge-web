@@ -50,11 +50,11 @@ async function playSaved(page: Page): Promise<void> {
   await page.goto('/play/limited?mode=draft')
   await page.getByRole('group', { name: EVENT }).getByRole('button', { name: 'Play' }).click()
   await expect(page).toHaveURL(/\/match\/draft$/, { timeout: 30_000 })
-  await expect
-    .poll(() => page.evaluate(() => Boolean(window.__greState?.()?.connected)), {
-      timeout: 120_000,
-    })
-    .toBe(true)
+  // The browser engine reports connected before it deals the opening hands; a
+  // concede sent in that window is never answered, so wait for the mulligan.
+  await expect(page.getByRole('button', { name: 'Keep hand', exact: true })).toBeVisible({
+    timeout: 120_000,
+  })
 }
 
 async function opponentDeck(page: Page): Promise<string> {

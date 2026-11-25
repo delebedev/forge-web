@@ -225,11 +225,11 @@ test('drafts a deck and enters a playable pod match', async ({ page, browser }, 
       .getByRole('button', { name: 'Play', exact: true })
       .click()
     await expect(page).toHaveURL(/\/match\/draft$/, { timeout: 30_000 })
-    await expect
-      .poll(() => page.evaluate(() => Boolean(window.__greState()?.connected)), {
-        timeout: 120_000,
-      })
-      .toBe(true)
+    // The browser engine reports connected before it deals the opening hands; a
+    // concede sent in that window is never answered, so wait for the mulligan.
+    await expect(page.getByRole('button', { name: 'Keep hand', exact: true })).toBeVisible({
+      timeout: 120_000,
+    })
     expect((await page.evaluate(() => window.__greActWait('concede'))).ok).toBe(true)
     await expect(
       page.getByText(`Course result saved: 0 wins · ${losses} losses.`, { exact: true }),
