@@ -8,6 +8,7 @@
 
 import { useState } from 'react'
 import type { DraftCard } from '@shared/api/contracts'
+import { matchesCardName } from '@shared/cards/card-search'
 import {
   type IndexedCard,
   type LandName,
@@ -123,7 +124,7 @@ export function LimitedDeckBuilder({
   let filteredSideboardCards = sideboardCards
   const q = searchQuery.toLowerCase().trim()
   if (q) {
-    filteredSideboardCards = filteredSideboardCards.filter((c) => c.name.toLowerCase().includes(q))
+    filteredSideboardCards = filteredSideboardCards.filter((c) => matchesCardName(c.name, q))
   }
   if (colorFilter.size > 0) {
     filteredSideboardCards = filteredSideboardCards.filter(
