@@ -2,7 +2,7 @@
 
 Forge Web is a browser workbench for solo play against Forge AI, deck testing,
 puzzles, and limited practice. The pinned Leyline rules and AI run locally in
-a browser worker. A Kotlin product server supplies accounts, saved decks, catalog
+a browser worker. A Bun product server supplies accounts, saved decks, catalog
 queries, validation, draft generation and course progress. It is an independent,
 unofficial project with no human-versus-human matchmaking.
 
@@ -10,6 +10,7 @@ unofficial project with no human-versus-human matchmaking.
 
 Requires Git, Node.js 24, Bun 1.3+, JDK 21, Maven 3.9+, Python 3, and
 [just](https://just.systems/). Install JDK 17 as well for browser execution.
+The product server needs only Bun; the JDKs build the browser engine.
 Ensure Java installations are discoverable by Gradle. macOS and Linux are the
 current development targets. Bootstrap downloads the pinned submodules and
 build dependencies. Sibling caches are optional; production credentials are
@@ -70,7 +71,8 @@ Server execution can be used without those browser assets.
 ## Repository
 
 - `src/` — React application and GRE client.
-- `server/` — product server, authentication, persistence, and content.
+- `server-ts/` — product server, authentication, persistence, and replays.
+- `server/` — previous Kotlin server; its migrations and card image index feed `server-ts/`.
 - `e2e/` — browser journeys and screenshots.
 - `dev/decks/` — development deck fixtures.
 - `docs/` — product, architecture, and development documentation.

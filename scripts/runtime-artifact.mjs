@@ -52,12 +52,10 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const [action, variant, directory] = process.argv.slice(2)
   if (
     !['seal', 'verify'].includes(action) ||
-    !['server-21', 'browser-17', 'frontend'].includes(variant) ||
+    !['server', 'browser-17', 'frontend'].includes(variant) ||
     !directory
   ) {
-    throw new Error(
-      'usage: runtime-artifact.mjs seal|verify server-21|browser-17|frontend DIRECTORY',
-    )
+    throw new Error('usage: runtime-artifact.mjs seal|verify server|browser-17|frontend DIRECTORY')
   }
   const expected = receipt(process.cwd(), directory, variant)
   const path = join(directory, 'ci-artifact.json')

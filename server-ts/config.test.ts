@@ -70,6 +70,16 @@ describe('resolveServerConfig', () => {
     expect(playerDatabaseFile(config.stateDir)).toBe(join(base, 'state/player.db'))
   })
 
+  test('an artifacts directory that cannot be created does not stop startup', () => {
+    const base = root()
+    const config = resolve(base, {
+      LEYLINE_PATHS_STATE: 'state',
+      LEYLINE_PATHS_ARTIFACTS: '/dev/null/logs',
+    })
+    ensureDirectories(config)
+    expect(existsSync(config.stateDir)).toBe(true)
+  })
+
   test('instance isolates state and artifacts and rejects traversal', () => {
     const base = root()
     const config = resolve(base, { LEYLINE_INSTANCE: 'second' })

@@ -120,7 +120,6 @@ function main() {
     return
   }
 
-  run(resolve(leylinePath, 'gradlew'), [':server:classes'])
   run('bun', ['install'])
   run('bun', ['x', 'playwright', 'install', '--no-shell', 'chromium'])
 }

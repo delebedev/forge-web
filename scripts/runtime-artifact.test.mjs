@@ -25,10 +25,10 @@ test('downloaded runtime must match the tree, variant, attempt and every file', 
     const jar = join(directory, 'lib/engine.jar')
     writeFileSync(jar, 'tested bytes')
     const producer = { GITHUB_RUN_ID: '42', GITHUB_RUN_ATTEMPT: '1' }
-    const sealed = receipt(root, directory, 'server-21', producer)
-    verify(sealed, receipt(root, directory, 'server-21', producer))
+    const sealed = receipt(root, directory, 'server', producer)
+    verify(sealed, receipt(root, directory, 'server', producer))
     // Failed-job reruns can use a successful artifact from the same run and tree.
-    verify(sealed, receipt(root, directory, 'server-21', { ...producer, GITHUB_RUN_ATTEMPT: '2' }))
+    verify(sealed, receipt(root, directory, 'server', { ...producer, GITHUB_RUN_ATTEMPT: '2' }))
     for (const patch of [
       { variant: 'browser-17' },
       { tree: 'other' },
@@ -40,12 +40,12 @@ test('downloaded runtime must match the tree, variant, attempt and every file', 
     }
     writeFileSync(jar, 'corrupt transfer')
     assert.throws(
-      () => verify(sealed, receipt(root, directory, 'server-21', producer)),
+      () => verify(sealed, receipt(root, directory, 'server', producer)),
       /does not match/,
     )
     rmSync(jar)
     assert.throws(
-      () => verify(sealed, receipt(root, directory, 'server-21', producer)),
+      () => verify(sealed, receipt(root, directory, 'server', producer)),
       /does not match/,
     )
   } finally {

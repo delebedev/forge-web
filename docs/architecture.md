@@ -43,13 +43,15 @@ graph TB
 | `src/engine/wire`, `state`, `runtime`, `priority`, `replay` | GRE wire codec, projected state, match lifecycle, priority policy, and replay formatting |
 | `src/engine/generated` | Generated GRE message descriptor |
 
-- `server/` owns browser-facing Ktor routes, REST DTOs, OpenAPI generation,
-  process composition, product configuration and authentication. It also owns the product database
-  path, connection, [schema migrations](database-migrations.md), and persistence. The database remains
-  `<resolved stateDir>/player.db`. The server keeps its own version catalog
-  (`gradle/libs.versions.toml`); only `browser-engine/` and `card-presentation/`
+- `server-ts/` is the product server: `Bun.serve` routes, configuration, authentication, the product
+  database path and connection, [schema migrations](database-migrations.md), persistence and browser
+  replay storage. `server-ts/main.ts` is the entry point; releases ship it compiled by
+  `bun build --compile` as one binary. The database remains `<resolved stateDir>/player.db`.
+  The server imports nothing from Leyline; only `browser-engine/` and `card-presentation/`
   build against the Leyline composite build, and only `browser-engine/` launches games.
   A Leyline pin change therefore ships as a frontend release.
+- `server/` is the previous Kotlin server. It still holds the SQL migrations and card image index
+  that `server-ts` embeds, and builds only for the cross-server replay handoff test.
 - `card-presentation/` owns the Java 17 card presentation DTOs, Forge projection and Web decklist rules used by the browser worker and its card index build.
 - The browser reads cards from the static card index in the
   browser release (`shared/cards/card-index.ts`). `browser-engine`'s

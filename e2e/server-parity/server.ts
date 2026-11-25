@@ -8,7 +8,7 @@ export const PARITY_LOGIN_CODE = '123456'
 export const PARITY_OPERATOR_TOKEN = 'forge-web-parity-operator-secret-1234567890'
 export const PARITY_RELEASE = 'abcdef1'
 
-/** The server under test. The default is the installed Kotlin distribution. */
+/** The server under test. The default runs the product server from source. */
 export function defaultServerCommand(): string {
   const configured = process.env['FORGE_WEB_PARITY_SERVER_CMD']
   if (configured) {
@@ -17,7 +17,7 @@ export function defaultServerCommand(): string {
   if (process.env['FORGE_WEB_SERVER_DIST']) {
     return 'bash scripts/run-ci-server.sh'
   }
-  return 'server/build/install/server/bin/server'
+  return 'bun server-ts/main.ts'
 }
 
 export function tempStateDir(): string {

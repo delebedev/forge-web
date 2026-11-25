@@ -24,7 +24,9 @@ Browser execution is the only gameplay host. Unsupported browsers show an error 
 once per worktree, and again after changing the engine or catalog, to serve the
 browser release from Vite. The build requires Java 17 alongside Java 21.
 
-The backend serves product APIs and catalog data. It does not run games. Start these in durable terminals or a process supervisor:
+The backend serves product APIs and catalog data. It does not run games. `bun run server` runs
+`server-ts/main.ts` from source; `bun run server:build` compiles the binary that releases ship.
+Start these in durable terminals or a process supervisor:
 
 ```bash
 set -a
@@ -105,7 +107,7 @@ An HTTP 502 with working Tailscale usually means the local upstream stopped.
 - Verify pointer hit targets with actual pointer clicks. Accessibility actions
   can activate controls even when an invisible overlay intercepts mouse input.
 - Use focused tests while iterating, then `bun run check`, `bun run build`,
-  `bun run server:check`, and `bun run runtime:check` at the merge boundary.
+  `bun run server:check`, `bun run runtime:check` and `bun run server:parity` at the merge boundary.
 
 Managed Playwright commands accept `FORGE_WEB_PLAYWRIGHT_FRONTEND_PORT` and
 `FORGE_WEB_PLAYWRIGHT_BACKEND_PORT` for parallel worktrees. The product suite

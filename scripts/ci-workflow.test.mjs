@@ -52,7 +52,7 @@ test('runtime jobs separate product and catalog from four single-worker GRE shar
     ...[1, 2, 3, 4].map((shard) => ({ lane: `gre-${shard}`, suite: 'gre', shard: `${shard}/4` })),
   ])
   const verify = runtime.steps.find((step) => step.name === 'Verify tested distributions').run
-  for (const variant of ['server-21', 'frontend', 'browser-17']) {
+  for (const variant of ['server', 'frontend', 'browser-17']) {
     assert.match(verify, new RegExp(`verify ${variant}`))
   }
   assert.doesNotMatch(verify, /matrix.lane/)

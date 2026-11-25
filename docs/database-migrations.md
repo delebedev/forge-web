@@ -1,15 +1,18 @@
 # Database migrations
 
-`PlayerDatabase.open` runs Flyway before constructing stores or starting HTTP. SQL migrations live in
-`server/src/main/resources/db/migration` and run in version order. Add a new `V<n>__description.sql` for every schema change;
-never edit a migration that may have run. Flyway validates checksums and rejects history from a newer release.
+`openPlayerDatabase` in `server-ts/db.ts` checks the schema before constructing stores or starting HTTP. SQL
+migrations live in `server/src/main/resources/db/migration` and are embedded in the compiled server by
+`server-ts/resources.ts`. Never edit a migration that may have run.
 
-Fresh databases start at V1. Normal startup refuses a nonempty database without Flyway history. Saved decks and course
-documents store card names; the server does not check them against a card catalog.
+A fresh database runs every script in version order and records each in `flyway_schema_history` with Flyway's
+checksum, so the previous Kotlin release accepts the database on rollback. An existing database starts only when
+its history ends at the newest embedded version and every row succeeded; checksums are not recomputed. Startup
+refuses a nonempty database without history and history from a newer or older release.
 
-Schema changes update the Exposed table model and add a new SQL migration together. Flyway history is the schema
-authority.
+The server has no runner for scripts newer than V10 yet. A schema change adds its `V<n>__description.sql`, lists it
+in `server-ts/resources.ts`, and extends `migrate` to apply pending scripts and write their history rows in the same
+table. Saved decks and course documents store card names; the server does not check them against a card catalog.
 
-SQLite migrations are transactional, but SQLite does not coordinate concurrent Flyway processes. Start one candidate
-backend at a time. Rehearse normal startup against a database copy with the exact release image, then verify migration
-history and retained rows before downtime.
+SQLite migrations are transactional, but SQLite does not coordinate concurrent writers starting up. Start one
+candidate backend at a time. Rehearse normal startup against a database copy with the exact release binary, then
+verify migration history and retained rows before downtime.

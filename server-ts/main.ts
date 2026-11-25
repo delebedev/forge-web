@@ -32,7 +32,7 @@ try {
 ensureDirectories(config)
 configureLogging({
   release: env['SENTRY_RELEASE'] || 'unknown',
-  directory: env['LEYLINE_LOG_DIR']?.trim() || null,
+  directory: env['LEYLINE_LOG_DIR']?.trim() || config.artifactsRoot,
 })
 await installErrorReporting(env)
 console.log(config.report())
