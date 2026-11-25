@@ -1,6 +1,11 @@
-import { expect, it } from 'bun:test'
+import { afterEach, expect, it } from 'bun:test'
 import { createHash } from 'node:crypto'
 import { warmBrowserRelease } from './browser-release'
+
+const originalFetch = globalThis.fetch
+afterEach(() => {
+  globalThis.fetch = originalFetch
+})
 
 it('retries a failed manifest before sharing a verified startup warmup', async () => {
   const content = new TextEncoder().encode('runtime')
