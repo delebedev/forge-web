@@ -61,8 +61,10 @@ graph TB
   persists cards by name. Deck search, card display, saved-deck hydration, limited
   pools and the limited set list read it.
 - Card legality runs in the session's browser engine, which the next match
-  reuses. Deck import, the deck editor's save and game setup all check there,
-  so the page starts one engine.
+  reuses. Deck import and the deck editor's save check there. Game setup does
+  not check again: library decks were checked on save, pasted lists on import,
+  and starter and bot decks are trusted. The engine's own start rejects a
+  malformed deck through the match screen's launch failure and retry.
   `server/.../decks/DeckStore.kt` checks only a save's shape: name, format,
   positive card rows, at most 250 cards per main deck or sideboard, at most two
   commanders, a commander for Commander decks, and 200 decks per account.

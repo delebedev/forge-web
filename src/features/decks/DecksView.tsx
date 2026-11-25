@@ -18,12 +18,8 @@ import { DeckList } from './DeckList'
 import { DeckDetailPane } from './DeckDetailPane'
 import { DeckEditor } from './DeckEditor'
 import { DeckImportDialog, type ImportedDeck } from '@shared/cards/DeckImportDialog'
-import { formatDecklist, validateDecklist } from '@shared/cards/parse-decklist'
 import styles from './DecksView.module.css'
 import { importedContent, type DeckDraft } from './deck-value'
-
-/** Saved formats whose legality differs from the decklist's inferred game type. */
-const SAVE_GAME_TYPES: Partial<Record<string, string>> = { Commander: 'commander', Brawl: 'brawl' }
 
 export function DecksView({
   pickMode = false,
@@ -128,20 +124,6 @@ export function DecksView({
 
   async function handleSave(draft: DeckDraft): Promise<void> {
     const generation = viewGeneration.current
-    // Legality is checked here; the server checks only the saved shape.
-    const rows = (cards: DeckDraft['cards']) =>
-      cards.map((card) => ({ card, quantity: card.quantity }))
-    const checked = await validateDecklist(
-      formatDecklist({
-        mainboard: rows(draft.cards),
-        sideboard: rows(draft.sideboard),
-        commandZone: rows(draft.commandZone),
-      }),
-      SAVE_GAME_TYPES[draft.format],
-    )
-    if (!checked.ok) {
-      throw new Error(checked.errors.join(' '))
-    }
     const saved = await decksStore.saveDeck(draft)
     if (!saved) {
       throw new Error('Your account changed. Reopen this deck before saving.')

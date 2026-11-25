@@ -1,8 +1,9 @@
 import { expect, test } from 'bun:test'
 import { DecksStore } from './decks-store'
 import type { AuthSnapshot } from '@shared/auth/auth'
-import { type DeckView, type CardMetadata } from './deck-value'
+import { type DeckDraft, type DeckView, type CardMetadata } from './deck-value'
 import type { CardIndex } from '@shared/cards/card-index'
+import type { DecklistValidationResult } from '@shared/cards/parse-decklist'
 import { testCardIndex } from '@shared/cards/card-index-test-fixtures'
 
 function deferred<T>() {
@@ -68,6 +69,7 @@ const cardIndex = testCardIndex(
 function harness(
   handler?: (path: string, init?: RequestInit) => Promise<Response> | Response,
   cards: () => Promise<CardIndex> = () => Promise.resolve(cardIndex),
+  check: (draft: DeckDraft) => Promise<DecklistValidationResult> = async () => ({ ok: true }),
 ) {
   let id: string | null = 'account-A'
   const listeners = new Set<() => void>()
@@ -110,6 +112,7 @@ function harness(
       return json(path.includes('?') ? [...values.values()] : values.get(path.split('/').at(-1)!))
     },
     cards,
+    check,
   )
   return {
     store,
@@ -291,6 +294,31 @@ test('saved deck cannot replace a newer selection and deleted detail cannot reap
   expect(await loading).toBeNull()
   expect(store.snapshot().selectedDeck).toBeNull()
   expect(store.snapshot().decks.map((deck) => deck.id)).toEqual(['B'])
+})
+
+test('a legality check in flight cannot let its save replace a newer selection', async () => {
+  const check = deferred<DecklistValidationResult>()
+  const { store } = harness(undefined, undefined, () => check.promise)
+  await store.fetchDecks()
+  const original = (await store.fetchDeckDetail('A'))!
+  const saving = store.saveDeck({ ...store.draft(original), name: 'Saved' })
+  await store.fetchDeckDetail('B')
+  check.resolve({ ok: true })
+  await saving
+  expect(store.snapshot().selectedDeck?.id).toBe('B')
+})
+
+test('an illegal deck is rejected before any save request', async () => {
+  const { store, requests } = harness(undefined, undefined, async () => ({
+    ok: false,
+    errors: ['Grizzly Bears: at most 4 copies.'],
+  }))
+  await store.fetchDecks()
+  const original = (await store.fetchDeckDetail('A'))!
+  const failure = await store.saveDeck(store.draft(original)).catch((error: unknown) => error)
+  expect(String(failure)).toContain('at most 4 copies')
+  expect(requests.some(({ init }) => init?.method === 'PUT')).toBe(false)
+  expect(store.snapshot().mutating).toBe(false)
 })
 
 test('successful create during initial list loading reconciles the complete library internally', async () => {

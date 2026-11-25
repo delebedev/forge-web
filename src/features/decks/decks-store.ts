@@ -5,6 +5,11 @@ import { ParseDecklistErrorResponseSchema } from '@shared/api/contracts'
 import { apiFetch } from '@shared/api/client'
 import { indexDraftCard } from '@shared/cards/catalog'
 import { loadCardIndex, type CardIndex } from '@shared/cards/card-index'
+import {
+  formatDecklist,
+  validateDecklist,
+  type DecklistValidationResult,
+} from '@shared/cards/parse-decklist'
 import { authStore } from '@shared/auth/auth'
 import {
   deckSummary,
@@ -17,6 +22,22 @@ import {
   type SavedDeck,
   type LibraryCard,
 } from './deck-value'
+
+/** Saved formats whose legality differs from the decklist's inferred game type. */
+const SAVE_GAME_TYPES: Partial<Record<string, string>> = { Commander: 'commander', Brawl: 'brawl' }
+
+/** Checks a draft's legality in the browser engine; the server checks only its shape. */
+function checkDraft(draft: DeckDraft): Promise<DecklistValidationResult> {
+  const rows = (cards: LibraryCard[]) => cards.map((card) => ({ card, quantity: card.quantity }))
+  return validateDecklist(
+    formatDecklist({
+      mainboard: rows(draft.cards),
+      sideboard: rows(draft.sideboard),
+      commandZone: rows(draft.commandZone),
+    }),
+    SAVE_GAME_TYPES[draft.format],
+  )
+}
 
 export interface DecksSnapshot {
   accountId: string | null
@@ -43,15 +64,18 @@ export class DecksStore {
   private account: Pick<typeof authStore, 'snapshot' | 'subscribe'>
   private request: typeof apiFetch
   private cards: () => Promise<CardIndex>
+  private check: (draft: DeckDraft) => Promise<DecklistValidationResult>
 
   constructor(
     account: Pick<typeof authStore, 'snapshot' | 'subscribe'> = authStore,
     request: typeof apiFetch = apiFetch,
     cards: () => Promise<CardIndex> = loadCardIndex,
+    check: (draft: DeckDraft) => Promise<DecklistValidationResult> = checkDraft,
   ) {
     this.account = account
     this.request = request
     this.cards = cards
+    this.check = check
     this.state = this.emptyState()
     account.subscribe(() => {
       if (this.accountId() !== this.state.accountId) {
@@ -248,6 +272,10 @@ export class DecksStore {
     const current = () => generation === this.generation
     this.commit({ mutating: true, error: null })
     try {
+      const checked = await this.check(draft)
+      if (!checked.ok) {
+        throw new Error(checked.errors.join(' '))
+      }
       const rows = (cards: LibraryCard[]) =>
         cards.map(({ name, quantity }) => ({ cardName: name, quantity }))
       const response = await this.request(

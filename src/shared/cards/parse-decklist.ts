@@ -6,9 +6,7 @@ import { loadCardIndex, loadedCardIndex } from './card-index'
 export type ParseDecklistResult =
   { ok: true; deck: ParseDecklistResponse } | { ok: false; errors: string[] }
 
-/** `unavailable` marks a check the engine could not run, as opposed to a rejected list. */
-export type DecklistValidationResult =
-  { ok: true } | { ok: false; errors: string[]; unavailable?: true }
+export type DecklistValidationResult = { ok: true } | { ok: false; errors: string[] }
 
 export function selectCommanders(
   deck: ParseDecklistResponse,
@@ -92,14 +90,12 @@ async function check(
   gameType: string | undefined,
   isImport: boolean,
   checker: DecklistChecker,
-): Promise<
-  { ok: true; deck: CheckedDecklist } | { ok: false; errors: string[]; unavailable?: true }
-> {
+): Promise<{ ok: true; deck: CheckedDecklist } | { ok: false; errors: string[] }> {
   try {
     const deck = CheckedDecklistSchema.parse(await checker(text, gameType, isImport))
     return deck.errors.length ? { ok: false, errors: deck.errors } : { ok: true, deck }
   } catch {
-    return { ok: false, errors: ['Could not check this decklist. Try again.'], unavailable: true }
+    return { ok: false, errors: ['Could not check this decklist. Try again.'] }
   }
 }
 

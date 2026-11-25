@@ -32,7 +32,6 @@ import {
   shouldReplaceAutoDeck,
 } from './recent-decks'
 import { createGameSetupStarter } from './setup-game-start'
-import { validateDecklist } from '@shared/cards/parse-decklist'
 import { currentBrowserPreflight } from '@engine/runtime/browser-support'
 import { warmBrowserRelease } from '@engine/runtime/browser-release'
 
@@ -79,7 +78,6 @@ export function GameSetupRoute() {
   const seed = Number.isSafeInteger(requestedSeed) && requestedSeed >= 0 ? requestedSeed : undefined
   const [startBrowserGame] = useState(() =>
     createGameSetupStarter({
-      validate: validateDecklist,
       start: (config) => greSession.startBrowser(config),
       onStarting: setStarting,
     }),
@@ -193,7 +191,7 @@ export function GameSetupRoute() {
     }
   }
 
-  async function handleDefaultGameStart(config: GameStartConfig): Promise<void> {
+  function handleDefaultGameStart(config: GameStartConfig): void {
     setDeckSelectionError(null)
     const unsupported = currentBrowserPreflight()
     if (unsupported) {
@@ -201,7 +199,7 @@ export function GameSetupRoute() {
       return
     }
     setBrowserAvailability({ status: 'available' })
-    const result = await startBrowserGame(
+    const result = startBrowserGame(
       { ...config, ...(seed == null ? {} : { seed }) },
       playerDeck,
       opponentDeck,
@@ -236,7 +234,7 @@ export function GameSetupRoute() {
           saveStoredDeck(STORAGE_KEY_GAME_PLAYER, deck)
         }}
         onPickDeck={openGameDeckPicker}
-        onStartDefault={(config) => void handleDefaultGameStart(config)}
+        onStartDefault={handleDefaultGameStart}
         onGameTypeChange={handleGameTypeChange}
         deckError={deckSelectionError}
         starting={starting}
