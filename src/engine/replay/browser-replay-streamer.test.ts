@@ -701,6 +701,60 @@ test('a flush yields ownership after eight chunks and resumes the remaining pref
   streamer.finish('completed')
 })
 
+test('observations that arrive during an upload wait for the next flush interval', async () => {
+  const journal = collector()
+  journal.incoming([{ type: 1 }])
+  const time = new Clock()
+  const sent: RequestInit[] = []
+  const streamer = createStreamer(
+    journal,
+    'browser-test',
+    (async (_url, options) => {
+      sent.push(options!)
+      // A busy game keeps producing observations faster than each round trip.
+      journal.incoming([{ type: 1 }])
+      return ack(options!)
+    }) as typeof fetch,
+    undefined,
+    time,
+  )
+  expect(await streamer.flush()).toBe(true)
+  await time.advance(0)
+  expect(sent).toHaveLength(1)
+  await time.advance(9_999)
+  expect(sent).toHaveLength(1)
+  await time.advance(1)
+  expect(sent).toHaveLength(2)
+  expect(JSON.parse(String(sent[1]!.body)).events).toEqual([expect.objectContaining({ seq: 2 })])
+  streamer.finish('left')
+})
+
+test('a status change during an upload is delivered without waiting for the interval', async () => {
+  const journal = collector()
+  journal.incoming([{ type: 1 }])
+  const time = new Clock()
+  const sent: RequestInit[] = []
+  const response = deferred<Response>()
+  const streamer = createStreamer(
+    journal,
+    'browser-test',
+    (async (_url, options) => {
+      sent.push(options!)
+      return sent.length === 1 ? response.promise : ack(options!)
+    }) as typeof fetch,
+    undefined,
+    time,
+  )
+  const first = streamer.flush()
+  await Bun.sleep(0)
+  expect(await streamer.flush('feedback', 'report-1')).toBe(false)
+  response.resolve(ack(sent[0]!))
+  expect(await first).toBe(true)
+  expect(sent).toHaveLength(2)
+  expect(JSON.parse(String(sent[1]!.body)).status).toMatchObject({ reportId: 'report-1' })
+  streamer.finish('left')
+})
+
 test('fixture retirement evicts only its own deliveries, not the tab owner', async () => {
   const tabBefore = retiredReplayDeliveries.diagnostics()
   const time = new Clock()
