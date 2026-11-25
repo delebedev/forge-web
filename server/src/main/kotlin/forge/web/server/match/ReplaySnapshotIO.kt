@@ -5,10 +5,8 @@ import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.InputStream
-import java.nio.channels.FileChannel
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
-import java.nio.file.StandardOpenOption
 import java.nio.file.attribute.FileTime
 import java.util.zip.Deflater
 import java.util.zip.GZIPInputStream
@@ -88,17 +86,6 @@ internal fun compressReplayJournal(
         Files.move(temporary.toPath(), destination.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
     } finally {
         temporary.delete()
-    }
-}
-
-internal fun restoreReplayAge(
-    file: File,
-    modifiedAtMs: Long,
-) {
-    if (file.lastModified() == modifiedAtMs) return
-    FileChannel.open(file.toPath(), StandardOpenOption.WRITE).use { channel ->
-        Files.setLastModifiedTime(file.toPath(), FileTime.fromMillis(modifiedAtMs))
-        channel.force(true)
     }
 }
 

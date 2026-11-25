@@ -15,6 +15,7 @@ import java.util.Base64
 import java.util.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFails
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
@@ -61,6 +62,87 @@ class MatchReplayStoreEvictionTest {
         }
 
     @Test
+    fun `a committed chunk whose pin write fails stays protected and its retry restores the pin`() =
+        runBlocking<Unit> {
+            val upload = uploadBody(1, paddingBytes = 40_000)
+            val reference = tempRoot("replay-pin-failure-reference")
+            MatchReplayStore(config(reference), clock).use { store -> commitWithFailedPin(reference, store) }
+            val root = tempRoot("replay-pin-failure")
+            MatchReplayStore(config(root, maxBytes = stored(reference) + uploadBytes(upload) - 1), clock).use { store ->
+                commitWithFailedPin(root, store)
+                // The journal was written within the active window, so the upload cannot evict it.
+                assertFailsWith<ReplayStorageCapacityExceeded> {
+                    store.ingestBrowser(owner("account"), matchId(1), "${matchId(1)}:full", upload)
+                }
+                assertEquals(listOf(1L, 2L), assertNotNull(store.export(matchId(2))).events.map { it.seq })
+                assertEquals(2L, store.ingestBrowserChunk(owner("account"), matchId(2), 1, chunkBody(2, 2, reportId = "report")))
+                assertEquals("report", assertNotNull(store.export(matchId(2))).status.reportId)
+                assertTrue(root.resolve("${matchId(2)}.pin.json").isFile)
+                assertAccounted(root, store)
+            }
+        }
+
+    @Test
+    fun `a retried chunk keeps a later pin for another report`() =
+        runBlocking<Unit> {
+            val root = tempRoot("replay-pin-precedence")
+            MatchReplayStore(config(root), clock).use { store ->
+                val original = chunkBody(2, 1, reportId = "report-a")
+                assertEquals(1L, store.ingestBrowserChunk(owner("account"), matchId(2), 0, original))
+                assertTrue(store.pin(matchId(2), "report-b"))
+                assertEquals(1L, store.ingestBrowserChunk(owner("account"), matchId(2), 0, original))
+                assertEquals("report-b", assertNotNull(store.export(matchId(2))).status.reportId)
+                assertAccounted(root, store)
+            }
+        }
+
+    /** Commits two chunks of match 2; the second carries a report whose pin write fails after the metadata commit. */
+    private suspend fun commitWithFailedPin(
+        root: File,
+        store: MatchReplayStore,
+    ) {
+        assertEquals(1L, store.ingestBrowserChunk(owner("account"), matchId(2), 0, chunkBody(2, 1, paddingBytes = 40_000)))
+        clock.advanceMs(ACTIVE_WINDOW_MS + 1)
+        val blocker = root.resolve("${matchId(2)}.pin.json").apply { mkdir() }
+        blocker.resolve("occupied").writeText("x")
+        assertFails { store.ingestBrowserChunk(owner("account"), matchId(2), 1, chunkBody(2, 2, reportId = "report")) }
+        blocker.resolve("occupied").delete()
+        blocker.delete()
+    }
+
+    private fun chunkBody(
+        index: Int,
+        seq: Long,
+        reportId: String? = null,
+        paddingBytes: Int = 0,
+    ): ByteArray {
+        val id = matchId(index)
+        val bundle =
+            ReplayBundle(
+                version = 2,
+                label = "Browser match",
+                source = "forge-web-browser",
+                viewerSeatId = 1,
+                matchId = id,
+                release = "frontend-1",
+                batches = listOf(ReplayBatch(listOf(JsonObject(mapOf("type" to JsonPrimitive(1)))))),
+                cards =
+                    if (paddingBytes == 0) {
+                        emptyMap()
+                    } else {
+                        mapOf(
+                            "1" to JsonPrimitive(padding(paddingBytes, seq)),
+                        )
+                    },
+                responses = emptyList(),
+                events = listOf(ReplayEvent(seq, seq * 1_000, "inbound", 1, (seq - 1).toInt())),
+                status = ReplayStatus(false, "streaming", false, reportId),
+                context = BrowserReplayContext("browser", "22222222-2222-4222-8222-22222222222$index", id, "constructed"),
+            )
+        return Json.encodeToString(ReplayBundle.serializer(), bundle).toByteArray()
+    }
+
+    @Test
     fun `cannot fit rejects without evicting and recent writes are protected for the active window`() =
         runBlocking<Unit> {
             val root = tempRoot("replay-evict-cannot-fit")
@@ -83,6 +165,26 @@ class MatchReplayStoreEvictionTest {
                 assertTrue(store.ingestBrowser(owner("account"), matchId(1), "${matchId(1)}:full", upload))
                 assertEquals(setOf("pinned", "idle", matchId(1)), retainedJournals(root))
                 assertEquals(1, store.health().evictions)
+                assertAccounted(root, store)
+            }
+        }
+
+    @Test
+    fun `a full store evicts down to its headroom so the next writes need no eviction`() =
+        runBlocking<Unit> {
+            val root = tempRoot("replay-evict-headroom")
+            val journals = (0 until 4).map { seedIdle(root, "journal-$it", createdAgoMs = (5 - it) * HOUR) }
+            val uploads = (1..3).map { uploadBody(it) }
+            val quota = stored(root) + uploadBytes(uploads[0]) - 1
+            val headroom = journals[1].length() + uploads.drop(1).sumOf(::uploadBytes)
+            MatchReplayStore(config(root, maxBytes = quota, headroom = headroom), clock).use { store ->
+                store.cleanup()
+                assertTrue(store.ingestBrowser(owner("account"), matchId(1), "${matchId(1)}:full", uploads[0]))
+                assertEquals(2, store.health().evictions)
+                assertEquals(setOf("journal-2", "journal-3", matchId(1)), retainedJournals(root))
+                assertTrue(store.ingestBrowser(owner("account"), matchId(2), "${matchId(2)}:full", uploads[1]))
+                assertTrue(store.ingestBrowser(owner("account"), matchId(3), "${matchId(3)}:full", uploads[2]))
+                assertEquals(2, store.health().evictions)
                 assertAccounted(root, store)
             }
         }
@@ -210,6 +312,7 @@ class MatchReplayStoreEvictionTest {
             listOf(".ndjson.gz", ".ndjson", ".browser.json.gz", ".browser.json")
                 .firstOrNull { file.name.endsWith(it) }
                 ?.let { file.name.removeSuffix(it) }
+                ?: APPENDED_JOURNAL.matchEntire(file.name)?.groupValues?.get(1)
         }.toSet()
 
     private fun stored(root: File) = root.listFiles()!!.filter(File::isFile).sumOf(File::length)
@@ -221,7 +324,20 @@ class MatchReplayStoreEvictionTest {
     private fun config(
         root: File,
         maxBytes: Long = 512L * 1024 * 1024,
-    ) = MatchReplayConfig(root, "token", maxBytes = maxBytes, maxMatchBytes = 64 * 1024, activeWindowMs = ACTIVE_WINDOW_MS)
+        headroom: Long = 0,
+    ) = MatchReplayConfig(
+        root,
+        "token",
+        maxBytes = maxBytes,
+        maxMatchBytes = 64 * 1024,
+        activeWindowMs = ACTIVE_WINDOW_MS,
+        evictionHeadroomBytes = headroom,
+    )
+
+    private fun padding(
+        bytes: Int,
+        seed: Long,
+    ): String = Base64.getEncoder().encodeToString(ByteArray(bytes).also { Random(seed).nextBytes(it) })
 
     private fun paddingRecord(seed: Int): String {
         val payload = ByteArray(48_000).also { Random(seed.toLong()).nextBytes(it) }

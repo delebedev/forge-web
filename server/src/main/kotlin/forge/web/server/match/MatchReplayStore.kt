@@ -1,7 +1,6 @@
 package forge.web.server.match
 
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
@@ -24,6 +23,8 @@ internal data class MatchReplayConfig(
     val maxBytes: Long = 512L * 1024 * 1024,
     val maxMatchBytes: Long = 32L * 1024 * 1024,
     val activeWindowMs: Long = 15 * 60_000L,
+    /** Bytes an eviction pass frees below the quota, so a full store evicts in batches rather than on every write. */
+    val evictionHeadroomBytes: Long = maxBytes / 32,
 ) {
     init {
         require(retentionDays > 0) { "Replay retention must be positive" }
@@ -31,6 +32,7 @@ internal data class MatchReplayConfig(
         require(maxBytes >= MIN_REPLAY_BYTES) { "Replay storage quota must be at least $MIN_REPLAY_BYTES bytes" }
         require(maxMatchBytes in MIN_REPLAY_BYTES..maxBytes) { "Replay match quota must be between $MIN_REPLAY_BYTES and total quota" }
         require(activeWindowMs >= 0) { "Replay active window must not be negative" }
+        require(evictionHeadroomBytes in 0..maxBytes) { "Replay eviction headroom must be between zero and the quota" }
     }
 }
 
@@ -134,25 +136,19 @@ internal class MatchReplayStore(
             require(artifactId == "$matchId:$it") { "Replay report identity mismatch" }
         }
         val metadata = readBrowserMetadata(matchId)
-        val prior = readBrowserReplay(matchId)
-        val (deviceId, accountId) = journalOwner(owner, metadata, prior)
-        val artifacts = metadata?.get("artifacts") as? JsonArray
-        if (artifacts?.any { (it as? JsonPrimitive)?.contentOrNull == artifactId } == true) return false
+        val storedContext = metadata?.journal?.header?.context ?: legacyBrowserReplay(matchId)?.context
+        val (deviceId, accountId) = journalOwner(owner, metadata, storedContext)
+        if (metadata?.artifacts?.contains(artifactId) == true) {
+            restorePin(matchId, submitted.status.reportId)
+            return false
+        }
         val normalized = submitted.copy(context = context.copy(deviceId = deviceId, accountId = accountId))
-        val encoded = json.encodeToString(ReplayBundle.serializer(), normalized).toByteArray(StandardCharsets.UTF_8)
-        require(encoded.size <= config.maxMatchBytes) { "Replay match quota exceeded" }
-        val nextArtifacts = artifacts?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull }.orEmpty() + artifactId
-        persistBrowser(
-            matchId,
-            encoded,
-            buildJsonObject {
-                deviceId?.let { put("deviceId", it) }
-                accountId?.let { put("accountId", it) }
-                put("createdAtMs", metadata?.long("createdAtMs") ?: browserOriginalTime(matchId) ?: clock.millis())
-                put("artifacts", JsonArray(nextArtifacts.takeLast(8).map(::JsonPrimitive)))
-            }.toString().toByteArray(StandardCharsets.UTF_8),
-            normalized.status.reportId,
-        )
+        val base =
+            (metadata ?: BrowserJournalMetadata(deviceId = deviceId, accountId = accountId)).copy(
+                createdAtMs = metadata?.createdAtMs ?: browserOriginalTime(matchId) ?: clock.millis(),
+                artifacts = (metadata?.artifacts.orEmpty() + artifactId).takeLast(8),
+            )
+        replaceBrowserJournal(matchId, normalized, base, normalized.status.reportId, modifiedAtMs = null, admitted = true)
         return true
     }
 
@@ -163,6 +159,7 @@ internal class MatchReplayStore(
         body: ByteArray,
     ): Long = worker.submit { ingestBrowserChunkFile(owner, matchId, afterSeq, body) }
 
+    /** Appends one chunk to the journal; the request costs the chunk's size, not the journal's. */
     private fun ingestBrowserChunkFile(
         owner: ReplayOwner,
         matchId: String,
@@ -182,55 +179,59 @@ internal class MatchReplayStore(
         require(chunk.events.withIndex().all { (index, event) -> event.seq == afterSeq + index + 1 }) {
             "Replay chunk sequence is not contiguous"
         }
-        val metadata = readBrowserMetadata(matchId)
-        val prior = readBrowserReplay(matchId)
-        val (deviceId, accountId) = journalOwner(owner, metadata, prior)
-        require(prior == null || prior.context?.attemptId == context.attemptId) { "Replay attempt identity mismatch" }
-        val committedSeq = prior?.events?.lastOrNull()?.seq ?: 0L
+        val stored = readBrowserMetadata(matchId)
+        val metadata = if (stored?.journal == null) migrateBrowserJournal(matchId, admitted = true) ?: stored else stored
+        val prior = metadata?.journal
+        val (deviceId, accountId) = journalOwner(owner, metadata, prior?.header?.context)
+        require(prior == null || prior.header.context?.attemptId == context.attemptId) { "Replay attempt identity mismatch" }
+        val committedSeq = prior?.seq ?: 0L
         if (afterSeq < committedSeq) {
-            val previouslyWritten = prior?.events?.filter { it.seq > afterSeq && it.seq <= afterSeq + chunk.events.size }
+            val retained = readBrowserReplay(matchId)
+            val previouslyWritten = retained?.events?.filter { it.seq > afterSeq && it.seq <= afterSeq + chunk.events.size }
             require(previouslyWritten == chunk.events && afterSeq + chunk.events.size <= committedSeq) {
                 "Replay chunk conflicts with stored sequence"
             }
+            restorePin(matchId, chunk.status.reportId)
             return committedSeq
         }
         require(afterSeq == committedSeq) { "Replay chunk has a gap" }
-        val normalized =
+        val status =
             if (prior == null) {
-                chunk.copy(context = context.copy(deviceId = deviceId, accountId = accountId))
+                chunk.status
             } else {
                 require(!prior.status.complete || chunk.events.isEmpty()) { "Replay is already complete" }
-                chunk.copy(
-                    context = prior.context,
-                    batches = prior.batches + chunk.batches,
-                    cards = prior.cards + chunk.cards,
-                    responses = prior.responses + chunk.responses,
-                    events = prior.events + chunk.events,
-                    status =
-                        chunk.status.copy(
-                            complete = prior.status.complete || chunk.status.complete,
-                            reason = if (prior.status.complete) prior.status.reason else chunk.status.reason,
-                            truncated = prior.status.truncated || chunk.status.truncated,
-                            reportId = chunk.status.reportId ?: prior.status.reportId,
-                        ),
+                chunk.status.copy(
+                    complete = prior.status.complete || chunk.status.complete,
+                    reason = if (prior.status.complete) prior.status.reason else chunk.status.reason,
+                    truncated = prior.status.truncated || chunk.status.truncated,
+                    reportId = chunk.status.reportId ?: prior.status.reportId,
                 )
             }
-        require(normalized.events.size <= 100_000 && normalized.batches.size <= 50_000) { "Replay is too complex" }
-        val encoded = json.encodeToString(ReplayBundle.serializer(), normalized).toByteArray(StandardCharsets.UTF_8)
-        require(encoded.size <= config.maxMatchBytes) { "Replay match quota exceeded" }
-        val metadataBytes =
-            if (metadata == null) {
-                buildJsonObject {
-                    deviceId?.let { put("deviceId", it) }
-                    accountId?.let { put("accountId", it) }
-                    put("createdAtMs", browserOriginalTime(matchId) ?: clock.millis())
-                    put("artifacts", JsonArray(emptyList()))
-                }.toString().toByteArray(StandardCharsets.UTF_8)
-            } else {
-                null
-            }
-        persistBrowser(matchId, encoded, metadataBytes, normalized.status.reportId)
-        return normalized.events.lastOrNull()?.seq ?: committedSeq
+        val delta = chunk.delta()
+        val line = if (delta.isEmpty()) ByteArray(0) else encodeDelta(delta)
+        val events = (prior?.events ?: 0) + chunk.events.size
+        val batches = (prior?.batches ?: 0) + chunk.batches.size
+        require(events <= 100_000 && batches <= 50_000) { "Replay is too complex" }
+        val decodedBytes = (prior?.decodedBytes ?: 0) + line.size
+        val header = chunk.header().copy(context = prior?.header?.context ?: context.copy(deviceId = deviceId, accountId = accountId))
+        require(decodedBytes + bundleEnvelopeBytes(header, status) <= config.maxMatchBytes) { "Replay match quota exceeded" }
+        val member = if (line.isEmpty()) line else gzipReplay(line)
+        val journal =
+            AppendedJournal(
+                generation = prior?.generation ?: 0,
+                bytes = (prior?.bytes ?: 0) + member.size,
+                header = header,
+                status = status,
+                seq = chunk.events.lastOrNull()?.seq ?: committedSeq,
+                events = events,
+                batches = batches,
+                decodedBytes = decodedBytes,
+            )
+        val next =
+            (metadata ?: BrowserJournalMetadata(deviceId, accountId))
+                .let { it.copy(createdAtMs = it.createdAtMs ?: browserOriginalTime(matchId) ?: clock.millis(), journal = journal) }
+        appendBrowserJournal(matchId, prior?.bytes ?: 0, member, next, status.reportId)
+        return journal.seq
     }
 
     /**
@@ -239,13 +240,13 @@ internal class MatchReplayStore(
      */
     private fun journalOwner(
         owner: ReplayOwner,
-        metadata: JsonObject?,
-        prior: ReplayBundle?,
+        metadata: BrowserJournalMetadata?,
+        storedContext: BrowserReplayContext?,
     ): Pair<String?, String?> {
         val stored =
             listOfNotNull(
-                metadata?.let { it.string("deviceId") to it.string("accountId") },
-                prior?.context?.let { it.deviceId to it.accountId },
+                metadata?.let { it.deviceId to it.accountId },
+                storedContext?.let { it.deviceId to it.accountId },
             ).filter { (deviceId, accountId) -> deviceId != null || accountId != null }
         stored.forEach { (deviceId, accountId) ->
             require(owner.owns(deviceId, accountId)) { "Replay belongs to another player" }
@@ -253,41 +254,154 @@ internal class MatchReplayStore(
         return stored.firstOrNull() ?: (owner.deviceId to owner.accountId)
     }
 
-    private fun persistBrowser(
+    private fun appendBrowserJournal(
         matchId: String,
-        replay: ByteArray,
-        metadata: ByteArray?,
+        committedBytes: Long,
+        member: ByteArray,
+        metadata: BrowserJournalMetadata,
         reportId: String?,
     ) {
         check(storageReady) { "Replay storage usage is unavailable" }
-        val destination = compressedBrowserReplayFile(matchId)
-        val legacy = plainBrowserReplayFile(matchId)
-        val writes = mutableMapOf(destination to gzipReplay(replay))
+        val journal = requireNotNull(metadata.journal)
+        val segment = appendedJournalFile(config.root, matchId, journal.generation)
+        val metadataBytes = encodeMetadata(metadata)
         val pinnedUntil = reportId?.let { pinnedUntilMs() }
-        metadata?.let { writes[browserMetadataFile(matchId)] = it }
-        reportId?.let { writes[pinFile(matchId)] = pinBytes(it, requireNotNull(pinnedUntil)) }
-        // The legacy copy occupies quota until its removal succeeds.
-        val delta = writes.entries.sumOf { (file, bytes) -> bytes.size - file.length() }
+        val pin = reportId?.let { pinBytes(it, requireNotNull(pinnedUntil)) }
+        val delta =
+            (committedBytes + member.size - segment.length()) +
+                (metadataBytes.size - browserMetadataFile(matchId).length()) +
+                (pin?.let { it.size - pinFile(matchId).length() } ?: 0)
         if (!reserve(delta, matchId)) throw ReplayStorageCapacityExceeded()
-        var committed = false
+        // An empty member still truncates an unacknowledged tail, which the reservation already subtracted.
+        val before = segment.length()
         try {
-            writes.forEach { (file, bytes) ->
-                writeAccounted(file, bytes)
-                if (file == destination) committed = true
-            }
+            appendJournalMember(segment, committedBytes, member)
         } finally {
-            if (committed) {
-                retention.written(matchId, clock.millis(), pinnedUntil) {
-                    readBrowserMetadata(matchId)?.long("createdAtMs") ?: clock.millis()
-                }
-                deleteAccounted(legacy)
-            }
+            lastMeasuredBytesUsed += segment.length() - before
         }
+        // The metadata write commits the appended member; the acknowledgement follows it.
+        writeAccounted(browserMetadataFile(matchId), metadataBytes)
+        // Retention records the committed write before the pin write, which can fail.
+        retention.written(matchId, clock.millis(), null) { metadata.createdAtMs ?: clock.millis() }
+        writePin(matchId, pin, pinnedUntil)
+    }
+
+    private fun writePin(
+        matchId: String,
+        pin: ByteArray?,
+        pinnedUntil: Long?,
+    ) {
+        if (pin == null) return
+        writeAccounted(pinFile(matchId), pin)
+        retention.pinned(matchId, requireNotNull(pinnedUntil))
     }
 
     /**
+     * A retried chunk or artifact whose first attempt committed but failed to write its pin returns as a duplicate;
+     * this writes the pin only when none is stored, so a later pin for another report keeps precedence.
+     */
+    private fun restorePin(
+        matchId: String,
+        reportId: String?,
+    ) {
+        if (reportId == null || runCatching { readPin(matchId) }.getOrNull() != null) return
+        pinFile(matchId, reportId)
+    }
+
+    /**
+     * Stores [replay] as a new journal generation, then removes the previous generation and any snapshot copy.
+     * [modifiedAtMs] keeps a migrated journal's age so migration does not make it look recently active. An
+     * [admitted] write reserves quota first. Maintenance migration writes one gzip member of the same content,
+     * which is usually slightly smaller than the snapshot copy but can be larger. It evicts nothing, so it skips
+     * a conversion that would grow usage past the eviction target and returns null; the snapshot copy stays
+     * readable.
+     */
+    private fun replaceBrowserJournal(
+        matchId: String,
+        replay: ReplayBundle,
+        base: BrowserJournalMetadata,
+        reportId: String?,
+        modifiedAtMs: Long?,
+        admitted: Boolean,
+    ): BrowserJournalMetadata? {
+        check(storageReady) { "Replay storage usage is unavailable" }
+        val line = encodeDelta(replay.delta())
+        require(line.size + bundleEnvelopeBytes(replay.header(), replay.status) <= config.maxMatchBytes) { "Replay match quota exceeded" }
+        val member = gzipReplay(line)
+        val previous = base.journal?.let { appendedJournalFile(config.root, matchId, it.generation) }
+        val journal =
+            AppendedJournal(
+                generation = (base.journal?.generation ?: -1) + 1,
+                bytes = member.size.toLong(),
+                header = replay.header(),
+                status = replay.status,
+                seq = replay.events.lastOrNull()?.seq ?: 0,
+                events = replay.events.size,
+                batches = replay.batches.size,
+                decodedBytes = line.size.toLong(),
+            )
+        val metadata = base.copy(journal = journal)
+        val segment = appendedJournalFile(config.root, matchId, journal.generation)
+        val metadataBytes = encodeMetadata(metadata)
+        val pinnedUntil = reportId?.let { pinnedUntilMs() }
+        val pin = reportId?.let { pinBytes(it, requireNotNull(pinnedUntil)) }
+        if (admitted) {
+            // Replaced copies occupy quota until their removal succeeds.
+            val delta =
+                member.size - segment.length() +
+                    (metadataBytes.size - browserMetadataFile(matchId).length()) +
+                    (pin?.let { it.size - pinFile(matchId).length() } ?: 0)
+            if (!reserve(delta, matchId)) throw ReplayStorageCapacityExceeded()
+        } else {
+            val replacedBytes =
+                (listOfNotNull(previous) + plainBrowserReplayFile(matchId) + compressedBrowserReplayFile(matchId)).sumOf(
+                    File::length,
+                )
+            val growth = member.size + metadataBytes.size - browserMetadataFile(matchId).length() - replacedBytes
+            if (growth > 0 && lastMeasuredBytesUsed + growth > config.maxBytes - config.evictionHeadroomBytes) return null
+        }
+        writeAccounted(segment, member, modifiedAtMs)
+        writeAccounted(browserMetadataFile(matchId), metadataBytes, modifiedAtMs)
+        if (modifiedAtMs == null) {
+            retention.written(matchId, clock.millis(), null) { metadata.createdAtMs ?: clock.millis() }
+        }
+        writePin(matchId, pin, pinnedUntil)
+        // Leftovers are unreferenced once the metadata commits; maintenance removes any that remain.
+        (listOfNotNull(previous) + plainBrowserReplayFile(matchId) + compressedBrowserReplayFile(matchId))
+            .forEach { file ->
+                runCatching { deleteAccounted(file) }
+                    .onFailure { log.error("Replaced replay copy removal failed (file={})", file.name, it) }
+            }
+        return metadata
+    }
+
+    /** Converts a whole-snapshot journal to the appended form, keeping its content, owner and age. */
+    private fun migrateBrowserJournal(
+        matchId: String,
+        admitted: Boolean,
+    ): BrowserJournalMetadata? {
+        val legacy = legacyBrowserReplayFile(matchId) ?: return null
+        val replay = json.decodeFromString<ReplayBundle>(readReplaySnapshot(legacy, config.maxMatchBytes).toString(StandardCharsets.UTF_8))
+        val metadata = readBrowserMetadata(matchId)
+        val createdAtMs = metadata?.createdAtMs ?: requireNotNull(browserOriginalTime(matchId))
+        val modifiedAtMs = legacy.lastModified()
+        return replaceBrowserJournal(
+            matchId,
+            replay,
+            (metadata ?: BrowserJournalMetadata()).copy(createdAtMs = createdAtMs, journal = null),
+            reportId = null,
+            modifiedAtMs = modifiedAtMs,
+            admitted = admitted,
+        )
+    }
+
+    private fun encodeMetadata(metadata: BrowserJournalMetadata) =
+        json.encodeToString(BrowserJournalMetadata.serializer(), metadata).toByteArray(StandardCharsets.UTF_8)
+
+    /**
      * Makes room for [required] more bytes by evicting idle unpinned journals, oldest first. Evicts nothing when
-     * they cannot free enough. [protectedMatchId] is the journal the caller is about to change.
+     * they cannot free enough. Once it evicts, it frees the configured headroom too, so ordinary traffic does not
+     * evict on every write. [protectedMatchId] is the journal the caller is about to change.
      */
     private fun reserve(
         required: Long,
@@ -314,9 +428,10 @@ internal class MatchReplayStore(
             return false
         }
         // A failed removal moves on to the next candidate rather than rejecting the write.
+        val target = config.maxBytes - config.evictionHeadroomBytes
         var evicted = 0
         for ((matchId, retained) in candidates) {
-            if (lastMeasuredBytesUsed + required <= config.maxBytes) break
+            if (lastMeasuredBytesUsed + required <= target) break
             val bytes = matchFiles(matchId).sumOf(File::length)
             runCatching { evict(matchId) }
                 .onSuccess {
@@ -344,7 +459,13 @@ internal class MatchReplayStore(
     }
 
     private fun journalFiles(matchId: String) =
-        listOf(replayFile(matchId), compressedReplayFile(matchId), plainBrowserReplayFile(matchId), compressedBrowserReplayFile(matchId))
+        listOfNotNull(
+            replayFile(matchId),
+            compressedReplayFile(matchId),
+            plainBrowserReplayFile(matchId),
+            compressedBrowserReplayFile(matchId),
+            appendedBrowserReplayFile(matchId),
+        )
 
     private fun matchFiles(matchId: String) = journalFiles(matchId) + pinFile(matchId) + browserMetadataFile(matchId)
 
@@ -365,8 +486,22 @@ internal class MatchReplayStore(
         lastMeasuredBytesUsed -= bytes
     }
 
-    private fun readBrowserReplay(matchId: String): ReplayBundle? =
-        browserReplayFile(matchId)?.let {
+    private fun readBrowserReplay(matchId: String): ReplayBundle? {
+        val journal = readBrowserMetadata(matchId)?.journal
+        val appended = journal?.let { appendedJournalFile(config.root, matchId, it.generation) }?.takeIf(File::isFile)
+        return if (appended != null) {
+            readAppendedJournal(
+                appended,
+                requireNotNull(journal),
+                config.maxMatchBytes,
+            )
+        } else {
+            legacyBrowserReplay(matchId)
+        }
+    }
+
+    private fun legacyBrowserReplay(matchId: String): ReplayBundle? =
+        legacyBrowserReplayFile(matchId)?.let {
             json.decodeFromString<ReplayBundle>(readReplaySnapshot(it, config.maxMatchBytes).toString(StandardCharsets.UTF_8))
         }
 
@@ -439,7 +574,19 @@ internal class MatchReplayStore(
             for ((matchId, files) in replayFiles().groupBy { matchId(it) }) {
                 if (matchId == null) continue
                 runCatching {
-                    val journal = journalFile(matchId) ?: return@runCatching
+                    val journal = journalFile(matchId)
+                    if (journal == null) {
+                        // A segment whose metadata never committed holds no acknowledged chunk.
+                        files.filter { now - it.lastModified() >= config.activeWindowMs }.forEach(::deleteAccounted)
+                        return@runCatching
+                    }
+                    if (APPENDED_JOURNAL.matches(journal.name)) {
+                        // Copies replaced by the committed generation.
+                        files.filter { it != journal && isBrowserReplay(it) }.forEach { file ->
+                            runCatching { deleteAccounted(file) }
+                                .onFailure { log.error("Replaced replay copy removal failed (file={})", file.name, it) }
+                        }
+                    }
                     val createdAt = readCreatedTime(journal) ?: journal.lastModified()
                     val pinnedUntil = readPin(matchId)?.long("pinnedUntilMs") ?: 0
                     if (now >= retainedUntil(createdAt, pinnedUntil)) {
@@ -449,7 +596,7 @@ internal class MatchReplayStore(
                         deleteAccounted(browserMetadataFile(matchId))
                     } else {
                         retained[matchId] = RetainedReplay(createdAt, pinnedUntil, files.maxOf(File::lastModified))
-                        candidates += files.filter { it.name.endsWith(".ndjson") || it.name.endsWith(".browser.json") }
+                        candidates += files.filter { it.name.endsWith(".ndjson") || (it == journal && isLegacyBrowserReplay(it)) }
                     }
                 }.onFailure { log.error("Replay expiry failed (matchId={})", matchId, it) }
             }
@@ -457,12 +604,21 @@ internal class MatchReplayStore(
             val sorted = candidates.sortedBy(File::getName)
             val ordered = sorted.filter { it.name > compactionCursor } + sorted.filter { it.name <= compactionCursor }
             val batch = ordered.take(MAX_COMPACTIONS_PER_CLEANUP)
+            var deferred = false
             for (file in batch) {
-                runCatching { compress(file, requireNotNull(matchId(file))) }
-                    .onFailure { log.error("Replay compression failed (file={})", file.name, it) }
+                if (isBrowserReplay(file)) {
+                    val id = requireNotNull(matchId(file))
+                    runCatching { migrateBrowserJournal(id, admitted = false) }
+                        .onSuccess { if (it == null && legacyBrowserReplayFile(id) != null) deferred = true }
+                        .onFailure { log.error("Replay journal migration failed (file={})", file.name, it) }
+                } else {
+                    runCatching { compress(file, requireNotNull(matchId(file))) }
+                        .onFailure { log.error("Replay compression failed (file={})", file.name, it) }
+                }
                 compactionCursor = file.name
             }
-            return candidates.size > batch.size
+            // A conversion deferred for quota waits for the next scheduled pass instead of retrying every second.
+            return candidates.size > batch.size && !deferred
         } finally {
             storageBudgetUsage()
         }
@@ -519,7 +675,7 @@ internal class MatchReplayStore(
 
     private fun compressedBrowserReplayFile(matchId: String) = File(config.root, "$matchId.browser.json.gz")
 
-    private fun browserReplayFile(matchId: String): File? {
+    private fun legacyBrowserReplayFile(matchId: String): File? {
         val plain = plainBrowserReplayFile(matchId).takeIf(File::isFile)
         val compressed = compressedBrowserReplayFile(matchId).takeIf(File::isFile)
         return if (plain != null && (compressed == null || plain.lastModified() > compressed.lastModified())) plain else compressed
@@ -531,14 +687,18 @@ internal class MatchReplayStore(
 
     private fun browserMetadataFile(matchId: String) = File(config.root, "$matchId.browser-meta.json")
 
+    private fun appendedBrowserReplayFile(matchId: String): File? =
+        readBrowserMetadata(matchId)?.journal?.let { appendedJournalFile(config.root, matchId, it.generation) }?.takeIf(File::isFile)
+
     private fun journalFile(matchId: String): File? =
-        browserReplayFile(matchId)
+        appendedBrowserReplayFile(matchId)
+            ?: legacyBrowserReplayFile(matchId)
             ?: replayFile(matchId).takeIf(File::isFile)
             ?: compressedReplayFile(matchId).takeIf(File::isFile)
 
-    private fun readBrowserMetadata(matchId: String): JsonObject? =
+    private fun readBrowserMetadata(matchId: String): BrowserJournalMetadata? =
         browserMetadataFile(matchId).takeIf(File::isFile)?.let {
-            runCatching { json.parseToJsonElement(it.readText()).jsonObject }.getOrNull()
+            runCatching { json.decodeFromString(BrowserJournalMetadata.serializer(), it.readText()) }.getOrNull()
         }
 
     private fun pinFile(matchId: String) = File(config.root, "$matchId.pin.json")
@@ -552,7 +712,7 @@ internal class MatchReplayStore(
 
     private fun readCreatedTime(file: File): Long? =
         if (isBrowserReplay(file)) {
-            matchId(file)?.let { readBrowserMetadata(it)?.long("createdAtMs") ?: browserOriginalTime(it) } ?: file.lastModified()
+            matchId(file)?.let { readBrowserMetadata(it)?.createdAtMs ?: browserOriginalTime(it) } ?: file.lastModified()
         } else {
             runCatching {
                 replayInputStream(file).bufferedReader().use { reader ->
@@ -565,25 +725,11 @@ internal class MatchReplayStore(
         file: File,
         matchId: String,
     ) {
-        if (isBrowserReplay(file)) {
-            val destination = compressedBrowserReplayFile(matchId)
-            val authoritative = requireNotNull(browserReplayFile(matchId))
-            if (authoritative == destination) {
-                readReplaySnapshot(destination, config.maxMatchBytes)
-                restoreReplayAge(destination, requireNotNull(browserOriginalTime(matchId)))
-                deleteAccounted(file)
-            } else {
-                val bytes = readReplaySnapshot(authoritative, config.maxMatchBytes)
-                writeAccounted(destination, gzipReplay(bytes), requireNotNull(browserOriginalTime(matchId)))
-                removeAfterConversion(file, destination)
-            }
-        } else {
-            val destination = compressedReplayFile(matchId)
-            val replacing = destination.length()
-            compressReplayJournal(file, destination)
-            lastMeasuredBytesUsed += destination.length() - replacing
-            removeAfterConversion(file, destination)
-        }
+        val destination = compressedReplayFile(matchId)
+        val replacing = destination.length()
+        compressReplayJournal(file, destination)
+        lastMeasuredBytesUsed += destination.length() - replacing
+        removeAfterConversion(file, destination)
     }
 
     private fun removeAfterConversion(
@@ -612,10 +758,12 @@ private fun matchId(file: File): String? =
         file.name.endsWith(".ndjson") -> file.name.removeSuffix(".ndjson")
         file.name.endsWith(".browser.json.gz") -> file.name.removeSuffix(".browser.json.gz")
         file.name.endsWith(".browser.json") -> file.name.removeSuffix(".browser.json")
-        else -> null
+        else -> APPENDED_JOURNAL.matchEntire(file.name)?.groupValues?.get(1)
     }
 
-private fun isBrowserReplay(file: File) = file.name.endsWith(".browser.json") || file.name.endsWith(".browser.json.gz")
+private fun isLegacyBrowserReplay(file: File) = file.name.endsWith(".browser.json") || file.name.endsWith(".browser.json.gz")
+
+private fun isBrowserReplay(file: File) = isLegacyBrowserReplay(file) || APPENDED_JOURNAL.matches(file.name)
 
 private val MATCH_ID = Regex("[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
 private val BROWSER_REPLAY_FORMATS = setOf("constructed", "commander", "draft", "sealed")
