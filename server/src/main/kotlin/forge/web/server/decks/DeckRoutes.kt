@@ -5,7 +5,9 @@ import forge.web.server.auth.authenticatedPlayerId
 import forge.web.server.auth.ownedPlayerId
 import forge.web.server.http.contract
 import io.ktor.http.HttpStatusCode
+import io.ktor.server.application.ApplicationCall
 import io.ktor.server.application.call
+import io.ktor.server.plugins.BadRequestException
 import io.ktor.server.request.receive
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
@@ -29,7 +31,7 @@ internal fun Route.installDeckRoutes(
             empty(401, 403)
         }
         post {
-            val request = call.receive<CreateDeckRequest>()
+            val request = call.receiveDeckRequest()
             val playerId = call.ownedPlayerId(auth, request.playerId)
             call.respond(decks.create(playerId, request))
         }.contract {
@@ -39,7 +41,7 @@ internal fun Route.installDeckRoutes(
             empty(401, 403)
         }
         put("/{deckId}") {
-            val request = call.receive<CreateDeckRequest>()
+            val request = call.receiveDeckRequest()
             val playerId = call.ownedPlayerId(auth, request.playerId)
             val deck = decks.update(playerId, call.parameters["deckId"].orEmpty(), request)
             if (deck == null) call.respond(HttpStatusCode.NotFound) else call.respond(deck)
@@ -65,3 +67,16 @@ internal fun Route.installDeckRoutes(
         }.contract { empty(204, 401, 404) }
     }
 }
+
+/**
+ * Read a deck save. A body that does not match [CreateDeckRequest] comes from a page
+ * built against an older request shape, so the player is asked to reload.
+ */
+private suspend fun ApplicationCall.receiveDeckRequest(): CreateDeckRequest =
+    try {
+        receive<CreateDeckRequest>()
+    } catch (cause: BadRequestException) {
+        throw DeckRejected(listOf(OUT_OF_DATE_DECK_SAVE))
+    }
+
+internal const val OUT_OF_DATE_DECK_SAVE = "This page is out of date. Reload the page, then save your deck again."

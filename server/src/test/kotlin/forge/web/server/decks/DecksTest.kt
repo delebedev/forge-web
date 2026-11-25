@@ -128,4 +128,41 @@ class DecksTest {
             assertEquals(204, client.delete("/api/decks/${deck.id}") { header(HttpHeaders.Cookie, cookie) }.status.value)
             assertEquals(404, client.get("/api/decks/${deck.id}") { header(HttpHeaders.Cookie, cookie) }.status.value)
         }
+
+    @Test
+    fun `saves in an outdated request shape ask the player to reload`() =
+        testApplication {
+            application { installServer(testServices()) }
+            val (cookie, player) = client.signIn()
+            val created =
+                client.post("/api/decks") {
+                    header(HttpHeaders.Cookie, cookie)
+                    contentType(ContentType.Application.Json)
+                    setBody(Json.encodeToString(CreateDeckRequest(player, "x", "Standard", listOf(WebDeckCard("Mountain", 60)))))
+                }
+            assertEquals(200, created.status.value)
+            val saved = Json.decodeFromString<DeckView>(created.bodyAsText())
+
+            val outdated = """{"playerId":"$player","name":"x","mainDeck":[{"grpId":1,"quantity":4}]}"""
+            for (rejected in listOf(
+                client.post("/api/decks") {
+                    header(HttpHeaders.Cookie, cookie)
+                    contentType(ContentType.Application.Json)
+                    setBody(outdated)
+                },
+                client.put("/api/decks/${saved.id}") {
+                    header(HttpHeaders.Cookie, cookie)
+                    contentType(ContentType.Application.Json)
+                    setBody(outdated)
+                },
+            )) {
+                assertEquals(400, rejected.status.value)
+                assertEquals(
+                    ParseDecklistErrorResponse(listOf("This page is out of date. Reload the page, then save your deck again.")),
+                    Json.decodeFromString(rejected.bodyAsText()),
+                )
+            }
+            val listed = client.get("/api/decks") { header(HttpHeaders.Cookie, cookie) }
+            assertEquals(listOf(saved), Json.decodeFromString<List<DeckView>>(listed.bodyAsText()))
+        }
 }
