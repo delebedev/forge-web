@@ -1,37 +1,47 @@
-// Generated from the registered Kotlin HTTP contract. Run bun run api:types.
+// Product HTTP contract shared by the product server and the browser. See docs/http-contract.md.
 import { z } from 'zod'
-import type { components } from './types'
-export const AuthViewSchema: z.ZodType<components['schemas']['AuthView']> = z.object({
+
+const int32 = z.number().int().min(-2147483648).max(2147483647)
+
+export const AuthViewSchema = z.object({
   playerId: z.string().nullable(),
   guest: z.boolean(),
 })
-export const RequestLoginCodeRequestInputSchema: z.ZodType<
-  components['schemas']['RequestLoginCodeRequestInput']
-> = z.object({ email: z.string() })
-export const VerifyLoginCodeRequestInputSchema: z.ZodType<
-  components['schemas']['VerifyLoginCodeRequestInput']
-> = z.object({ email: z.string(), code: z.string() })
-export const LoginResponseSchema: z.ZodType<components['schemas']['LoginResponse']> = z.object({
+export type AuthView = z.infer<typeof AuthViewSchema>
+
+export const RequestLoginCodeRequestInputSchema = z.object({ email: z.string() })
+export type RequestLoginCodeRequest = z.infer<typeof RequestLoginCodeRequestInputSchema>
+
+export const VerifyLoginCodeRequestInputSchema = z.object({ email: z.string(), code: z.string() })
+export type VerifyLoginCodeRequest = z.infer<typeof VerifyLoginCodeRequestInputSchema>
+
+export const LoginResponseSchema = z.object({
   playerId: z.string(),
   email: z.string(),
 })
-export const RoadmapItemSchema: z.ZodType<components['schemas']['RoadmapItem']> = z.object({
+export type LoginResponse = z.infer<typeof LoginResponseSchema>
+
+export const RoadmapItemSchema = z.object({
   id: z.string(),
   title: z.string(),
   description: z.string(),
   status: z.string(),
   note: z.string().nullable(),
   statusUpdatedAt: z.string().nullable(),
-  votes: z.number().int().min(-2147483648).max(2147483647),
+  votes: int32,
   voted: z.boolean(),
 })
-export const GeneratedPuzzleSchema: z.ZodType<components['schemas']['GeneratedPuzzle']> = z.object({
+export type RoadmapItem = z.infer<typeof RoadmapItemSchema>
+
+export const GeneratedPuzzleSchema = z.object({
   id: z.string(),
   title: z.string(),
   text: z.string(),
   createdAt: z.string(),
 })
-export const PuzzleAttemptSchema: z.ZodType<components['schemas']['PuzzleAttempt']> = z.object({
+export type GeneratedPuzzle = z.infer<typeof GeneratedPuzzleSchema>
+
+export const PuzzleAttemptSchema = z.object({
   featuredCard: z.string(),
   puzzleText: z.string().nullable(),
   validation: z.string().nullable(),
@@ -40,7 +50,9 @@ export const PuzzleAttemptSchema: z.ZodType<components['schemas']['PuzzleAttempt
   jevAssessment: z.string().nullable(),
   rejection: z.string().nullable(),
 })
-export const PuzzleRunSchema: z.ZodType<components['schemas']['PuzzleRun']> = z.object({
+export type PuzzleAttempt = z.infer<typeof PuzzleAttemptSchema>
+
+export const PuzzleRunSchema = z.object({
   id: z.string(),
   ownerId: z.string(),
   createdAt: z.string(),
@@ -50,102 +62,87 @@ export const PuzzleRunSchema: z.ZodType<components['schemas']['PuzzleRun']> = z.
   model: z.string(),
   promptVersion: z.string(),
   sampledCards: z.array(z.string()),
-  attempts: z.array(z.lazy(() => PuzzleAttemptSchema)),
+  attempts: z.array(PuzzleAttemptSchema),
   puzzleId: z.string().nullable(),
   error: z.string().nullable(),
 })
-export const PuzzleRatingRequestInputSchema: z.ZodType<
-  components['schemas']['PuzzleRatingRequestInput']
-> = z.object({
+export type PuzzleRun = z.infer<typeof PuzzleRunSchema>
+
+export const PuzzleRatingRequestInputSchema = z.object({
   reaction: z.string(),
   comment: z.string().nullable().optional(),
   outcome: z.string(),
   actions: z.array(z.string()).optional(),
 })
-export const CourseRecordSchema: z.ZodType<components['schemas']['CourseRecord']> = z.object({
+export type PuzzleRatingRequest = z.infer<typeof PuzzleRatingRequestInputSchema>
+
+export const CourseRecordSchema = z.object({
   eventName: z.string(),
-  revision: z.number().int().min(-2147483648).max(2147483647),
+  revision: int32,
   document: z.string(),
 })
-export const SaveCourseRecordRequestInputSchema: z.ZodType<
-  components['schemas']['SaveCourseRecordRequestInput']
-> = z.object({ revision: z.number().int().min(-2147483648).max(2147483647), document: z.string() })
-export const WebDeckCardSchema: z.ZodType<components['schemas']['WebDeckCard']> = z.object({
-  cardName: z.string(),
-  quantity: z.number().int().min(-2147483648).max(2147483647),
+export type CourseRecord = z.infer<typeof CourseRecordSchema>
+
+export const SaveCourseRecordRequestInputSchema = z.object({
+  revision: int32,
+  document: z.string(),
 })
-export const DeckViewSchema: z.ZodType<components['schemas']['DeckView']> = z.object({
+export type SaveCourseRecordRequest = z.infer<typeof SaveCourseRecordRequestInputSchema>
+
+export const WebDeckCardSchema = z.object({
+  cardName: z.string(),
+  quantity: int32,
+})
+export type WebDeckCard = z.infer<typeof WebDeckCardSchema>
+
+export const DeckViewSchema = z.object({
   id: z.string(),
   playerId: z.string(),
   name: z.string(),
   format: z.string(),
-  mainDeck: z.array(z.lazy(() => WebDeckCardSchema)),
-  sideboard: z.array(z.lazy(() => WebDeckCardSchema)),
-  commandZone: z.array(z.lazy(() => WebDeckCardSchema)),
+  mainDeck: z.array(WebDeckCardSchema),
+  sideboard: z.array(WebDeckCardSchema),
+  commandZone: z.array(WebDeckCardSchema),
 })
-export const WebDeckCardInputSchema: z.ZodType<components['schemas']['WebDeckCardInput']> =
-  z.object({ cardName: z.string(), quantity: z.number().int().min(-2147483648).max(2147483647) })
-export const CreateDeckRequestInputSchema: z.ZodType<
-  components['schemas']['CreateDeckRequestInput']
-> = z.object({
+export type DeckView = z.infer<typeof DeckViewSchema>
+
+export const WebDeckCardInputSchema = WebDeckCardSchema
+
+/** Omitted sections are empty and an omitted format is Standard. */
+export const CreateDeckRequestInputSchema = z.object({
   playerId: z.string(),
   name: z.string(),
   format: z.string().optional(),
-  mainDeck: z.array(z.lazy(() => WebDeckCardInputSchema)),
-  sideboard: z.array(z.lazy(() => WebDeckCardInputSchema)).optional(),
-  commandZone: z.array(z.lazy(() => WebDeckCardInputSchema)).optional(),
+  mainDeck: z.array(WebDeckCardInputSchema),
+  sideboard: z.array(WebDeckCardInputSchema).optional(),
+  commandZone: z.array(WebDeckCardInputSchema).optional(),
 })
-export const ParseDecklistErrorResponseSchema: z.ZodType<
-  components['schemas']['ParseDecklistErrorResponse']
-> = z.object({ errors: z.array(z.string()) })
+export type CreateDeckRequest = z.infer<typeof CreateDeckRequestInputSchema>
+
+export const ParseDecklistErrorResponseSchema = z.object({ errors: z.array(z.string()) })
+export type ParseDecklistErrorResponse = z.infer<typeof ParseDecklistErrorResponseSchema>
+
+/** JSON response bodies by endpoint and status. Empty and text responses have no entry. */
 export const responseSchemas = {
-  'GET /api/auth/me': {
-    '200': z.lazy(() => AuthViewSchema),
-  },
+  'GET /api/auth/me': { '200': AuthViewSchema },
   'POST /api/auth/request-code': {},
-  'POST /api/auth/verify': {
-    '200': z.lazy(() => LoginResponseSchema),
-  },
+  'POST /api/auth/verify': { '200': LoginResponseSchema },
   'POST /api/auth/logout': {},
-  'GET /api/roadmap': {
-    '200': z.array(z.lazy(() => RoadmapItemSchema)),
-  },
+  'GET /api/roadmap': { '200': z.array(RoadmapItemSchema) },
   'PUT /api/roadmap/{itemId}/vote': {},
   'DELETE /api/roadmap/{itemId}/vote': {},
-  'GET /api/puzzles': {
-    '200': z.array(z.lazy(() => GeneratedPuzzleSchema)),
-  },
-  'GET /api/puzzles/runs/{runId}': {
-    '200': z.lazy(() => PuzzleRunSchema),
-  },
-  'GET /api/puzzles/{puzzleId}': {
-    '200': z.lazy(() => GeneratedPuzzleSchema),
-  },
+  'GET /api/puzzles': { '200': z.array(GeneratedPuzzleSchema) },
+  'GET /api/puzzles/runs/{runId}': { '200': PuzzleRunSchema },
+  'GET /api/puzzles/{puzzleId}': { '200': GeneratedPuzzleSchema },
   'POST /api/puzzles/{puzzleId}/ratings': {},
   'GET /api/public/cards/image': {},
-  'GET /api/course-records': {
-    '200': z.array(z.lazy(() => CourseRecordSchema)),
-  },
-  'PUT /api/course-records/{eventName}': {
-    '200': z.lazy(() => CourseRecordSchema),
-  },
+  'GET /api/course-records': { '200': z.array(CourseRecordSchema) },
+  'PUT /api/course-records/{eventName}': { '200': CourseRecordSchema },
   'DELETE /api/course-records/{eventName}': {},
-  'GET /api/course-records/{eventName}': {
-    '200': z.lazy(() => CourseRecordSchema),
-  },
-  'POST /api/decks': {
-    '200': z.lazy(() => DeckViewSchema),
-    '400': z.lazy(() => ParseDecklistErrorResponseSchema),
-  },
-  'GET /api/decks': {
-    '200': z.array(z.lazy(() => DeckViewSchema)),
-  },
-  'PUT /api/decks/{deckId}': {
-    '200': z.lazy(() => DeckViewSchema),
-    '400': z.lazy(() => ParseDecklistErrorResponseSchema),
-  },
+  'GET /api/course-records/{eventName}': { '200': CourseRecordSchema },
+  'POST /api/decks': { '200': DeckViewSchema, '400': ParseDecklistErrorResponseSchema },
+  'GET /api/decks': { '200': z.array(DeckViewSchema) },
+  'PUT /api/decks/{deckId}': { '200': DeckViewSchema, '400': ParseDecklistErrorResponseSchema },
   'DELETE /api/decks/{deckId}': {},
-  'GET /api/decks/{deckId}': {
-    '200': z.lazy(() => DeckViewSchema),
-  },
+  'GET /api/decks/{deckId}': { '200': DeckViewSchema },
 } as const

@@ -1,6 +1,5 @@
-import type { DeckCard, DeckDetail, WebComponents } from '@shared/api/contracts'
-
-type WebDeckCard = WebComponents['schemas']['WebDeckCard']
+import type { DeckCard, DeckDetail } from '@shared/api/contracts'
+import type { WebDeckCard } from '@shared/api/wire-schemas'
 
 export type RecentUserDeck = {
   id: string

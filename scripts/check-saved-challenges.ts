@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { chromium, expect } from '@playwright/test'
 import { preview } from 'vite'
-import type { components } from '../src/shared/api/types'
+import type { GeneratedPuzzle } from '../src/shared/api/wire-schemas'
 
 const firstId = '123e4567-e89b-42d3-a456-426614174000'
 const puzzleText = readFileSync('public/challenges/bolt-at-three-v1.pzl', 'utf8')
@@ -25,7 +25,7 @@ try {
           title: 'Bolt at Three',
           text: puzzleText,
           createdAt: '',
-        } satisfies components['schemas']['GeneratedPuzzle'],
+        } satisfies GeneratedPuzzle,
       ])
     }
     if (path === `/api/puzzles/${firstId}`) {

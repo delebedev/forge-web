@@ -3,11 +3,9 @@ import { GeneratedPuzzleSchema } from '@shared/api/wire-schemas'
 import { readJson } from '@shared/api/decoding'
 import { apiFetch } from '@shared/api/client'
 import { DEVICE_ID_HEADER, deviceId } from '@shared/device-id'
-import type { components } from '@shared/api/types'
+import type { GeneratedPuzzle, PuzzleRatingRequest } from '@shared/api/wire-schemas'
 
-export type GeneratedPuzzle = components['schemas']['GeneratedPuzzle']
-export type PuzzleRun = components['schemas']['PuzzleRun']
-export type PuzzleRatingRequest = components['schemas']['PuzzleRatingRequestInput']
+export type { GeneratedPuzzle, PuzzleRatingRequest }
 
 async function jsonResponse<T extends z.ZodType>(
   response: Response,

@@ -175,7 +175,7 @@ jobs:
       - name: Build and validate Bun server
         run: python3 scripts/ci-measure.py server bash -eo pipefail -c 'bun run server:check && bun run server:build:release && bun run server:build && bun run runtime:check --no-build'
       - name: Build Kotlin server for the handoff test
-        run: python3 scripts/ci-measure.py server-kotlin bash -eo pipefail -c './leyline/gradlew :card-presentation:check :server:installDist :server:generateOpenApi --init-script scripts/ci-gradle.init.gradle --project-cache-dir .gradle/ci-jvm-21 -Pkotlin.compiler.execution.strategy=in-process && node scripts/generate-web-openapi.mjs --check server/build/generated/openapi/openapi.json && bun scripts/check-web-contract.ts'
+        run: python3 scripts/ci-measure.py server-kotlin bash -eo pipefail -c './leyline/gradlew :card-presentation:check :server:installDist --init-script scripts/ci-gradle.init.gradle --project-cache-dir .gradle/ci-jvm-21 -Pkotlin.compiler.execution.strategy=in-process'
       - name: Build and validate Java 17 browser runtime
         run: python3 scripts/ci-measure.py browser-17 bash -eo pipefail -c 'bun run challenge:manifest && python3 scripts/build-browser-catalog.py && ./leyline/gradlew :browser-engine:test :browser-engine:browserDistribution :browser-engine:catalogIndex :browser-engine:cardIndex -PruntimeJavaVersion=17 -PbrowserPrune=true --init-script scripts/ci-gradle.init.gradle --project-cache-dir .gradle/ci-jvm-17 -Pkotlin.compiler.execution.strategy=in-process && node scripts/build-browser-release.mjs'
       - name: Seal runtime artifacts

@@ -1,9 +1,8 @@
-import { RoadmapItemSchema } from '@shared/api/wire-schemas'
+import { RoadmapItemSchema, type RoadmapItem } from '@shared/api/wire-schemas'
 import { readJson } from '@shared/api/decoding'
 import { useCallback, useEffect, useMemo, useState, type MouseEvent } from 'react'
 import { useRouter } from '@app/router'
 import { apiFetch } from '@shared/api/client'
-import type { WebComponents } from '@shared/api/contracts'
 import { useAuthSnapshot } from '@shared/auth/hooks'
 import { prepareBugReport, trackBugReportOpen } from '@shared/feedback'
 import { SiteHeader } from '@shared/SiteHeader'
@@ -11,8 +10,6 @@ import '@shared/public-theme.css'
 import styles from './RoadmapPage.module.css'
 
 type Status = 'building' | 'planned' | 'considering' | 'shipped'
-
-type RoadmapItem = WebComponents['schemas']['RoadmapItem']
 
 const sections: { status: Status; title: string }[] = [
   { status: 'building', title: 'Building' },

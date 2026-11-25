@@ -1,7 +1,6 @@
-import type { DraftCard, WebComponents } from '@shared/api/contracts'
+import type { DraftCard } from '@shared/api/contracts'
+import type { WebDeckCard } from '@shared/api/wire-schemas'
 import { loadCardIndex, type CardIndex, type IndexedCard } from './card-index'
-
-type WebDeckCard = WebComponents['schemas']['WebDeckCard']
 
 /** A card known only by name, for when the card index is unavailable. */
 export function webDraftCard(name: string): DraftCard {
