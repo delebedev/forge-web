@@ -11,8 +11,8 @@ import {
   type ParityServer,
 } from './server'
 
-// Server starts and restarts include JVM startup.
-setDefaultTimeout(120_000)
+// Server starts and restarts may include JVM startup.
+const SERVER_TIMEOUT_MS = 120_000
 
 type Schemas = typeof responseSchemas
 type Init = Omit<RequestInit, 'body'> & { session?: string; json?: unknown; body?: BodyInit }
@@ -134,6 +134,8 @@ export function incompressible(bytes: number) {
  * `api` and `signIn` resolve the server when called, so tests can destructure them at load time.
  */
 export function useServer(env: Record<string, string> = {}, release = PARITY_RELEASE) {
+  // Bun resets the default timeout for each test file, so every file that starts a server sets it.
+  setDefaultTimeout(SERVER_TIMEOUT_MS)
   let current: ParityServer | undefined
   const server = () => {
     if (!current) {
@@ -158,14 +160,14 @@ export function useServer(env: Record<string, string> = {}, release = PARITY_REL
 
   beforeAll(async () => {
     current = await startServer({ stateDir: tempStateDir(), env })
-  })
+  }, SERVER_TIMEOUT_MS)
 
   afterAll(async () => {
     if (current) {
       await current.stop()
       rmSync(current.stateDir, { recursive: true, force: true })
     }
-  })
+  }, SERVER_TIMEOUT_MS)
 
   return { api, signIn, server }
 }

@@ -144,6 +144,7 @@ jobs:
         if: steps.scope.outputs.kind == 'full'
         run: |
           bun run runtime:check
+          bun run server:build:release
           bash scripts/build-full-release.sh "$RUNNER_TEMP/forge-web-full"
 
       - name: Publish full release

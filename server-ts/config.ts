@@ -74,7 +74,11 @@ export function playerDatabaseFile(stateDir: string): string {
 
 export function ensureDirectories(config: ServerConfig): void {
   mkdirSync(config.stateDir, { recursive: true })
-  mkdirSync(config.artifactsRoot, { recursive: true })
+  try {
+    mkdirSync(config.artifactsRoot, { recursive: true })
+  } catch {
+    // Not fatal: production writes logs to LEYLINE_LOG_DIR and runs from a read-only working directory.
+  }
 }
 
 function envName(section: string, key: string): string {

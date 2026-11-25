@@ -8,7 +8,7 @@ export const PARITY_LOGIN_CODE = '123456'
 export const PARITY_OPERATOR_TOKEN = 'forge-web-parity-operator-secret-1234567890'
 export const PARITY_RELEASE = 'abcdef1'
 
-/** The server under test. The default is the installed Kotlin distribution. */
+/** The server under test. The default runs the product server from source. */
 export function defaultServerCommand(): string {
   const configured = process.env['FORGE_WEB_PARITY_SERVER_CMD']
   if (configured) {
@@ -17,7 +17,7 @@ export function defaultServerCommand(): string {
   if (process.env['FORGE_WEB_SERVER_DIST']) {
     return 'bash scripts/run-ci-server.sh'
   }
-  return 'server/build/install/server/bin/server'
+  return 'bun server-ts/main.ts'
 }
 
 export function tempStateDir(): string {
@@ -55,7 +55,9 @@ export async function startServer({
 
   const launch = async (overrides: Record<string, string>) => {
     output = ''
-    const proc = Bun.spawn(['bash', '-c', `exec ${cmd}`], {
+    // No `exec`: the command may be any shell syntax, such as a leading environment assignment.
+    // The process group still stops every process it starts.
+    const proc = Bun.spawn(['bash', '-c', cmd], {
       cwd: ROOT,
       detached: true,
       stdout: 'pipe',
@@ -110,14 +112,20 @@ export async function startServer({
 
   async function stop() {
     const proc = child
-    if (!proc || proc.exitCode !== null) {
+    if (!proc) {
       return
     }
     child = null
-    process.kill(-proc.pid, 'SIGTERM')
-    const timeout = setTimeout(() => process.kill(-proc.pid, 'SIGKILL'), 15_000)
+    // The shell can exit before the server it started, so wait for the whole group to release the port.
+    signalGroup(proc.pid, 'SIGTERM')
+    const deadline = Date.now() + 15_000
+    while (signalGroup(proc.pid, 0)) {
+      if (Date.now() > deadline) {
+        signalGroup(proc.pid, 'SIGKILL')
+      }
+      await Bun.sleep(50)
+    }
     await proc.exited
-    clearTimeout(timeout)
   }
 
   await launch({})
@@ -130,6 +138,16 @@ export async function startServer({
       await stop()
       await launch(overrides)
     },
+  }
+}
+
+/** Signals every process in the group; false once the group has no processes left. */
+function signalGroup(pid: number, signal: NodeJS.Signals | 0): boolean {
+  try {
+    process.kill(-pid, signal)
+    return true
+  } catch {
+    return false
   }
 }
 

@@ -62,7 +62,7 @@ parked without an active browser journey.
 
 ## PR browser proof
 
-PRs retain all source checks and Java 21/17 build validation. Known product-source
+PRs retain all source checks, the Bun server build and Java 17 browser build validation. Known product-source
 changes and Leyline pin updates run representative browser proof. Main and manual
 runs retain the complete regular product, catalog, GRE suites.
 Browser Local still runs its generated and bundled startup/action smoke on both.
@@ -129,7 +129,9 @@ Cancelled runs do not produce a successful proof receipt. This follows
 
 UI validation and runtime assembly use separate `ubuntu-latest` hosted runners.
 One builder prepares pinned Forge dependencies once, then
-validates and packages Java 21 server and Java 17 Browser Local distributions.
+validates and packages the compiled Bun server and the Java 17 Browser Local distribution.
+It also cross-compiles the linux-arm64 release binary and builds the Kotlin server with Java 21,
+only for the cross-server replay handoff test in the parity suite.
 Gradle caches task outputs using its tracked input fingerprints. The shared
 Leyline/card-presentation outputs and root Gradle project caches are separated
 by Java target. Included-build task history remains shared, so switching targets
@@ -142,13 +144,13 @@ Bun installs enforce `bun.lock`; the workflow adds no persistent cache.
 
 After UI and builder success, hosted runners execute product, catalog, four GRE
 shards and Browser Local independently. Their distributions are sealed with the tested Git
-tree, Leyline pin, Java variant, producer run/attempt and every file's SHA-256.
+tree, Leyline pin, artifact variant, producer run/attempt and every file's SHA-256.
 Consumers
 reject missing, stale, damaged or differently targeted artifacts. Failed-job
 reruns may reuse successful artifacts from an earlier attempt of the same run
 and tree; artifacts from another run or a future attempt are rejected. Tar archives
-preserve launcher permissions. Product/GRE jobs launch the distribution directly
-with a 1 GiB heap and isolated suite state, without Gradle or Kotlin daemons.
+preserve launcher permissions. Product/GRE jobs launch the server binary directly
+with isolated suite state, without Java, Gradle or Kotlin daemons.
 The product built-page checks reuse the tested UI bundle instead of rebuilding.
 
 A builder co-locates both targets to avoid repeating build setup. This deliberately makes product browser tests wait for Java 17 validation
@@ -159,7 +161,7 @@ engine-backed browser work. Conservative path classification stays in place.
 | Required claim                                                                              | Owner / proof layer                                      |
 | ------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
 | Formatting, lint, types, reducers, stores, prompt rules, bootstrap helpers                  | UI deterministic checks                                  |
-| HTTP contracts, persistence, product composition, packaging                                 | Java 21 tests, OpenAPI export and distribution checks    |
+| HTTP contracts, persistence, product composition, packaging                                 | Bun server tests, parity suite on the compiled binary    |
 | Java 17 engine adapter and shipped dependency graph                                         | Java 17 tests with browser pruning                       |
 | Authored replacement descriptor, pointer input and retirement                               | Vite-only transport integration; no engine or real login |
 | Real login, deck library/import, Draft, lobby-to-game, curated watch and challenge entry | Product browser lane                                     |

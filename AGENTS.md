@@ -1,7 +1,7 @@
 # forge-web
 
-React 19 browser UI over the pinned Leyline runtime, and a Kotlin product server for
-accounts, decks, courses and replays that builds without Leyline.
+React 19 browser UI over the pinned Leyline runtime, and a Bun product server
+(`server-ts/`) for accounts, decks, courses and replays that builds without Leyline.
 Bootstrap fresh clones with `bun run bootstrap`. From the desired base
 checkout, create ready sibling worktrees with `just ws <branch>`.
 
@@ -58,6 +58,7 @@ bun run check
 bun run build
 bun run server:check
 bun run runtime:check
+bun run server:parity
 ```
 
 UI changes require visual verification at the affected viewport. Use

@@ -45,6 +45,11 @@ tasks.test {
     useJUnitPlatform()
 }
 
+// The compiled Bun server owns build/install/server. This distribution only feeds the cross-server handoff test.
+tasks.named<Sync>("installDist") {
+    destinationDir = layout.buildDirectory.dir("kotlin-install/server").get().asFile
+}
+
 tasks.register<Test>("generateOpenApi") {
     dependsOn(tasks.named("testClasses"))
     testClassesDirs = sourceSets.test.get().output.classesDirs

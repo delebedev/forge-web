@@ -5,6 +5,29 @@ import subprocess
 import sys
 
 
+# The compiled product server bundles these otherwise frontend-only files, so changing one
+# changes the backend. test_frontend_release_scope.py keeps this equal to server-ts's imports.
+SERVER_FRONTEND_INPUTS = frozenset()
+
+ALLOWED_FILES = {'index.html', 'package.json', 'bun.lock', 'vite.config.ts',
+                 'eslint.config.js', 'playwright.config.ts', 'AGENTS.md', 'README.md', 'DESIGN.md',
+                 'scripts/seo.ts', 'scripts/check-seo.ts',
+                 'scripts/frontend-release-scope.py', 'scripts/test_frontend_release_scope.py',
+                 '.github/workflows/publish-web.yml', '.github/workflows/web-ci.yml',
+                 'scripts/build-browser-catalog.py', 'scripts/test_build_browser_catalog.py',
+                 'scripts/build-browser-release.mjs', 'scripts/browser-challenge-manifest.ts',
+                 # The product server builds without Leyline; the pin only feeds the browser engine.
+                 'leyline'}
+
+
+def frontend_only(path):
+    return (
+        path.startswith(('src/', 'public/', 'e2e/', 'docs/', '.storybook/', 'browser-engine/', 'card-presentation/',
+                         'leyline/')) or path in ALLOWED_FILES or
+        re.fullmatch(r'tsconfig(?:\.[\w-]+)?\.json', path) is not None
+    )
+
+
 def check_scope(checkout, backend):
     if not re.fullmatch(r'[0-9a-f]{40}', backend):
         raise ValueError('Invalid running backend revision')
@@ -13,20 +36,7 @@ def check_scope(checkout, backend):
     changed = subprocess.check_output(
         ['git', '-C', checkout, 'diff', '--name-only', '-z', backend, 'HEAD'], text=True,
     ).split('\0')
-    allowed_files = {'index.html', 'package.json', 'bun.lock', 'vite.config.ts',
-                     'eslint.config.js', 'playwright.config.ts', 'AGENTS.md', 'README.md', 'DESIGN.md',
-                     'scripts/seo.ts', 'scripts/check-seo.ts',
-                     'scripts/frontend-release-scope.py', 'scripts/test_frontend_release_scope.py',
-                     '.github/workflows/publish-web.yml', '.github/workflows/web-ci.yml',
-                     'scripts/build-browser-catalog.py', 'scripts/test_build_browser_catalog.py',
-                     'scripts/build-browser-release.mjs', 'scripts/browser-challenge-manifest.ts',
-                     # The product server builds without Leyline; the pin only feeds the browser engine.
-                     'leyline'}
-    rejected = [p for p in changed if p and not (
-        p.startswith(('src/', 'public/', 'e2e/', 'docs/', '.storybook/', 'browser-engine/', 'card-presentation/',
-                      'leyline/')) or p in allowed_files or
-        re.fullmatch(r'tsconfig(?:\.[\w-]+)?\.json', p)
-    )]
+    rejected = [p for p in changed if p and (p in SERVER_FRONTEND_INPUTS or not frontend_only(p))]
     if rejected:
         raise ValueError('Full deployment required for: ' + ', '.join(rejected))
 
