@@ -57,12 +57,14 @@ class CourseRecordRoutesTest {
             val listed = client.get("/api/course-records") { header(HttpHeaders.Cookie, owner) }
             assertEquals(1, Json.decodeFromString<List<CourseRecord>>(listed.bodyAsText()).size)
             assertEquals("[]", client.get("/api/course-records") { header(HttpHeaders.Cookie, other) }.bodyAsText())
-            assertEquals(404, client.delete(path) { header(HttpHeaders.Cookie, other) }.status.value)
+            assertEquals(404, client.delete("$path?revision=2") { header(HttpHeaders.Cookie, other) }.status.value)
 
             assertEquals(400, save(owner, 2, "[]").status.value)
             assertEquals(413, save(owner, 2, """{"x":"${"a".repeat(CourseRecordStore.MAX_DOCUMENT_BYTES)}"}""").status.value)
 
-            assertEquals(204, client.delete(path) { header(HttpHeaders.Cookie, owner) }.status.value)
+            assertEquals(400, client.delete(path) { header(HttpHeaders.Cookie, owner) }.status.value)
+            assertEquals(409, client.delete("$path?revision=1") { header(HttpHeaders.Cookie, owner) }.status.value)
+            assertEquals(204, client.delete("$path?revision=2") { header(HttpHeaders.Cookie, owner) }.status.value)
             assertEquals(404, client.get(path) { header(HttpHeaders.Cookie, owner) }.status.value)
         }
 }

@@ -1604,7 +1604,9 @@ export interface paths {
     post?: never
     delete: {
       parameters: {
-        query?: never
+        query?: {
+          revision?: number
+        }
         header?: never
         path: {
           eventName: string
@@ -1642,6 +1644,15 @@ export interface paths {
             [name: string]: unknown
           }
           content?: never
+        }
+        /** @description Conflict */
+        409: {
+          headers: {
+            [name: string]: unknown
+          }
+          content: {
+            'text/plain': string
+          }
         }
         /** @description Internal Server Error */
         500: {

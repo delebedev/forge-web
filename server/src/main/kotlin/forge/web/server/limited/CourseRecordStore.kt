@@ -115,13 +115,16 @@ internal class CourseRecordStore(
         }
     }
 
+    /** Deletes the record read at `expectedRevision`; false when there is none, a conflict when it changed. */
     fun delete(
         playerId: String,
         eventName: String,
+        expectedRevision: Int,
     ): Boolean =
         transaction(database) {
             val where = (Records.playerId eq playerId) and (Records.eventName eq requireEvent(eventName))
             val current = Records.selectAll().where { where and (Records.document neq DELETED) }.firstOrNull()
+            if (current != null && current[Records.revision] != expectedRevision) throw CourseRecordConflict()
             current != null &&
                 Records.update({ where }) {
                     it[revision] = current[Records.revision] + 1

@@ -49,8 +49,18 @@ internal fun Route.installCourseRecordRoutes(
             empty(401)
         }
         delete("/{eventName}") {
-            val deleted = records.delete(call.authenticatedPlayerId(auth).value, call.parameters["eventName"].orEmpty())
-            call.respond(if (deleted) HttpStatusCode.NoContent else HttpStatusCode.NotFound)
-        }.contract { empty(204, 401, 404) }
+            val playerId = call.authenticatedPlayerId(auth).value
+            val revision = requireNotNull(call.request.queryParameters["revision"]?.toIntOrNull()) { "revision is required" }
+            try {
+                val deleted = records.delete(playerId, call.parameters["eventName"].orEmpty(), revision)
+                call.respond(if (deleted) HttpStatusCode.NoContent else HttpStatusCode.NotFound)
+            } catch (conflict: CourseRecordConflict) {
+                call.respond(HttpStatusCode.Conflict, conflict.message.orEmpty())
+            }
+        }.contract {
+            query<Int>("revision")
+            text(409)
+            empty(204, 401, 404)
+        }
     }
 }
