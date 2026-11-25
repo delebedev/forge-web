@@ -18,10 +18,12 @@ export class CardImageIndex {
   private readonly reported = new Set<string>()
   private readonly images: Map<string, ImageUrls>
   private readonly reportMisses: boolean
+  private readonly maxReportedMisses: number
 
-  constructor(images: Map<string, ImageUrls>, reportMisses: boolean) {
+  constructor(images: Map<string, ImageUrls>, reportMisses: boolean, maxReportedMisses = 10_000) {
     this.images = images
     this.reportMisses = reportMisses
+    this.maxReportedMisses = maxReportedMisses
   }
 
   static empty(): CardImageIndex {
@@ -122,7 +124,8 @@ export class CardImageIndex {
     }
     const { name, token } = this.key(cardName)
     const key = keyOf(name, token)
-    if (this.reported.has(key)) {
+    // Names come from a public route, so the set of reported misses is bounded.
+    if (this.reported.has(key) || this.reported.size >= this.maxReportedMisses) {
       return
     }
     this.reported.add(key)

@@ -65,7 +65,8 @@ test('invalid uploads are refused before storage', async () => {
 
 test('throttled uploads carry Retry-After', async () => {
   const replays = new MatchReplayStore({ root: mkdtempSync(join(tmpdir(), 'replay-routes-')) })
-  server = testServer({ replays })
+  // A fixed clock: elapsed upload time would otherwise replenish the budget and change Retry-After.
+  server = testServer({ replays, replayAdmission: new ReplayAdmission(() => 0) })
   for (let i = 0; i < 12; i++) {
     await upload(JSON.stringify(replayChunk))
   }

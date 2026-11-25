@@ -43,10 +43,10 @@ graph TB
 | `src/engine/wire`, `state`, `runtime`, `priority`, `replay` | GRE wire codec, projected state, match lifecycle, priority policy, and replay formatting |
 | `src/engine/generated` | Generated GRE message descriptor |
 
-- `server-ts/` is the product server: `Bun.serve` routes, configuration, authentication, the product
-  database path and connection, [schema migrations](database-migrations.md), persistence and browser
-  replay storage. `server-ts/main.ts` is the entry point; releases ship it compiled by
-  `bun build --compile` as one binary. The database remains `<resolved stateDir>/player.db`.
+- `server-ts/` is the product server: `Bun.serve` routes matching [the HTTP contract](http-contract.md),
+  configuration, authentication, the product database path and connection,
+  [schema migrations](database-migrations.md), persistence and browser replay storage.
+  `server-ts/main.ts` is the entry point; releases ship it compiled by `bun build --compile` as one binary. The database remains `<resolved stateDir>/player.db`.
   The server imports nothing from Leyline; only `browser-engine/` and `card-presentation/`
   build against the Leyline composite build, and only `browser-engine/` launches games.
   A Leyline pin change therefore ships as a frontend release.

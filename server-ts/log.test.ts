@@ -1,9 +1,12 @@
 import { describe, expect, test } from 'bun:test'
 import {
+  chmodSync,
   existsSync,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   readdirSync,
+  rmdirSync,
   utimesSync,
   writeFileSync,
 } from 'node:fs'
@@ -103,6 +106,23 @@ describe('RollingLogFile', () => {
     expect(readFileSync(file, 'utf8')).toBe('new\n')
   })
 
+  test('a failed archive keeps the file open, and a later write archives it', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'forge-web-log-'))
+    const now = Date.parse('2026-11-25T12:00:00Z')
+    const log = new RollingLogFile(directory, () => now, 10)
+    log.write('first line\n')
+    const blocked = join(directory, 'forge-web.2026-11-25.0.log.gz.tmp')
+    mkdirSync(blocked)
+    expect(() => log.write('second\n')).toThrow()
+    rmdirSync(blocked)
+    log.write('third\n')
+    log.close()
+    expect(
+      gunzipSync(readFileSync(join(directory, 'forge-web.2026-11-25.0.log.gz'))).toString(),
+    ).toBe('first line\n')
+    expect(readFileSync(join(directory, 'forge-web.log'), 'utf8')).toBe('third\n')
+  })
+
   test('startup removes archives older than seven days', () => {
     const directory = mkdtempSync(join(tmpdir(), 'forge-web-log-'))
     const now = Date.parse('2026-11-25T12:00:00Z')
@@ -116,5 +136,26 @@ describe('RollingLogFile', () => {
       `forge-web.${day(1)}.0.log.gz`,
       'forge-web.log',
     ])
+  })
+})
+
+describe('configureLogging', () => {
+  test('a log directory that cannot be created leaves stdout logging running', () => {
+    const parent = mkdtempSync(join(tmpdir(), 'forge-web-log-'))
+    chmodSync(parent, 0o500)
+    const directory = join(parent, 'logs')
+    const script = `
+      import { Logger, configureLogging } from ${JSON.stringify(join(import.meta.dir, 'log.ts'))}
+      configureLogging({ directory: ${JSON.stringify(directory)} })
+      new Logger('probe').info('still logging')
+    `
+    const run = Bun.spawnSync(['bun', '-e', script])
+    chmodSync(parent, 0o700)
+    const stdout = run.stdout.toString()
+    expect(run.exitCode).toBe(0)
+    expect(stdout).toContain('WARN  forge.web.server.Logging')
+    expect(stdout).toContain('File logging disabled')
+    expect(stdout).toContain('INFO  probe')
+    expect(existsSync(directory)).toBe(false)
   })
 })

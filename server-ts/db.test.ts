@@ -50,6 +50,17 @@ describe('migrate', () => {
     openPlayerDatabase(databaseFile()).close()
   })
 
+  test('a failed first start leaves an empty database that the next start initializes', () => {
+    const db = new Database(':memory:')
+    const broken = [...migrationScripts.slice(0, 3), { script: 'V4__broken.sql', sql: 'NOT SQL' }]
+    expect(() => migrate(db, broken)).toThrow()
+    expect(db.query("SELECT COUNT(*) AS n FROM sqlite_master WHERE type = 'table'").get()).toEqual({
+      n: 0,
+    })
+    migrate(db)
+    expect(db.query('SELECT COUNT(*) AS n FROM flyway_schema_history').get()).toEqual({ n: 10 })
+  })
+
   test('reopening a current database applies nothing', () => {
     const file = databaseFile()
     openPlayerDatabase(file).close()

@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 export { ParseDecklistErrorResponseSchema } from './wire-schemas'
-import type { components } from './types'
+export type { ParseDecklistErrorResponse } from './wire-schemas'
 
 // Card shapes come from the browser card index and browser engine, not the product server.
 const int32 = z.number().int().min(-2147483648).max(2147483647)
@@ -67,7 +67,6 @@ export type DraftCard = Omit<WireDraftCard, 'grpId' | 'score'> &
   > & { linkedFaces?: GreCardMetaDto[] }
 export type DecklistCard = z.output<typeof DecklistCardSchema>
 export type ParseDecklistResponse = z.output<typeof ParseDecklistResponseSchema>
-export type ParseDecklistErrorResponse = components['schemas']['ParseDecklistErrorResponse']
 /** A limited set as the browser card index lists it. */
 export const SealedSetSchema = z.object({
   code: z.string(),

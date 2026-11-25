@@ -6,6 +6,7 @@ import { deckRoutes, type DeckStore } from './decks.ts'
 import { json, serveRoutes, type HttpOptions, type Routes } from './http.ts'
 import { puzzleRoutes } from './puzzles.ts'
 import { replayRoutes } from './replay-routes.ts'
+import type { ReplayAdmission } from './replay-admission.ts'
 import type { MatchReplayStore } from './replay-store.ts'
 import { roadmapRoutes } from './roadmap.ts'
 
@@ -16,6 +17,7 @@ export interface WebServices {
   decks: DeckStore
   courseRecords: CourseRecordStore
   replays: MatchReplayStore
+  replayAdmission?: ReplayAdmission
   operatorToken: string
 }
 
@@ -28,7 +30,12 @@ export function productRoutes(services: WebServices): Routes {
     ...puzzleRoutes(services.auth, services.db),
     ...courseRecordRoutes(services.auth, services.courseRecords),
     ...deckRoutes(services.auth, services.decks),
-    ...replayRoutes(services.auth, services.replays, services.operatorToken),
+    ...replayRoutes(
+      services.auth,
+      services.replays,
+      services.operatorToken,
+      services.replayAdmission,
+    ),
   }
 }
 

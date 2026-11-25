@@ -38,11 +38,10 @@ Components: ≤10 derived bindings (`useMemo`/plain computed reads) at the top.
 ### C6. Types Mirror the Wire Shape
 GRE messages: `wire/gre-proto.ts` decodes/encodes against the generated protobuf
 descriptor (`generated/messages.json`) — new GRE fields need the descriptor
-regenerated, not hand-maintained types. REST/DTO types: `src/shared/api/types.ts`
-and runtime validators in `wire-schemas.ts` are generated from registered Kotlin
-HTTP contracts via `bun run api:types`; don't hand-edit them.
-Run `bun run api:check` before publishing. [HTTP contract authoring](http-contract.md)
-owns field presence, numbers, route coverage and intentional exclusions. Generate CSS-module declarations with `bun run css:types`; don't
+regenerated, not hand-maintained types. REST/DTO types are `z.infer` types of the
+Zod schemas in `src/shared/api/wire-schemas.ts`, the single product HTTP contract.
+[HTTP contract authoring](http-contract.md) owns field presence, numbers and the
+server parity suite. Generate CSS-module declarations with `bun run css:types`; don't
 hand-edit `*.module.css.d.ts` files.
 
 ### C7. No Inline Constants

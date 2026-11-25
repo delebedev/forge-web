@@ -86,6 +86,13 @@ export async function installErrorReporting(env: Record<string, string | undefin
   }
 }
 
+/** Sends pending error reports before the process exits; a no-op when reporting is off. */
+export async function closeErrorReporting() {
+  if (enabled) {
+    await Sentry.close(2_000)
+  }
+}
+
 function reportLoggedError(logger: string, message: string, error: unknown) {
   if (error === undefined) {
     Sentry.captureMessage(message, { level: 'error', tags: { logger } })

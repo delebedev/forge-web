@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import type { components } from '../src/shared/api/types'
+import type { DeckView } from '../src/shared/api/wire-schemas'
 import { expect, test, waitForBrowserGameReady } from './gre-test'
 import { dailyBrowserChallengePath } from '../src/features/challenges/browser-challenges'
 import { curatedReplay } from '../src/features/replay/curated-replays'
@@ -381,13 +381,13 @@ test('all Commander starters have playable saved deck contents', async ({ page }
   await signIn(page)
   const response = await page.request.get('/api/decks')
   expect(response.ok()).toBe(true)
-  const saved = (await response.json()) as components['schemas']['DeckView'][]
+  const saved = (await response.json()) as DeckView[]
   for (const name of commanderFixtures) {
     const deck = saved.find((deck) => deck.name === name)!
     expect(deck, name).toBeTruthy()
     const detailResponse = await page.request.get(`/api/decks/${deck.id}`)
     expect(detailResponse.ok(), name).toBe(true)
-    const detail = (await detailResponse.json()) as components['schemas']['DeckView']
+    const detail = (await detailResponse.json()) as DeckView
     expect(detail.id).toBe(deck.id)
     expect(
       detail.mainDeck.reduce((n, card) => n + card.quantity, 0),

@@ -1,7 +1,2 @@
-// Presentation values and generated product HTTP types.
+// Presentation values. Product HTTP types live with their schemas in wire-schemas.ts.
 export * from './schemas'
-export type {
-  components as WebComponents,
-  operations as WebOperations,
-  paths as WebPaths,
-} from './types'

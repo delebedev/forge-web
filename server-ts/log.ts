@@ -87,7 +87,21 @@ export function configureLogging(options: {
   }
   if (options.directory !== undefined) {
     file?.close()
-    file = options.directory ? new RollingLogFile(options.directory) : null
+    file = null
+    if (options.directory) {
+      try {
+        file = new RollingLogFile(options.directory)
+      } catch (cause) {
+        // A log directory problem must not stop the server; stdout still carries every line.
+        writeSync(
+          1,
+          formatLogLine(Date.now(), 'WARN', 'forge.web.server.Logging', 'File logging disabled', {
+            directory: options.directory,
+            cause: String(cause),
+          }),
+        )
+      }
+    }
   }
   if (options.errorSink !== undefined) {
     errorSink = options.errorSink
@@ -173,17 +187,23 @@ export class RollingLogFile {
 
   private rollover() {
     closeSync(this.fd)
-    if (this.size > 0) {
-      let index = 0
-      while (existsSync(this.archive(this.period, index))) {
-        index++
+    let archived = this.size === 0
+    try {
+      if (!archived) {
+        let index = 0
+        while (existsSync(this.archive(this.period, index))) {
+          index++
+        }
+        const target = this.archive(this.period, index)
+        const temporary = `${target}.tmp`
+        writeFileSync(temporary, gzipSync(readFileSync(this.path)))
+        renameSync(temporary, target)
+        archived = true
       }
-      const target = this.archive(this.period, index)
-      const temporary = `${target}.tmp`
-      writeFileSync(temporary, gzipSync(readFileSync(this.path)))
-      renameSync(temporary, target)
+    } finally {
+      // A failed archive keeps the active file open for appending, and the next write retries.
+      this.fd = openSync(this.path, archived ? 'w' : 'a')
     }
-    this.fd = openSync(this.path, 'w')
     this.size = 0
     this.cleanup()
   }

@@ -75,11 +75,18 @@ interface HistoryRow {
  */
 export function migrate(db: Database, scripts: MigrationScript[] = migrationScripts): void {
   const latest = migrationVersion(scripts.at(-1)?.script ?? 'V0__')
-  const hasHistory =
-    db
-      .query("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'flyway_schema_history'")
-      .get() !== null
-  if (!hasHistory) {
+  // One transaction from the history check to the last script: an interrupted first start leaves an
+  // empty database that the next start initializes.
+  const created = writeTransaction(db, () => {
+    const hasHistory =
+      db
+        .query(
+          "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'flyway_schema_history'",
+        )
+        .get() !== null
+    if (hasHistory) {
+      return false
+    }
     const tables = db
       .query("SELECT COUNT(*) AS count FROM sqlite_master WHERE type = 'table'")
       .get() as {
@@ -88,28 +95,29 @@ export function migrate(db: Database, scripts: MigrationScript[] = migrationScri
     if (tables.count > 0) {
       throw new Error('Found non-empty schema without a schema history table')
     }
-    db.transaction(() => db.run(HISTORY_TABLE)).immediate()
+    db.run(HISTORY_TABLE)
     scripts.forEach((script, index) => {
       const started = performance.now()
-      db.transaction(() => {
-        db.run(script.sql)
-        db.query(
-          `INSERT INTO flyway_schema_history
+      db.run(script.sql)
+      db.query(
+        `INSERT INTO flyway_schema_history
              (installed_rank, version, description, type, script, checksum, installed_by, execution_time, success)
            VALUES (?, ?, ?, 'SQL', ?, ?, '', ?, 1)`,
-        ).run(
-          index + 1,
-          String(migrationVersion(script.script)),
-          migrationDescription(script.script),
-          script.script,
-          flywayChecksum(script.sql),
-          Math.round(performance.now() - started),
-        )
-      }).immediate()
+      ).run(
+        index + 1,
+        String(migrationVersion(script.script)),
+        migrationDescription(script.script),
+        script.script,
+        flywayChecksum(script.sql),
+        Math.round(performance.now() - started),
+      )
       log.info(
         `Migrating schema "main" to version "${migrationVersion(script.script)} - ${migrationDescription(script.script)}"`,
       )
     })
+    return true
+  })
+  if (created) {
     return
   }
   const rows = db

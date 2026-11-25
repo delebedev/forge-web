@@ -43,8 +43,13 @@ async function upload(
   return [response.status, await response.text()]
 }
 
-const exported = async (server: ParityServer, matchId: string) =>
-  (await fetch(`${server.url}/api/operator/replays/${matchId}`, { headers: operator })).text()
+async function exported(server: ParityServer, matchId: string) {
+  const response = await fetch(`${server.url}/api/operator/replays/${matchId}`, {
+    headers: operator,
+  })
+  expect(response.status).toBe(200)
+  return response.text()
+}
 
 const pin = async (server: ParityServer, matchId: string, reportId: string) =>
   (

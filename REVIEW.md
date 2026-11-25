@@ -63,9 +63,9 @@ valid review.
   publish through the external-store boundary.
 - **Twins that drift.** A change breaks the contract a matched pair shares and
   leaves the counterpart behind: encode and decode, request and response, the
-  Kotlin HTTP contract and its generated client types, the table model and its
-  migration. A one-sided change that keeps or restores the shared contract is
-  fine.
+  product server's HTTP responses and the Zod schemas in `wire-schemas.ts`,
+  the table model and its migration. A one-sided change that keeps or restores
+  the shared contract is fine.
 - **Unsafe persistence.** An edited migration that may already have run, or a
   schema change without its new migration.
 - **Privacy and public content.** Credentials, customer identifiers, personal
@@ -138,15 +138,14 @@ simpler or harder to change if the next hundred changes followed this pattern.
 ## Do not report
 
 - Anything CI enforces: formatting, lint, type checks, generated CSS types,
-  the API contract check.
+  the server parity suite.
 - Naming preference, import order, speculative performance, future
   extensibility, or a design-smell label without a concrete cost.
 - Issues the change neither introduces nor exposes.
 - Mobile or tablet layout, unless the PR targets it.
 - Chromatic diffs awaiting approval, unless they show a rendering error or an
   unintended change.
-- Generated or third-party content: `src/shared/api/types.ts`,
-  `src/shared/api/wire-schemas.ts`, `src/engine/generated/`,
+- Generated or third-party content: `src/engine/generated/`,
   `*.module.css.d.ts`, and `leyline/` submodule internals (review only the pin
   change and its stated reason). Review `bun.lock` only for dependency changes
   the manifest does not explain.
