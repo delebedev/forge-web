@@ -46,21 +46,37 @@ typed, deterministic, and local to the catalogue. Update the relevant story in
 the same change as its component. Consolidate superseded variants and leave
 test-only cases in focused tests when they add no useful visual example.
 
+## Interaction checks
+
+Story `play` functions run as Vitest browser tests in headless Chromium through
+`@storybook/addon-vitest`. Every story renders, runs its `play` function and
+must make no product request. The UI job of Web CI runs them, and a failing check
+fails CI. Run them locally with Node, not `bun run`, because `bunfig.toml` forces
+the Bun runtime for package scripts:
+
+```sh
+node node_modules/vitest/vitest.mjs run --config .storybook/vitest.config.ts
+```
+
+The checks use the default globals. Chromatic modes add visual coverage only.
+A `play` branch that runs only under a mode or a non-default arg is not checked
+in CI.
+
 ## Visual review with Chromatic
 
-Chromatic is optional and disabled by default. To enable it, set the GitHub
-Actions repository variable `CHROMATIC_ENABLED` to `true` and create a Chromatic
-project for this repository. Keep its project token in the
-`CHROMATIC_PROJECT_TOKEN` GitHub Actions secret and in a local environment
-variable when running manually. Never put the token in source or command history.
+The Chromatic workflow runs when the repository variable `CHROMATIC_ENABLED` is
+`true`. The project token lives in the `CHROMATIC_PROJECT_TOKEN` GitHub Actions
+secret; to run Chromatic manually, export it locally. Never put the token in
+source or command history.
 
 ```sh
 bun run build-storybook
 bun run chromatic --storybook-build-dir storybook-static
 ```
 
-The Chromatic workflow runs on relevant pushes to `main` and `codex/**`, or
-manually. It captures desktop views at 1440px with card art hidden. Layout families
+The Chromatic workflow runs on pull requests and pushes to `main` that touch the
+catalogue's inputs, or manually. Pull requests from forks skip it because they
+cannot read the token. It captures desktop views at 1440px with card art hidden. Layout families
 and text fit also cover hand and thumbnail sizes. Midgame also captures phone
 portrait and landscape views; mechanic help covers single and dense
 configurations. Casting, selection, and X payment modes cover their distinct
