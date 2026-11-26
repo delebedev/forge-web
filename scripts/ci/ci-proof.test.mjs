@@ -75,10 +75,15 @@ test('partial, stale, missing and foreign receipts cannot authorize reuse', () =
 
 test('gate rejects failures and unintended skips including Browser Local', () => {
   const needs = Object.fromEntries(
-    ['changes', 'ui', 'server', 'browser-runtime', 'runtime', 'browser-local'].map((job) => [
-      job,
-      { result: 'success' },
-    ]),
+    [
+      'changes',
+      'ui',
+      'server',
+      'browser-runtime',
+      'browser-runtime-test',
+      'runtime',
+      'browser-local',
+    ].map((job) => [job, { result: 'success' }]),
   )
   assertGate(needs, false, 'full', 'full')
   assertGate(needs, false, 'full', 'pr')

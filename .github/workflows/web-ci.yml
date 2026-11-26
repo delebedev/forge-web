@@ -210,6 +210,10 @@ jobs:
             21
           cache: ''
       - uses: extractions/setup-just@v2
+      # Pull requests read the Gradle cache; only main writes it.
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.11
@@ -217,8 +221,9 @@ jobs:
         run: bun install --frozen-lockfile
       - name: Prepare pinned Forge dependencies
         run: python3 scripts/ci/ci-measure.py prepare bash -eo pipefail -c 'node scripts/dev/bootstrap.mjs --prepare-only'
-      - name: Build and validate browser runtime
-        run: python3 scripts/ci/ci-measure.py browser-17 bash -eo pipefail -c 'bun run challenge:manifest && python3 scripts/build/build-browser-catalog.py && ./leyline/gradlew -p browser-engine check browserDistribution catalogIndex cardIndex -PruntimeJavaVersion=17 -PbrowserPrune=true -Pkotlin.compiler.execution.strategy=in-process && node scripts/build/build-browser-release.mjs'
+      # JVM checks run in browser-runtime-test so runtime lanes start as soon as the artifact exists.
+      - name: Build browser runtime
+        run: python3 scripts/ci/ci-measure.py browser-17 bash -eo pipefail -c 'bun run challenge:manifest && python3 scripts/build/build-browser-catalog.py && ./leyline/gradlew -p browser-engine browserDistribution catalogIndex cardIndex -PruntimeJavaVersion=17 -PbrowserPrune=true -Pkotlin.compiler.execution.strategy=in-process && node scripts/build/build-browser-release.mjs'
       - name: Seal browser runtime
         run: |-
           node scripts/ci/runtime-artifact.mjs seal browser-17 public/browser-engine
@@ -240,6 +245,57 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-results-browser-runtime
+          path: |-
+            test-results/ci/
+          if-no-files-found: ignore
+          retention-days: 1
+          overwrite: true
+    env:
+      FORGE_CI_REPORT_DIR: test-results/ci
+    timeout-minutes: 30
+  browser-runtime-test:
+    name: Browser runtime checks (Java 17)
+    needs: changes
+    if: needs.changes.outputs.run-tests == 'true' && needs.changes.outputs.kind == 'full'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      # Gradle runs on the default Java 21; Java 17 is the browser engine's toolchain.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: |
+            17
+            21
+          cache: ''
+      - uses: extractions/setup-just@v2
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.11
+      - name: Install build dependencies
+        run: bun install --frozen-lockfile
+      - name: Prepare pinned Forge dependencies
+        run: python3 scripts/ci/ci-measure.py prepare-test bash -eo pipefail -c 'node scripts/dev/bootstrap.mjs --prepare-only'
+      - name: Check browser runtime
+        run: python3 scripts/ci/ci-measure.py browser-17-check bash -eo pipefail -c './leyline/gradlew -p browser-engine check -PruntimeJavaVersion=17 -PbrowserPrune=true -Pkotlin.compiler.execution.strategy=in-process'
+      - name: Stop build JVMs
+        if: always()
+        timeout-minutes: 1
+        run: ./leyline/gradlew -p browser-engine --stop
+      - name: Upload test results
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-browser-runtime-test
           path: |-
             browser-engine/build/test-results/
             test-results/ci/
@@ -332,26 +388,40 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - lane: product
+          - lane: product-1
             suite: product
+            shard: 1/3
+          - lane: product-2
+            suite: product
+            shard: 2/3
+          - lane: product-3
+            suite: product
+            shard: 3/3
           - lane: catalog
             suite: catalog
           - lane: gre-1
             suite: gre
-            shard: 1/4
+            shard: 1/6
           - lane: gre-2
             suite: gre
-            shard: 2/4
+            shard: 2/6
           - lane: gre-3
             suite: gre
-            shard: 3/4
+            shard: 3/6
           - lane: gre-4
             suite: gre
-            shard: 4/4
+            shard: 4/6
+          - lane: gre-5
+            suite: gre
+            shard: 5/6
+          - lane: gre-6
+            suite: gre
+            shard: 6/6
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: recursive
+          # Journeys read Leyline puzzles; the tested runtime artifact replaces its nested Forge checkout.
+          submodules: true
           persist-credentials: false
           fetch-depth: 0
       - name: Setup Node
@@ -391,19 +461,24 @@ jobs:
         run: |
           args=()
           case "$LANE" in
-            product|catalog)
+            catalog)
               [[ "$SUITE" == "$LANE" && -z "$SHARD" ]] || exit 1
               ;;
-            gre-[1-4])
-              [[ "$SUITE" == gre && "$SHARD" == "${LANE#gre-}/4" ]] || exit 1
+            product-[1-3])
+              [[ "$SUITE" == product && "$SHARD" == "${LANE#product-}/3" ]] || exit 1
+              args+=(--fully-parallel "--shard=$SHARD")
+              ;;
+            gre-[1-6])
+              [[ "$SUITE" == gre && "$SHARD" == "${LANE#gre-}/6" ]] || exit 1
               args+=(--fully-parallel "--shard=$SHARD")
               ;;
             *) echo "Unknown runtime lane: $LANE" >&2; exit 1 ;;
           esac
           python3 scripts/ci/ci-measure.py "$LANE" node scripts/ci/ci-browser-selection.mjs "$SUITE" "$PROOF_BREADTH" "$BASE_SHA" --workers=1 --max-failures=2 "--output=test-results/$LANE" "${args[@]}"
+      # Playwright clears its output directory, so curated replays keep their own.
       - name: Run curated replay journeys
-        if: matrix.lane == 'product'
-        run: bun x playwright test -c e2e/product/curated-replays.config.ts --max-failures=2
+        if: matrix.lane == 'product-1'
+        run: bun x playwright test -c e2e/product/curated-replays.config.ts --max-failures=2 --output=test-results/curated-replays
       - name: Upload Playwright output
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
@@ -436,6 +511,7 @@ jobs:
       - ui
       - server
       - browser-runtime
+      - browser-runtime-test
       - runtime
       - browser-local
       - gate
@@ -499,6 +575,7 @@ jobs:
       - ui
       - server
       - browser-runtime
+      - browser-runtime-test
       - runtime
       - browser-local
     if: ${{ !cancelled() }}
