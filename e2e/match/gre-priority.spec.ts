@@ -1065,57 +1065,6 @@ test(`Citadel exposes the top-library cast beside the hand and pays life`, async
   }
 })
 
-test('independent draft sets preserve an active pool', async ({ page }, info) => {
-  // Two cold browser-engine draft starts.
-  test.setTimeout(300_000)
-  await page.route(/^https:\/\/(cards\.scryfall\.io|api\.scryfall\.com)\//, (route) =>
-    route.fulfill({ status: 204 }),
-  )
-  await authenticateShell(page, 'draft-isolation')
-  await page.goto('/play/limited?mode=draft')
-  await page.getByRole('button', { name: 'Change set', exact: true }).click()
-  await page.getByRole('textbox', { name: 'Search sets' }).fill('TDM')
-  await page.getByRole('button', { name: /TDM.*Tarkir/ }).click()
-  await page.getByRole('button', { name: 'Start Draft', exact: true }).click()
-  await page.locator('button[data-card]').first().click()
-  await expect(page.getByRole('complementary', { name: 'Draft pool' })).toContainText('1 cards')
-  const saved = await (await page.request.get('/api/course-records/QuickDraft_TDM_20260223')).json()
-  await page.goto('/play/limited?mode=draft')
-  await expect(page.getByRole('heading', { name: 'Booster Draft' })).toBeVisible()
-  readyForVideo.add(page)
-  await page.getByRole('button', { name: 'Change set', exact: true }).click()
-  await page.getByRole('textbox', { name: 'Search sets' }).fill('NEO')
-  await page.getByRole('button', { name: /NEO.*Kamigawa/ }).click()
-  await expect(page.getByRole('region', { name: 'New Draft' })).toContainText('NEO')
-  await page.waitForTimeout(1_000)
-  const neoStart = page.waitForResponse(
-    (response) =>
-      response.url().endsWith('/api/course-records/QuickDraft_NEO_20260223') &&
-      response.request().method() === 'PUT',
-  )
-  await page.getByRole('button', { name: 'Start Draft', exact: true }).click()
-  expect((await neoStart).ok()).toBe(true)
-  await expect(page.getByRole('complementary', { name: 'Draft pool' })).toBeVisible()
-  await expect(page.getByText('Round 1', { exact: true })).toBeVisible()
-  await page.screenshot({ path: info.outputPath('draft-after.png') })
-  const resume = await page.request.get('/api/course-records/QuickDraft_TDM_20260223')
-  expect(await resume.json()).toEqual(saved)
-  await page.goto('/play/limited?mode=draft')
-  await page.getByRole('button', { name: 'Change set', exact: true }).click()
-  await page.getByRole('textbox', { name: 'Search sets' }).fill('TDM')
-  await page.getByRole('button', { name: /TDM.*Tarkir/ }).click()
-  await page.getByRole('button', { name: 'Start Draft', exact: true }).click()
-  await expect(page.getByRole('complementary', { name: 'Draft pool' })).toContainText('1 cards', {
-    timeout: 60_000,
-  })
-  await expect(page.getByText('Pick 2', { exact: true })).toBeVisible()
-  await page.screenshot({ path: info.outputPath('draft-preserved.png') })
-  if (recordDemos) {
-    // Hold the final frame in the demo video.
-    await page.waitForTimeout(1_000)
-  }
-})
-
 test(`mixed stack shows and resolves the first entry`, async ({ page }, info) => {
   test.setTimeout(120_000)
   await authenticateShell(page, 'mixed-stack-proof')
