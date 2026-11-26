@@ -107,7 +107,7 @@ class FrontendScopeTest(unittest.TestCase):
 
     def test_server_frontend_inputs_match_server_imports(self):
         inputs = server_inputs()
-        self.assertIn('server/resources.ts', inputs)
+        self.assertIn('server/platform/resources.ts', inputs)
         self.assertEqual(scope.SERVER_FRONTEND_INPUTS, {path for path in inputs if scope.frontend_only(path)})
 
     def test_a_frontend_file_the_server_bundles_requires_a_full_release(self):

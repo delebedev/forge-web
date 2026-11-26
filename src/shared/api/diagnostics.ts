@@ -1,5 +1,5 @@
 import { reportDiagnostic } from '@shared/reporting'
-import { responseSchemas } from './wire-schemas'
+import { responseSchemas } from '@contract/wire-schemas'
 
 const routes = Object.keys(responseSchemas).map((operation) => {
   const [method, path] = operation.split(' ')

@@ -1,5 +1,5 @@
 import type { DeckCard, DeckDetail } from '@shared/api/contracts'
-import type { WebDeckCard } from '@shared/api/wire-schemas'
+import type { WebDeckCard } from '@contract/wire-schemas'
 
 export type RecentUserDeck = {
   id: string

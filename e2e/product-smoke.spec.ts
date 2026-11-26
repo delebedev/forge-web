@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import type { DeckView } from '../src/shared/api/wire-schemas'
+import type { DeckView } from '../server/contract/wire-schemas'
 import { expect, test, waitForBrowserGameReady } from './gre-test'
 import { dailyBrowserChallengePath } from '../src/features/challenges/browser-challenges'
 import { curatedReplay } from '../src/features/replay/curated-replays'

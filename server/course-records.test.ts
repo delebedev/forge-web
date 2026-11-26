@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
 import { CourseRecordStore } from './course-records.ts'
-import { testDatabase } from './test-support.ts'
+import { testDatabase } from './test/test-support.ts'
 
 const EVENT = 'QuickDraft_FDN_20260101'
 const store = (maxDocumentBytes?: number, maxAccountBytes?: number) =>

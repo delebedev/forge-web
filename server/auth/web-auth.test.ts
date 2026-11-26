@@ -1,10 +1,10 @@
 import { describe, expect, spyOn, test } from 'bun:test'
 import { createHmac } from 'node:crypto'
-import { resendEmailSender, type LoginCodeEmail } from './auth.ts'
-import { javaInstant } from './db.ts'
-import { Logger } from './log.ts'
-import { InMemoryRateLimiter } from './rate-limit.ts'
-import { TEST_LOGIN_CODE, TEST_SECRET, testAuth, testDatabase } from './test-support.ts'
+import { resendEmailSender, type LoginCodeEmail } from './email.ts'
+import { javaInstant } from '../platform/db.ts'
+import { Logger } from '../platform/log.ts'
+import { InMemoryRateLimiter } from '../platform/rate-limit.ts'
+import { TEST_LOGIN_CODE, TEST_SECRET, testAuth, testDatabase } from '../test/test-support.ts'
 
 const hmac = (value: string) => createHmac('sha256', TEST_SECRET).update(value).digest('hex')
 const DAY_MS = 86_400_000

@@ -7,7 +7,7 @@ both the product server and the browser engine read it; neither asks
 
 ## What the index is
 
-`server/card-images.sqlite` holds one row per artwork
+`server/assets/card-images.sqlite` holds one row per artwork
 identity:
 
 - `card_images(lookup_name, is_token, normal_url, back_url)` — the primary key
@@ -67,7 +67,7 @@ bun run browser:assets
 ```
 
 `bun run cards:index` downloads the current Oracle bulk file, streams it, and
-rewrites `server/card-images.sqlite` atomically. To reuse an
+rewrites `server/assets/card-images.sqlite` atomically. To reuse an
 already-downloaded file instead of downloading again, pass `--input` with a
 `.jsonl.gz` bulk file or a JSON array of Oracle cards, plus the export's own
 publication date:
@@ -94,7 +94,7 @@ release manifest from the new file.
 
 ```bash
 bun test scripts/build-card-image-index.test.ts
-sqlite3 server/card-images.sqlite \
+sqlite3 server/assets/card-images.sqlite \
   "select count(*) from card_images; select * from metadata;"
 ```
 

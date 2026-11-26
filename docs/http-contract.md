@@ -1,9 +1,12 @@
 # Product HTTP contracts
 
-`src/shared/api/wire-schemas.ts` is the single product HTTP contract. It holds
+`server/contract/wire-schemas.ts` is the single product HTTP contract. It holds
 hand-authored Zod schemas for request and response bodies and exports their
-TypeScript types with `z.infer`. Change a schema and the server route that
-emits it in the same change; the parity suite rejects a server that disagrees.
+TypeScript types with `z.infer`. The frontend imports it as
+`@contract/wire-schemas`. Server routes parse request bodies with the `Input`
+schemas and type their responses with the contract types, so a schema change
+fails to compile against a route that disagrees. The parity suite checks the
+running server over HTTP.
 
 `responseSchemas` maps each `METHOD /path` and status to its JSON body schema.
 Empty and text responses have no entry. DTO schemas can also be used directly.

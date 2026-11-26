@@ -63,7 +63,7 @@ valid review.
   publish through the external-store boundary.
 - **Twins that drift.** A change breaks the contract a matched pair shares and
   leaves the counterpart behind: encode and decode, request and response, the
-  product server's HTTP responses and the Zod schemas in `wire-schemas.ts`,
+  product server's HTTP responses and the Zod schemas in `server/contract/wire-schemas.ts`,
   the table model and its migration. A one-sided change that keeps or restores
   the shared contract is fine.
 - **Unsafe persistence.** An edited migration that may already have run, or a

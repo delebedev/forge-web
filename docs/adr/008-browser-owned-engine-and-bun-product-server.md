@@ -24,7 +24,7 @@ server fallback. Replays reuse the same board through a read-only frame source.
 
 The product server is TypeScript on Bun under `server/`. It imports nothing from
 Leyline, constructs no games and serves only product HTTP routes. The Zod
-schemas in `src/shared/api/wire-schemas.ts` are the single HTTP contract. The
+schemas in `server/contract/wire-schemas.ts` are the single HTTP contract. The
 server keeps the Flyway-compatible migration history of the database it
 inherited.
 

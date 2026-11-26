@@ -60,6 +60,7 @@ export default defineConfig({
       '@features': fileURLToPath(new URL('./src/features', import.meta.url)),
       '@shell': fileURLToPath(new URL('./src/shell', import.meta.url)),
       '@shared': fileURLToPath(new URL('./src/shared', import.meta.url)),
+      '@contract': fileURLToPath(new URL('./server/contract', import.meta.url)),
     },
   },
   build: {

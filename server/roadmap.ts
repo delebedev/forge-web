@@ -1,7 +1,9 @@
 import type { Database } from 'bun:sqlite'
-import { isGuestEmail, sessionPlayer, type WebAuth } from './auth.ts'
-import { writeTransaction } from './db.ts'
-import { empty, json, type Context, type Routes } from './http.ts'
+import { sessionPlayer } from './auth/routes.ts'
+import { isGuestEmail, type WebAuth } from './auth/web-auth.ts'
+import { writeTransaction } from './platform/db.ts'
+import { empty, json, type Context, type Routes } from './platform/http.ts'
+import type { RoadmapItem } from './contract/wire-schemas.ts'
 
 interface ItemRow {
   id: string
@@ -12,7 +14,7 @@ interface ItemRow {
   status_updated_at: string | null
 }
 
-export function listRoadmap(db: Database, playerId: string | null) {
+export function listRoadmap(db: Database, playerId: string | null): RoadmapItem[] {
   const items = db
     .query(
       'SELECT id, title, description, status, note, status_updated_at FROM roadmap_items WHERE visible = 1 ORDER BY sort_order',

@@ -1,7 +1,7 @@
 import type { Database } from 'bun:sqlite'
-import { z } from 'zod'
-import { requireOwnedPlayer, requirePlayer, type WebAuth } from './auth.ts'
-import { writeTransaction } from './db.ts'
+import { requireOwnedPlayer, requirePlayer } from './auth/routes.ts'
+import { type WebAuth } from './auth/web-auth.ts'
+import { writeTransaction } from './platform/db.ts'
 import {
   MalformedBody,
   ResponseError,
@@ -10,31 +10,27 @@ import {
   readJson,
   type Context,
   type Routes,
-} from './http.ts'
-import { Logger } from './log.ts'
+} from './platform/http.ts'
+import { Logger } from './platform/log.ts'
+import {
+  CreateDeckRequestInputSchema,
+  type CreateDeckRequest,
+  type DeckView,
+  type ParseDecklistErrorResponse,
+  type WebDeckCard,
+} from './contract/wire-schemas.ts'
 
-const int = z.number().int().min(-2_147_483_648).max(2_147_483_647)
-const deckCard = z.object({ cardName: z.string(), quantity: int })
-const deckRequest = z.object({
-  playerId: z.string(),
-  name: z.string(),
-  format: z.string().default('Standard'),
-  mainDeck: z.array(deckCard),
-  sideboard: z.array(deckCard).default([]),
-  commandZone: z.array(deckCard).default([]),
-})
+export type DeckCard = WebDeckCard
+/** A deck save with the contract's defaults applied. */
+export type DeckRequest = Required<CreateDeckRequest>
 
-export type DeckCard = z.infer<typeof deckCard>
-export type DeckRequest = z.infer<typeof deckRequest>
-
-export interface DeckView {
-  id: string
-  playerId: string
-  name: string
-  format: string
-  mainDeck: DeckCard[]
-  sideboard: DeckCard[]
-  commandZone: DeckCard[]
+function withDefaults(request: CreateDeckRequest): DeckRequest {
+  return {
+    ...request,
+    format: request.format ?? 'Standard',
+    sideboard: request.sideboard ?? [],
+    commandZone: request.commandZone ?? [],
+  }
 }
 
 export const OUT_OF_DATE_DECK_SAVE =
@@ -58,7 +54,7 @@ const requestLog = new Logger('io.ktor.server.Application')
 /** A rejected deck save, answered 400 with every reason. */
 export function deckRejected(errors: string[]): ResponseError {
   return new ResponseError(
-    () => json({ errors }, 400),
+    () => json({ errors } satisfies ParseDecklistErrorResponse, 400),
     errors.join(' '),
     (ctx) =>
       requestLog.warn(
@@ -245,7 +241,7 @@ export class DeckStore {
 /** A body that does not match the request comes from a page built against an older shape. */
 async function readDeckRequest(ctx: Context): Promise<DeckRequest> {
   try {
-    return await readJson(ctx, deckRequest)
+    return withDefaults(await readJson(ctx, CreateDeckRequestInputSchema))
   } catch (cause) {
     if (cause instanceof MalformedBody) {
       throw deckRejected([OUT_OF_DATE_DECK_SAVE])

@@ -1,25 +1,24 @@
 import type { Database } from 'bun:sqlite'
-import { z } from 'zod'
-import { deviceId, sessionPlayer, type WebAuth } from './auth.ts'
-import { javaInstant, writeTransaction } from './db.ts'
-import { empty, json, readJson, requireRequest, type Routes } from './http.ts'
-import { InMemoryRateLimiter } from './rate-limit.ts'
+import { deviceId, sessionPlayer } from './auth/routes.ts'
+import { type WebAuth } from './auth/web-auth.ts'
+import { javaInstant, writeTransaction } from './platform/db.ts'
+import { empty, json, readJson, requireRequest, type Routes } from './platform/http.ts'
+import { InMemoryRateLimiter } from './platform/rate-limit.ts'
+import {
+  PuzzleRatingRequestInputSchema,
+  type GeneratedPuzzle,
+  type PuzzleRatingRequest,
+} from './contract/wire-schemas.ts'
 
-export interface GeneratedPuzzle {
-  id: string
-  title: string
-  text: string
-  createdAt: string
+/** A rating with the contract's defaults applied: no comment and no actions. */
+export interface PuzzleRating extends Omit<PuzzleRatingRequest, 'comment' | 'actions'> {
+  comment: string | null
+  actions: string[]
 }
 
-const ratingRequest = z.object({
-  reaction: z.string(),
-  comment: z.string().nullable().default(null),
-  outcome: z.string(),
-  actions: z.array(z.string()).default([]),
-})
-
-export type PuzzleRating = z.infer<typeof ratingRequest>
+function withDefaults(request: PuzzleRatingRequest): PuzzleRating {
+  return { ...request, comment: request.comment ?? null, actions: request.actions ?? [] }
+}
 
 const HOUR_MS = 3_600_000
 const COLUMNS = 'id, title, text, created_at AS createdAt'
@@ -106,7 +105,13 @@ export function puzzleRoutes(
           return empty(404)
         }
         const playerId = sessionPlayer(auth, ctx.req)?.playerId ?? null
-        ratePuzzle(db, puzzleId, device, playerId, await readJson(ctx, ratingRequest))
+        ratePuzzle(
+          db,
+          puzzleId,
+          device,
+          playerId,
+          withDefaults(await readJson(ctx, PuzzleRatingRequestInputSchema)),
+        )
         return empty(204)
       },
     },

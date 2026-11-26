@@ -1,5 +1,5 @@
 import type { DraftCard } from '@shared/api/contracts'
-import type { WebDeckCard } from '@shared/api/wire-schemas'
+import type { WebDeckCard } from '@contract/wire-schemas'
 import { loadCardIndex, type CardIndex, type IndexedCard } from './card-index'
 
 /** A card known only by name, for when the card index is unavailable. */

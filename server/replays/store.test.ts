@@ -12,12 +12,8 @@ import {
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { gzipSync } from 'node:zlib'
-import {
-  MatchReplayStore,
-  ReplayJournalRetired,
-  ReplayStorageCapacityExceeded,
-  type ReplayStoreConfig,
-} from './replay-store.ts'
+import { ReplayStorageCapacityExceeded } from './quota.ts'
+import { MatchReplayStore, ReplayJournalRetired, type ReplayStoreConfig } from './store.ts'
 
 const HOUR = 3_600_000
 const DAY = 24 * HOUR

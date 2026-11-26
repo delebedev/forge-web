@@ -1,14 +1,19 @@
 import type { Database } from 'bun:sqlite'
-import { z } from 'zod'
-import { requirePlayer, type WebAuth } from './auth.ts'
-import { javaInstant, writeTransaction } from './db.ts'
-import { ResponseError, empty, json, readJson, requireRequest, text, type Routes } from './http.ts'
+import { requirePlayer } from './auth/routes.ts'
+import { type WebAuth } from './auth/web-auth.ts'
+import { javaInstant, writeTransaction } from './platform/db.ts'
+import {
+  ResponseError,
+  empty,
+  json,
+  readJson,
+  requireRequest,
+  text,
+  type Routes,
+} from './platform/http.ts'
+import { SaveCourseRecordRequestInputSchema, type CourseRecord } from './contract/wire-schemas.ts'
 
-export interface CourseRecord {
-  eventName: string
-  revision: number
-  document: string
-}
+export type { CourseRecord }
 
 const CONFLICT = 'This course changed in another window. Reload it to continue.'
 export const MAX_DOCUMENT_BYTES = 64 * 1024
@@ -155,11 +160,6 @@ export class CourseRecordStore {
   }
 }
 
-const saveRequest = z.object({
-  revision: z.number().int().min(-2_147_483_648).max(2_147_483_647),
-  document: z.string(),
-})
-
 export function courseRecordRoutes(auth: WebAuth, records: CourseRecordStore): Routes {
   return {
     '/api/course-records': {
@@ -172,7 +172,7 @@ export function courseRecordRoutes(auth: WebAuth, records: CourseRecordStore): R
       },
       PUT: async (ctx) => {
         const { playerId } = requirePlayer(auth, ctx)
-        const request = await readJson(ctx, saveRequest)
+        const request = await readJson(ctx, SaveCourseRecordRequestInputSchema)
         return json(
           records.save(playerId, ctx.params['eventName'] ?? '', request.revision, request.document),
         )

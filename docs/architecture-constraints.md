@@ -39,7 +39,7 @@ Components: ≤10 derived bindings (`useMemo`/plain computed reads) at the top.
 GRE messages: `wire/gre-proto.ts` decodes/encodes against the generated protobuf
 descriptor (`generated/messages.json`) — new GRE fields need the descriptor
 regenerated, not hand-maintained types. REST/DTO types are `z.infer` types of the
-Zod schemas in `src/shared/api/wire-schemas.ts`, the single product HTTP contract.
+Zod schemas in `server/contract/wire-schemas.ts` (`@contract/wire-schemas`), the single product HTTP contract.
 [HTTP contract authoring](http-contract.md) owns field presence, numbers and the
 server parity suite. Generate CSS-module declarations with `bun run css:types`; don't
 hand-edit `*.module.css.d.ts` files.
@@ -57,8 +57,9 @@ and out of the subscription graph.
 
 ### C9. Module Boundaries
 
-Import across directories through `@app`, `@engine`, `@features`, `@shell`, and
-`@shared`; use relative imports within one directory. Shared feature logic lives
+Import across directories through `@app`, `@engine`, `@features`, `@shell`,
+`@shared`, and `@contract` (the product HTTP contract under `server/contract/`);
+use relative imports within one directory. Shared feature logic lives
 in `shared/` or `engine/`.
 
 ### C10. Every Mutation Publishes

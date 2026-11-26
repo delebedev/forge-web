@@ -6,8 +6,8 @@ import {
   starterDeckSeeder,
   type DeckRequest,
 } from './decks.ts'
-import { starterDeckFiles } from './resources.ts'
-import { testAuth, testDatabase, testServer } from './test-support.ts'
+import { starterDeckFiles } from './platform/resources.ts'
+import { testAuth, testDatabase, testServer } from './test/test-support.ts'
 
 let server: ReturnType<typeof testServer>
 afterEach(() => server?.stop())

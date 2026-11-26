@@ -2,12 +2,12 @@ import { afterEach, expect, spyOn, test } from 'bun:test'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import replayChunk from './fixtures/commander-first-chunk.json'
-import { Logger } from './log.ts'
-import { ReplayAdmission } from './replay-admission.ts'
-import { MAX_BROWSER_REPLAY_CHUNK_BYTES } from './replay-routes.ts'
-import { MatchReplayStore } from './replay-store.ts'
-import { OPERATOR_TOKEN, testServer } from './test-support.ts'
+import replayChunk from '../test/fixtures/commander-first-chunk.json'
+import { Logger } from '../platform/log.ts'
+import { ReplayAdmission } from './admission.ts'
+import { MAX_BROWSER_REPLAY_CHUNK_BYTES } from './routes.ts'
+import { MatchReplayStore } from './store.ts'
+import { OPERATOR_TOKEN, testServer } from '../test/test-support.ts'
 
 let server: ReturnType<typeof testServer>
 afterEach(() => server?.stop())

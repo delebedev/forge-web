@@ -1,9 +1,9 @@
 import type { z } from 'zod'
-import { GeneratedPuzzleSchema } from '@shared/api/wire-schemas'
+import { GeneratedPuzzleSchema } from '@contract/wire-schemas'
 import { readJson } from '@shared/api/decoding'
 import { apiFetch } from '@shared/api/client'
 import { DEVICE_ID_HEADER, deviceId } from '@shared/device-id'
-import type { GeneratedPuzzle, PuzzleRatingRequest } from '@shared/api/wire-schemas'
+import type { GeneratedPuzzle, PuzzleRatingRequest } from '@contract/wire-schemas'
 
 export type { GeneratedPuzzle, PuzzleRatingRequest }
 

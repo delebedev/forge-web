@@ -1,4 +1,4 @@
-import { AuthViewSchema } from '@shared/api/wire-schemas'
+import { AuthViewSchema } from '@contract/wire-schemas'
 import { reactNavigate } from '@app/router'
 import { setAnalyticsAccountId } from '@shared/analytics'
 import { setReportingUser } from '@shared/reporting'

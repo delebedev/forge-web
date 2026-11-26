@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from 'bun:test'
-import { testDatabase, testServer } from './test-support.ts'
+import { testDatabase, testServer } from './test/test-support.ts'
 
 let server: ReturnType<typeof testServer>
 afterEach(() => server?.stop())

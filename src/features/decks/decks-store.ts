@@ -1,4 +1,4 @@
-import { DeckViewSchema } from '@shared/api/wire-schemas'
+import { DeckViewSchema } from '@contract/wire-schemas'
 import { readJson } from '@shared/api/decoding'
 import type { DeckSummary } from '@shared/api/contracts'
 import { ParseDecklistErrorResponseSchema } from '@shared/api/contracts'

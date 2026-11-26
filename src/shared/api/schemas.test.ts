@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test'
+import { describe, expect, it, test } from 'bun:test'
 import {
   DeckDetailSchema,
   DraftCardSchema,
@@ -56,4 +56,21 @@ describe('remaining generated schemas', () => {
       }).success,
     ).toBe(true)
   })
+})
+
+test('numeric contract values remain numbers and reject out-of-range card identities', () => {
+  const card = {
+    name: 'Card',
+    grpId: 1,
+    manaCost: null,
+    typeLine: null,
+    rarity: null,
+    colors: [],
+    setCode: null,
+    collectorNumber: null,
+    score: 1.25,
+  }
+  expect(DraftCardSchema.parse(card).score).toBe(1.25)
+  expect(DraftCardSchema.safeParse({ ...card, score: '1.25' }).success).toBe(false)
+  expect(DraftCardSchema.safeParse({ ...card, grpId: 2 ** 31 }).success).toBe(false)
 })
