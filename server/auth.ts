@@ -12,6 +12,7 @@ import {
   type Context,
   type Routes,
 } from './http.ts'
+import { Logger } from './log.ts'
 import { InMemoryRateLimiter, type RateBudget } from './rate-limit.ts'
 
 export const WEB_SESSION_COOKIE = 'web_session'
@@ -41,6 +42,29 @@ export interface LoginCodeEmail {
 
 export type EmailSender = (email: LoginCodeEmail) => Promise<void>
 
+/** The email provider answered with a non-success HTTP status. */
+export class EmailSendError extends Error {
+  readonly status: number
+
+  constructor(status: number) {
+    super(`Resend returned HTTP ${status}`)
+    this.name = 'EmailSendError'
+    this.status = status
+  }
+}
+
+const log = new Logger('forge.web.server.auth.WebAuth')
+
+/** Status and error class only: the address, code and provider message stay out of the log. */
+function logSendFailure(cause: unknown) {
+  const code = (cause as { code?: unknown } | null)?.code
+  log.warn('Login email send failed', {
+    status: cause instanceof EmailSendError ? cause.status : 'none',
+    errorClass: cause instanceof Error ? cause.constructor.name : typeof cause,
+    errorCode: typeof code === 'string' && /^[A-Za-z0-9_]{1,64}$/.test(code) ? code : undefined,
+  })
+}
+
 export function resendEmailSender(apiKey: string, from: string): EmailSender {
   return async (email) => {
     const response = await fetch('https://api.resend.com/emails', {
@@ -61,7 +85,7 @@ export function resendEmailSender(apiKey: string, from: string): EmailSender {
     })
     await response.body?.cancel()
     if (response.status < 200 || response.status > 299) {
-      throw new Error(`Resend returned HTTP ${response.status}`)
+      throw new EmailSendError(response.status)
     }
   }
 }
@@ -193,11 +217,16 @@ export class WebAuth {
         idempotencyKey: `web-login/${id}`,
       })
       return 'sent'
-    } catch {
+    } catch (cause) {
       // Retire this send's own challenge; a later resend may already have replaced it.
       this.db
         .query('UPDATE web_login_challenges SET used_at = ? WHERE id = ? AND used_at IS NULL')
         .run(javaInstant(this.now()), id)
+      try {
+        logSendFailure(cause)
+      } catch {
+        // A failed log write must not change the login answer.
+      }
       return 'email_send_failed'
     }
   }

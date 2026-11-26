@@ -14,7 +14,7 @@ const MIN_REPLAY_BYTES = 64 * 1024
 const MAX_QUEUED_OPERATIONS = 8
 const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}'
 const UUID_PATTERN = new RegExp(`^${UUID}$`, 'i')
-const BROWSER_MATCH_ID = new RegExp(`^browser-${UUID}$`, 'i')
+export const BROWSER_MATCH_ID = new RegExp(`^browser-${UUID}$`, 'i')
 const MATCH_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/
 const REPORT_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$/
 const APPENDED_JOURNAL = /^(.+)\.browser-\d+\.chunks\.gz$/
@@ -128,12 +128,18 @@ function decodeBundle(bytes: Uint8Array): ReplayBundle {
   let value: unknown
   try {
     value = JSON.parse(new TextDecoder().decode(bytes))
-  } catch (cause) {
-    throw new BadRequest(`Invalid replay JSON: ${(cause as Error).message}`)
+  } catch {
+    // The parser's message can quote the body, and this message is logged.
+    throw new BadRequest('Invalid replay JSON')
   }
   const parsed = bundleSchema.safeParse(value)
   if (!parsed.success) {
-    throw new BadRequest(`Invalid replay: ${parsed.error.issues[0]?.message ?? 'shape'}`)
+    const issue = parsed.error.issues[0]
+    throw new BadRequest(
+      issue === undefined
+        ? 'Invalid replay: shape'
+        : `Invalid replay at ${issue.path.join('.') || 'root'}: ${issue.message}`,
+    )
   }
   return parsed.data
 }
