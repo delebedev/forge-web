@@ -10,16 +10,16 @@ import v8 from '../migrations/V8__puzzle_rating_device.sql' with { type: 'text' 
 import v9 from '../migrations/V9__course_records.sql' with { type: 'text' }
 import v10 from '../migrations/V10__drop_engine_tables.sql' with { type: 'text' }
 import v11 from '../migrations/V11__drop_match_outcomes.sql' with { type: 'text' }
-import starter0 from '../../dev/decks/Pauper Green Stompy.txt' with { type: 'text' }
-import starter1 from '../../dev/decks/Pauper Red Burn.txt' with { type: 'text' }
-import starter2 from '../../dev/decks/Pauper Blue Tempo.txt' with { type: 'text' }
-import starter3 from '../../dev/decks/Pauper White Lifegain.txt' with { type: 'text' }
-import starter4 from '../../dev/decks/Pauper Black Sacrifice.txt' with { type: 'text' }
-import starter5 from '../../dev/decks/commander/Atraxa - Counter Growth.txt' with { type: 'text' }
-import starter6 from '../../dev/decks/commander/Krenko - Goblin Swarm.txt' with { type: 'text' }
-import starter7 from '../../dev/decks/commander/Teval - Graveyard Lands.txt' with { type: 'text' }
-import starter8 from '../../dev/decks/commander/Vivi - Spellslinger.txt' with { type: 'text' }
-import starter9 from "../../dev/decks/commander/Y'shtola - Spell Control.txt" with { type: 'text' }
+import starter0 from '../../content/decks/Pauper Green Stompy.txt' with { type: 'text' }
+import starter1 from '../../content/decks/Pauper Red Burn.txt' with { type: 'text' }
+import starter2 from '../../content/decks/Pauper Blue Tempo.txt' with { type: 'text' }
+import starter3 from '../../content/decks/Pauper White Lifegain.txt' with { type: 'text' }
+import starter4 from '../../content/decks/Pauper Black Sacrifice.txt' with { type: 'text' }
+import starter5 from '../../content/decks/commander/Atraxa - Counter Growth.txt' with { type: 'text' }
+import starter6 from '../../content/decks/commander/Krenko - Goblin Swarm.txt' with { type: 'text' }
+import starter7 from '../../content/decks/commander/Teval - Graveyard Lands.txt' with { type: 'text' }
+import starter8 from '../../content/decks/commander/Vivi - Spellslinger.txt' with { type: 'text' }
+import starter9 from "../../content/decks/commander/Y'shtola - Spell Control.txt" with { type: 'text' }
 import cardImagesPath from '../assets/card-images.sqlite' with { type: 'file' }
 
 export interface MigrationScript {

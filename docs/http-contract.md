@@ -35,7 +35,7 @@ file starts its own server on a fresh temporary state directory.
 
 The default target is the server source, `bun server/main.ts`.
 `FORGE_WEB_SERVER_DIST` runs a tested distribution through
-`scripts/run-ci-server.sh`, as the CI server job does.
+`scripts/ci/run-ci-server.sh`, as the CI server job does.
 `FORGE_WEB_PARITY_SERVER_CMD` selects any other command. `startServer` in
 `e2e/server-parity/server.ts` can stop and restart a server on the same state
 directory.

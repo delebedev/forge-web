@@ -64,7 +64,7 @@ class BrowserLimitedTest {
 
     @Test
     fun `the browser catalog ships rankings for every offered set`() {
-        val script = Path.of(checkNotNull(System.getProperty("forge.web.test.root")), "scripts/build-browser-catalog.py")
+        val script = Path.of(checkNotNull(System.getProperty("forge.web.test.root")), "scripts/build/build-browser-catalog.py")
         val listed = Regex("""LIMITED_SETS = \(([^)]*)\)""").find(Files.readString(script))!!.groupValues[1]
         assertEquals(
             SealedPoolGenerator.supportedSets().map { it.code }.sorted(),

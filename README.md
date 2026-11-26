@@ -31,7 +31,7 @@ Storybook-only path.
 - `src/` — React application and GRE client.
 - `server/` — product server (TypeScript on Bun), authentication, persistence, and replays.
 - `e2e/` — browser journeys and screenshots.
-- `dev/decks/` — development deck fixtures.
+- `content/decks/` — starter decks the product ships and development seeds.
 - `docs/` — product, architecture, and development documentation.
 - `leyline/` — pinned game runtime and protocol implementation.
 

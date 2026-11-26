@@ -69,7 +69,7 @@ it with the same packs, bot picks and bot decks. The catalog carries draft
 rankings for the offered sets. Boosters build each edition's print sheets on
 demand instead of loading every card script.
 
-`node tools/limited-timing.mjs --runs 3` times a full FDN draft, its bot decks
+`node scripts/dev/limited-timing.mjs --runs 3` times a full FDN draft, its bot decks
 and a sealed pool on cold workers in desktop Chrome after `bun run browser:assets`.
 
 ## Boundaries

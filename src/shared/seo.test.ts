@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import { metaTags, pageMeta, PUBLIC_META } from './seo'
-import { initialPageMeta, renderHtml, sitemap } from '../../scripts/seo'
+import { initialPageMeta, renderHtml, sitemap } from '../../scripts/build/seo'
 
 test('public HTML and sitemap agree on canonical URLs without stale metadata', () => {
   const template = readFileSync(new URL('../../index.html', import.meta.url), 'utf8')

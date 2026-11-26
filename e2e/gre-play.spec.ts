@@ -190,7 +190,7 @@ for (const [name, file] of [
 ]) {
   test(`Commander stays visible without mana: ${name}`, async ({ page, gre: _gre }, testInfo) => {
     await authenticateShell(page)
-    const deck = readFileSync(`dev/decks/commander/${file}`, 'utf8')
+    const deck = readFileSync(`content/decks/commander/${file}`, 'utf8')
     try {
       await startDeckGame(page, deck, deck, 'commander')
       await keepOpeningHandIfPrompt(page)

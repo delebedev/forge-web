@@ -31,10 +31,10 @@ reuse stored copy without a model call.
 
 **Like**, **dislike** and **BS** are feedback to an agent after publication, never
 CI inputs or gates. Record useful preferences and factual corrections in
-`scripts/release-notes/taste.json` through ordinary code changes. For example:
+`scripts/release/notes/taste.json` through ordinary code changes. For example:
 
 ```sh
-python3 scripts/release_notes.py feedback dislike --text 'Rejected wording' --reason 'Why it misses'
+python3 scripts/release/release_notes.py feedback dislike --text 'Rejected wording' --reason 'Why it misses'
 ```
 
 The prompt uses those examples on future deployments. Keep only examples that
