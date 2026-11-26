@@ -111,9 +111,7 @@ and lines, stays in the dialog.
 | --------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `login`                                                                                                   | `method`, `success`, optional bounded `reason`                                                                                                                               |
 | `game-start`                                                                                              | `mode`, `gameType`, `match_id`, optional `format`, `deck_id`                                                                                                                 |
-| `game-start-failed`                                                                                       | start fields when known, bounded `reason`                                                                                                                                    |
 | `game-complete`                                                                                           | start fields, `result`, `durationSec`, `turn`, `lossReason`                                                                                                                  |
-| `game-left` (historical)                                                                                  | start fields, `phase`, `turn`, bounded `abandon_result`, optional HTTP `status`. Current leave events use `browser-lifecycle` with `stage=left`.                             |
 | `game-first-action`                                                                                       | start fields, bounded numeric `actionType`                                                                                                                                   |
 | `turn-milestone`                                                                                          | start fields, `turn` in `1`, `5`, `10`, `20`                                                                                                                                 |
 | `game-recovery`                                                                                           | `execution=browser`, opaque match/attempt IDs and browser context, bounded `outcome` (`started`, `succeeded`, `failed`, `cancelled`), terminal `duration_ms`                 |
@@ -160,9 +158,8 @@ Count distinct `attempt_id` values for the browser launch funnel and distinct
 runtime failure, and completion separate. A page close, tracker block, or loss
 of connectivity can still leave a launch without a terminal event despite the
 best-effort page-exit signal; report that as an unknown interruption rather than
-inferring failure. Compare browser-local and
-server-backed cohorts only after separating mode, format, release, and browser
-support status.
+inferring failure. Compare cohorts only after separating mode, format, release,
+and browser support status.
 
 A prepared bug form has one UUID `report_id`, which may be reused while its
 page context remains mounted. Primary opens send that value in the

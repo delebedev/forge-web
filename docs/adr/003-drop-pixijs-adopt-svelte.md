@@ -1,7 +1,8 @@
 # ADR-003: Drop PixiJS, Adopt Svelte for DOM Rendering
 
 ## Status
-Accepted
+Superseded by [ADR-004](004-adopt-react-for-web-first-tabletop.md). Its semantic DOM
+rendering conclusion stands; React replaced Svelte.
 
 ## Context
 

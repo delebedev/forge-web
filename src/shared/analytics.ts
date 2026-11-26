@@ -13,9 +13,7 @@ export type GameMode = 'play'
 
 const EVENTS = {
   GAME_START: 'game-start',
-  GAME_START_FAILED: 'game-start-failed',
   GAME_COMPLETE: 'game-complete',
-  GAME_LEFT: 'game-left',
   GAME_FIRST_ACTION: 'game-first-action',
   TURN_MILESTONE: 'turn-milestone',
   BROWSER_LIFECYCLE: 'browser-lifecycle',
@@ -202,7 +200,6 @@ export function trackBrowserLifecycle(
 export type ChallengeAnalyticsEvent =
   | 'challenge-opened'
   | 'challenge-first-action'
-  | 'challenge-stack-opened'
   | 'challenge-zone-opened'
   | 'challenge-restart'
   | 'challenge-solved'
@@ -328,38 +325,6 @@ export function trackGameStart(
   track(EVENTS.GAME_START, data)
 }
 
-export function trackGameStartFailed(
-  props: {
-    format?: string
-    mode: GameMode
-    gameType: string
-    matchId?: string
-    deckId?: string
-    reason: 'aborted' | 'network' | 'server' | 'protocol' | 'unknown'
-    status?: number
-    category?: 'capacity' | 'deployment' | 'server'
-  } & ExecutionAnalyticsContext,
-): void {
-  const data: AnalyticsProps = { mode: props.mode, gameType: props.gameType, reason: props.reason }
-  if (props.format) {
-    data['format'] = props.format
-  }
-  if (props.matchId) {
-    data['match_id'] = props.matchId
-  }
-  if (props.deckId) {
-    data['deck_id'] = props.deckId
-  }
-  if (props.status != null) {
-    data['status'] = props.status
-  }
-  if (props.category) {
-    data['category'] = props.category
-  }
-  Object.assign(data, browserContextData(props))
-  track(EVENTS.GAME_START_FAILED, data)
-}
-
 export function trackGameComplete(
   props: {
     format?: string
@@ -398,43 +363,6 @@ export function trackGameComplete(
   }
   Object.assign(data, browserContextData(props))
   track(EVENTS.GAME_COMPLETE, data)
-}
-
-export function trackGameLeft(
-  props: {
-    turn?: number
-    phase: string
-    gameType: string
-    format?: string
-    matchId: string
-    deckId?: string
-    abandonResult?: 'success' | 'server' | 'network'
-    status?: number
-  } & ExecutionAnalyticsContext,
-): void {
-  const data: AnalyticsProps = {
-    phase: props.phase,
-    mode: 'play',
-    gameType: props.gameType,
-    match_id: props.matchId,
-  }
-  if (props.turn != null) {
-    data['turn'] = props.turn
-  }
-  if (props.format) {
-    data['format'] = props.format
-  }
-  if (props.deckId) {
-    data['deck_id'] = props.deckId
-  }
-  if (props.abandonResult) {
-    data['abandon_result'] = props.abandonResult
-  }
-  if (props.status != null) {
-    data['status'] = props.status
-  }
-  Object.assign(data, browserContextData(props))
-  track(EVENTS.GAME_LEFT, data)
 }
 
 export function trackGameFirstAction(

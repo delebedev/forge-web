@@ -149,7 +149,7 @@ Shared primary actions use clay with dark text, at least 48px high. Prompt choic
 
 `src/shared/ui/Field.tsx` owns native text, multiline and select controls for login, deck management and deck-import dialogs. Labels and context-specific sizing stay with each form. `src/shared/ui/Modal.tsx` owns shared dialog focus, dismissal and focus return; dialog contents keep their feature-local layout.
 
-**The Server Authority Rule.** Bind gestures and buttons to the exact supplied legal action or prompt candidate. Never infer legality from artwork, card names, visual state or a mana estimate.
+**The Engine Authority Rule.** Bind gestures and buttons to the exact supplied legal action or prompt candidate. Never infer legality from artwork, card names, visual state or a mana estimate.
 
 Single-action cards can click or drag to submit that action. Cards with several legal actions open an explicit chooser. Board target selection mirrors the prompt's candidates; the inspectable list preserves exact target identity. Source-to-target links use a pale dashed stroke, combat assignments a clay solid stroke. Motion is visual feedback, not the authority for a command.
 

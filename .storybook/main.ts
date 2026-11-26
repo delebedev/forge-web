@@ -13,7 +13,7 @@ const config: StorybookConfig = {
   viteFinal(config) {
     config.plugins = config.plugins?.filter((plugin) => {
       const name = Array.isArray(plugin) ? plugin[0]?.name : plugin?.name
-      return name !== 'forge-web-dev-transcripts' && name !== 'forge-web-seo'
+      return name !== 'forge-web-seo'
     })
     const publicPort = process.env['STORYBOOK_PUBLIC_PORT']
     if (publicPort && config.server) {

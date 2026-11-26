@@ -8,7 +8,7 @@ import {
 } from './gre-transcript'
 import { GAME_STATE_TYPE_FULL } from '@engine/state/gre-state'
 
-const BUNDLE_PATH = 'dev/transcripts/sample.greplay.json'
+const BUNDLE_PATH = 'public/replays/green-stompy-v-red-burn-v1.greplay.json'
 
 function bundleOf(batches: { messages: unknown[] }[]): TranscriptBundle {
   return {
@@ -186,7 +186,7 @@ test('bundle card metadata fills the store cache shape', () => {
   })
 })
 
-test('the sample transcript folds into a populated board', async () => {
+test('the curated transcript folds into a populated board', async () => {
   const bundle = parseTranscriptBundle(await Bun.file(BUNDLE_PATH).json())
   const { store, source } = await storeWithSource(bundle)
   store.setViewerSeat(bundle.viewerSeatId)
@@ -196,8 +196,7 @@ test('the sample transcript folds into a populated board', async () => {
   expect(source.misses).toEqual([])
   expect(store.gameStateId).toBeGreaterThan(0)
   expect(store.turnNumber).toBeGreaterThan(1)
-  // Zones, not names: the committed bundle bakes no card metadata, so this is
-  // the part that must hold with no card lookup reachable.
+  // Zones, not names: the store reads no card metadata here.
   const permanents = [...store.battlefield, ...store.opponentBattlefield]
   expect(permanents.length).toBeGreaterThan(0)
   expect(store.viewer.lifeTotal).toBeLessThan(store.viewer.startingLifeTotal)
@@ -240,7 +239,7 @@ test('seeded metadata is what turns grpId labels into names', async () => {
   expect(after?.name).toBe('Seeded Card')
 })
 
-test('the sample transcript is a pure-source bundle that bakes no card data', async () => {
+test('the curated transcript carries card data for every card it shows', async () => {
   const bundle = parseTranscriptBundle(await Bun.file(BUNDLE_PATH).json())
   const frames = transcriptFrames(bundle)
   const fulls = frames.filter((frame) => {
@@ -250,13 +249,22 @@ test('the sample transcript is a pure-source bundle that bakes no card data', as
       message.gameStateMessage?.type === GAME_STATE_TYPE_FULL
     )
   })
+  const shown = new Set(
+    frames
+      .flatMap(
+        (frame) =>
+          (frame.message as { gameStateMessage?: { gameObjects?: { grpId?: number }[] } })
+            .gameStateMessage?.gameObjects ?? [],
+      )
+      .map((object) => object.grpId),
+  )
 
+  expect(bundle.version).toBe(2)
   expect(fulls.length).toBeGreaterThan(0)
   expect(bundle.viewerSeatId).toBeGreaterThan(0)
-  // A committed bundle carries no resolved card metadata; see the exporter for
-  // why baking a name map is a local-only affordance.
-  expect(bundle.cards).toEqual({})
-  expect(bundle.source).toBe('simclient')
+  expect(shown.size).toBeGreaterThan(0)
+  const cards = transcriptCardMeta(bundle)
+  expect([...shown].filter((grpId) => grpId === undefined || !cards.has(grpId))).toEqual([])
 })
 
 test('replay card inspection retains rules, ability text and linked faces without a lookup', () => {

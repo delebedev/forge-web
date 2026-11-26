@@ -48,10 +48,6 @@ _Avoid_: puzzle fixture, match
 A match whose game rules run in the player's browser.
 _Avoid_: local game, offline play
 
-**Server execution**:
-A match whose game rules run on the Forge Web server.
-_Avoid_: remote game, online play
-
 ### Support
 
 **Report**:

@@ -4,6 +4,11 @@
 
 Accepted
 
+React now owns every product area and Svelte is gone. Game rules run in the
+browser worker rather than on a server ([ADR-008](008-browser-owned-engine-and-bun-product-server.md)).
+Read "server authority" and "the server stream" below as the engine and its
+GRE frames.
+
 ## Context
 
 The client is becoming a rich tabletop application rather than a conventional

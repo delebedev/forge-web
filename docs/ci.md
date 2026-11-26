@@ -76,11 +76,11 @@ history expand the affected suite to full coverage.
 | --- | --- | --- |
 | Real login and persisted session | email code login persists after reload | all authentication cases |
 | Deck import, editing and selection | deck library controls; playable deck import and launch | full product suite, including Draft, challenges, curated watch and local recovery |
-| Server opening and action | first land | all regular GRE cases |
+| Opening and action | first land | all regular GRE cases |
 | Combat and catalog identity | attacker submission; Jungle Lion cast and combat damage | full catalog and GRE combat cases |
-| Reconnect ownership | socket loss restores opening and played board | complete recovery suite |
+| Recovery | Urborg and Takenuma survive priority and pay for a spell | complete recovery suite |
 | Terminal outcome | lethal burn | full outcome and retirement cases |
-| Costs in both execution heads | sacrifice/discard offered-branch call, four generated cases | complete life/kicker/offspring matrix |
+| Additional costs | every generated `additional cost:` case | complete life/kicker/offspring matrix |
 | Browser Local startup and action | existing generated/bundled puzzle smoke | same required smoke, extended qualification unchanged |
 
 Every new or changed managed spec runs its entire regular suite file on PRs,
@@ -195,8 +195,8 @@ reused-proof runs. It shows reported outcomes by suite, job queue and occupancy
 times, command durations, sampled memory versus limits, CPU consumption and
 memory event deltas. Earlier successful producer attempts remain identified on
 partial reruns. Retry delay is included in trigger-to-gate time and marked as
-such. Gradle cached outcomes and repeated OpenAPI export checks are labelled;
-they are not presented as newly executed or unique tests. Extended qualification,
+such. Gradle cached outcomes are labelled; they are not presented as newly
+executed tests. Extended qualification,
 coverage and historical flake rates are outside this report.
 
 Rollback workflow, selection and proof logic together. Keep the required

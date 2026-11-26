@@ -17,15 +17,15 @@ client-side.
 | `/play/game` | `GameSetupRoute` → `GameSetup` | no | Constructed setup: deck, format, opponent; saved decks need an account |
 | `/play/limited` | `LimitedRoute` → `LimitedView` | account | Draft/sealed mode picker, `?mode=draft\|sealed` |
 | `/challenges` | `ChallengesView` | dev | Curated puzzle browser; production returns 404 |
-| `/challenges/:id` | `ChallengesView` → `GrePlay` | dev | Launch a curated puzzle on the standard match route |
+| `/challenges/:challengeId` | `ChallengesView` → `GrePlay` | dev | Launch a curated puzzle on the standard match route |
 | `/challenge/:challengeId` | `BrowserChallenge` → `GrePlay` | no | Daily bundled puzzle rotation and shared generated puzzle pool |
 | `/watch` | `CuratedWatch` | no | Curated full-game replays with automatic playback and card inspection |
 | `/watch/:replayId` | `CuratedWatch` | no | Allowlisted static replay; fresh-game deck handoff |
 | `/play/replay` | `ReplayView` | dev | Local operator transcript viewer with completeness and submitted-choice inspection; production returns 404 |
 | `/decks` | `DecksView` | account | Deck browser: list + detail pane + filters |
 | `/decks/:deckId` | `DecksView` | account | Auto-select a deck by its stable ID |
-| `/match/:id` | `MatchRoute` → `GrePlay` | no | Active GRE match route with stored launch config |
-| `/dev/puzzle/:id` | `DevLoader` | dev | Auto-boot puzzle |
+| `/match/:matchId` | `MatchRoute` → `GrePlay` | no | Active GRE match route with stored launch config |
+| `/dev/puzzle/:puzzleId` | `DevLoader` | dev | Auto-boot puzzle |
 | `/dev/game` | `DevLoader` | dev | Auto-boot constructed with default deck |
 | `/*` | `NotFoundPage` | no | 404 fallback |
 
@@ -53,17 +53,15 @@ ShellRoot
 `ShellRoot` renders `ChallengesView` for the launcher and concrete challenge
 ids. Selecting an id starts `greSession` with puzzle context, then the normal
 match route renders `GrePlay`, `Board`, and `PromptDock`. The launcher also owns
-an editable candidate draft. Validation returns an immutable owner-scoped id;
-trial and play refer to that id instead of resending edited text.
+an editable candidate draft; see [Challenges](challenges.md).
 
 The singular `/challenge/:challengeId` route is separate. The public Daily
 Puzzle link selects one of eight bundled positions by UTC day. `/challenge/random`
-selects from the server's accepted shared pool; UUID links load the accepted
+selects from the server's frozen generated pool; UUID links load the accepted
 `.pzl` by id. Bundled versioned IDs remain direct and shareable.
-All positions start the pinned Forge browser worker in place; no server-backed
-match is needed. Retry reuses the worker and position. The owner can generate
-a vetted Next puzzle, while other players select a different pool entry. A
-terminal generated puzzle can be rated without an account, once per device.
+All positions start the pinned Forge browser worker in place. Retry reuses the
+worker and position. Next selects a different pool entry. A terminal generated
+puzzle can be rated without an account, once per device.
 
 ## Stores
 
@@ -91,12 +89,9 @@ Single-writer pattern — one store owns each signal.
   → browser worker starts the match → GRE projection → hydrate
 ```
 
-All games execute locally. Missing browser capabilities and startup failures show
-an explicit error and browser retry. There is no alternate server host.
-
 ### Development challenge
 ```
-/challenges/:id → read /dev/puzzles/{id}.pzl from the Vite dev server
+/challenges/:challengeId → read /dev/puzzles/{id}.pzl from the Vite dev server
   → greSession.startBrowser({puzzleText}) → router.navigate('/match/puzzle')
   → worker starts the puzzle → hydrate GrePlay
 ```
@@ -104,12 +99,11 @@ an explicit error and browser retry. There is no alternate server host.
 The puzzle supplies its initial state and objective only. `greStore` remains the
 sole match-state and action owner. Restart awaits retirement of the current
 match before launching the exact same puzzle. Return clears the match and opens
-the launcher. `/dev/puzzle/:id` reads the same fixture file and uses the same
+the launcher. `/dev/puzzle/:puzzleId` reads the same fixture file and uses the same
 match path.
 
 Editable candidates validate authored text in a dedicated browser worker. First
 validation explicitly initializes the local engine. Play launches that exact text.
-Generation and server engine trials have no product route.
 
 ### Draft
 ```
@@ -165,9 +159,7 @@ Refresh mid-draft or mid-build: {draft,sealed}Store.tryResume() → GET /api/cou
 
 ## Gameplay boundary
 
-Gameplay frames stay between the browser worker and `greStore`.
-There is no product gameplay WebSocket. Draft/sealed generation and course
-progress use REST. Static watch streams use saved transcripts.
+[Architecture](architecture.md) owns the execution host and transports.
 
 ## Auth & persistence
 
@@ -241,4 +233,4 @@ are provisioned with the ordinary dev seed command.
 
 ## Curated watch
 
-The landing table and `/watch` play allowlisted complete games from `public/replays/` through `TranscriptFrameSource` and the production board. They do not initialize the browser engine or start a server match. Each game starts from normal opening hands and plays through its terminal outcome. After a short result dwell, the next game starts automatically. Public viewing has no playback controls, timeline, picker or live-status claim. Card inspection stays available. Playback and pending rotation pause when the page or table is hidden, and stop on unmount. The current matchup's `Play these decks` link opens `/play/game?replay=<known-id>` for a fresh game using those complete decks. The operator file picker, arbitrary `?src` loading and full playback controls remain development-only at `/play/replay`. Exact deck inputs and provenance live in `dev/replays/README.md`.
+The landing table and `/watch` play allowlisted complete games from `public/replays/` through `TranscriptFrameSource` and the production board. They do not initialize the browser engine. Each game starts from normal opening hands and plays through its terminal outcome. After a short result dwell, the next game starts automatically. Public viewing has no playback controls, timeline, picker or live-status claim. Card inspection stays available. Playback and pending rotation pause when the page or table is hidden, and stop on unmount. The current matchup's `Play these decks` link opens `/play/game?replay=<known-id>` for a fresh game using those complete decks. The operator file picker, arbitrary `?src` loading and full playback controls remain development-only at `/play/replay`. Exact deck inputs and provenance live in `dev/replays/README.md`.

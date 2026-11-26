@@ -57,6 +57,6 @@ jobs:
             and one line per must-fix finding. Use CHANGES only when there is at least one must-fix finding.
           claude_args: |
             --model claude-opus-5-5
-            --max-turns 15
+            --max-turns 40
             --permission-mode dontAsk
             --allowedTools "Read,Glob,Grep,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),mcp__github_inline_comment__create_inline_comment"

@@ -28,4 +28,4 @@ A game-first desktop surface: clear state at a glance, exact command identity, r
 
 ## Verification boundary
 
-The current pass covers gameplay and a cohesive shell theme, not new gameplay rules or a backend rewrite. True mana pool values are not currently projected by the server; the visible resource note honestly reports tapped lands. Visual proofs and native reference media are private local artifacts and are not bundled with the app.
+The current pass covers gameplay and a cohesive shell theme, not new gameplay rules or a backend rewrite. True mana pool values are not currently projected by the engine; the visible resource note honestly reports tapped lands. Visual proofs and native reference media are private local artifacts and are not bundled with the app.

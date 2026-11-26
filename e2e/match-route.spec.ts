@@ -8,7 +8,6 @@ const savedConfig = {
 
 async function observeAdmission(page: Page, config: unknown) {
   const starts: unknown[] = []
-  const sockets: string[] = []
   await page.addInitScript((value) => {
     if (value) {
       sessionStorage.setItem('forge:gre:lastMatchConfig', JSON.stringify(value))
@@ -38,15 +37,10 @@ async function observeAdmission(page: Page, config: unknown) {
         return route.fulfill({ status: 204 })
     }
   })
-  await page.routeWebSocket(/\/gre\?/, (socket) => {
-    sockets.push(socket.url())
-  })
-  return { starts, sockets }
+  return { starts }
 }
 
-test('incompatible saved match redirects without starting an engine or opening GRE', async ({
-  page,
-}, info) => {
+test('incompatible saved match redirects without starting an engine', async ({ page }, info) => {
   const observed = await observeAdmission(page, savedConfig)
   await page.goto('/match/draft')
   await expect(page).toHaveURL(/\/play\/limited\?mode=draft$/)
@@ -58,19 +52,15 @@ test('incompatible saved match redirects without starting an engine or opening G
     contentType: 'application/json',
   })
   expect(observed.starts).toEqual([])
-  expect(observed.sockets).toEqual([])
   expect(await page.evaluate(() => sessionStorage.getItem('forge:gre:lastMatchConfig'))).toBeNull()
 })
 
-test('missing saved match redirects without starting an engine or opening GRE', async ({
-  page,
-}) => {
+test('missing saved match redirects without starting an engine', async ({ page }) => {
   const observed = await observeAdmission(page, null)
   await page.goto('/match/constructed')
   await expect(page).toHaveURL(/\/play\/game$/)
   await expect(page.getByRole('button', { name: 'Start game', exact: true })).toBeVisible()
   expect(observed.starts).toEqual([])
-  expect(observed.sockets).toEqual([])
 })
 
 test('legacy replay route ignores saved launch config and opens the transcript player', async ({
@@ -81,7 +71,6 @@ test('legacy replay route ignores saved launch config and opens the transcript p
   await expect(page).toHaveURL(/\/play\/replay$/)
   await expect(page.getByRole('heading', { name: 'No transcript loaded' })).toBeVisible()
   expect(observed.starts).toEqual([])
-  expect(observed.sockets).toEqual([])
 })
 
 test('historical server matches return to setup without a gameplay request', async ({ page }) => {
@@ -93,7 +82,6 @@ test('historical server matches return to setup without a gameplay request', asy
   await page.goto('/match/constructed')
   await expect(page).toHaveURL(/\/play\/game$/)
   expect(observed.starts).toEqual([])
-  expect(observed.sockets).toEqual([])
 })
 
 test('compatible browser match after reload keeps its ended-game controls without server startup', async ({
@@ -111,5 +99,4 @@ test('compatible browser match after reload keeps its ended-game controls withou
   await expect(page.getByRole('button', { name: 'Back to Play', exact: true })).toBeVisible()
   await expect(page).toHaveURL(/\/match\/constructed$/)
   expect(observed.starts).toEqual([])
-  expect(observed.sockets).toEqual([])
 })

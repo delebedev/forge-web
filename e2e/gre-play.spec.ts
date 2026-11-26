@@ -599,8 +599,8 @@ test('legacy replay match route opens the transcript player', async ({ page }, t
   await expect(page.getByRole('region', { name: 'Battlefield', exact: true })).toBeVisible()
   await page.screenshot({ path: testInfo.outputPath('replay-shell-desktop.png') })
 
-  await page.goto('/play/replay?src=/transcripts/sample.greplay.json')
-  await expect(page.getByText('463 frames', { exact: false })).toBeVisible({ timeout: 10_000 })
+  await page.goto('/play/replay?src=/replays/green-stompy-v-red-burn-v1.greplay.json')
+  await expect(page.getByText('1108 frames', { exact: false })).toBeVisible({ timeout: 10_000 })
   await page.getByRole('button', { name: 'Stack ▸' }).click()
   await expect(page.getByLabel('Stack', { exact: true })).toBeVisible()
 })

@@ -291,7 +291,7 @@
         "section": "layout"
       },
       {
-        "name": "The Server Authority Rule",
+        "name": "The Engine Authority Rule",
         "body": "Bind gestures and buttons to the exact supplied legal action or prompt candidate. Never infer legality from artwork, card names, visual state or a mana estimate.",
         "section": "components"
       }

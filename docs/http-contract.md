@@ -37,8 +37,7 @@ The default target is the server source, `bun server/main.ts`.
 `e2e/server-parity/server.ts` can stop and restart a server on the same state
 directory.
 
-The suite leaves out the whole-artifact replay upload and
-`/api/puzzles/runs/{runId}`, which have no browser caller.
+The suite leaves out the whole-artifact replay upload, which has no browser caller.
 
 Static browser-engine assets, downloaded replay bundles and bundled puzzle text
 have separate owners. Deck browser views and placeholder cards remain frontend

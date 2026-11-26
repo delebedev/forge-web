@@ -4,7 +4,6 @@ import { trackChallengeEvent, type ChallengeAnalyticsEvent } from './analytics'
 export type ChallengeEvent =
   | 'challenge_opened'
   | 'challenge_first_action'
-  | 'challenge_stack_opened'
   | 'challenge_zone_opened'
   | 'challenge_restart'
   | 'challenge_solved'
@@ -31,7 +30,6 @@ export interface TelemetrySink {
 const EVENT_NAMES: Record<ChallengeEvent, ChallengeAnalyticsEvent> = {
   challenge_opened: 'challenge-opened',
   challenge_first_action: 'challenge-first-action',
-  challenge_stack_opened: 'challenge-stack-opened',
   challenge_zone_opened: 'challenge-zone-opened',
   challenge_restart: 'challenge-restart',
   challenge_solved: 'challenge-solved',

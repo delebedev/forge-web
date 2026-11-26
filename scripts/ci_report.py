@@ -29,7 +29,7 @@ def suite(path):
         return 'Unit (Bun)' if path.parent.name == 'test-results' else path.parent.name
     for module in ['server', 'browser-engine', 'card-presentation']:
         if module in parts:
-            return module + (' / OpenAPI export' if 'generateOpenApi' in parts else '')
+            return module
     return path.parent.name
 
 
@@ -117,8 +117,7 @@ def render(root, metadata):
                   '| Suite | Passed | Failed | Skipped |', '| --- | ---: | ---: | ---: |']
         for label, values in sorted(counts.items()):
             lines.append(f"| {cell(label)} | {values[0]} | {values[1]} | {values[2]} |")
-        lines += ['', 'These are reported outcomes, including Gradle cached results. '
-                  'OpenAPI export is a separate invocation, not additional unique tests.', '']
+        lines += ['', 'These are reported outcomes, including Gradle cached results.', '']
     else:
         lines += ['No JUnit results available for this scope or attempt.', '']
     metrics = []
