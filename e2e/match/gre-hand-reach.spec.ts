@@ -14,7 +14,7 @@ for (const size of [7, 20, 62]) {
       localStorage.setItem('forge:gre:priority-flag:hideCardArt', 'true'),
     )
     await authenticateShell(page, `hand-reach-${size}`)
-    await startScenario(page, `hand-reach-${size}`, 'browser', 42)
+    await startScenario(page, `hand-reach-${size}`, 42)
     const hand = page.locator('[data-zone="hand"][data-owner="self"] [data-card]')
     await expect(hand).toHaveCount(size)
     const ornithopter = hand.last()

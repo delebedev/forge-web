@@ -628,17 +628,9 @@ test('browser telemetry pairs engine readiness with its launch attempt', async (
   ).toHaveLength(1)
 })
 
-test('browser launch failure can retry or return to setup without server fallback', async ({
-  page,
-}) => {
+test('browser launch failure can retry or return to setup', async ({ page }) => {
   await signIn(page)
   let manifests = 0
-  const serverRequests: string[] = []
-  page.on('request', (request) => {
-    if (/\/api\/gre\//.test(request.url())) {
-      serverRequests.push(request.url())
-    }
-  })
   await page.route('**/browser-engine/release.json', async (route) => {
     manifests += 1
     await route.fulfill({ status: 503, body: '{}' })
@@ -655,7 +647,6 @@ test('browser launch failure can retry or return to setup without server fallbac
   await alert.getByRole('button', { name: 'Back to Play' }).click()
   await expect(page).toHaveURL(/\/play\/game$/)
   expect(await page.evaluate(() => sessionStorage.getItem('forge:gre:lastMatchConfig'))).toBeNull()
-  expect(serverRequests).toEqual([])
 })
 
 test('failed application preload offers an explicit refresh without looping', async ({

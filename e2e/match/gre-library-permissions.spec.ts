@@ -5,10 +5,10 @@ import { activate, loadAcceptanceSuite, runGreAcceptanceSteps } from '../support
 import { castSpell } from '../support/gre-actions'
 
 for (const zone of ['Graveyard', 'Exile'] as const) {
-  test(`open ${zone} viewer follows Relic resolution (browser)`, async ({ page }, info) => {
+  test(`open ${zone} viewer follows Relic resolution`, async ({ page }, info) => {
     test.setTimeout(180_000)
     await authenticateShell(page)
-    await startScenario(page, 'live-zone-viewer', 'browser')
+    await startScenario(page, 'live-zone-viewer')
     await page.getByRole('button', { name: 'Board options', exact: true }).click()
     await page.getByRole('checkbox', { name: 'Hide card art', exact: true }).check()
     await page.keyboard.press('Escape')
@@ -50,51 +50,49 @@ for (const zone of ['Graveyard', 'Exile'] as const) {
   })
 }
 
-for (const execution of ['browser'] as const) {
-  for (const suiteName of ['library-play', 'opposition-search']) {
-    test(`library permissions: ${suiteName} (${execution})`, async ({ page }, info) => {
-      test.setTimeout(180_000)
-      const scenario = loadAcceptanceSuite(suiteName).scenarios[0]!
-      await authenticateShell(page)
-      await startScenario(page, scenario.puzzle, execution)
-      readyForVideo.add(page)
-      if (recordDemos) {
-        await page.waitForTimeout(1000)
-      }
-      await runGreAcceptanceSteps(page, {
-        ...scenario,
-        steps: [
-          ...scenario.steps.map((step) => {
-            const expected = step['expect'] as { all?: Record<string, unknown>[] } | undefined
-            if (!expected?.all) {
-              return step
-            }
-            return {
-              ...step,
-              expect: { all: expected.all.filter((condition) => !('winner' in condition)) },
-            }
-          }),
-          ...(suiteName === 'opposition-search'
-            ? [{ pass_until: { prompt: { type: 'DeclareAttackersReq' } } }]
-            : []),
-        ],
-      })
-      const permanent = suiteName === 'library-play' ? 'Rumbling Baloth' : 'Grizzly Bears'
-      await expect(
-        page.locator(`[data-zone="battlefield"][data-owner="self"] [data-card="${permanent}"]`),
-      ).toBeVisible()
-      if (recordDemos) {
-        await page.waitForTimeout(1500)
-      }
-      await page.screenshot({ path: info.outputPath(`${suiteName}-resolved.png`) })
+for (const suiteName of ['library-play', 'opposition-search']) {
+  test(`library permissions: ${suiteName}`, async ({ page }, info) => {
+    test.setTimeout(180_000)
+    const scenario = loadAcceptanceSuite(suiteName).scenarios[0]!
+    await authenticateShell(page)
+    await startScenario(page, scenario.puzzle)
+    readyForVideo.add(page)
+    if (recordDemos) {
+      await page.waitForTimeout(1000)
+    }
+    await runGreAcceptanceSteps(page, {
+      ...scenario,
+      steps: [
+        ...scenario.steps.map((step) => {
+          const expected = step['expect'] as { all?: Record<string, unknown>[] } | undefined
+          if (!expected?.all) {
+            return step
+          }
+          return {
+            ...step,
+            expect: { all: expected.all.filter((condition) => !('winner' in condition)) },
+          }
+        }),
+        ...(suiteName === 'opposition-search'
+          ? [{ pass_until: { prompt: { type: 'DeclareAttackersReq' } } }]
+          : []),
+      ],
     })
-  }
+    const permanent = suiteName === 'library-play' ? 'Rumbling Baloth' : 'Grizzly Bears'
+    await expect(
+      page.locator(`[data-zone="battlefield"][data-owner="self"] [data-card="${permanent}"]`),
+    ).toBeVisible()
+    if (recordDemos) {
+      await page.waitForTimeout(1500)
+    }
+    await page.screenshot({ path: info.outputPath(`${suiteName}-resolved.png`) })
+  })
 }
 
-test('library permissions: Glarb withdrawal (browser)', async ({ page }, info) => {
+test('library permissions: Glarb withdrawal', async ({ page }, info) => {
   test.setTimeout(180_000)
   await authenticateShell(page)
-  await startScenario(page, 'glarb-library-withdrawal', 'browser')
+  await startScenario(page, 'glarb-library-withdrawal')
   readyForVideo.add(page)
   if (recordDemos) {
     await page.waitForTimeout(1000)

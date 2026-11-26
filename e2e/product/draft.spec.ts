@@ -24,7 +24,6 @@ async function poolNames(pool: Locator): Promise<string[]> {
 }
 
 test('drafts a deck and enters a playable pod match', async ({ page, browser }, testInfo) => {
-  const gameplayRequests: string[] = []
   const journalUploads: { status: number; format?: string; complete: boolean }[] = []
   page.on('response', (response) => {
     if (!/\/api\/browser-replays\/[^/]+\/chunks$/.test(new URL(response.url()).pathname)) {
@@ -39,11 +38,6 @@ test('drafts a deck and enters a playable pod match', async ({ page, browser }, 
       format: chunk.context?.gameType,
       complete: chunk.status?.complete === true,
     })
-  })
-  page.on('request', (request) => {
-    if (new URL(request.url()).pathname.startsWith('/api/gre/')) {
-      gameplayRequests.push(request.url())
-    }
   })
   await signIn(page)
   await page.goto('/play/game')
@@ -234,5 +228,4 @@ test('drafts a deck and enters a playable pod match', async ({ page, browser }, 
   const course = await (await page.request.get(`/api/course-records/${EVENT}`)).json()
   expect(JSON.parse(course.document)).toMatchObject({ phase: 'finished', wins: 0, losses: 3 })
   expect(journalUploads.filter((upload) => upload.status < 200 || upload.status >= 300)).toEqual([])
-  expect(gameplayRequests).toEqual([])
 })

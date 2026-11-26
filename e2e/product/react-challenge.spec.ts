@@ -31,19 +31,12 @@ test('anonymous direct link reaches the normal board and Victory', async ({ page
   }
 })
 
-test('Return retires the local challenge without a server gameplay request', async ({ page }) => {
-  const requests: string[] = []
-  page.on('request', (request) => {
-    if (new URL(request.url()).pathname.startsWith('/api/gre/')) {
-      requests.push(request.url())
-    }
-  })
+test('Return retires the local challenge', async ({ page }) => {
   await openLethalBoltChallenge(page)
   await solveLethalBoltWithPointer(page)
   await page.getByRole('button', { name: 'Return to Challenges', exact: true }).click()
   await expect(page).toHaveURL(/\/challenges$/)
   await expect(page.getByRole('heading', { name: 'Challenges', exact: true })).toBeVisible()
-  expect(requests).toEqual([])
 })
 
 test('keyboard-only cast and target journey', async ({ page }, testInfo) => {

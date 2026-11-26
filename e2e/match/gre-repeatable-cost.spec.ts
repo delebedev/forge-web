@@ -47,68 +47,64 @@ test('numeric acceptance follows visible steps and rejects unreachable amounts',
   await expect(page.locator('[data-prompt="numericInput"]')).toBeVisible()
 })
 
-for (const execution of ['browser'] as const) {
-  for (const count of [0, 2]) {
-    test(`Multikicker accepts ${count} payments and continues (${execution})`, async ({
-      page,
-    }, info) => {
-      test.setTimeout(300_000)
-      await authenticateShell(page, 'repeatable-cost-proof')
-      await startScenario(page, 'repeatable-keyword-payments', execution)
-      await page.getByRole('button', { name: 'Board options', exact: true }).click()
-      await page.getByRole('checkbox', { name: 'Hide card art', exact: true }).check()
-      await page.keyboard.press('Escape')
-      await expect(page.locator('[data-board]')).toHaveAttribute('data-card-art', 'off')
-      readyForVideo.add(page)
-      await handZone(page).filter({ hasText: 'Joraga Warcaller' }).click()
-      await expect(page.locator('[data-prompt="numericInput"]')).toBeVisible()
-      await page.screenshot({ path: info.outputPath('repeat-count.png') })
-      await runGreAcceptanceSteps(page, {
-        steps: [
-          { numeric_input: count },
-          { resolve_stack: {} },
-          {
-            expect: {
-              all: [
-                {
-                  battlefield_stats: {
-                    side: 'ours',
-                    card: 'Joraga Warcaller',
-                    power: count + 1,
-                    toughness: count + 1,
-                  },
+for (const count of [0, 2]) {
+  test(`Multikicker accepts ${count} payments and continues`, async ({ page }, info) => {
+    test.setTimeout(300_000)
+    await authenticateShell(page, 'repeatable-cost-proof')
+    await startScenario(page, 'repeatable-keyword-payments')
+    await page.getByRole('button', { name: 'Board options', exact: true }).click()
+    await page.getByRole('checkbox', { name: 'Hide card art', exact: true }).check()
+    await page.keyboard.press('Escape')
+    await expect(page.locator('[data-board]')).toHaveAttribute('data-card-art', 'off')
+    readyForVideo.add(page)
+    await handZone(page).filter({ hasText: 'Joraga Warcaller' }).click()
+    await expect(page.locator('[data-prompt="numericInput"]')).toBeVisible()
+    await page.screenshot({ path: info.outputPath('repeat-count.png') })
+    await runGreAcceptanceSteps(page, {
+      steps: [
+        { numeric_input: count },
+        { resolve_stack: {} },
+        {
+          expect: {
+            all: [
+              {
+                battlefield_stats: {
+                  side: 'ours',
+                  card: 'Joraga Warcaller',
+                  power: count + 1,
+                  toughness: count + 1,
                 },
-                {
-                  battlefield_stats: {
-                    side: 'ours',
-                    card: 'Llanowar Elves',
-                    power: count + 1,
-                    toughness: count + 1,
-                  },
+              },
+              {
+                battlefield_stats: {
+                  side: 'ours',
+                  card: 'Llanowar Elves',
+                  power: count + 1,
+                  toughness: count + 1,
                 },
-                { stack_empty: true },
-              ],
-            },
+              },
+              { stack_empty: true },
+            ],
           },
-        ],
-      })
-      expect(
-        (await page.evaluate(() => window.__greState()!)).board.you.filter(
-          (card) => card.name === 'Forest' && card.tapped,
-        ),
-      ).toHaveLength(1 + count * 2)
-      await page.mouse.move(20, 200)
-      await page.screenshot({ path: info.outputPath('after-payment.png') })
-      await castSpell(page, {
-        card: 'Ornithopter',
-        until: { zone_contains: { side: 'ours', zone: 'battlefield', card: 'Ornithopter' } },
-      })
-      expect((await page.evaluate(() => window.__greState()!)).diagnostics.errorCount).toBe(0)
-      await page.mouse.move(20, 200)
-      if (recordDemos) {
-        await page.waitForTimeout(1500)
-      }
-      await page.screenshot({ path: info.outputPath('kicked-and-continued.png') })
+        },
+      ],
     })
-  }
+    expect(
+      (await page.evaluate(() => window.__greState()!)).board.you.filter(
+        (card) => card.name === 'Forest' && card.tapped,
+      ),
+    ).toHaveLength(1 + count * 2)
+    await page.mouse.move(20, 200)
+    await page.screenshot({ path: info.outputPath('after-payment.png') })
+    await castSpell(page, {
+      card: 'Ornithopter',
+      until: { zone_contains: { side: 'ours', zone: 'battlefield', card: 'Ornithopter' } },
+    })
+    expect((await page.evaluate(() => window.__greState()!)).diagnostics.errorCount).toBe(0)
+    await page.mouse.move(20, 200)
+    if (recordDemos) {
+      await page.waitForTimeout(1500)
+    }
+    await page.screenshot({ path: info.outputPath('kicked-and-continued.png') })
+  })
 }

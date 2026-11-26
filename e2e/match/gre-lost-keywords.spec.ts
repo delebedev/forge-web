@@ -13,7 +13,7 @@ test('a creature that loses all abilities drops its keyword badges and help unti
     localStorage.setItem('forge:gre:priority-flag:hideCardArt', 'true'),
   )
   await authenticateShell(page, 'lost-keywords-proof')
-  await startScenario(page, 'sludge-monster-lost-keywords', 'browser', 42)
+  await startScenario(page, 'sludge-monster-lost-keywords', 42)
   await expect(page.locator('[data-board]')).toHaveAttribute('data-card-art', 'off')
   const ours = (name: string) =>
     page.locator(`[data-zone="battlefield"][data-owner="self"] [data-card="${name}"]`)
