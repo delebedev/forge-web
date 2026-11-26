@@ -24,7 +24,11 @@ runs:
       shell: bash
       env:
         BROWSERS: ${{ inputs.browsers }}
-      run: bun x --bun playwright install-deps $BROWSERS
+      # The runner image's packages.microsoft.com source intermittently fails apt
+      # with 403 / "no longer signed"; Playwright needs nothing from it.
+      run: |
+        sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list /etc/apt/sources.list.d/microsoft-prod.sources
+        bun x --bun playwright install-deps $BROWSERS
     - name: Download browsers
       if: steps.cache.outputs.cache-hit != 'true'
       shell: bash
