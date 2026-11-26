@@ -87,15 +87,27 @@ test('allowlists and bounds failure context without retaining payloads', () => {
   expect(JSON.stringify(snapshot)).not.toContain('private text')
 })
 
+/**
+ * Report budgets are page-scoped module state that other test files in the same
+ * process spend, so budget-sensitive tests rerun alone in a child process.
+ * Returns true in the parent once the child has passed.
+ */
+function ranInFreshPage(testName: string): boolean {
+  if (process.env['FORGE_WEB_REPORTING_TEST_CHILD'] === '1') {
+    return false
+  }
+  const child = Bun.spawnSync(
+    [process.execPath, 'test', import.meta.path, '--test-name-pattern', testName],
+    {
+      env: { ...process.env, FORGE_WEB_REPORTING_TEST_CHILD: '1' },
+    },
+  )
+  expect(child.exitCode, new TextDecoder().decode(child.stderr)).toBe(0)
+  return true
+}
+
 test('failure details enrich one report per attempt and retain the page budget', () => {
-  if (process.env['FORGE_WEB_REPORTING_TEST_CHILD'] !== '1') {
-    const child = Bun.spawnSync(
-      [process.execPath, 'test', import.meta.path, '--test-name-pattern', 'failure details enrich'],
-      {
-        env: { ...process.env, FORGE_WEB_REPORTING_TEST_CHILD: '1' },
-      },
-    )
-    expect(child.exitCode, new TextDecoder().decode(child.stderr)).toBe(0)
+  if (ranInFreshPage('failure details enrich')) {
     return
   }
   const reports: ReturnType<ReturnType<typeof Sentry.getCurrentScope>['getScopeData']>[] = []
@@ -179,6 +191,9 @@ test('generic errors retain capture-time match context and exit clears the repor
 })
 
 test('gameplay diagnostics retain the original cause once without inventing a transport stack', () => {
+  if (ranInFreshPage('gameplay diagnostics retain the original cause')) {
+    return
+  }
   const capture = spyOn(Sentry, 'captureException').mockReturnValue('event')
   const message = spyOn(Sentry, 'captureMessage').mockReturnValue('message')
   try {
@@ -198,6 +213,9 @@ test('gameplay diagnostics retain the original cause once without inventing a tr
 })
 
 test('late reports for a retired match cannot borrow replacement match versions', () => {
+  if (ranInFreshPage('late reports for a retired match')) {
+    return
+  }
   setReportingContext({
     match_id: 'new',
     execution: 'browser',
