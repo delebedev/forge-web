@@ -286,7 +286,7 @@ jobs:
       - name: Prepare pinned Forge dependencies
         run: python3 scripts/ci/ci-measure.py prepare-test bash -eo pipefail -c 'node scripts/dev/bootstrap.mjs --prepare-only'
       - name: Check browser runtime
-        run: python3 scripts/ci/ci-measure.py browser-17-check bash -eo pipefail -c './leyline/gradlew -p browser-engine check -PruntimeJavaVersion=17 -Pkotlin.compiler.execution.strategy=in-process'
+        run: python3 scripts/ci/ci-measure.py browser-17-check bash -eo pipefail -c './leyline/gradlew -p browser-engine check -PruntimeJavaVersion=17 -PbrowserPrune=true -Pkotlin.compiler.execution.strategy=in-process'
       - name: Stop build JVMs
         if: always()
         timeout-minutes: 1

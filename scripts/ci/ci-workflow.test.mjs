@@ -205,6 +205,9 @@ test('runtime lanes start from the built artifact while JVM checks run beside th
   const checks = workflow.jobs['browser-runtime-test']
   const run = checks.steps.find((step) => step.name === 'Check browser runtime').run
   assert.match(run, /gradlew -p browser-engine check /)
+  // Browser tests use the shipped distribution's pruned classpath.
+  assert.match(run, /-PbrowserPrune=true/)
+  assert.match(build, /-PbrowserPrune=true/)
   assert.ok(!workflow.jobs.runtime.needs.includes('browser-runtime-test'))
   assert.ok(workflow.jobs.gate.needs.includes('browser-runtime-test'))
   assert.ok(workflow.jobs.report.needs.includes('browser-runtime-test'))
