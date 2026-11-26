@@ -160,6 +160,26 @@ describe('WebAuth', () => {
     }
   })
 
+  test('a failed send still retires its code when logging throws', async () => {
+    const warn = spyOn(Logger.prototype, 'warn').mockImplementation(() => {
+      throw new Error('stdout closed')
+    })
+    try {
+      const auth = testAuth({
+        sendEmail: async () => {
+          throw new Error('down')
+        },
+      })
+      expect(await auth.requestCode('player@example.test', 'ip', null)).toBe('email_send_failed')
+      expect(warn).toHaveBeenCalledTimes(1)
+      expect(auth.verify('player@example.test', TEST_LOGIN_CODE, 'ip', null).kind).toBe(
+        'invalid_or_expired',
+      )
+    } finally {
+      warn.mockRestore()
+    }
+  })
+
   test('a send that fails after a resend retires only its own code', async () => {
     let now = Date.parse('2026-01-01T00:00:00Z')
     const sent: LoginCodeEmail[] = []

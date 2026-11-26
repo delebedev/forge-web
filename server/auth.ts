@@ -218,11 +218,15 @@ export class WebAuth {
       })
       return 'sent'
     } catch (cause) {
-      logSendFailure(cause)
       // Retire this send's own challenge; a later resend may already have replaced it.
       this.db
         .query('UPDATE web_login_challenges SET used_at = ? WHERE id = ? AND used_at IS NULL')
         .run(javaInstant(this.now()), id)
+      try {
+        logSendFailure(cause)
+      } catch {
+        // A failed log write must not change the login answer.
+      }
       return 'email_send_failed'
     }
   }
