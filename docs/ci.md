@@ -103,13 +103,17 @@ PR workloads; no measured latency saving is claimed before a current burst sampl
 
 ### Runtime scheduling and cancellation
 
-Product and catalog journeys run in independent jobs. Four GRE jobs use native
+Catalog journeys run in one job. Three product jobs and six GRE jobs use native
 Playwright sharding with `--fully-parallel` to distribute individual selected
-tests across runners. Each job retains `--workers=1`, so browser engines do not
+tests across runners. Native shards split by test count, not duration. The
+counts keep every shard of a recent full run under about 13 minutes of tests.
+Each product shard starts its own server and state directory. The curated replay
+journeys run once, on the first product shard, with their own output directory
+so they do not clear that shard's results. Each job retains `--workers=1`, so browser engines do not
 compete within a runner. Tests have isolated browser contexts and accounts and
 do not require another case to run first.
 
-All six runtime jobs verify the same sealed server, frontend and Browser assets.
+All ten runtime jobs verify the same sealed server, frontend and Browser assets.
 Representative and changed-spec selection happens before sharding. A changed
 spec still contributes every regular case, with the existing qualification
 exclusions. The required gate waits for the complete runtime matrix. Artifact
@@ -132,17 +136,22 @@ The server builder validates and packages the compiled Bun server and
 cross-compiles the linux-arm64 release binary. It needs neither Java nor Forge,
 so it checks out Leyline without its nested submodules.
 The browser runtime builder prepares pinned Forge dependencies, then builds
-Leyline once for Java 17. It runs the browser-engine checks
-and packages the Browser Local distribution. Gradle itself runs on Java 21.
+Leyline once for Java 17 and packages the Browser Local distribution. A separate
+`Browser runtime checks` job runs the browser-engine Gradle checks at the same
+time, so runtime lanes start as soon as the artifact is sealed. The required
+gate waits for both. Gradle itself runs on Java 21.
 Gradle caches task outputs using its tracked input fingerprints. Browser tests use the same
 pruning setting as the shipped distribution. Configuration
 caching is enabled.
 CI uses the compiler inside the Gradle process and stops Gradle after assembly.
-Build and dependency caches remain local to each ephemeral hosted job.
-Bun installs enforce `bun.lock`; the workflow adds no persistent cache.
+`gradle/actions/setup-gradle` restores Gradle caches in both Java jobs. Only
+`main` writes them, so a pull request cannot seed the cache that later runs read.
+Bun installs enforce `bun.lock` and use no persistent cache.
 
-After UI and builder success, hosted runners execute product, catalog, four GRE
-shards and Browser Local independently. Browser Local waits only for the browser runtime builder. Their distributions are sealed with the tested Git
+After UI and builder success, hosted runners execute three product shards,
+catalog, six GRE shards and Browser Local independently. Runtime jobs check out
+Leyline for its puzzles but not its nested Forge checkout, which the sealed
+artifact replaces. Browser Local waits only for the browser runtime builder. Their distributions are sealed with the tested Git
 tree, Leyline pin, artifact variant, producer run/attempt and every file's SHA-256.
 Consumers
 reject missing, stale, damaged or differently targeted artifacts. Failed-job
@@ -152,8 +161,7 @@ preserve launcher permissions. Product/GRE jobs launch the server binary directl
 with isolated suite state, without Java, Gradle or Kotlin daemons.
 The product built-page checks reuse the tested UI bundle instead of rebuilding.
 
-A builder co-locates both targets to avoid repeating build setup. This deliberately makes product browser tests wait for Java 17 validation
-too. Reconsider separate builders if measured build time dominates the graph.
+Product browser tests wait for the Java 17 artifact but not for its JVM checks.
 The source and builder jobs run independently; failed source checks prevent all
 engine-backed browser work. Conservative path classification stays in place.
 

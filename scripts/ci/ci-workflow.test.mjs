@@ -39,19 +39,27 @@ test('only bounded build cleanup remains cancellation resistant', () => {
     .filter((step) => /always\(/.test(step.if ?? ''))
   assert.deepEqual(
     resistant.map((step) => step.name),
-    ['Stop build JVMs'],
+    ['Stop build JVMs', 'Stop build JVMs'],
   )
   for (const step of resistant) {
     assert.equal(step['timeout-minutes'], 1)
   }
 })
 
-test('runtime jobs separate product and catalog from four single-worker GRE shards', () => {
+test('runtime jobs run three product shards, catalog and six single-worker GRE shards', () => {
   const runtime = workflow.jobs.runtime
   assert.deepEqual(runtime.strategy.matrix.include, [
-    { lane: 'product', suite: 'product' },
+    ...[1, 2, 3].map((shard) => ({
+      lane: `product-${shard}`,
+      suite: 'product',
+      shard: `${shard}/3`,
+    })),
     { lane: 'catalog', suite: 'catalog' },
-    ...[1, 2, 3, 4].map((shard) => ({ lane: `gre-${shard}`, suite: 'gre', shard: `${shard}/4` })),
+    ...[1, 2, 3, 4, 5, 6].map((shard) => ({
+      lane: `gre-${shard}`,
+      suite: 'gre',
+      shard: `${shard}/6`,
+    })),
   ])
   const verify = runtime.steps.find((step) => step.name === 'Verify tested distributions').run
   for (const variant of ['server', 'frontend', 'browser-17']) {
@@ -68,11 +76,14 @@ test('runtime jobs separate product and catalog from four single-worker GRE shar
   assert.match(journeys.run, /--workers=1/)
   assert.match(journeys.run, /"\$PROOF_BREADTH" "\$BASE_SHA"/)
   assert.doesNotMatch(journeys.run, /ci-partition/)
-  assert.equal(new Set(runtime.strategy.matrix.include.map(({ lane }) => lane)).size, 6)
+  assert.equal(new Set(runtime.strategy.matrix.include.map(({ lane }) => lane)).size, 10)
   const upload = runtime.steps.find((step) => step.name === 'Upload Playwright output')
   assert.equal(upload.with.name, 'test-results-runtime-${{ matrix.lane }}')
   const curated = runtime.steps.find((step) => step.name === 'Run curated replay journeys')
   assert.match(curated.run, /--max-failures=2/)
+  assert.equal(curated.if, "matrix.lane == 'product-1'")
+  // Playwright clears its output directory; the default would delete the shard's results.
+  assert.match(curated.run, /--output=test-results\/curated-replays/)
   assert.equal(runtime.strategy['fail-fast'], false)
   assert.ok(workflow.jobs.gate.needs.includes('runtime'))
 })
@@ -104,7 +115,7 @@ test('runtime dispatch executes every declared lane and rejects unknown or incon
       assert.match(result.stdout, /--workers=1/)
       assert.match(result.stdout, /--max-failures=2/)
       assert.ok(result.stdout.includes(`--output=test-results/${entry.lane}`))
-      if (entry.suite === 'gre') {
+      if (entry.shard) {
         assert.ok(result.stdout.includes(`--shard=${entry.shard}`))
         assert.match(result.stdout, /--fully-parallel/)
       } else {
@@ -113,9 +124,14 @@ test('runtime dispatch executes every declared lane and rejects unknown or incon
     }
     for (const entry of [
       { lane: 'unknown', suite: 'gre' },
-      { lane: 'gre-5', suite: 'gre', shard: '5/4' },
-      { lane: 'gre-1', suite: 'gre', shard: '2/4' },
-      { lane: 'product', suite: 'catalog' },
+      { lane: 'gre-7', suite: 'gre', shard: '7/6' },
+      { lane: 'gre-1', suite: 'gre', shard: '2/6' },
+      { lane: 'gre-1', suite: 'gre', shard: '1/4' },
+      { lane: 'gre-1', suite: 'gre' },
+      { lane: 'product', suite: 'product' },
+      { lane: 'product-1', suite: 'product', shard: '2/3' },
+      { lane: 'product-1', suite: 'catalog', shard: '1/3' },
+      { lane: 'catalog', suite: 'catalog', shard: '1/1' },
     ]) {
       const result = invoke(entry)
       assert.notEqual(result.status, 0, JSON.stringify(entry) + result.stdout)
@@ -178,4 +194,24 @@ test('browser jobs install Playwright browsers through the cached, bounded actio
     job.steps.some((step) => step.uses === './.github/actions/playwright-browsers'),
   )
   assert.equal(installs.length, 3)
+})
+
+test('runtime lanes start from the built artifact while JVM checks run beside them', () => {
+  const build = workflow.jobs['browser-runtime'].steps.find(
+    (step) => step.name === 'Build browser runtime',
+  ).run
+  assert.doesNotMatch(build, /gradlew[^&]* check /)
+  assert.match(build, /browserDistribution catalogIndex cardIndex/)
+  const checks = workflow.jobs['browser-runtime-test']
+  const run = checks.steps.find((step) => step.name === 'Check browser runtime').run
+  assert.match(run, /gradlew -p browser-engine check /)
+  assert.ok(!workflow.jobs.runtime.needs.includes('browser-runtime-test'))
+  assert.ok(workflow.jobs.gate.needs.includes('browser-runtime-test'))
+  assert.ok(workflow.jobs.report.needs.includes('browser-runtime-test'))
+  for (const job of ['browser-runtime', 'browser-runtime-test']) {
+    const gradle = workflow.jobs[job].steps.find(
+      (step) => step.uses === 'gradle/actions/setup-gradle@v4',
+    )
+    assert.equal(gradle.with['cache-read-only'], "${{ github.ref != 'refs/heads/main' }}")
+  }
 })
