@@ -59,23 +59,23 @@ class CiScopeTest(unittest.TestCase):
 class ProofBreadthTest(unittest.TestCase):
     def test_product_changes_and_engine_pins_keep_representative_pr_proof(self):
         for paths in [['leyline'], ['src/engine/runtime/gre-store.ts'],
-                      ['src/features/gre/board/Board.tsx', 'e2e/gre-priority.spec.ts'],
-                      ['e2e/gre-cost-choice.spec.ts'], ['e2e/gre-mana-payment.spec.ts'],
-                      ['e2e/gre-library-permissions.spec.ts'], ['e2e/gre-player-counters.spec.ts'],
+                      ['src/features/gre/board/Board.tsx', 'e2e/match/gre-priority.spec.ts'],
+                      ['e2e/match/gre-cost-choice.spec.ts'], ['e2e/match/gre-mana-payment.spec.ts'],
+                      ['e2e/match/gre-library-permissions.spec.ts'], ['e2e/match/gre-player-counters.spec.ts'],
                       ['src/shared/audio.test.ts'],
-                      ['src/features/gre/MatchRoute.tsx', 'e2e/match-route.spec.ts']]:
+                      ['src/features/gre/MatchRoute.tsx', 'e2e/match/match-route.spec.ts']]:
             self.assertEqual('pr', ci_scope.proof_breadth(paths))
 
     def test_control_inputs_helpers_fixtures_and_unknown_specs_force_full(self):
         for path in ['scripts/ci/ci_scope.py', 'scripts/ci/ci-browser-selection.mjs',
                      '.github/workflows/web-ci.yml', 'playwright.config.ts',
-                     'e2e/gre-acceptance.ts', 'e2e/gre-test.ts', 'e2e/new-family.spec.ts',
+                     'e2e/support/gre-acceptance.ts', 'e2e/support/gre-test.ts', 'e2e/new-family.spec.ts',
                      'e2e/fixtures/new.pzl', 'server/app.ts', 'browser-engine/worker/index.js',
                      'package.json', 'unknown-input']:
             self.assertEqual('full', ci_scope.proof_breadth(['leyline', path]))
         self.assertEqual('full', ci_scope.proof_breadth([]))
         self.assertEqual('full', ci_scope.proof_breadth(
-            ['e2e/fixtures/new.pzl', 'e2e/gre-priority.spec.ts']))
+            ['e2e/fixtures/new.pzl', 'e2e/match/gre-priority.spec.ts']))
 
 
 if __name__ == '__main__':

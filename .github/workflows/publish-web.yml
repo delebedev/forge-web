@@ -103,7 +103,7 @@ jobs:
           FORGE_WEB_PRIVATE_SOURCEMAPS: 'true'
         run: |
           test -n "$VITE_SENTRY_DSN"
-          bun run browser-alpha:build
+          bun run release:build
 
       - name: Upload private source maps
         env:

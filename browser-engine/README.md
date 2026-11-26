@@ -14,7 +14,7 @@ A start whose deck is rejected does not count.
 
 ## Integrated alpha release
 
-`bun run browser-alpha:build` writes schema-2 `dist/browser-engine/release.json`.
+`bun run release:build` writes schema-2 `dist/browser-engine/release.json`.
 It maps each logical file to a content-addressed URL and generates the exact
 same-origin startup set from the worker metadata, classpath, and selected
 catalog files. The lobby and worker consume that one manifest. Every file is

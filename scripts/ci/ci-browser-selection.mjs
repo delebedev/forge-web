@@ -7,23 +7,27 @@ import ts from 'typescript'
 // Changed specs run in full. These cases connect the unchanged layers on every PR.
 export const representatives = {
   product: {
-    'e2e/auth-passwordless.spec.ts': ['email code login persists after reload'],
-    'e2e/decks.spec.ts': [
+    'e2e/product/auth-passwordless.spec.ts': ['email code login persists after reload'],
+    'e2e/product/decks.spec.ts': [
       'deck library import, editing and selection retain their controls at laptop size',
     ],
-    'e2e/product-smoke.spec.ts': ['lobby imports a playable deck into the library and launches it'],
+    'e2e/product/product-smoke.spec.ts': [
+      'lobby imports a playable deck into the library and launches it',
+    ],
   },
   gre: {
-    'e2e/gre-play.spec.ts': [
+    'e2e/match/gre-play.spec.ts': [
       'starts GRE game and plays first land',
       'declares an attacker and submits combat',
       'handles game over after lethal burn puzzle',
     ],
-    'e2e/gre-recovery.spec.ts': ['Urborg and Takenuma survive priority and pay for a spell'],
-    'e2e/gre-cost-choice.spec.ts': ['additional cost:'],
+    'e2e/match/gre-recovery.spec.ts': ['Urborg and Takenuma survive priority and pay for a spell'],
+    'e2e/match/gre-cost-choice.spec.ts': ['additional cost:'],
   },
   catalog: {
-    'e2e/forge-catalog.spec.ts': ['casts Jungle Lion from the catalog and deals combat damage'],
+    'e2e/engine/forge-catalog.spec.ts': [
+      'casts Jungle Lion from the catalog and deals combat damage',
+    ],
   },
 }
 

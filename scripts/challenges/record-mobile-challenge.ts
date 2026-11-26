@@ -11,7 +11,13 @@ const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
 const outputDir = `${import.meta.dir}/../../.local/acceptance-runs/${timestamp}-${slug}`
 
 const test = Bun.spawn({
-  cmd: ['node', PLAYWRIGHT_CLI, 'test', 'e2e/mobile-challenge-video.spec.ts', '--project=iphone'],
+  cmd: [
+    'node',
+    PLAYWRIGHT_CLI,
+    'test',
+    'e2e/product/mobile-challenge-video.spec.ts',
+    '--project=iphone',
+  ],
   cwd: import.meta.dir + '/../..',
   env: playwrightEnv('challenge-video', {
     CHALLENGE_VIDEO_OUTPUT_DIR: outputDir,

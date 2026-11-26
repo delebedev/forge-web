@@ -32,8 +32,8 @@ test('changed specs select every case without requiring smoke tags or static tit
     changed,
   )
   assert.deepEqual(
-    selection('catalog', 'pr', ['e2e/forge-catalog.spec.ts'], () => source),
-    ['e2e/forge-catalog.spec.ts'],
+    selection('catalog', 'pr', ['e2e/engine/forge-catalog.spec.ts'], () => source),
+    ['e2e/engine/forge-catalog.spec.ts'],
   )
 })
 
@@ -43,7 +43,7 @@ test('full breadth and uncertain inputs never return a narrow selection', () => 
   assert.throws(() => selection('unknown', 'pr', []), /Unknown/)
   assert.throws(
     () =>
-      selection('catalog', 'pr', ['e2e/forge-catalog.spec.ts'], () => {
+      selection('catalog', 'pr', ['e2e/engine/forge-catalog.spec.ts'], () => {
         throw new Error('deleted source')
       }),
     /deleted source/,
@@ -88,12 +88,12 @@ test('CLI expands missing history for catalog and preserves child failure', () =
 })
 
 test('every registered GRE spec reaches changed-spec selection with representatives', () => {
-  const inventory = readdirSync('e2e')
-    .map((file) => `e2e/${file}`)
+  const inventory = readdirSync('e2e/match')
+    .map((file) => `e2e/match/${file}`)
     .filter((file) => suites.gre.test(file))
-  assert.ok(inventory.includes('e2e/gre-priority.spec.ts'))
-  assert.ok(inventory.includes('e2e/gre-play.spec.ts'))
-  assert.ok(inventory.includes('e2e/gre-protection-mixed.spec.ts'))
+  assert.ok(inventory.includes('e2e/match/gre-priority.spec.ts'))
+  assert.ok(inventory.includes('e2e/match/gre-play.spec.ts'))
+  assert.ok(inventory.includes('e2e/match/gre-protection-mixed.spec.ts'))
   for (const file of inventory) {
     assert.ok(selection('gre', 'pr', [file]).includes(file), `Changed spec omitted: ${file}`)
   }
