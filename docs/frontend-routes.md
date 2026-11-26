@@ -1,8 +1,9 @@
 # Frontend Route Map
 
 One React root renders every route. `src/app/main.ts` loads `src/app/mount.tsx`,
-which mounts `RouterProvider` and `ShellRoot`. `src/app/router.tsx` matches
-`location.pathname` against the `ROUTES` table in `src/app/routes.ts`, and
+which installs the route resolver and mounts `RouterProvider` and `ShellRoot`.
+`resolveRoute` in `src/app/routes.ts` matches `location.pathname` against its
+`ROUTES` table; `src/shared/router.tsx` owns the router store and `useRouter`, and
 `ShellRoot` dispatches on the resolved route name. Every navigation is
 client-side.
 
@@ -67,7 +68,7 @@ puzzle can be rated without an account, once per device.
 
 Each store is a plain TypeScript class with an explicit `subscribe`/`notify`
 shape, read by React through a `createExternalStore` + `useSyncExternalStore`
-seams (`src/engine/runtime/hooks.ts`, feature-local hook modules, and `src/features/gre/priority-runtime.ts`).
+seams (`src/engine/runtime/hooks.ts`, feature-local hook modules, and `src/features/match/priority-runtime.ts`).
 Single-writer pattern — one store owns each signal.
 
 | Store | File | Owns | Drives |
@@ -233,4 +234,4 @@ are provisioned with the ordinary dev seed command.
 
 ## Curated watch
 
-The landing table and `/watch` play allowlisted complete games from `public/replays/` through `TranscriptFrameSource` and the production board. They do not initialize the browser engine. Each game starts from normal opening hands and plays through its terminal outcome. After a short result dwell, the next game starts automatically. Public viewing has no playback controls, timeline, picker or live-status claim. Card inspection stays available. Playback and pending rotation pause when the page or table is hidden, and stop on unmount. The current matchup's `Play these decks` link opens `/play/game?replay=<known-id>` for a fresh game using those complete decks. The operator file picker, arbitrary `?src` loading and full playback controls remain development-only at `/play/replay`. Exact deck inputs and provenance live in `dev/replays/README.md`.
+The landing table and `/watch` play allowlisted complete games from `public/replays/` through `TranscriptFrameSource` and the production board. They do not initialize the browser engine. Each game starts from normal opening hands and plays through its terminal outcome. After a short result dwell, the next game starts automatically. Public viewing has no playback controls, timeline, picker or live-status claim. Card inspection stays available. Playback and pending rotation pause when the page or table is hidden, and stop on unmount. The current matchup's `Play these decks` link opens `/play/game?replay=<known-id>` for a fresh game using those complete decks. The operator file picker, arbitrary `?src` loading and full playback controls remain development-only at `/play/replay`. Exact deck inputs and provenance live in `docs/curated-replays.md`.

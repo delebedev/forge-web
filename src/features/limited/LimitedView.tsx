@@ -6,12 +6,12 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
-import { SEALED_ENABLED } from '@shared/flags'
+import { SEALED_ENABLED } from './flags'
 import type { SealedSet } from '@shared/api/contracts'
 import { loadCardIndex } from '@shared/cards/card-index'
 import { draftStore } from '@features/limited/draft-store'
 import { sealedStore } from '@features/limited/sealed-store'
-import { useRouter } from '@app/router'
+import { useRouter } from '@shared/router'
 import type { LimitedMatchLaunch } from './course'
 import { useDraftSnapshot, useSealedSnapshot } from './limited-stores'
 import { DraftPicking } from './draft/DraftPicking'

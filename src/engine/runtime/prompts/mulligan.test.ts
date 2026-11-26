@@ -1,5 +1,10 @@
 import { expect, test } from 'bun:test'
-import { bindingFor, encodedPromptHarness, decodeGre, viewFor } from './prompt-test-harness'
+import {
+  bindingFor,
+  encodedPromptHarness,
+  decodeGre,
+  viewFor,
+} from '@engine/testing/prompt-test-harness'
 import { enumValueSync } from '@engine/wire/gre-proto'
 
 for (const [decision, option] of [

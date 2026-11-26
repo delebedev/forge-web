@@ -1,5 +1,5 @@
 import { expect, spyOn, test } from 'bun:test'
-import * as reporting from '@shared/reporting'
+import * as reporting from '@shared/observability/reporting'
 import * as Sentry from '@sentry/react'
 import type { GreFrameSink, GreFrameSource } from './gre-frame-source'
 

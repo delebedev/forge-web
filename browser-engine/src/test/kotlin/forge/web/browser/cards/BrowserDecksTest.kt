@@ -24,7 +24,7 @@ class BrowserDecksTest {
     fun `accepts every constructed starter deck`() {
         val root = Path.of(checkNotNull(System.getProperty("forge.web.test.root")))
         val decks =
-            Files.newDirectoryStream(root.resolve("dev/decks"), "*.txt").use { paths ->
+            Files.newDirectoryStream(root.resolve("content/decks"), "*.txt").use { paths ->
                 paths.toList().sortedBy { it.fileName.toString() }
             }
         assertEquals(5, decks.size)

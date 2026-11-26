@@ -29,8 +29,8 @@ jobs:
           node-version: 24
       - name: Check CI and release selection
         run: |-
-          node --test scripts/ci-proof.test.mjs scripts/runtime-artifact.test.mjs
-          python3 -m unittest discover -s scripts -p "test_*.py"
+          node --test scripts/ci/ci-proof.test.mjs scripts/ci/runtime-artifact.test.mjs
+          for group in build ci release; do python3 -m unittest discover -s "scripts/$group" -p "test_*.py"; done
       - name: Find successful merged PR run
         id: candidate
         if: github.event_name == 'push'
@@ -38,7 +38,7 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const { findPrRun } = await import(`${process.env.GITHUB_WORKSPACE}/scripts/ci-proof.mjs`)
+            const { findPrRun } = await import(`${process.env.GITHUB_WORKSPACE}/scripts/ci/ci-proof.mjs`)
             return await findPrRun(github, context)
       - name: Download tested tree proof
         id: download
@@ -60,7 +60,7 @@ jobs:
           script: |
             const { readFileSync } = await import('node:fs')
             const { execFileSync } = await import('node:child_process')
-            const { reusableProof } = await import(`${process.env.GITHUB_WORKSPACE}/scripts/ci-proof.mjs`)
+            const { reusableProof } = await import(`${process.env.GITHUB_WORKSPACE}/scripts/ci/ci-proof.mjs`)
             let reuse = false
             if (context.eventName === 'push' && process.env.DOWNLOAD === 'success') {
               try {
@@ -79,8 +79,8 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: |
           if [[ "$GITHUB_EVENT_NAME" == 'pull_request' ]]; then
-            kind=$(python3 scripts/ci_scope.py . "$BASE_SHA")
-            breadth=$(python3 scripts/ci_scope.py . "$BASE_SHA" --breadth)
+            kind=$(python3 scripts/ci/ci_scope.py . "$BASE_SHA")
+            breadth=$(python3 scripts/ci/ci_scope.py . "$BASE_SHA" --breadth)
           else
             kind=full
             breadth=full
@@ -106,20 +106,20 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
       - name: Check
-        run: python3 scripts/ci-measure.py ui-check bash -eo pipefail -c 'bun run check && node --test scripts/ci-browser-selection.test.mjs scripts/ci-workflow.test.mjs'
+        run: python3 scripts/ci/ci-measure.py ui-check bash -eo pipefail -c 'bun run check && node --test scripts/ci/ci-browser-selection.test.mjs scripts/ci/ci-workflow.test.mjs'
       - name: Build
-        run: python3 scripts/ci-measure.py ui-build bash -eo pipefail -c 'bun run build:ci'
+        run: python3 scripts/ci/ci-measure.py ui-build bash -eo pipefail -c 'bun run build:ci'
       - name: Install browser
         uses: ./.github/actions/playwright-browsers
       - name: Check browser driver
-        run: python3 scripts/ci-measure.py ui-driver bash -eo pipefail -c 'node --test --experimental-strip-types tools/browser-driver/executor.browser.test.ts && bun x tsc -p tools/browser-driver/tsconfig.json'
+        run: python3 scripts/ci/ci-measure.py ui-driver bash -eo pipefail -c 'node --test --experimental-strip-types tools/browser-driver/executor.browser.test.ts && bun x tsc -p tools/browser-driver/tsconfig.json'
       - name: Check public SEO
-        run: python3 scripts/ci-measure.py ui-seo bash -eo pipefail -c 'bun run seo:check'
+        run: python3 scripts/ci/ci-measure.py ui-seo bash -eo pipefail -c 'bun run seo:check'
       - name: Check authored transport without an engine
-        run: python3 scripts/ci-measure.py ui-transport bash -eo pipefail -c 'bun run e2e transport --workers=1 --output=test-results/transport'
+        run: python3 scripts/ci/ci-measure.py ui-transport bash -eo pipefail -c 'bun run e2e transport --workers=1 --output=test-results/transport'
       - name: Seal frontend
         run: |-
-          node scripts/runtime-artifact.mjs seal frontend dist
+          node scripts/ci/runtime-artifact.mjs seal frontend dist
           tar -czf frontend.tgz dist
       - uses: actions/upload-artifact@v4
         with:
@@ -160,14 +160,14 @@ jobs:
       - name: Install build dependencies
         run: bun install --frozen-lockfile
       - name: Build and validate Bun server
-        run: python3 scripts/ci-measure.py server bash -eo pipefail -c 'bun run server:check && bun run server:build:release && bun run server:build && bun run runtime:check --no-build'
+        run: python3 scripts/ci/ci-measure.py server bash -eo pipefail -c 'bun run server:check && bun run server:build:release && bun run server:build && bun run runtime:check --no-build'
       - name: Seal server distribution
         run: |-
-          node scripts/runtime-artifact.mjs seal server server/build/install/server
+          node scripts/ci/runtime-artifact.mjs seal server server/build/install/server
           mkdir -p runtime-artifacts
           tar -czf runtime-artifacts/server.tgz -C server/build/install server
       - name: Check server HTTP parity
-        run: python3 scripts/ci-measure.py server-parity bash -eo pipefail -c 'FORGE_WEB_SERVER_DIST=server/build/install/server bun run server:parity'
+        run: python3 scripts/ci/ci-measure.py server-parity bash -eo pipefail -c 'FORGE_WEB_SERVER_DIST=server/build/install/server bun run server:parity'
       - uses: actions/upload-artifact@v4
         with:
           name: runtime-server
@@ -216,12 +216,12 @@ jobs:
       - name: Install build dependencies
         run: bun install --frozen-lockfile
       - name: Prepare pinned Forge dependencies
-        run: python3 scripts/ci-measure.py prepare bash -eo pipefail -c 'node scripts/bootstrap.mjs --prepare-only'
+        run: python3 scripts/ci/ci-measure.py prepare bash -eo pipefail -c 'node scripts/dev/bootstrap.mjs --prepare-only'
       - name: Build and validate browser runtime
-        run: python3 scripts/ci-measure.py browser-17 bash -eo pipefail -c 'bun run challenge:manifest && python3 scripts/build-browser-catalog.py && ./leyline/gradlew -p browser-engine check browserDistribution catalogIndex cardIndex -PruntimeJavaVersion=17 -PbrowserPrune=true -Pkotlin.compiler.execution.strategy=in-process && node scripts/build-browser-release.mjs'
+        run: python3 scripts/ci/ci-measure.py browser-17 bash -eo pipefail -c 'bun run challenge:manifest && python3 scripts/build/build-browser-catalog.py && ./leyline/gradlew -p browser-engine check browserDistribution catalogIndex cardIndex -PruntimeJavaVersion=17 -PbrowserPrune=true -Pkotlin.compiler.execution.strategy=in-process && node scripts/build/build-browser-release.mjs'
       - name: Seal browser runtime
         run: |-
-          node scripts/runtime-artifact.mjs seal browser-17 public/browser-engine
+          node scripts/ci/runtime-artifact.mjs seal browser-17 public/browser-engine
           mkdir -p runtime-artifacts
           tar -czf runtime-artifacts/browser-17.tgz -C public browser-engine
       - uses: actions/upload-artifact@v4
@@ -279,13 +279,13 @@ jobs:
           tar -xzf frontend.tgz
           mkdir -p ci-runtime
           tar -xzf runtime-artifacts/browser-17.tgz -C ci-runtime
-          node scripts/runtime-artifact.mjs verify frontend dist
-          node scripts/runtime-artifact.mjs verify browser-17 ci-runtime/browser-engine
+          node scripts/ci/runtime-artifact.mjs verify frontend dist
+          node scripts/ci/runtime-artifact.mjs verify browser-17 ci-runtime/browser-engine
           cp -a ci-runtime/browser-engine dist/browser-engine
       - name: Install browser
         uses: ./.github/actions/playwright-browsers
       - name: Run Browser Local smoke
-        run: python3 scripts/ci-measure.py browser-local bash -eo pipefail -c 'set -o pipefail; mkdir -p browser-smoke-output; timeout 8m bun run challenge:saved:check 2>&1 | tee browser-smoke-output/smoke.log; timeout 4m bun run challenge:browser:check --smoke 2>&1 | tee browser-smoke-output/curated.log'
+        run: python3 scripts/ci/ci-measure.py browser-local bash -eo pipefail -c 'set -o pipefail; mkdir -p browser-smoke-output; timeout 8m bun run challenge:saved:check 2>&1 | tee browser-smoke-output/smoke.log; timeout 4m bun run challenge:browser:check --smoke 2>&1 | tee browser-smoke-output/curated.log'
       - name: Collect runner memory
         if: ${{ !cancelled() }}
         run: |
@@ -376,10 +376,10 @@ jobs:
           mkdir -p ci-runtime
           tar -xzf runtime-artifacts/server.tgz -C ci-runtime
           tar -xzf frontend.tgz
-          node scripts/runtime-artifact.mjs verify server ci-runtime/server
-          node scripts/runtime-artifact.mjs verify frontend dist
+          node scripts/ci/runtime-artifact.mjs verify server ci-runtime/server
+          node scripts/ci/runtime-artifact.mjs verify frontend dist
           tar -xzf runtime-artifacts/browser-17.tgz -C ci-runtime
-          node scripts/runtime-artifact.mjs verify browser-17 ci-runtime/browser-engine
+          node scripts/ci/runtime-artifact.mjs verify browser-17 ci-runtime/browser-engine
           cp -a ci-runtime/browser-engine public/browser-engine
       - name: Install browser
         uses: ./.github/actions/playwright-browsers
@@ -400,10 +400,10 @@ jobs:
               ;;
             *) echo "Unknown runtime lane: $LANE" >&2; exit 1 ;;
           esac
-          python3 scripts/ci-measure.py "$LANE" node scripts/ci-browser-selection.mjs "$SUITE" "$PROOF_BREADTH" "$BASE_SHA" --workers=1 --max-failures=2 "--output=test-results/$LANE" "${args[@]}"
+          python3 scripts/ci/ci-measure.py "$LANE" node scripts/ci/ci-browser-selection.mjs "$SUITE" "$PROOF_BREADTH" "$BASE_SHA" --workers=1 --max-failures=2 "--output=test-results/$LANE" "${args[@]}"
       - name: Run curated replay journeys
         if: matrix.lane == 'product'
-        run: bun x playwright test -c e2e/curated-replays.config.ts --max-failures=2
+        run: bun x playwright test -c e2e/product/curated-replays.config.ts --max-failures=2
       - name: Upload Playwright output
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
@@ -481,7 +481,7 @@ jobs:
             }
             writeFileSync(`${process.env.RUNNER_TEMP}/ci-metadata.json`, JSON.stringify(metadata))
       - name: Summarise validation and resources
-        run: python3 scripts/ci_report.py ci-results "$RUNNER_TEMP/ci-metadata.json" >> "$GITHUB_STEP_SUMMARY"
+        run: python3 scripts/ci/ci_report.py ci-results "$RUNNER_TEMP/ci-metadata.json" >> "$GITHUB_STEP_SUMMARY"
       - name: Publish test results
         uses: EnricoMi/publish-unit-test-result-action@v2
         if: ${{ !cancelled() && needs.changes.outputs.run-tests == 'true' }}
@@ -519,7 +519,7 @@ jobs:
           script: |
             const { writeFileSync } = await import('node:fs')
             const { execFileSync } = await import('node:child_process')
-            const { assertGate } = await import(`${process.env.GITHUB_WORKSPACE}/scripts/ci-proof.mjs`)
+            const { assertGate } = await import(`${process.env.GITHUB_WORKSPACE}/scripts/ci/ci-proof.mjs`)
             const reused = process.env.RUN_TESTS === 'false'
             assertGate(JSON.parse(process.env.JOBS), reused, process.env.SCOPE, process.env.BREADTH)
             const proof = {

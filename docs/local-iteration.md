@@ -155,7 +155,7 @@ FORGE_WEB_PLAYWRIGHT_FRONTEND_PORT=15214 FORGE_WEB_PLAYWRIGHT_BACKEND_PORT=18214
 ```
 
 Gameplay proof specs can import `test`, `recordDemos`, and `readyForVideo` from
-`e2e/demo-test.ts`. Set `PRIORITY_DEMO_VIDEO=1`, then add the page to
+`e2e/support/demo-test.ts`. Set `PRIORITY_DEMO_VIDEO=1`, then add the page to
 `readyForVideo` only after Hide card art is enabled and the scenario is ready.
 The fixture attaches an MP4 using the existing screenshot-frame recorder.
 
@@ -212,7 +212,7 @@ Optional shuffles after library reordering show **Shuffle the library?** with
 Accept and Decline. Decline retains the chosen order; accepting leaves the
 shuffle to the engine before resolution continues. The seeded Ponder branches
 exercise actual pointer choices, draw identity, card conservation and continued
-play with `bun run gre -- e2e/gre-optional-shuffle.spec.ts`.
+play with `bun run gre -- e2e/match/gre-optional-shuffle.spec.ts`.
 
 ## Top-library casting
 
@@ -248,7 +248,7 @@ bun run gre -- -g 'known opponent hand is inspectable|Multikicker accepts|Krrik 
 
 Set `PRIORITY_DEMO_VIDEO=1` to retain clips with Hide card art enabled.
 
-Granted artifact affinity is covered by `bun run gre -- e2e/gre-affinity-cost.spec.ts`.
+Granted artifact affinity is covered by `bun run gre -- e2e/match/gre-affinity-cost.spec.ts`.
 The authored pair checks the offered cost and actual mana consumed by another
 artifact creature with Mycosynth Golem, plus unavailable and fully payable
 no-Golem controls. Every branch continues through a visible land play.

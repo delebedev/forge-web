@@ -52,7 +52,7 @@ Board leaves (`Card.tsx`, `StackPanel.tsx`, `ActionButton.tsx`, etc.)
 receive data via props. Only containers (`GrePlay.tsx`, view-level
 components) read stores through the `useSyncExternalStore` seam
 (`engine/runtime/hooks.ts`, feature-local hook modules, and
-`src/features/gre/priority-runtime.ts`). Keeps leaves testable without mocking
+`src/features/match/priority-runtime.ts`). Keeps leaves testable without mocking
 and out of the subscription graph.
 
 ### C9. Module Boundaries

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type MouseEvent } from 'react'
-import { useRouter } from '@app/router'
-import { SiteHeader } from '@shared/SiteHeader'
+import { useRouter } from '@shared/router'
+import { SiteHeader } from '@shell/SiteHeader'
 import { NotFoundPage } from '@features/not-found/NotFoundPage'
 import { ReplayView } from './ReplayView'
 import { CURATED_REPLAYS, curatedReplay, replaySetupPath } from './curated-replays'

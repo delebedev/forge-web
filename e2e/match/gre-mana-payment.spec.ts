@@ -1,0 +1,320 @@
+import { writeFileSync } from 'node:fs'
+import { authenticateShell, expect } from '../support/gre-test'
+import { test, recordDemos, readyForVideo } from '../support/demo-test'
+import { startScenario } from '../support/gre-scenario'
+import { runGreAcceptanceSteps } from '../support/gre-acceptance'
+import { readBrowserJournal } from '../support/gre-browser-observations'
+import { asArray, asNumber, isRecord } from '../../src/engine/state/gre-state'
+import { decodeMessage, enumValue } from '../../src/engine/wire/gre-proto'
+
+// Separate mono-color offers must remain distinguishable without rewriting their payloads.
+for (const [color, name] of [
+  [1, 'White'],
+  [2, 'Blue'],
+] as const) {
+  test(`Prairie Stream chooses ${name} with its original mana action`, async ({ page }, info) => {
+    test.setTimeout(300_000)
+    await page.addInitScript(() =>
+      localStorage.setItem('forge:gre:priority-flag:hideCardArt', 'true'),
+    )
+    await authenticateShell(page, 'prairie-mana')
+    const response = await page.request.get('/browser-engine/release.json')
+    expect(response.ok()).toBe(true)
+    const release = await response.json()
+    await startScenario(page, 'prairie-mana', 'browser', 42)
+    await expect(page.locator('[data-board]')).toHaveAttribute('data-card-art', 'off')
+    await runGreAcceptanceSteps(page, { steps: [], headless: { full_control: true } })
+    const land = page.locator(
+      '[data-zone="battlefield"][data-owner="self"] [data-card="Prairie Stream"]',
+    )
+    await expect(land).toBeVisible()
+    await expect(land).toHaveAttribute('data-action-types', /(?:^| )4(?: |$)/)
+    const iid = Number(await land.getAttribute('data-instance-id'))
+    const before = await readBrowserJournal(page)
+    const openingPlayers = before!.batches
+      .flatMap((batch) => batch.messages)
+      .filter(isRecord)
+      .map((message) => message['gameStateMessage'])
+      .filter(isRecord)
+      .flatMap((state) => asArray(state['players']).filter(isRecord))
+      .filter((player) => player['systemSeatNumber'] === 1)
+    expect(asArray(openingPlayers.at(-1)?.['manaPool'])).toEqual([])
+    const latest = before!.batches
+      .flatMap((batch) => batch.messages)
+      .filter(isRecord)
+      .map((message) => message['actionsAvailableReq'])
+      .filter(isRecord)
+      .at(-1)!
+    const offers = asArray(latest['actions'])
+      .filter(isRecord)
+      .filter((action) => action['actionType'] === 4 && action['instanceId'] === iid)
+    expect(offers).toHaveLength(2)
+    const chosen = offers.find((action) =>
+      asArray(action['manaPaymentOptions']).some(
+        (option) =>
+          isRecord(option) &&
+          asArray(option['mana']).some((mana) => isRecord(mana) && mana['color'] === color),
+      ),
+    )!
+    expect(chosen).toBeDefined()
+    readyForVideo.add(page)
+    await land.click()
+    const chooser = page.getByRole('dialog', { name: 'Choose an action for Prairie Stream' })
+    await expect(chooser).toBeVisible()
+    const buttons = chooser.locator('[data-action-type="4"]')
+    await expect(buttons).toHaveCount(2)
+    const labels = await buttons.allTextContents()
+    const keys = await buttons.evaluateAll((nodes) =>
+      nodes.map((node) => node.getAttribute('data-action-key')),
+    )
+    await page.screenshot({ path: info.outputPath('prairie-chooser.png') })
+    writeFileSync(
+      info.outputPath('offered-actions.json'),
+      JSON.stringify({ offers, chosen, labels, keys }),
+    )
+    writeFileSync(info.outputPath('served-release.json'), JSON.stringify(release))
+    expect(new Set(keys).size).toBe(2)
+    await expect(
+      chooser.getByRole('button', { name: 'Use Prairie Stream (White)', exact: true }),
+    ).toBeVisible()
+    await expect(
+      chooser.getByRole('button', { name: 'Use Prairie Stream (Blue)', exact: true }),
+    ).toBeVisible()
+    if (recordDemos) {
+      await page.waitForTimeout(1200)
+    }
+    await chooser.getByRole('button', { name: `Use Prairie Stream (${name})`, exact: true }).click()
+    await expect(land).toHaveAttribute('data-tapped', 'true')
+    const paid = await readBrowserJournal(page)
+    expect(paid!.context?.engineBuild).toBe(release.releaseId)
+    const players = paid!.batches
+      .flatMap((batch) => batch.messages)
+      .filter(isRecord)
+      .map((message) => message['gameStateMessage'])
+      .filter(isRecord)
+      .flatMap((state) => asArray(state['players']).filter(isRecord))
+      .filter((player) => player['systemSeatNumber'] === 1)
+    expect(
+      asArray(players.at(-1)?.['manaPool'])
+        .filter(isRecord)
+        .map((mana) => [mana['color'], mana['count']]),
+    ).toEqual([[color, 1]])
+    const submitted: Record<string, unknown>[] = []
+    const greType = await enumValue('ClientToMatchServiceMessageType', 'ClientToGremessage')
+    for (const entry of paid!.responses ?? []) {
+      if (!isRecord(entry) || typeof entry['payload'] !== 'string') {
+        continue
+      }
+      const wrapper = await decodeMessage(
+        'ClientToMatchServiceMessage',
+        Buffer.from(entry['payload'], 'base64'),
+      )
+      if (wrapper['clientToMatchServiceMessageType'] !== greType) {
+        continue
+      }
+      const decoded = await decodeMessage('ClientToGREMessage', wrapper['payload'] as Uint8Array)
+      if (isRecord(decoded['performActionResp'])) {
+        submitted.push(...asArray(decoded['performActionResp']['actions']).filter(isRecord))
+      }
+    }
+    const activation = submitted.filter(
+      (action) => action['actionType'] === 4 && action['instanceId'] === iid,
+    )
+    expect(activation).toHaveLength(1)
+    expect(activation[0]).toMatchObject(chosen)
+    await page.screenshot({ path: info.outputPath('prairie-tapped.png') })
+    writeFileSync(
+      info.outputPath('mana-result.json'),
+      JSON.stringify({ offers, chosen, activation, players }),
+    )
+    await runGreAcceptanceSteps(page, {
+      steps: [
+        { cast: 'Ornithopter' },
+        { resolve_stack: {} },
+        { expect: { zone_contains: { side: 'ours', zone: 'battlefield', card: 'Ornithopter' } } },
+      ],
+    })
+    const final = await page.evaluate(() => window.__greState()!)
+    expect(final.diagnostics.errorCount).toBe(0)
+    writeFileSync(
+      info.outputPath('prairie-journal.json'),
+      JSON.stringify(await readBrowserJournal(page)),
+    )
+    writeFileSync(info.outputPath('prairie-outcome.json'), JSON.stringify(final))
+    await page.screenshot({ path: info.outputPath('continued-play.png') })
+    if (recordDemos) {
+      await page.waitForTimeout(1200)
+    }
+  })
+}
+
+test('Elder manual mana activation produces both colors and funds a spell', async ({
+  page,
+}, info) => {
+  test.setTimeout(300_000)
+  await page.addInitScript(() =>
+    localStorage.setItem('forge:gre:priority-flag:hideCardArt', 'true'),
+  )
+  await authenticateShell(page, 'elder-mana')
+  const releaseResponse = await page.request.get('/browser-engine/release.json')
+  expect(releaseResponse.ok()).toBe(true)
+  const release = (await releaseResponse.json()) as { releaseId: string }
+  await startScenario(page, 'faeburrow-mana', 'browser', 42)
+  await expect(page.locator('[data-board]')).toHaveAttribute('data-card-art', 'off')
+  await runGreAcceptanceSteps(page, { steps: [], headless: { full_control: true } })
+  readyForVideo.add(page)
+  const elder = page.locator(
+    '[data-zone="battlefield"][data-owner="self"] [data-card="Faeburrow Elder"]',
+  )
+  await expect(elder).toBeVisible()
+  await expect(elder).not.toHaveAttribute('data-tapped', 'true')
+  await expect(elder).toHaveAttribute('data-action-types', /(?:^| )4(?: |$)/)
+  await page.screenshot({ path: info.outputPath('elder-mana-available.png') })
+  await elder.click()
+  const chooser = page.getByRole('dialog', { name: 'Choose an action for Faeburrow Elder' })
+  if (await chooser.isVisible({ timeout: 250 }).catch(() => false)) {
+    await chooser.locator('[data-action-type="4"]').click()
+  }
+  await expect(elder).toHaveAttribute('data-tapped', 'true')
+  const paid = await readBrowserJournal(page)
+  expect(paid?.context?.engineBuild).toBe(release.releaseId)
+  const players = paid!.batches
+    .flatMap((batch) => batch.messages)
+    .filter(isRecord)
+    .map((message) => message['gameStateMessage'])
+    .filter(isRecord)
+    .flatMap((state) => asArray(state['players']).filter(isRecord))
+    .filter((player) => player['systemSeatNumber'] === 1)
+  const pool = asArray(players.at(-1)?.['manaPool']).filter(isRecord)
+  const white = await enumValue('ManaColor', 'White_afc9')
+  const green = await enumValue('ManaColor', 'Green_afc9')
+  expect(pool.map((mana) => [asNumber(mana['color']), asNumber(mana['count'])]).sort()).toEqual(
+    [
+      [white, 1],
+      [green, 1],
+    ].sort(),
+  )
+  writeFileSync(info.outputPath('after-manual-mana.json'), JSON.stringify(paid))
+  await page.screenshot({ path: info.outputPath('elder-tapped.png') })
+  await runGreAcceptanceSteps(page, {
+    steps: [
+      { cast: 'Watchwolf' },
+      { resolve_stack: {} },
+      {
+        expect: {
+          all: [
+            { zone_contains: { side: 'ours', zone: 'battlefield', card: 'Watchwolf' } },
+            { stack_empty: true },
+          ],
+        },
+      },
+    ],
+  })
+  writeFileSync(
+    info.outputPath('elder-journal.json'),
+    JSON.stringify(await readBrowserJournal(page)),
+  )
+  await page.screenshot({ path: info.outputPath('watchwolf-resolved.png') })
+  if (recordDemos) {
+    await page.waitForTimeout(1500)
+  }
+})
+
+test('browser AI pays for Arena with three lands and resolves its upkeep', async ({
+  page,
+}, info) => {
+  test.setTimeout(300_000)
+  await page.addInitScript(() => {
+    localStorage.setItem('forge:gre:priority-flag:hideCardArt', 'false')
+  })
+  await authenticateShell(page)
+  await startScenario(page, 'arena-mana-payment', 'browser')
+  const releaseResponse = await page.request.get('/browser-engine/release.json')
+  expect(releaseResponse.ok()).toBe(true)
+  const release = await releaseResponse.json()
+  const runtime = await page.evaluate(() => {
+    const config = JSON.parse(sessionStorage.getItem('forge:gre:lastMatchConfig') ?? '{}')
+    return { execution: config.execution, engineBuild: config.engineBuild, matchId: config.matchId }
+  })
+  expect(runtime.execution).toBe('browser')
+  expect(runtime.engineBuild).toBe(release.releaseId)
+  await info.attach('loaded-runtime', {
+    body: JSON.stringify({ runtime, release }),
+    contentType: 'application/json',
+  })
+  readyForVideo.add(page)
+  await runGreAcceptanceSteps(page, {
+    steps: [
+      {
+        pass_until: {
+          zone_contains: { side: 'opponent', zone: 'battlefield', card: 'Phyrexian Arena' },
+          max_passes: 12,
+        },
+      },
+    ],
+  })
+  const resolved = await page.evaluate(() => window.__greState()!)
+  expect(resolved.turn).toBe(1)
+  expect(resolved.stack).toHaveLength(0)
+  expect(resolved.life.opp).toBe(40)
+  const paidLands = resolved.board.opp.filter((card) =>
+    ['Swamp', 'Cabal Stronghold'].includes(card.name),
+  )
+  expect(paidLands).toHaveLength(3)
+  expect(paidLands.every((card) => card.tapped)).toBe(true)
+  const libraryBefore = resolved.counts.opp!.library
+  const handBefore = resolved.counts.opp!.hand
+  const annotationBefore = Math.max(-1, ...resolved.annotations.map((a) => a.seq))
+  await page.getByRole('button', { name: 'Full control', exact: true }).click()
+  await expect(
+    page.getByRole('button', { name: 'Full control · On', exact: true }),
+  ).toHaveAttribute('aria-pressed', 'true')
+  await runGreAcceptanceSteps(page, {
+    steps: [{ pass_until: { opponent_life: 39, max_passes: 40 } }],
+  })
+  const upkeep = await page.evaluate(() => window.__greState()!)
+  expect(upkeep.step).toBe('Upkeep')
+  expect(upkeep.activeSeat).not.toBe(upkeep.viewerSeat)
+  expect(upkeep.life.opp).toBe(39)
+  expect(upkeep.counts.opp!.library).toBe(libraryBefore - 1)
+  expect(upkeep.counts.opp!.hand).toBe(handBefore + 1)
+  expect(upkeep.stack).toHaveLength(0)
+  const types = await page.evaluate(async () => ({
+    life: await window.__greEnumValue('AnnotationType', 'ModifiedLife'),
+    damage: await window.__greEnumValue('AnnotationType', 'DamageDealt_af5a'),
+  }))
+  const events = upkeep.annotations.filter((a) => a.seq > annotationBefore)
+  expect(events.some((a) => a.types.includes(types.life) && a.details['life']?.includes(-1))).toBe(
+    true,
+  )
+  expect(events.some((a) => a.types.includes(types.damage))).toBe(false)
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const state = window.__greState()
+        return state?.horizon?.kind === 'actions' && !state.presentationLagging
+      }),
+    )
+    .toBe(true)
+  expect((await page.evaluate(() => window.__greState()!)).diagnostics.errorCount).toBe(0)
+  await page.mouse.move(20, 200)
+  await page.screenshot({ path: info.outputPath('result.png'), scale: 'css' })
+  await runGreAcceptanceSteps(page, {
+    steps: [{ pass_until: { phase: 'Draw', max_passes: 8 } }],
+  })
+  const normalDraw = await page.evaluate(() => window.__greState()!)
+  expect(normalDraw.turn).toBe(upkeep.turn)
+  expect(normalDraw.step).toBe('Draw')
+  expect(normalDraw.life.opp).toBe(39)
+  expect(normalDraw.counts.opp!.library).toBe(libraryBefore - 2)
+  expect(normalDraw.counts.opp!.hand).toBe(handBefore + 2)
+  expect(normalDraw.stack).toHaveLength(0)
+  expect(normalDraw.diagnostics.errorCount).toBe(0)
+  writeFileSync(
+    info.outputPath('upkeep-life-loss.json'),
+    JSON.stringify({ resolved, upkeep, normalDraw, events, types }, null, 2),
+  )
+  if (recordDemos) {
+    await page.waitForTimeout(1500)
+  }
+})

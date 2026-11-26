@@ -5,7 +5,7 @@ import {
   promptOptionSummaries,
 } from '@engine/state/gre-prompt-view'
 import { distributionInstruction } from './distribution'
-import { encodedPromptHarness as harness } from './prompt-test-harness'
+import { encodedPromptHarness as harness } from '../../testing/prompt-test-harness'
 import { expect, test } from 'bun:test'
 import { type GreDispatch } from '../gre-dispatch'
 import { decodeMessage, enumValue } from '@engine/wire/gre-proto'

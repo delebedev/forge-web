@@ -1,10 +1,15 @@
 import type { PromptView } from '@engine/state/gre-state'
 import { promptInstruction } from '@engine/state/gre-prompt-view'
 import { paymentInstruction } from './payment'
-import { viewFor } from '@engine/runtime/prompts/prompt-test-harness'
+import { viewFor } from '@engine/testing/prompt-test-harness'
 import { expect, test } from 'bun:test'
 import { GreDispatch } from '../gre-dispatch'
-import { bindingFor, dispatchHost, encodedPromptHarness, decodeGre } from './prompt-test-harness'
+import {
+  bindingFor,
+  dispatchHost,
+  encodedPromptHarness,
+  decodeGre,
+} from '@engine/testing/prompt-test-harness'
 import type { GreTables, ProtoObject } from '@engine/state/gre-state'
 
 test('payment actions preserve the request envelope and exact server action', async () => {

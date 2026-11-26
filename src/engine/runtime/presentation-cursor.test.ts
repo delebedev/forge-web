@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
 import type { GreFrameSink, GreFrameSource } from './gre-frame-source'
-import { availableActions, diffGameState, fullGameState } from './gre-test-frames'
+import { availableActions, diffGameState, fullGameState } from '../testing/gre-test-frames'
 import {
   COLLAPSE_AFTER_STEPS,
   HUMAN_DWELL,

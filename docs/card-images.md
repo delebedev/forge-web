@@ -31,7 +31,7 @@ gets a combined-name row pointing at its first face.
   illustration for Arena's `A-` rebalanced names, which Scryfall does not
   publish; only the artwork is borrowed, and the rebalanced face keeps its own
   name, mana cost and rules.
-- **Browser engine:** `scripts/build-browser-catalog.py` projects the same
+- **Browser engine:** `scripts/build/build-browser-catalog.py` projects the same
   database into `card-images.json.gz` during `bun run browser:assets`, adds the
   same `A-` aliases, and the browser release manifest hashes the result. The
   worker verifies and loads it at initialization, then fills each card's
@@ -73,7 +73,7 @@ already-downloaded file instead of downloading again, pass `--input` with a
 publication date:
 
 ```bash
-bun scripts/build-card-image-index.ts --input /path/oracle-cards-20261122220157.jsonl.gz \
+bun scripts/build/build-card-image-index.ts --input /path/oracle-cards-20261122220157.jsonl.gz \
   --source-updated-at 2026-11-22T22:01:57.207+00:00
 ```
 
@@ -93,7 +93,7 @@ release manifest from the new file.
 ## Verifying a refresh
 
 ```bash
-bun test scripts/build-card-image-index.test.ts
+bun test scripts/build/build-card-image-index.test.ts
 sqlite3 server/assets/card-images.sqlite \
   "select count(*) from card_images; select * from metadata;"
 ```

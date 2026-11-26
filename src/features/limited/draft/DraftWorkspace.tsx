@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { DraftCard } from '@shared/api/contracts'
-import { CardHoverPreview } from '@features/gre/board/CardHoverPreview'
+import { CardHoverPreview } from '@shared/cards/CardHoverPreview'
 import { DraftPackArea } from './DraftPackArea'
 import { DraftPoolSidebar } from './DraftPoolSidebar'
 import styles from './DraftPicking.module.css'

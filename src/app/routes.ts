@@ -1,7 +1,10 @@
 /**
- * Route table matched by `src/app/router.tsx`. Kept separate so route
- * resolution (name, params, `lastMatchPath` semantics) lives in one place.
+ * Route table and resolver installed into `src/shared/router.tsx`. Route
+ * resolution (name, params, `lastMatchPath` semantics) lives here.
  */
+
+import type { RouterState } from '@shared/router'
+import { updateHead } from './seo'
 
 export interface Route {
   pattern: string // e.g. '/play/constructed' or '/match/:matchId'
@@ -64,4 +67,28 @@ export function matchRoute(
     }
   }
   return { params }
+}
+
+/** Resolve `location` against `ROUTES`, updating the document head for the match. */
+export function resolveRoute(lastMatchPath: string | null): RouterState {
+  const path = location.pathname
+  const query = new URLSearchParams(location.search)
+
+  for (const r of ROUTES) {
+    const result = matchRoute(r.pattern, path)
+    if (result) {
+      const route = r.component as RouteName
+      updateHead(route, result.params)
+      return {
+        path,
+        route,
+        params: result.params,
+        query,
+        lastMatchPath: route === 'match' ? path : lastMatchPath,
+      }
+    }
+  }
+
+  updateHead('not-found')
+  return { path, route: 'not-found' as RouteName, params: {}, query, lastMatchPath }
 }

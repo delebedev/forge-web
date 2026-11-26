@@ -1,4 +1,8 @@
-import { ANALYTICS_RELEASE, analyticsTraffic, trackBugReportOpened } from './analytics'
+import {
+  ANALYTICS_RELEASE,
+  analyticsTraffic,
+  trackBugReportOpened,
+} from './observability/analytics'
 import { deviceId } from './device-id'
 import type { GreCloseCategory } from '@engine/runtime/gre-connection'
 

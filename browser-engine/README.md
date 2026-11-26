@@ -14,7 +14,7 @@ A start whose deck is rejected does not count.
 
 ## Integrated alpha release
 
-`bun run browser-alpha:build` writes schema-2 `dist/browser-engine/release.json`.
+`bun run release:build` writes schema-2 `dist/browser-engine/release.json`.
 It maps each logical file to a content-addressed URL and generates the exact
 same-origin startup set from the worker metadata, classpath, and selected
 catalog files. The lobby and worker consume that one manifest. Every file is
@@ -69,7 +69,7 @@ it with the same packs, bot picks and bot decks. The catalog carries draft
 rankings for the offered sets. Boosters build each edition's print sheets on
 demand instead of loading every card script.
 
-`node tools/limited-timing.mjs --runs 3` times a full FDN draft, its bot decks
+`node scripts/dev/limited-timing.mjs --runs 3` times a full FDN draft, its bot decks
 and a sealed pool on cold workers in desktop Chrome after `bun run browser:assets`.
 
 ## Boundaries

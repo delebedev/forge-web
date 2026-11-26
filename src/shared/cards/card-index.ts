@@ -5,7 +5,7 @@
  */
 
 import { z } from 'zod'
-import { releaseAssetBytes } from '@engine/runtime/browser-release'
+import { releaseAssetBytes } from '@engine/worker/browser-release'
 import { SealedSetSchema, type GreCardMetaDto, type SealedSet } from '@shared/api/contracts'
 import { cardSearchKey } from './card-search'
 

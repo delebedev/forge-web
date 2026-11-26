@@ -6,7 +6,7 @@ import {
   encodedPromptHarness,
   bindingFor,
   decodeGre,
-} from './prompt-test-harness'
+} from '../../testing/prompt-test-harness'
 import { buildGreWrapper, enumValue } from '@engine/wire/gre-proto'
 import type { GreTables, ProtoObject } from '@engine/state/gre-state'
 const search = (msgId = 1) => ({

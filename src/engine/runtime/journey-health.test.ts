@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
 import { JourneyHealth } from './journey-health'
-import type { AnalyticsProps } from '@shared/analytics'
+import type { AnalyticsProps } from '@shared/observability/analytics'
 
 test('only newer authoritative progress completes an action; telemetry is paired and timed', () => {
   const events: { event: string; props: AnalyticsProps }[] = []

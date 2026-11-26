@@ -36,7 +36,7 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run leyline:check
 
-      - run: bun run browser-alpha:build
+      - run: bun run release:build
 
       - name: Install browser
         uses: ./.github/actions/playwright-browsers
@@ -51,7 +51,7 @@ jobs:
 
       - name: Check browser play, recovery and card presentation
         if: '!cancelled()'
-        run: bun run e2e browser-alpha e2e/browser-alpha.spec.ts e2e/browser-alpha-diagnostics.spec.ts e2e/browser-alpha-commander.spec.ts --workers=1 --output=test-results/browser-core
+        run: bun run e2e engine e2e/engine/core.spec.ts e2e/engine/diagnostics.spec.ts e2e/engine/commander.spec.ts --workers=1 --output=test-results/browser-core
 
       - name: Upload browser evidence
         if: failure()
@@ -60,7 +60,7 @@ jobs:
           name: browser-qualification
           path: |
             test-results/**
-            /tmp/forge-web-browser-alpha-*-web.log
+            /tmp/forge-web-engine-*-web.log
           if-no-files-found: ignore
           retention-days: 1
 

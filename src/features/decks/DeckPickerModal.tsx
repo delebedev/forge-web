@@ -4,7 +4,7 @@ import type { DeckCard, DeckDetail, DeckSummary } from '@shared/api/contracts'
 import { DeckDetailPane } from '@features/decks/DeckDetailPane'
 import { DeckList } from '@features/decks/DeckList'
 import { useDecksSnapshot } from '@features/decks/decks-hooks'
-import { CardHoverPreview } from '@features/gre/board/CardHoverPreview'
+import { CardHoverPreview } from '@shared/cards/CardHoverPreview'
 import { Modal } from '@shared/ui/Modal'
 import styles from './DeckPickerModal.module.css'
 

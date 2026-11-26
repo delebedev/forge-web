@@ -1,5 +1,5 @@
 import { DEVICE_ID_HEADER, deviceId } from '@shared/device-id'
-import { reportDiagnostic } from '@shared/reporting'
+import { reportDiagnostic } from '@shared/observability/reporting'
 import type { BrowserReplayCollector } from './browser-replay-collector'
 import {
   prepareReplayChunk,

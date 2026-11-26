@@ -6,6 +6,10 @@ const suite = process.env['FORGE_WEB_PLAYWRIGHT_SUITE']
 
 const IPAD_VIEWPORT = { width: 1024, height: 1366 }
 
+// The managed `gre` suite and the standalone `gre` project run the same specs.
+const GRE_SPECS =
+  /gre-(?:play|prompts|gavi-cycling|optional-shuffle|mulligan|recovery|priority|sounds|cost-choice|affinity-cost|combat-assignments|equip-cost|repeatable-cost|alternate-life-cost|modal-cancel|search-owner|library-permissions|partner-decks|known-opponent-hand|warp|player-counters|mana-payment|triggered-payment|protection-mixed|proliferate|facedown-projection|lost-keywords|hand-reach)\.spec\.ts/
+
 const standaloneConfig = defineConfig({
   testDir: './e2e',
   timeout: 30_000,
@@ -36,8 +40,7 @@ const standaloneConfig = defineConfig({
       // Specs navigate relative to `baseURL`; against an already-running stack
       // that is Leyline serving the built bundle rather than the Vite port.
       name: 'gre',
-      testMatch:
-        /gre-(?:play|prompts|gavi-cycling|optional-shuffle|mulligan|recovery|priority|sounds|cost-choice|equip-cost|repeatable-cost|alternate-life-cost|modal-cancel|search-owner|library-permissions|partner-decks|known-opponent-hand|warp|player-counters|mana-payment|triggered-payment|protection-mixed|proliferate|facedown-projection|lost-keywords|hand-reach)\.spec\.ts/,
+      testMatch: GRE_SPECS,
       use: {
         browserName: 'chromium',
         channel: 'chromium',
@@ -81,7 +84,7 @@ function makeSmokeConfig({
     process.env['FORGE_WEB_PLAYWRIGHT_STATE_DIR'] ??
     `/tmp/forge-web-${name}-${webPort}-${process.pid}-${Date.now()}-state`
   const serverCommand = process.env['FORGE_WEB_SERVER_DIST']
-    ? 'bash scripts/run-ci-server.sh'
+    ? 'bash scripts/ci/run-ci-server.sh'
     : 'bun server/main.ts'
   const serverLog = `/tmp/forge-web-${name}-${webPort}-${process.pid}-web.log`
   const webCommand = `bash -lc 'set -o pipefail; LEYLINE_WEB_PORT=${webPort} LEYLINE_WEB_LOGIN_CODE=123456 LEYLINE_WEB_ALLOW_FIXED_LOGIN_CODE=true LEYLINE_WEB_RATE_LIMIT_ENABLED=false LEYLINE_WEB_AUTH_SECRET=forge-web-${name}-test-secret-1234567890 LEYLINE_WEB_REPLAY_OPERATOR_TOKEN=forge-web-${name}-operator-secret-1234567890 LEYLINE_PATHS_STATE="${stateDir}" ${serverCommand} 2>&1 | tee ${serverLog} >&2'`
@@ -157,8 +160,7 @@ const reactChallengeBase = makeSmokeConfig({
 
 const greBase = makeSmokeConfig({
   name: 'gre',
-  testMatch:
-    /gre-(?:play|prompts|gavi-cycling|optional-shuffle|mulligan|recovery|priority|sounds|cost-choice|affinity-cost|combat-assignments|equip-cost|repeatable-cost|alternate-life-cost|modal-cancel|search-owner|library-permissions|partner-decks|known-opponent-hand|warp|player-counters|mana-payment|triggered-payment|protection-mixed|proliferate|facedown-projection|lost-keywords|hand-reach)\.spec\.ts/,
+  testMatch: GRE_SPECS,
   // Managed runs serve the app from Vite rather than a built bundle, so the
   // first scenarios absorb on-demand transforms on top of engine warmup.
   timeout: 90_000,
@@ -182,9 +184,9 @@ const forgeCatalogBase = makeSmokeConfig({
   webPort: 15189,
 })
 
-const browserAlphaBase = makeSmokeConfig({
-  name: 'browser-alpha',
-  testMatch: /browser-alpha(?:-(?:commander|demo|diagnostics|emblems|telemetry))?\.spec\.ts/,
+const engineBase = makeSmokeConfig({
+  name: 'engine',
+  testMatch: /engine\/(?:core|commander|demo|diagnostics|emblems|telemetry)\.spec\.ts/,
   timeout: 300_000,
   frontendPort: 15183,
   webPort: 15193,
@@ -306,9 +308,9 @@ const managedConfigs: Record<string, PlaywrightTestConfig> = {
       },
     ],
   }),
-  'browser-alpha': defineConfig({
-    ...browserAlphaBase,
-    outputDir: process.env['BROWSER_ALPHA_OUTPUT_DIR'],
+  engine: defineConfig({
+    ...engineBase,
+    outputDir: process.env['BROWSER_ENGINE_OUTPUT_DIR'],
     preserveOutput: 'always',
     projects: [
       {
@@ -321,7 +323,7 @@ const managedConfigs: Record<string, PlaywrightTestConfig> = {
           },
           viewport: { width: 1280, height: 720 },
           deviceScaleFactor: 1,
-          video: process.env['BROWSER_ALPHA_VIDEO'] === '1' ? 'on' : 'off',
+          video: process.env['BROWSER_ENGINE_VIDEO'] === '1' ? 'on' : 'off',
         },
       },
     ],

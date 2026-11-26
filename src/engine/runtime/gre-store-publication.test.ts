@@ -1,7 +1,7 @@
-import { viewFor } from '@engine/runtime/prompts/prompt-test-harness'
+import { viewFor } from '@engine/testing/prompt-test-harness'
 import { expect, test } from 'bun:test'
 import type { GreFrameSink, GreFrameSource } from './gre-frame-source'
-import { diffGameState, fullGameState } from './gre-test-frames'
+import { diffGameState, fullGameState } from '../testing/gre-test-frames'
 
 class FakeSource implements GreFrameSource {
   sink: GreFrameSink | null = null

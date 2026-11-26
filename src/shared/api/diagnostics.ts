@@ -1,4 +1,4 @@
-import { reportDiagnostic } from '@shared/reporting'
+import { reportDiagnostic } from '@shared/observability/reporting'
 import { responseSchemas } from '@contract/wire-schemas'
 
 const routes = Object.keys(responseSchemas).map((operation) => {

@@ -1,5 +1,5 @@
-import { viewFor } from '@engine/runtime/prompts/prompt-test-harness'
-import { promptHarness as harness } from './prompt-test-harness'
+import { viewFor } from '@engine/testing/prompt-test-harness'
+import { promptHarness as harness } from '../../testing/prompt-test-harness'
 import { expect, test } from 'bun:test'
 import { type GreDispatch } from '../gre-dispatch'
 import type { CardMeta, ProtoObject } from '@engine/state/gre-state'

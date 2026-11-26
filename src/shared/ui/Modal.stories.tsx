@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, screen, userEvent, waitFor } from 'storybook/test'
-import '../public-theme.css'
+import '../../shell/public-theme.css'
 import { Modal } from './Modal'
 import { TextField } from './Field'
 

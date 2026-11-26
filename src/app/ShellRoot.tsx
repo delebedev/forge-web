@@ -10,7 +10,7 @@
  */
 
 import { greSession } from '@engine/runtime/gre-session'
-import { useRouter } from '@app/router'
+import { useRouter } from '@shared/router'
 import { DecksView } from '@features/decks/DecksView'
 import { LandingPage } from '@features/landing/LandingPage'
 import { AboutPage } from '@features/about/AboutPage'
@@ -23,11 +23,11 @@ import { AppShell } from '@shell/AppShell'
 import { lazy, Suspense } from 'react'
 import { GameSetupRoute } from '@features/game-setup/GameSetupRoute'
 import { LimitedRoute } from '@features/limited/LimitedRoute'
-import { MatchRoute } from '@features/gre/MatchRoute'
+import { MatchRoute } from '@features/match/MatchRoute'
 import { ReplayView } from '@features/replay/ReplayView'
 import { CuratedWatch } from '@features/replay/CuratedWatch'
 import { useAuthSnapshot } from '@shared/auth/hooks'
-import { REPLAY_ENABLED, SEALED_ENABLED } from '@shared/flags'
+import { REPLAY_ENABLED, SEALED_ENABLED } from '@features/limited/flags'
 
 const EntryDirections = import.meta.env.DEV
   ? lazy(() =>

@@ -10,7 +10,7 @@ on:
       - 'package.json'
       - 'bun.lock'
       - 'vite.config.ts'
-      - 'scripts/seo.ts'
+      - 'scripts/build/seo.ts'
       - 'chromatic.config.json'
       - '.github/workflows/chromatic.yml'
   workflow_dispatch:

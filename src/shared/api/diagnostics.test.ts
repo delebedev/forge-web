@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, spyOn, test } from 'bun:test'
 import { z } from 'zod'
-import * as reporting from '@shared/reporting'
+import * as reporting from '@shared/observability/reporting'
 import { apiFetch } from './client'
 import { readJson } from './decoding'
 

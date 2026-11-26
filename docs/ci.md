@@ -67,7 +67,7 @@ changes and Leyline pin updates run representative browser proof. Main and manua
 runs retain the complete regular product, catalog, GRE suites.
 Browser Local still runs its generated and bundled startup/action smoke on both.
 
-`scripts/ci-browser-selection.mjs` resolves the following authored test calls to
+`scripts/ci/ci-browser-selection.mjs` resolves the following authored test calls to
 Playwright file/line selectors. Template calls select every generated case at
 that location. Missing or ambiguous representatives and missing comparison
 history expand the affected suite to full coverage.

@@ -1,8 +1,8 @@
 import './app.css'
 import '@shared/cards/mana.css'
-import '@shared/public-theme.css'
-import { initReporting, reportBootstrapFailure } from '@shared/reporting'
-import { initSessionReplay } from '@shared/session-replay'
+import '@shell/public-theme.css'
+import { initReporting, reportBootstrapFailure } from '@shared/observability/reporting'
+import { initSessionReplay } from '@shared/observability/session-replay'
 import type { mountApp as MountApp } from './mount'
 
 initReporting()
@@ -31,7 +31,7 @@ async function bootstrap(): Promise<void> {
   }
   mountApp(target)
   if (import.meta.env.DEV) {
-    const { installGreDebugBridge } = await import('@shared/debug/gre-debug-bridge')
+    const { installGreDebugBridge } = await import('@engine/debug/gre-debug-bridge')
     installGreDebugBridge()
   }
 }

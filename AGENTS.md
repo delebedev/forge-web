@@ -31,7 +31,7 @@ checkout, create ready sibling worktrees with `just ws <branch>`.
   interaction checks, or visual coverage.
 - **Browser tests:** read `docs/e2e-selectors.md` before adding selectors or
   journeys. For scripted debug-bridge tests, consult
-  `src/shared/debug/gre-debug-bridge.ts`.
+  `src/engine/debug/gre-debug-bridge.ts`.
 - **Browser driver:** read `tools/browser-driver/AGENTS.md` before running
   autonomous gameplay, evaluating puzzle candidates, or changing the driver.
 - **Analytics:** read `docs/analytics.md` before changing tracking, replay, or

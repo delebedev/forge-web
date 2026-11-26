@@ -2,9 +2,9 @@
 
 import { loginReturnPath } from './login-return'
 import { useEffect, useState, type FormEvent } from 'react'
-import { trackLogin } from '@shared/analytics'
+import { trackLogin } from '@shared/observability/analytics'
 import { authStore } from '@shared/auth/auth'
-import { useRouter } from '@app/router'
+import { useRouter } from '@shared/router'
 import { useAuthSnapshot } from '@shared/auth/hooks'
 import { Button } from '@shared/ui/Button'
 import { TextField } from '@shared/ui/Field'

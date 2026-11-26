@@ -22,7 +22,7 @@ import {
   curveCounts as cmcCurveCounts,
   maxCurveCount,
 } from '@shared/cards/deck-builder'
-import { CardHoverPreview } from '@features/gre/board/CardHoverPreview'
+import { CardHoverPreview } from '@shared/cards/CardHoverPreview'
 import { cx } from '@shared/react/cx'
 import { LimitedPoolStrip } from './LimitedPoolStrip'
 import { LimitedMainboardColumns } from './LimitedMainboardColumns'

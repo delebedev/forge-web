@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, mock, spyOn, test } from 'bun:test'
 import { DEVICE_ID_HEADER, deviceId } from '@shared/device-id'
-import * as reporting from '@shared/reporting'
+import * as reporting from '@shared/observability/reporting'
 import { listCourses } from '@shared/api/course-records'
 import { BrowserReplayCollector } from './browser-replay-collector'
 import { BrowserReplayStreamer, type ReplayClock } from './browser-replay-streamer'

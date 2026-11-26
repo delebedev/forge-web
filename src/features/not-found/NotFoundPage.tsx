@@ -1,4 +1,4 @@
-import { SiteHeader } from '../../shared/SiteHeader'
+import { SiteHeader } from '../../shell/SiteHeader'
 
 /** Shared by the React route and the build's HTTP 404 document. */
 export function NotFoundPage() {

@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from 'bun:test'
-import { setAnalyticsAccountId } from './analytics'
+import { setAnalyticsAccountId } from './observability/analytics'
 import { deviceId } from './device-id'
 import { createBugReport, prepareBugReport, trackBugReportOpen } from './feedback'
 

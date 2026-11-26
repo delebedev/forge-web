@@ -1,5 +1,5 @@
 import react from '@vitejs/plugin-react'
-import { seo } from './scripts/seo'
+import { seo } from './scripts/build/seo'
 import { defineConfig, type Plugin } from 'vite'
 import { fileURLToPath, URL } from 'node:url'
 import { execSync } from 'node:child_process'

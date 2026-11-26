@@ -79,7 +79,7 @@ game-modes:
   puzzle:
     status: partial
     notes: >
-      PUZZLES_ENABLED (src/shared/flags.ts) is off: the product ships
+      PUZZLES_ENABLED (src/features/limited/flags.ts) is off: the product ships
       login/constructed/draft first, so the puzzle browse/paste/generate UI
       was deleted rather than ported and /play/puzzle carries no route.
       Puzzle matches themselves still run — the GRE play route accepts a
@@ -136,7 +136,7 @@ gre-runtime:
   board-presentation:
     status: works
     notes: >
-      GrePlay.tsx + src/features/gre/board/* (Card, StackPanel,
+      GrePlay.tsx + src/features/match/board/* (Card, StackPanel,
       SideRail, PhaseRail, HandFan, OppHandFan, ArrowLayer, CardPreview,
       ActionButton). Lands-left battlefield, inline life totals, opponent
       hand fan, hidden-zone chips, hover/focus card inspection with adjacent
@@ -179,7 +179,7 @@ gre-runtime:
   prompts:
     status: works
     notes: >
-      PromptDock.tsx (src/features/gre/prompts/) renders targets,
+      PromptDock.tsx (src/features/match/prompts/) renders targets,
       fixed-total distribution, attackers, blockers, assign-damage, group (scry/surveil),
       order (click-to-order), selectN, search, casting options, optional
       actions, grouped search, replacement order, and mulligan. Headings and instructions are player-facing;
@@ -239,7 +239,7 @@ ux:
       GreDiagnostics (src/engine/runtime/gre-diagnostics.ts), owned by runtime/gre-store.ts:
       message log, traffic stats, message type histogram. No dedicated
       dev-mode panel component renders it; it is surfaced today through
-      window.__greState() (src/shared/debug/gre-debug-bridge.ts) for agent/debug
+      window.__greState() (src/engine/debug/gre-debug-bridge.ts) for agent/debug
       tooling rather than an in-app view.
 
 
@@ -253,22 +253,22 @@ testing:
   gre-e2e:
     status: partial
     notes: >
-      e2e/gre-play.spec.ts through the gre project in playwright.config.ts. A handful of
+      e2e/match/gre-play.spec.ts through the gre project in playwright.config.ts. A handful of
       scenarios are skipped pending fixture/engine support; skip reasons live
       beside the affected tests and acceptance-suite metadata.
 
   product-smoke:
     status: works
     notes: >
-      e2e/product-smoke.spec.ts (product mode in playwright.config.ts) covers
+      e2e/product/product-smoke.spec.ts (product mode in playwright.config.ts) covers
       the curated replay landing, constructed setup, anonymous challenges,
       a real GRE start, and dialog focus behavior. Draft and sealed play routes
       reach initial GRE state in MatchMatrixTest.
 
   auth-smoke:
     status: works
-    notes: "e2e/auth-passwordless.spec.ts (auth mode in playwright.config.ts)."
+    notes: "e2e/product/auth-passwordless.spec.ts (auth mode in playwright.config.ts)."
 
   visual-screenshots:
     status: works
-    notes: "e2e/screenshots.spec.ts (playwright.config.ts default + ipad projects)."
+    notes: "e2e/product/screenshots.spec.ts (playwright.config.ts default + ipad projects)."

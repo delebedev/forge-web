@@ -1,11 +1,11 @@
 import type { DeckDetail, ParseDecklistResponse } from '@shared/api/contracts'
 import { cmcOf } from '@shared/cards/deck-builder'
 import { formatDecklist } from '@shared/cards/parse-decklist'
-import green from '../../../dev/decks/Pauper Green Stompy.txt?raw'
-import red from '../../../dev/decks/Pauper Red Burn.txt?raw'
-import blue from '../../../dev/decks/Pauper Blue Tempo.txt?raw'
-import white from '../../../dev/decks/Pauper White Lifegain.txt?raw'
-import black from '../../../dev/decks/Pauper Black Sacrifice.txt?raw'
+import green from '../../../content/decks/Pauper Green Stompy.txt?raw'
+import red from '../../../content/decks/Pauper Red Burn.txt?raw'
+import blue from '../../../content/decks/Pauper Blue Tempo.txt?raw'
+import white from '../../../content/decks/Pauper White Lifegain.txt?raw'
+import black from '../../../content/decks/Pauper Black Sacrifice.txt?raw'
 
 export const PRECONSTRUCTED_DECKS: DeckDetail[] = [
   ['Green Stompy', 'G', 'Llanowar Elves', 'Build your mana. Send in the creatures.', green],
@@ -25,7 +25,7 @@ export const PRECONSTRUCTED_DECKS: DeckDetail[] = [
   userOwned: false,
 }))
 
-const commanderLists = import.meta.glob('../../../dev/decks/commander/*.txt', {
+const commanderLists = import.meta.glob('../../../content/decks/commander/*.txt', {
   query: '?raw',
   import: 'default',
   eager: true,

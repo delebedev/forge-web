@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { useRouter } from '@app/router'
+import { useRouter } from '@shared/router'
 import { scryfallUrl } from '@shared/cards/scryfall'
 import './EntryDirections.css'
 

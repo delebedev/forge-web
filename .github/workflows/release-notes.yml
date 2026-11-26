@@ -51,7 +51,7 @@ jobs:
           persist-credentials: false
 
       - name: Check release-note logic
-        run: python3 -m unittest scripts/test_release_notes.py
+        run: python3 -m unittest scripts/release/test_release_notes.py
 
       - name: Prepare release-note draft
         if: env.NOTES_MODE == 'publish'
@@ -69,14 +69,14 @@ jobs:
           (directory / 'deployment.json').write_text(json.dumps(deployment))
           PYTHON
           fi
-          python3 scripts/release_notes.py draft --reuse-existing --deployment "$RUNNER_TEMP/deployment/deployment.json" --output "$RUNNER_TEMP/notes"
+          python3 scripts/release/release_notes.py draft --reuse-existing --deployment "$RUNNER_TEMP/deployment/deployment.json" --output "$RUNNER_TEMP/notes"
           cat "$RUNNER_TEMP/notes/draft.md" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Prepare daily feed
         id: feed
         if: env.NOTES_MODE == 'publish'
         run: |
-          python3 scripts/release_notes.py feed --tag "$NOTES_TAG" --output "$RUNNER_TEMP/notes"
+          python3 scripts/release/release_notes.py feed --tag "$NOTES_TAG" --output "$RUNNER_TEMP/notes"
           if test -f "$RUNNER_TEMP/notes/whats-new.md"; then
             echo 'publish=true' >> "$GITHUB_OUTPUT"
           fi

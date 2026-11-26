@@ -1,5 +1,5 @@
 import { useEffect, useState, type MouseEvent } from 'react'
-import { useRouter } from '@app/router'
+import { useRouter } from '@shared/router'
 import { challengeToGreStartConfig } from '@engine/runtime/gre-launch'
 import { greSession } from '@engine/runtime/gre-session'
 import { challengesStore, type Challenge } from './challenges-store'

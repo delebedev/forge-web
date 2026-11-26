@@ -25,7 +25,7 @@ jobs:
       - uses: actions/github-script@v7
         with:
           script: |
-            const { waitForMainCi } = await import(`${process.env.GITHUB_WORKSPACE}/scripts/ci-proof.mjs`)
+            const { waitForMainCi } = await import(`${process.env.GITHUB_WORKSPACE}/scripts/ci/ci-proof.mjs`)
             await waitForMainCi(github, context, core)
 
   publish:
@@ -66,7 +66,7 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Prepare pinned Forge dependencies
-        run: node scripts/bootstrap.mjs --prepare-only
+        run: node scripts/dev/bootstrap.mjs --prepare-only
 
       - name: Classify release against production
         id: scope
@@ -90,7 +90,7 @@ jobs:
               output.write(f"base={live['base']}\nbackend={live['backend']}\n")
           PY
           backend=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["backend"])' "$RUNNER_TEMP/forge-web-live.json")
-          kind=$(python3 scripts/frontend-release-scope.py --classify . "$backend")
+          kind=$(python3 scripts/release/frontend-release-scope.py --classify . "$backend")
           printf 'kind=%s\n' "$kind" >> "$GITHUB_OUTPUT"
           printf 'Release class: %s\n' "$kind" >> "$GITHUB_STEP_SUMMARY"
 
@@ -103,7 +103,7 @@ jobs:
           FORGE_WEB_PRIVATE_SOURCEMAPS: 'true'
         run: |
           test -n "$VITE_SENTRY_DSN"
-          bun run browser-alpha:build
+          bun run release:build
 
       - name: Upload private source maps
         env:
@@ -141,7 +141,7 @@ jobs:
         run: |
           bun run runtime:check
           bun run server:build:release
-          bash scripts/build-full-release.sh "$RUNNER_TEMP/forge-web-full"
+          bash scripts/release/build-full-release.sh "$RUNNER_TEMP/forge-web-full"
 
       - name: Publish full release
         if: steps.scope.outputs.kind == 'full'

@@ -15,7 +15,7 @@ export function defaultServerCommand(): string {
     return configured
   }
   if (process.env['FORGE_WEB_SERVER_DIST']) {
-    return 'bash scripts/run-ci-server.sh'
+    return 'bash scripts/ci/run-ci-server.sh'
   }
   return 'bun server/main.ts'
 }

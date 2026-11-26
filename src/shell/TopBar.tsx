@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import { boardAudio } from '@shared/audio'
-import { useSoundPreferences } from '@shared/audio-react'
+import { boardAudio } from '@features/match/board/audio'
+import { useSoundPreferences } from '@features/match/board/audio-react'
 import { authStore } from '@shared/auth/auth'
-import { useRouter } from '@app/router'
+import { useRouter } from '@shared/router'
 import { cx } from '@shared/react/cx'
 import {
   connectionStatusOf,
