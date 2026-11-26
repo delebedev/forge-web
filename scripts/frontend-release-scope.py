@@ -22,7 +22,7 @@ ALLOWED_FILES = {'index.html', 'package.json', 'bun.lock', 'vite.config.ts',
 
 def frontend_only(path):
     return (
-        path.startswith(('src/', 'public/', 'e2e/', 'docs/', '.storybook/', 'browser-engine/', 'card-presentation/',
+        path.startswith(('src/', 'public/', 'e2e/', 'docs/', '.storybook/', 'browser-engine/',
                          'leyline/')) or path in ALLOWED_FILES or
         re.fullmatch(r'tsconfig(?:\.[\w-]+)?\.json', path) is not None
     )

@@ -1,10 +1,13 @@
 plugins {
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.ktlint)
 }
 
+val repository = layout.projectDirectory.dir("..")
+
 repositories {
-    maven { url = uri(rootProject.layout.projectDirectory.dir("leyline/forge/.m2-local")) }
+    maven { url = uri(repository.dir("leyline/forge/.m2-local")) }
     mavenCentral()
 }
 
@@ -37,7 +40,6 @@ if (providers.gradleProperty("browserPrune").orElse("false").get().toBoolean()) 
 }
 
 dependencies {
-    implementation(project(":card-presentation"))
     implementation("leyline:engine:0")
     implementation("leyline:domain:0")
     implementation("leyline:gre-proto:0")
@@ -47,25 +49,25 @@ dependencies {
 
 tasks.test {
     useJUnitPlatform()
-    systemProperty("leyline.res.dir", rootProject.layout.projectDirectory.dir("leyline/forge/forge-gui/res").asFile.absolutePath)
-    systemProperty("forge.web.test.root", rootProject.layout.projectDirectory.asFile.absolutePath)
+    systemProperty("leyline.res.dir", repository.dir("leyline/forge/forge-gui/res").asFile.absolutePath)
+    systemProperty("forge.web.test.root", repository.asFile.absolutePath)
 }
 
 tasks.register<JavaExec>("catalogIndex") {
     dependsOn(tasks.classes)
     classpath = sourceSets.main.get().runtimeClasspath
-    mainClass.set("forge.web.browser.BrowserCatalogIndex")
+    mainClass.set("forge.web.browser.catalog.BrowserCatalogIndex")
     javaLauncher.set(javaToolchains.launcherFor { languageVersion.set(JavaLanguageVersion.of(17)) })
-    args(rootProject.file("public/browser-engine/catalog").absolutePath)
+    args(repository.dir("public/browser-engine/catalog").asFile.absolutePath)
     maxHeapSize = "512m"
 }
 
 tasks.register<JavaExec>("cardIndex") {
     dependsOn(tasks.classes)
     classpath = sourceSets.main.get().runtimeClasspath
-    mainClass.set("forge.web.browser.BrowserCardIndex")
+    mainClass.set("forge.web.browser.catalog.BrowserCardIndex")
     javaLauncher.set(javaToolchains.launcherFor { languageVersion.set(JavaLanguageVersion.of(17)) })
-    args(rootProject.file("public/browser-engine/catalog").absolutePath)
+    args(repository.dir("public/browser-engine/catalog").asFile.absolutePath)
     maxHeapSize = "1g"
 }
 
@@ -73,7 +75,7 @@ tasks.register<Sync>("browserDistribution") {
     dependsOn(tasks.jar)
     from(tasks.jar)
     from(configurations.runtimeClasspath)
-    into(rootProject.layout.projectDirectory.dir("public/browser-engine/lib"))
+    into(repository.dir("public/browser-engine/lib"))
     doLast {
         val jars = destinationDir.listFiles().orEmpty().filter { it.extension == "jar" }.sortedBy { it.name }
         destinationDir.resolve("classpath.json").writeText(jars.joinToString(",", "[", "]") { "\"${it.name}\"" })

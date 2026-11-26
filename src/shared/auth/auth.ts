@@ -33,11 +33,7 @@ class AuthStore {
   private sessionGeneration = 0
 
   constructor() {
-    if (
-      typeof window !== 'undefined' &&
-      import.meta.env['VITE_BROWSER_ENGINE'] !== '1' &&
-      !window.location.pathname.startsWith('/challenge/')
-    ) {
+    if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/challenge/')) {
       void this.refresh()
     }
   }

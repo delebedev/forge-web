@@ -1,0 +1,79 @@
+package forge.web.browser.cards
+
+import leyline.bridge.bootstrap.DeckLoader
+import leyline.bridge.bootstrap.GameBootstrap
+import leyline.domain.deck.DeckSource
+import kotlin.test.BeforeTest
+import kotlin.test.Test
+import kotlin.test.assertContains
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+
+class CommanderEligibilityTest {
+    @BeforeTest
+    fun initializeCards() {
+        GameBootstrap.initializeCardDatabase(quiet = true, lazyCards = true)
+    }
+
+    private fun problem(
+        main: String,
+        vararg commanders: String,
+    ): String? =
+        commanderDeckProblem(
+            DeckLoader.load(DeckSource.ForgeText("[Deck]\n$main\n[Commander]\n" + commanders.joinToString("\n") { "1 $it" })),
+        )
+
+    @Test
+    fun `requires a Choose a Background commander for a Background`() {
+        assertContains(problem("99 Forest", "Raised by Giants").orEmpty(), "Background without")
+        assertNull(problem("98 Forest", "Wilson, Refined Grizzly", "Raised by Giants"))
+        assertNull(problem("99 Forest", "Wilson, Refined Grizzly"))
+    }
+
+    @Test
+    fun `uses the combined identity of both commanders`() {
+        val pair = arrayOf("Akiri, Line-Slinger", "Thrasios, Triton Hero")
+        assertNull(problem("25 Plains\n25 Island\n24 Forest\n24 Mountain", *pair))
+        assertEquals(
+            "has cards outside its commanders' color identity: Swamp, Duress",
+            problem("94 Plains\n2 Swamp\n2 Duress", *pair),
+        )
+        assertContains(problem("98 Plains", "Akiri, Line-Slinger", "Isamaru, Hound of Konda").orEmpty(), "illegal commander partnership")
+    }
+
+    @Test
+    fun `uses Forge pairing rules for Partner families`() {
+        val pairs =
+            listOf(
+                "Rograkh, Son of Rohgahh" to "Yoshimaru, Ever Faithful",
+                "Pir, Imaginative Rascal" to "Toothy, Imaginary Friend",
+                "Wilson, Refined Grizzly" to "Raised by Giants",
+                "The Tenth Doctor" to "Rose Tyler",
+                "Eleven, the Mage" to "Mike, the Dungeon Master",
+            )
+        for ((first, second) in pairs) {
+            assertNull(problem("98 Wastes", first, second), "$first + $second")
+            assertContains(problem("98 Wastes", first, "Isamaru, Hound of Konda").orEmpty(), "illegal commander partnership")
+        }
+    }
+
+    @Test
+    fun `retains single commander control and rejects extra copies or a third commander`() {
+        assertNull(problem("99 Plains", "Isamaru, Hound of Konda"))
+        assertContains(problem("98 Plains", "Rograkh, Son of Rohgahh", "Rograkh, Son of Rohgahh").orEmpty(), "exactly one copy")
+        assertContains(
+            problem("97 Plains", "Rograkh, Son of Rohgahh", "Yoshimaru, Ever Faithful", "Akiri, Line-Slinger").orEmpty(),
+            "too many commanders",
+        )
+    }
+
+    @Test
+    fun `legendary Spacecraft with power and toughness boxes can be commanders`() {
+        for (name in listOf("Inspirit, Flagship Vessel", "Hearthhull, the Worldseed", "Infinite Guideline Station")) {
+            assertTrue(forgeCanBeCommander(name), name)
+        }
+        assertFalse(forgeCanBeCommander("Harmonized Crescendo"))
+    }
+}

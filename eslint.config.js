@@ -12,9 +12,7 @@ const ignored = [
   'leyline/**',
   'node_modules/**',
   'dist/**',
-  'dist-browser/**',
   'server/build/**',
-  'card-presentation/build/**',
   'browser-engine/build/**',
   'public/browser-engine/**',
   'test-results/**',
@@ -42,7 +40,7 @@ export default [
     languageOptions: { globals: globals.browser },
   },
   {
-    files: ['browser-engine/web/**/*.js'],
+    files: ['browser-engine/worker/**/*.js'],
     languageOptions: {
       globals: {
         ...globals.worker,

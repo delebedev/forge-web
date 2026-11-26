@@ -218,7 +218,7 @@ jobs:
       - name: Prepare pinned Forge dependencies
         run: python3 scripts/ci-measure.py prepare bash -eo pipefail -c 'node scripts/bootstrap.mjs --prepare-only'
       - name: Build and validate browser runtime
-        run: python3 scripts/ci-measure.py browser-17 bash -eo pipefail -c 'bun run challenge:manifest && python3 scripts/build-browser-catalog.py && ./leyline/gradlew :card-presentation:check :browser-engine:test :browser-engine:browserDistribution :browser-engine:catalogIndex :browser-engine:cardIndex -PruntimeJavaVersion=17 -PbrowserPrune=true -Pkotlin.compiler.execution.strategy=in-process && node scripts/build-browser-release.mjs'
+        run: python3 scripts/ci-measure.py browser-17 bash -eo pipefail -c 'bun run challenge:manifest && python3 scripts/build-browser-catalog.py && ./leyline/gradlew -p browser-engine check browserDistribution catalogIndex cardIndex -PruntimeJavaVersion=17 -PbrowserPrune=true -Pkotlin.compiler.execution.strategy=in-process && node scripts/build-browser-release.mjs'
       - name: Seal browser runtime
         run: |-
           node scripts/runtime-artifact.mjs seal browser-17 public/browser-engine
@@ -234,14 +234,13 @@ jobs:
       - name: Stop build JVMs
         if: always()
         timeout-minutes: 1
-        run: ./leyline/gradlew --stop
+        run: ./leyline/gradlew -p browser-engine --stop
       - name: Upload test results
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
           name: test-results-browser-runtime
           path: |-
-            card-presentation/build/test-results/
             browser-engine/build/test-results/
             test-results/ci/
           if-no-files-found: ignore

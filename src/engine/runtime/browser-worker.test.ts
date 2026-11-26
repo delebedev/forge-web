@@ -20,7 +20,10 @@ test('failure inspection bypasses a blocked receive without adding diagnostic tr
     },
   })
   runInContext(
-    readFileSync(new URL('../../../browser-engine/web/engine-worker.js', import.meta.url), 'utf8'),
+    readFileSync(
+      new URL('../../../browser-engine/worker/engine-worker.js', import.meta.url),
+      'utf8',
+    ),
     context,
   )
   runInContext(
@@ -119,8 +122,10 @@ async function initializationFixture(stall: 'library' | 'facade' | 'none') {
             forge: {
               web: {
                 browser: {
-                  BrowserRuntime:
-                    stall === 'facade' ? never : { initialize: async () => 'catalog-version' },
+                  runtime: {
+                    BrowserRuntime:
+                      stall === 'facade' ? never : { initialize: async () => 'catalog-version' },
+                  },
                 },
               },
             },
@@ -128,7 +133,10 @@ async function initializationFixture(stall: 'library' | 'facade' | 'none') {
     releaseStub: { schemaVersion: 2, releaseId: 'test-release', assets },
   })
   runInContext(
-    readFileSync(new URL('../../../browser-engine/web/engine-worker.js', import.meta.url), 'utf8'),
+    readFileSync(
+      new URL('../../../browser-engine/worker/engine-worker.js', import.meta.url),
+      'utf8',
+    ),
     context,
   )
   runInContext(

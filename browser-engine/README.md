@@ -5,11 +5,12 @@ the existing React game board. CheerpJ 4.3 supplies the Java 17 runtime.
 Browser-local gameplay needs no server match slot, gameplay API request, or
 WebSocket; the product shell, release assets, and card art still load over HTTP.
 
-The build contains the complete Forge card-script catalog, tokens, editions,
-and two starter decks. Players can also paste Forge decklists with main and
-sideboard entries. The catalog is installed once per worker and card definitions
-are loaded on demand. A worker is replaced after five game starts or after a
-runtime failure so repeated games do not accumulate indefinitely.
+The build contains the complete Forge card-script catalog, tokens and editions.
+Decks arrive as Forge decklists with main and sideboard entries. The catalog is
+installed once per worker and card definitions are loaded on demand. A worker
+serves at most five game starts; the next start, or the first start after a
+runtime failure, replaces it so repeated games do not accumulate indefinitely.
+A start whose deck is rejected does not count.
 
 ## Integrated alpha release
 
@@ -31,24 +32,28 @@ back by atomically restoring the preceding application root.
 Current desktop Chrome is the qualification target. Edge remains best-effort
 until its full qualification matrix has been run.
 
-## Standalone build and run
+## Build
 
 Bootstrap normally with `bun run bootstrap`, then install Java 17 alongside the
-normal Java 21 toolchain. From the repository root:
+normal Java 21 toolchain. `bun run browser:assets` builds the catalog, the
+pruned JVM distribution and the release manifest under `public/browser-engine/`.
+This directory is a standalone Gradle build over the Leyline composite build;
+run its tasks with `./leyline/gradlew -p browser-engine <task>`. JVM tests run
+with `./leyline/gradlew -p browser-engine check -PruntimeJavaVersion=17`.
 
-```sh
-python3 scripts/build-browser-catalog.py
-./leyline/gradlew :browser-engine:browserDistribution :browser-engine:catalogIndex :browser-engine:cardIndex -PruntimeJavaVersion=17 -PbrowserPrune=true
-bun run browser:build
-bun run browser:preview
-```
+| Package | Owns |
+| --- | --- |
+| `forge.web.browser.runtime` | Worker facade, native callbacks, diagnostics and card metadata |
+| `forge.web.browser.cards` | Card projection, Web decklists and deck validation |
+| `forge.web.browser.limited` | Draft, sealed and print sheets |
+| `forge.web.browser.catalog` | Build-time catalog and card index generators |
 
-Open `http://127.0.0.1:5179/`. Serve `dist-browser/` from the root of a dedicated
-HTTPS origin and replace its root atomically. Revalidate HTML and release.json.
-Serve `/browser-engine/objects/` and Vite's hashed assets as public, long-lived,
-immutable content. Retain objects from the current and immediately previous
-manifest so stale tabs remain usable through one deployment. Serve `.wasm` as
-`application/wasm`.
+`worker/` holds the Web Worker script and CheerpJ preload list that the release
+copies into `web/`.
+
+Revalidate HTML and `release.json`. Serve `/browser-engine/objects/` as public,
+long-lived, immutable content. Retain objects from the current and immediately previous manifest so stale tabs
+remain usable through one deployment. Serve `.wasm` as `application/wasm`.
 
 Generated catalog and library files are ignored by Git. `browserPrune=true`
 removes server and database dependencies, Forge persistence and download
@@ -69,16 +74,15 @@ and a sealed pool on cold workers in desktop Chrome after `bun run browser:asset
 
 ## Boundaries
 
-The launcher supports human-versus-AI and AI-versus-AI games. It validates
-decklist size and sections, retires unresponsive workers, and lets a player
-download a local diagnostic report after a failure.
+The engine validates decklist size and sections, retires unresponsive workers,
+and lets a player download a local diagnostic report after a failure.
 
-Refreshing ends the current game. The build has no account service,
-saved-match recovery, offline guarantee, multiplayer authority, or graphical
-deck editor. Worker recycling limits accumulation between games but is not a
-hard tab-memory cap. Only current desktop Chrome is qualified.
+Refreshing ends the current game. The engine has no saved-match recovery,
+offline guarantee or multiplayer authority. Worker recycling limits accumulation
+between games but is not a hard tab-memory cap. Only current desktop Chrome is
+qualified.
 
-CheerpJ is loaded from its hosted runtime and credited in the launcher. Hosted
+CheerpJ is loaded from its hosted runtime and credited in `NOTICE`. Hosted
 use and any self-hosted or offline distribution must comply with the vendor's
 [licensing terms](https://cheerpj.com/docs/licensing).
 

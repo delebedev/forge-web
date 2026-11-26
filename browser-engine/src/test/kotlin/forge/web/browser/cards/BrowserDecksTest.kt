@@ -1,0 +1,189 @@
+package forge.web.browser.cards
+
+import forge.deck.DeckSection
+import forge.web.browser.runtime.BrowserRuntime
+import leyline.bridge.bootstrap.DeckRealizationException
+import leyline.bridge.bootstrap.GameBootstrap
+import leyline.game.data.ForgeCardRepository
+import java.nio.file.Files
+import java.nio.file.Path
+import kotlin.test.BeforeTest
+import kotlin.test.Test
+import kotlin.test.assertContains
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertNull
+
+class BrowserDecksTest {
+    @BeforeTest
+    fun initializeCards() {
+        GameBootstrap.initializeCardDatabase(quiet = true, lazyCards = true)
+    }
+
+    @Test
+    fun `accepts every constructed starter deck`() {
+        val root = Path.of(checkNotNull(System.getProperty("forge.web.test.root")))
+        val decks =
+            Files.newDirectoryStream(root.resolve("dev/decks"), "*.txt").use { paths ->
+                paths.toList().sortedBy { it.fileName.toString() }
+            }
+        assertEquals(5, decks.size)
+        for (path in decks) {
+            val parsed = BrowserDecks.validate(Files.readString(path))
+            assertEquals(60, parsed.get(DeckSection.Main).countAll())
+        }
+    }
+
+    @Test
+    fun `realizes both sections of a local course launch`() {
+        val deck = BrowserDecks.validate("[Deck]\n40 Mountain\n[Sideboard]\n2 Lightning Bolt")
+        assertEquals(40, deck.get(DeckSection.Main).countAll())
+        assertEquals(2, deck.get(DeckSection.Sideboard).countAll())
+        assertEquals("Lightning Bolt", deck.get(DeckSection.Sideboard).toFlatList().first().name)
+    }
+
+    @Test
+    fun `rejects blank and all-sideboard decks`() {
+        assertContains(assertFailsWith<IllegalArgumentException> { BrowserDecks.validate("  \n") }.message.orEmpty(), "blank")
+        assertContains(
+            assertFailsWith<IllegalArgumentException> { BrowserDecks.validate("Sideboard\n1 Mountain") }.message.orEmpty(),
+            "main section is empty",
+        )
+    }
+
+    @Test
+    fun `preserves loader errors for unknown and malformed lines`() {
+        assertFailsWith<DeckRealizationException> { BrowserDecks.validate("1 Not A Real Card") }
+        assertFailsWith<DeckRealizationException> { BrowserDecks.validate("1 Mountain\nthis is not a deck line") }
+    }
+
+    @Test
+    fun `rejects Commander sections for constructed games`() {
+        val error = assertFailsWith<IllegalArgumentException> { BrowserDecks.validate("1 Mountain\nCommander\n1 Atraxa, Praetors' Voice") }
+        assertContains(error.message.orEmpty(), "Unsupported deck section: Commander")
+    }
+
+    @Test
+    fun `accepts and preserves Commander sections for Commander games`() {
+        val deck = BrowserDecks.validate("99 Island\nCommander\n1 Empress Galina", commander = true)
+
+        assertEquals(99, deck.get(DeckSection.Main).countAll())
+        assertEquals(1, deck.get(DeckSection.Commander).countAll())
+    }
+
+    @Test
+    fun `requires a Commander section for Commander games`() {
+        val error = assertFailsWith<IllegalArgumentException> { BrowserDecks.validate("99 Island", commander = true) }
+        assertContains(error.message.orEmpty(), "Commander section is empty")
+    }
+
+    @Test
+    fun `names the first unplayable seat and a missing commander`() {
+        val commander = "99 Island\nCommander\n1 Empress Galina"
+
+        assertNull(BrowserDecks.rejection(listOf(commander, commander), commander = true))
+        assertEquals(
+            BrowserDecks.Rejection(2, "no-commander", "Commander section is empty"),
+            BrowserDecks.rejection(listOf(commander, "99 Island"), commander = true),
+        )
+        assertEquals("invalid", BrowserDecks.rejection(listOf("  \n", commander), commander = true)?.problem)
+        assertEquals(1, BrowserDecks.rejection(listOf("1 Not A Real Card", "60 Island"), commander = false)?.seat)
+    }
+
+    @Test
+    fun `browser runtime carries stable identity and Commander variant`() {
+        val commander = BrowserRuntime.runtimeConfig("browser-stable", "deck one", "deck two", "commander")
+        val constructed = BrowserRuntime.runtimeConfig("browser-other", "deck one", "deck two", "constructed")
+
+        assertEquals("browser-stable", commander.matchId)
+        assertEquals("commander", commander.gameVariant)
+        assertNull(constructed.gameVariant)
+    }
+
+    @Test
+    fun `browser runtime carries inline puzzle without decks`() {
+        val puzzle = BrowserRuntime.runtimeConfig("browser-puzzle", "", "", "puzzle", "bolt-at-three-v1", "[metadata]\nGoal:Win")
+        assertNull(puzzle.seat1)
+        assertNull(puzzle.seat2)
+        assertEquals("bolt-at-three-v1", puzzle.puzzleDefinition?.identity)
+        assertEquals("[metadata]\nGoal:Win", puzzle.puzzleDefinition?.content)
+    }
+
+    @Test
+    fun `rejects oversized quantities from the parsed card representation`() {
+        val error = assertFailsWith<IllegalArgumentException> { BrowserDecks.validate(List(6) { "99 Mountain" }.joinToString("\n")) }
+        assertContains(error.message.orEmpty(), "more than 500")
+
+        assertFailsWith<DeckRealizationException> { BrowserDecks.validate("2147483647 Mountain") }
+    }
+
+    @Test
+    fun `rejects oversized text before parsing`() {
+        val text = "1 Mountain\n" + "#".repeat(32_768)
+        val error = assertFailsWith<IllegalArgumentException> { BrowserDecks.validate(text) }
+        assertContains(error.message.orEmpty(), "exceeds 32768")
+    }
+
+    @Test
+    fun `rejects lone Background but preserves its legal pair before browser startup`() {
+        val lone = "[Commander]\n1 Raised by Giants\n[Deck]\n99 Forest"
+        val error = assertFailsWith<IllegalArgumentException> { BrowserDecks.validate(lone, commander = true) }
+        assertContains(error.message.orEmpty(), "Background without")
+        val pair = "[Commander]\n1 Wilson, Refined Grizzly\n1 Raised by Giants\n[Deck]\n98 Forest"
+        assertEquals(2, BrowserDecks.validate(pair, commander = true).getCommanders().size)
+        val single = "[Commander]\n1 Wilson, Refined Grizzly\n[Deck]\n99 Forest"
+        assertEquals(1, BrowserDecks.validate(single, commander = true).getCommanders().size)
+    }
+
+    @Test
+    fun `validates Partner pairing and combined identity before browser startup`() {
+        val pair = "[Commander]\n1 Rograkh, Son of Rohgahh\n1 Yoshimaru, Ever Faithful\n[Deck]\n"
+        val valid = BrowserDecks.validate(pair + "98 Plains", commander = true)
+        assertEquals(2, valid.get(DeckSection.Commander).countAll())
+        assertContains(
+            assertFailsWith<IllegalArgumentException> {
+                BrowserDecks.validate(pair + "98 Island", commander = true)
+            }.message.orEmpty(),
+            "color identity",
+        )
+        assertContains(
+            assertFailsWith<IllegalArgumentException> {
+                BrowserDecks.validate(
+                    "[Commander]\n1 Rograkh, Son of Rohgahh\n1 Isamaru, Hound of Konda\n[Deck]\n98 Plains",
+                    commander = true,
+                )
+            }.message.orEmpty(),
+            "illegal commander partnership",
+        )
+        assertContains(
+            assertFailsWith<IllegalArgumentException> {
+                BrowserDecks.validate("[Commander]\n2 Rograkh, Son of Rohgahh\n[Deck]\n98 Mountain", commander = true)
+            }.message.orEmpty(),
+            "exactly one copy",
+        )
+    }
+
+    @Test
+    fun `checks product decklists by card name`() {
+        val cards = ForgeCardRepository.open()
+        val imported = BrowserDecks.check(cards, "Deck\n2 dead // gone\n1 Gone\n57 Forest\nSideboard\n1 Negate", null, import = true)
+        assertEquals(
+            listOf(BrowserDecks.Row("Dead // Gone", 2), BrowserDecks.Row("Dead // Gone", 1), BrowserDecks.Row("Forest", 57)),
+            imported.mainboard,
+        )
+        assertEquals(listOf(BrowserDecks.Row("Negate", 1)), imported.sideboard)
+        assertEquals(emptyList(), imported.errors)
+
+        assertEquals(listOf("Card not found: Not A Real Card"), BrowserDecks.check(cards, "4 Not A Real Card", null, import = true).errors)
+        assertContains(
+            BrowserDecks.check(cards, "Commander\n1 Bloodthirsty Conqueror\nDeck\n99 Swamp", null, import = true).errors.single(),
+            "can't be a commander",
+        )
+        assertContains(
+            BrowserDecks.check(cards, "5 Lightning Bolt\n55 Mountain", "constructed", import = false).errors.single(),
+            "at most 4",
+        )
+        assertEquals(listOf("Unsupported game format."), BrowserDecks.check(cards, "60 Mountain", "vintage", import = false).errors)
+        assertEquals(emptyList(), BrowserDecks.check(cards, "60 Mountain", "constructed", import = false).errors)
+    }
+}
