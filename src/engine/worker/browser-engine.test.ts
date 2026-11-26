@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test'
+import { describe, expect, it, jest } from 'bun:test'
 import { encodeMessage } from '@engine/wire/gre-proto'
 import type { GreFrameBatch, GreFrameSink } from '../runtime/gre-frame-source'
 import { BrowserMatchSource, type BrowserEngineEvent } from './browser-match-source'
@@ -1263,62 +1263,74 @@ it('bounds and sanitizes initialization resources through repeated reporting san
 
 for (const libraryReturned of [false, true]) {
   it(`falls back to cached initialization marks ${libraryReturned ? 'after' : 'before'} library return with the unchanged one-second diagnostic wait`, async () => {
-    const worker = new FakeWorker()
-    worker.respond = false
-    worker.respondDiagnostic = false
-    const events: BrowserEngineEvent[] = []
-    const engine = new BrowserEngine(
-      (e) => events.push(e),
-      () => worker as unknown as Worker,
-      { initializationTimeoutMs: 20 },
-    )
-    const start = engine
-      .createMatch('private deck', 'b', 42)
-      .catch((e) => e as BrowserEngineFailure)
-    await wait(5)
-    const command = worker.commands.find((c) => c.type === 'initialize')!
-    for (const [stage, elapsed] of [
-      ['initializing', 0],
-      ['jars-ready', 10],
-      ['library-return', 11],
-    ] as const) {
-      if (stage === 'library-return' && !libraryReturned) {
-        continue
+    jest.useFakeTimers()
+    try {
+      const settle = async (milliseconds: number) => {
+        jest.advanceTimersByTime(milliseconds)
+        for (let turn = 0; turn < 10; turn++) {
+          await Promise.resolve()
+        }
       }
-      worker.emit({
-        event: stage,
-        data: {
+      const worker = new FakeWorker()
+      worker.respond = false
+      worker.respondDiagnostic = false
+      const events: BrowserEngineEvent[] = []
+      const engine = new BrowserEngine(
+        (e) => events.push(e),
+        () => worker as unknown as Worker,
+        { initializationTimeoutMs: 20 },
+      )
+      const start = engine
+        .createMatch('private deck', 'b', 42)
+        .catch((e) => e as BrowserEngineFailure)
+      await settle(5)
+      const command = worker.commands.find((c) => c.type === 'initialize')!
+      for (const [stage, elapsed] of [
+        ['initializing', 0],
+        ['jars-ready', 10],
+        ['library-return', 11],
+      ] as const) {
+        if (stage === 'library-return' && !libraryReturned) {
+          continue
+        }
+        worker.emit({
+          event: stage,
+          data: {
+            commandId: command.id,
+            generation: command['generation'],
+            workerElapsedMs: elapsed,
+          },
+          at: 999999,
+        })
+      }
+      await settle(50)
+      expect(worker.terminated).toBe(false)
+      expect(events.filter((e) => e.event === 'error')).toHaveLength(0)
+      await settle(1_000)
+      const error = (await start) as BrowserEngineFailure
+      expect(error.diagnostic.snapshot).toMatchObject({
+        runtime: 'timed-out',
+        initialization: {
           commandId: command.id,
-          generation: command['generation'],
-          workerElapsedMs: elapsed,
+          generation: 1,
+          budgetMs: 20,
+          nominalBudgetRemainingMs: 0,
         },
-        at: 999999,
       })
+      expect(error.diagnostic.snapshot!.initialization!.marks.map((m) => m.stage)).toEqual([
+        'initializing',
+        'jars-ready',
+        ...(libraryReturned ? ['library-return'] : []),
+      ])
+      expect(error.diagnostic.snapshot!.initialization!.hostElapsedMs).toBeGreaterThanOrEqual(1000)
+      expect(error.diagnostic.snapshot!.initialization!.resources).toBeUndefined()
+      expect(events.filter((e) => e.event === 'error')).toHaveLength(1)
+      expect(worker.commands.filter((c) => c.type === 'initialize')).toHaveLength(1)
+      expect(worker.diagnosticRequests).toBe(1)
+      expect(worker.terminated).toBe(true)
+      engine.dispose()
+    } finally {
+      jest.useRealTimers()
     }
-    await wait(50)
-    expect(worker.terminated).toBe(false)
-    expect(events.filter((e) => e.event === 'error')).toHaveLength(0)
-    const error = (await start) as BrowserEngineFailure
-    expect(error.diagnostic.snapshot).toMatchObject({
-      runtime: 'timed-out',
-      initialization: {
-        commandId: command.id,
-        generation: 1,
-        budgetMs: 20,
-        nominalBudgetRemainingMs: 0,
-      },
-    })
-    expect(error.diagnostic.snapshot!.initialization!.marks.map((m) => m.stage)).toEqual([
-      'initializing',
-      'jars-ready',
-      ...(libraryReturned ? ['library-return'] : []),
-    ])
-    expect(error.diagnostic.snapshot!.initialization!.hostElapsedMs).toBeGreaterThanOrEqual(1000)
-    expect(error.diagnostic.snapshot!.initialization!.resources).toBeUndefined()
-    expect(events.filter((e) => e.event === 'error')).toHaveLength(1)
-    expect(worker.commands.filter((c) => c.type === 'initialize')).toHaveLength(1)
-    expect(worker.diagnosticRequests).toBe(1)
-    expect(worker.terminated).toBe(true)
-    engine.dispose()
   })
 }

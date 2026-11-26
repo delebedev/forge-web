@@ -1,4 +1,4 @@
-import { expect, test } from 'bun:test'
+import { afterEach, beforeEach, expect, jest, test } from 'bun:test'
 import type { GreFrameSink, GreFrameSource } from './gre-frame-source'
 import { availableActions, diffGameState, fullGameState } from '../testing/gre-test-frames'
 import {
@@ -81,6 +81,15 @@ async function boardWith(policy = TAP_DWELL, canSend = false) {
   return { store, source }
 }
 
+// Dwell holds run on fake timers so the tests advance them instead of waiting.
+beforeEach(() => {
+  jest.useFakeTimers()
+})
+
+afterEach(() => {
+  jest.useRealTimers()
+})
+
 const tappedOnBoard = (store: { battlefield: { tapped: boolean }[] }) =>
   store.battlefield[0]?.tapped
 
@@ -149,10 +158,10 @@ test('stack abilities are shown in order before the next decision', async () => 
   expect(store.snapshot().canPass).toBe(false)
   expect(store.authoritativeSnapshot().stack).toEqual([])
   expect(store.authoritativeSnapshot().canPass).toBe(true)
-  await new Promise((resolve) => setTimeout(resolve, STACK_ABILITY_DWELL_MS + 60))
+  jest.advanceTimersByTime(STACK_ABILITY_DWELL_MS + 60)
   expect(store.snapshot().stack.map((card) => card.instanceId)).toEqual([111])
   expect(store.snapshot().prompt).toBeNull()
-  await new Promise((resolve) => setTimeout(resolve, STACK_ABILITY_DWELL_MS + 60))
+  jest.advanceTimersByTime(STACK_ABILITY_DWELL_MS + 60)
   expect(store.snapshot().stack).toEqual([])
   expect(store.snapshot().prompt?.kind).toBe('attackers')
 })
@@ -200,10 +209,10 @@ test('replay holds consecutive stack abilities before a later decision', async (
 
   expect(store.snapshot().stack.map((card) => card.instanceId)).toEqual([107])
   expect(store.snapshot().prompt).toBeNull()
-  await new Promise((resolve) => setTimeout(resolve, STACK_ABILITY_DWELL_MS + 60))
+  jest.advanceTimersByTime(STACK_ABILITY_DWELL_MS + 60)
   expect(store.snapshot().stack.map((card) => card.instanceId)).toEqual([111])
   expect(store.snapshot().prompt).toBeNull()
-  await new Promise((resolve) => setTimeout(resolve, STACK_ABILITY_DWELL_MS + 60))
+  jest.advanceTimersByTime(STACK_ABILITY_DWELL_MS + 60)
   expect(store.snapshot().prompt?.kind).toBe('attackers')
 })
 
@@ -223,7 +232,7 @@ test('a tap is held on screen while the newest state has already moved on', asyn
   expect(store.gameStateId).toBe(4)
   expect(tappedOnBoard(store)).toBe(true)
 
-  await new Promise((resolve) => setTimeout(resolve, TAP_DWELL_MS + 60))
+  jest.advanceTimersByTime(TAP_DWELL_MS + 60)
   expect(store.gameStateId).toBe(4)
 })
 

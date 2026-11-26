@@ -22,7 +22,7 @@
     "test:replay-memory": "mkdir -p test-results && BUN_JSC_useConcurrentJIT=false bun test ./src/engine/replay/browser-replay-lifecycle.test.ts",
     "typecheck": "tsc --noEmit && tsc -p server --noEmit",
     "typecheck:e2e": "tsc -p e2e/tsconfig.json",
-    "lint": "eslint .",
+    "lint": "eslint --cache --cache-location node_modules/.cache/eslint/ .",
     "gre:proto": "node scripts/build/generate-gre-proto.mjs",
     "runtime:check": "scripts/release/check-server-distribution.sh",
     "format": "prettier --write --ignore-unknown '**/*.{js,mjs,cjs,ts,mts,cts,tsx}'",
