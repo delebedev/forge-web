@@ -1,5 +1,6 @@
 import { z } from 'zod'
-import { deviceId, isOperator, sessionPlayer, type WebAuth } from './auth.ts'
+import { deviceId, isOperator, sessionPlayer } from '../auth/routes.ts'
+import { type WebAuth } from '../auth/web-auth.ts'
 import {
   BadRequest,
   ResponseError,
@@ -9,16 +10,12 @@ import {
   text,
   type Context,
   type Routes,
-} from './http.ts'
-import { Logger } from './log.ts'
-import { ReplayAdmission } from './replay-admission.ts'
-import {
-  BROWSER_MATCH_ID,
-  ReplayJournalRetired,
-  ReplayStorageBusy,
-  ReplayStorageCapacityExceeded,
-  type MatchReplayStore,
-} from './replay-store.ts'
+} from '../platform/http.ts'
+import { Logger } from '../platform/log.ts'
+import { ReplayAdmission } from './admission.ts'
+import { BROWSER_MATCH_ID, InvalidReplay } from './journal.ts'
+import { ReplayStorageCapacityExceeded } from './quota.ts'
+import { ReplayJournalRetired, ReplayStorageBusy, type MatchReplayStore } from './store.ts'
 
 export const MAX_BROWSER_REPLAY_CHUNK_BYTES = 4 * 1024 * 1024
 
@@ -60,6 +57,9 @@ async function storage<T>(action: () => Promise<T>): Promise<T> {
     }
     if (cause instanceof ReplayJournalRetired) {
       throw new ResponseError(() => text(409, cause.message), cause.message)
+    }
+    if (cause instanceof InvalidReplay) {
+      throw new BadRequest(cause.message, { cause })
     }
     throw cause
   }

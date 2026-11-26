@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { chromium, expect } from '@playwright/test'
 import { preview } from 'vite'
-import type { GeneratedPuzzle } from '../src/shared/api/wire-schemas'
+import type { GeneratedPuzzle } from '../server/contract/wire-schemas'
 
 const firstId = '123e4567-e89b-42d3-a456-426614174000'
 const puzzleText = readFileSync('public/challenges/bolt-at-three-v1.pzl', 'utf8')

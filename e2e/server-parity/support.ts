@@ -2,7 +2,7 @@ import { afterAll, beforeAll, expect, setDefaultTimeout } from 'bun:test'
 import { rmSync } from 'node:fs'
 import { z } from 'zod'
 
-import { responseSchemas } from '../../src/shared/api/wire-schemas'
+import { responseSchemas } from '../../server/contract/wire-schemas'
 import {
   PARITY_LOGIN_CODE,
   PARITY_RELEASE,

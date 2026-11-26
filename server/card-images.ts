@@ -1,6 +1,6 @@
 import { Database } from 'bun:sqlite'
-import { BadRequest, empty, type Routes } from './http.ts'
-import { Logger } from './log.ts'
+import { BadRequest, empty, type Routes } from './platform/http.ts'
+import { Logger } from './platform/log.ts'
 
 const log = new Logger('forge.web.server.cards.CardImageIndex')
 const TOKEN_SUFFIX = ' Token'

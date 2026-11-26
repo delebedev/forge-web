@@ -1,22 +1,12 @@
 import type { Database } from 'bun:sqlite'
 import { createHmac, randomBytes, randomInt, timingSafeEqual } from 'node:crypto'
-import { z } from 'zod'
-import { javaInstant, parseInstant, writeTransaction } from './db.ts'
-import {
-  BadRequest,
-  ResponseError,
-  cookie,
-  empty,
-  json,
-  readJson,
-  type Context,
-  type Routes,
-} from './http.ts'
-import { Logger } from './log.ts'
-import { InMemoryRateLimiter, type RateBudget } from './rate-limit.ts'
+import { javaInstant, parseInstant, writeTransaction } from '../platform/db.ts'
+import { BadRequest } from '../platform/http.ts'
+import { Logger } from '../platform/log.ts'
+import { InMemoryRateLimiter, type RateBudget } from '../platform/rate-limit.ts'
+import { EmailSendError, type EmailSender } from './email.ts'
 
-export const WEB_SESSION_COOKIE = 'web_session'
-const SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60
+export const SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60
 const SESSION_IDLE_MS = SESSION_MAX_AGE_SECONDS * 1000
 const SESSION_ABSOLUTE_MS = 90 * 24 * 60 * 60 * 1000
 const LOGIN_CODE_MINUTES = 10
@@ -33,26 +23,6 @@ export interface WebPlayer {
 
 export const isGuestEmail = (email: string) => email.endsWith(`@${GUEST_EMAIL_DOMAIN}`)
 
-export interface LoginCodeEmail {
-  to: string
-  code: string
-  expiresInMinutes: number
-  idempotencyKey: string
-}
-
-export type EmailSender = (email: LoginCodeEmail) => Promise<void>
-
-/** The email provider answered with a non-success HTTP status. */
-export class EmailSendError extends Error {
-  readonly status: number
-
-  constructor(status: number) {
-    super(`Resend returned HTTP ${status}`)
-    this.name = 'EmailSendError'
-    this.status = status
-  }
-}
-
 const log = new Logger('forge.web.server.auth.WebAuth')
 
 /** Status and error class only: the address, code and provider message stay out of the log. */
@@ -64,34 +34,6 @@ function logSendFailure(cause: unknown) {
     errorCode: typeof code === 'string' && /^[A-Za-z0-9_]{1,64}$/.test(code) ? code : undefined,
   })
 }
-
-export function resendEmailSender(apiKey: string, from: string): EmailSender {
-  return async (email) => {
-    const response = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      // A redirect would resend the code in the body to another URL; the previous server never followed one.
-      redirect: 'error',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-        'Idempotency-Key': email.idempotencyKey,
-      },
-      body: JSON.stringify({
-        from,
-        to: [email.to],
-        subject: 'Your Leyline login code',
-        text: `Your login code is ${email.code}. It expires in ${email.expiresInMinutes} minutes.`,
-      }),
-    })
-    await response.body?.cancel()
-    if (response.status < 200 || response.status > 299) {
-      throw new EmailSendError(response.status)
-    }
-  }
-}
-
-/** Accepts every login email without sending it; local servers use a fixed login code. */
-export const devEmailSender: EmailSender = async () => {}
 
 export interface AuthRateLimitConfig {
   enabled: boolean
@@ -127,7 +69,7 @@ function validatedEmail(value: string): string {
   return normalized
 }
 
-function equalHashes(a: string, b: string): boolean {
+export function equalHashes(a: string, b: string): boolean {
   const left = Buffer.from(a)
   const right = Buffer.from(b)
   return left.length === right.length && timingSafeEqual(left, right)
@@ -422,120 +364,5 @@ export class WebAuth {
 
   private hash(value: string): string {
     return createHmac('sha256', this.options.secret).update(value).digest('hex')
-  }
-}
-
-const requestCodeBody = z.object({ email: z.string() })
-const verifyBody = z.object({ email: z.string(), code: z.string() })
-
-const sessionCookie = (token: string) =>
-  `${WEB_SESSION_COOKIE}=${token}; Max-Age=${SESSION_MAX_AGE_SECONDS}; Path=/; HttpOnly; SameSite=Lax; $x-enc=URI_ENCODING`
-
-export function sessionPlayer(auth: WebAuth, req: Request): WebPlayer | null {
-  return auth.validate(cookie(req, WEB_SESSION_COOKIE))
-}
-
-export function requirePlayer(auth: WebAuth, ctx: Context): WebPlayer {
-  const player = sessionPlayer(auth, ctx.req)
-  if (!player) {
-    throw new ResponseError(() => empty(401), 'Unauthorized')
-  }
-  return player
-}
-
-/** The signed-in player, who must be `requested` when the request names one. */
-export function requireOwnedPlayer(
-  auth: WebAuth,
-  ctx: Context,
-  requested: string | null | undefined,
-): string {
-  const { playerId } = requirePlayer(auth, ctx)
-  if (requested != null && requested !== playerId) {
-    throw new ResponseError(() => empty(403), 'Forbidden')
-  }
-  return playerId
-}
-
-const DEVICE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-
-/** The browser's random device id. It identifies uploads from players without an account. */
-export function deviceId(ctx: Context): string {
-  const value = ctx.req.headers.get('X-Device-Id')
-  if (value === null || !DEVICE_ID.test(value)) {
-    throw new BadRequest('Invalid device identity')
-  }
-  return value.toLowerCase()
-}
-
-/** Bearer-token check for operator routes; a blank configured token disables them. */
-export function isOperator(ctx: Context, operatorToken: string): boolean {
-  const authorization = ctx.req.headers.get('Authorization')
-  if (!authorization?.startsWith('Bearer ') || operatorToken.trim() === '') {
-    return false
-  }
-  return equalHashes(operatorToken, authorization.slice('Bearer '.length))
-}
-
-const CANONICAL_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
-
-export function authRoutes(auth: WebAuth, operatorToken: string): Routes {
-  const userAgent = (ctx: Context) => ctx.req.headers.get('User-Agent')
-  return {
-    '/api/auth/me': {
-      GET: (ctx) => {
-        const player = sessionPlayer(auth, ctx.req)
-        return json({
-          playerId: player?.playerId ?? null,
-          guest: player ? isGuestEmail(player.email) : false,
-        })
-      },
-    },
-    '/api/auth/request-code': {
-      POST: async (ctx) => {
-        const { email } = await readJson(ctx, requestCodeBody)
-        const result = await auth.requestCode(email, ctx.ip, userAgent(ctx))
-        return empty(result === 'sent' ? 204 : result === 'email_send_failed' ? 503 : 429)
-      },
-    },
-    '/api/auth/verify': {
-      POST: async (ctx) => {
-        const { email, code } = await readJson(ctx, verifyBody)
-        const result = auth.verify(email, code, ctx.ip, userAgent(ctx))
-        if (result.kind === 'invalid_or_expired') {
-          return empty(401)
-        }
-        if (result.kind !== 'success') {
-          return empty(429)
-        }
-        return json({ playerId: result.player.playerId, email: result.player.email }, 200, {
-          'Set-Cookie': sessionCookie(result.token),
-        })
-      },
-    },
-    '/api/auth/logout': {
-      POST: (ctx) => {
-        auth.logout(cookie(ctx.req, WEB_SESSION_COOKIE))
-        return empty(204, {
-          'Set-Cookie': `${WEB_SESSION_COOKIE}=; Max-Age=0; Path=/; $x-enc=URI_ENCODING`,
-        })
-      },
-    },
-    '/api/operator/players/:playerId': {
-      GET: (ctx) => {
-        ctx.headers.set('Cache-Control', 'no-store')
-        const playerId = ctx.params['playerId'] ?? ''
-        if (!isOperator(ctx, operatorToken) || !CANONICAL_UUID.test(playerId)) {
-          return empty(404)
-        }
-        const player = auth.findPlayer(playerId)
-        if (!player) {
-          return empty(404)
-        }
-        return json({
-          playerId: player.playerId,
-          email: isGuestEmail(player.email) ? null : player.email,
-        })
-      },
-    },
   }
 }

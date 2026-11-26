@@ -1,4 +1,4 @@
-import { RoadmapItemSchema, type RoadmapItem } from '@shared/api/wire-schemas'
+import { RoadmapItemSchema, type RoadmapItem } from '@contract/wire-schemas'
 import { readJson } from '@shared/api/decoding'
 import { useCallback, useEffect, useMemo, useState, type MouseEvent } from 'react'
 import { useRouter } from '@app/router'

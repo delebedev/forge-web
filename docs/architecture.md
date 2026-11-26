@@ -43,14 +43,21 @@ graph TB
 | `src/engine/wire`, `state`, `runtime`, `priority`, `replay` | GRE wire codec, projected state, match lifecycle, priority policy, and replay formatting |
 | `src/engine/generated` | Generated GRE message descriptor |
 
-- `server/` is the product server, TypeScript on Bun: `Bun.serve` routes matching [the HTTP contract](http-contract.md),
-  configuration, authentication, the product database path and connection,
-  [schema migrations](database-migrations.md), persistence and browser replay storage.
-  `server/main.ts` is the entry point; releases ship it compiled by `bun build --compile` as one binary.
+- `server/` is the product server, TypeScript on Bun. `server/main.ts` is the entry point; releases ship
+  it compiled by `bun build --compile` as one binary, embedding migrations, starter decks and
+  `server/assets/card-images.sqlite`.
   The database remains `<resolved stateDir>/player.db`.
   The server imports nothing from Leyline; only `browser-engine/`
   builds against the Leyline composite build and launches games.
   A Leyline pin change therefore ships as a frontend release.
+  - `platform/`: configuration, the product database and [schema migrations](database-migrations.md),
+    HTTP routing and errors, logging, error reporting, rate limits and embedded resources.
+  - `contract/`: [the HTTP contract](http-contract.md), shared with the frontend.
+  - `auth/`: login email, sessions and codes (`WebAuth`), and the auth routes.
+  - `replays/`: browser replay journal codec, retention index, quota and eviction, the store,
+    upload admission and routes. Storage imports nothing from the HTTP layer.
+  - Feature modules at the root: decks, course records, puzzles, roadmap and card images.
+  - `test/`: shared test support and fixtures.
 - `browser-engine/` is one Java 17 Gradle build. Its `forge.web.browser.cards` package owns the card presentation DTOs, Forge projection and Web decklist rules used by the browser worker and its card index build.
 - The browser reads cards from the static card index in the
   browser release (`shared/cards/card-index.ts`). `browser-engine`'s

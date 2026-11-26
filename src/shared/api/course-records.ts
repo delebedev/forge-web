@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { apiFetch } from './client'
 import { readJson } from './decoding'
-import { CourseRecordSchema } from './wire-schemas'
+import { CourseRecordSchema } from '@contract/wire-schemas'
 
 const DeckRowSchema = z.object({ cardName: z.string(), quantity: z.number().int().positive() })
 

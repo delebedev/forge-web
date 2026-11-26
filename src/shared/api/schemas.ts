@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
-export { ParseDecklistErrorResponseSchema } from './wire-schemas'
-export type { ParseDecklistErrorResponse } from './wire-schemas'
+export { ParseDecklistErrorResponseSchema } from '@contract/wire-schemas'
+export type { ParseDecklistErrorResponse } from '@contract/wire-schemas'
 
 // Card shapes come from the browser card index and browser engine, not the product server.
 const int32 = z.number().int().min(-2147483648).max(2147483647)

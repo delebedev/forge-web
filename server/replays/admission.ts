@@ -1,4 +1,4 @@
-import { Logger } from './log.ts'
+import { Logger } from '../platform/log.ts'
 
 export interface ReplayAdmissionRejection {
   retryAfterSeconds: number

@@ -1,34 +1,53 @@
-import { mkdirSync, readdirSync, statSync } from 'node:fs'
-import { constants } from 'node:fs'
-import { open, readFile, readdir, rename, stat, unlink } from 'node:fs/promises'
+import { mkdirSync } from 'node:fs'
+import { open, readFile, readdir, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { gunzipSync, gzipSync } from 'node:zlib'
-import { z } from 'zod'
-import { BadRequest, requireRequest } from './http.ts'
-import { Logger } from './log.ts'
+import { Logger } from '../platform/log.ts'
+import {
+  APPENDED_JOURNAL,
+  appendMember,
+  isBrowserReplay,
+  isFile,
+  isReplayFile,
+  length,
+  matchIdOf,
+} from './files.ts'
+import {
+  BROWSER_MATCH_ID,
+  BROWSER_REPLAY_FORMATS,
+  InvalidReplay,
+  MATCH_ID,
+  REPORT_ID,
+  UUID_PATTERN,
+  bundle,
+  decodeBundle,
+  deltaSchema,
+  encodeDelta,
+  envelopeBytes,
+  headerOf,
+  isEmptyDelta,
+  metadataSchema,
+  requireReplay,
+  utf8,
+  type AppendedJournal,
+  type JournalMetadata,
+  type ReplayBundle,
+  type ReplayContext,
+  type ReplayEvent,
+  type ReplayHeader,
+} from './journal.ts'
+import { ReplayQuota, ReplayStorageCapacityExceeded } from './quota.ts'
+import { RetentionIndex, type RetainedReplay } from './retention-index.ts'
 
 const log = new Logger('forge.web.server.match.MatchReplayStore')
 
 const DAY_MS = 86_400_000
 const MIN_REPLAY_BYTES = 64 * 1024
 const MAX_QUEUED_OPERATIONS = 8
-const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}'
-const UUID_PATTERN = new RegExp(`^${UUID}$`, 'i')
-export const BROWSER_MATCH_ID = new RegExp(`^browser-${UUID}$`, 'i')
-const MATCH_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/
-const REPORT_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$/
-const APPENDED_JOURNAL = /^(.+)\.browser-\d+\.chunks\.gz$/
-const BROWSER_REPLAY_FORMATS = new Set(['constructed', 'commander', 'draft', 'sealed'])
 
 export class ReplayStorageBusy extends Error {
   constructor() {
     super('Replay storage is busy; retry later')
-  }
-}
-
-export class ReplayStorageCapacityExceeded extends Error {
-  constructor() {
-    super('Replay storage quota is exhausted')
   }
 }
 
@@ -37,144 +56,6 @@ export class ReplayJournalRetired extends Error {
   constructor() {
     super('Replay journal uses a retired format')
   }
-}
-
-const long = z.number().int()
-const int = long.min(-2_147_483_648).max(2_147_483_647)
-const optionalString = z.string().nullable().default(null)
-
-const contextSchema = z.object({
-  execution: z.string(),
-  attemptId: optionalString,
-  matchId: optionalString,
-  gameType: optionalString,
-  seed: long.nullable().default(null),
-  seat1Deck: optionalString,
-  seat2Deck: optionalString,
-  frontendBuild: optionalString,
-  engineBuild: optionalString,
-  deviceId: optionalString,
-  accountId: optionalString,
-})
-const statusSchema = z.object({
-  complete: z.boolean(),
-  reason: z.string(),
-  truncated: z.boolean(),
-  reportId: optionalString,
-  pinnedUntilMs: long.nullable().default(null),
-})
-const batchSchema = z.object({ messages: z.array(z.unknown()) })
-const eventSchema = z.object({
-  seq: long,
-  timeMs: long,
-  direction: z.string(),
-  seatId: int,
-  batchIndex: int,
-  messages: z.array(z.unknown()).default([]),
-  message: z.unknown().transform((value) => value ?? null),
-})
-const headerShape = {
-  version: int,
-  label: z.string(),
-  source: z.string(),
-  viewerSeatId: int,
-  matchId: z.string(),
-  release: z.string(),
-}
-const deltaShape = {
-  batches: z.array(batchSchema),
-  cards: z.record(z.string(), z.unknown()),
-  responses: z.array(z.unknown()),
-  events: z.array(eventSchema),
-}
-const bundleSchema = z.object({
-  ...headerShape,
-  ...deltaShape,
-  status: statusSchema,
-  context: contextSchema.nullable().default(null),
-})
-const headerSchema = z.object({ ...headerShape, context: contextSchema.nullable().default(null) })
-const deltaSchema = z.object(deltaShape)
-const journalSchema = z.object({
-  generation: long,
-  bytes: long,
-  header: headerSchema,
-  status: statusSchema,
-  seq: long,
-  events: int,
-  batches: int,
-  decodedBytes: long,
-})
-const metadataSchema = z.object({
-  deviceId: optionalString,
-  accountId: optionalString,
-  createdAtMs: long.nullable().default(null),
-  artifacts: z.array(z.string()).default([]),
-  journal: journalSchema.nullable().default(null),
-})
-
-export type ReplayBundle = z.infer<typeof bundleSchema>
-type ReplayContext = z.infer<typeof contextSchema>
-type ReplayStatus = z.infer<typeof statusSchema>
-type ReplayHeader = z.infer<typeof headerSchema>
-type ReplayEvent = z.infer<typeof eventSchema>
-type AppendedJournal = z.infer<typeof journalSchema>
-type JournalMetadata = z.infer<typeof metadataSchema>
-
-const encoder = new TextEncoder()
-const utf8 = (text: string) => encoder.encode(text)
-
-function decodeBundle(bytes: Uint8Array): ReplayBundle {
-  let value: unknown
-  try {
-    value = JSON.parse(new TextDecoder().decode(bytes))
-  } catch {
-    // The parser's message can quote the body, and this message is logged.
-    throw new BadRequest('Invalid replay JSON')
-  }
-  const parsed = bundleSchema.safeParse(value)
-  if (!parsed.success) {
-    const issue = parsed.error.issues[0]
-    throw new BadRequest(
-      issue === undefined
-        ? 'Invalid replay: shape'
-        : `Invalid replay at ${issue.path.join('.') || 'root'}: ${issue.message}`,
-    )
-  }
-  return parsed.data
-}
-
-function bundle(
-  header: ReplayHeader,
-  delta: z.infer<typeof deltaSchema>,
-  status: ReplayStatus,
-): ReplayBundle {
-  const { context, ...fields } = header
-  return { ...fields, ...delta, status, context }
-}
-
-function headerOf(replay: ReplayBundle): ReplayHeader {
-  const { version, label, source, viewerSeatId, matchId, release, context } = replay
-  return { version, label, source, viewerSeatId, matchId, release, context }
-}
-
-/** One stored chunk: a gzip member holding one JSON line. */
-function encodeDelta(replay: ReplayBundle): Uint8Array {
-  const { batches, cards, responses, events } = replay
-  return utf8(`${JSON.stringify({ batches, cards, responses, events })}\n`)
-}
-
-const isEmptyDelta = (replay: ReplayBundle) =>
-  replay.batches.length === 0 &&
-  Object.keys(replay.cards).length === 0 &&
-  replay.responses.length === 0 &&
-  replay.events.length === 0
-
-/** The match size limit applies to the exported bundle, so it counts this envelope beside the stored deltas. */
-function envelopeBytes(header: ReplayHeader, status: ReplayStatus): number {
-  return utf8(
-    JSON.stringify(bundle(header, { batches: [], cards: {}, responses: [], events: [] }, status)),
-  ).length
 }
 
 export interface ReplayOwner {
@@ -192,88 +73,6 @@ function owns(
     return storedDeviceId === owner.deviceId
   }
   return storedAccountId === null || storedAccountId === owner.accountId
-}
-
-interface RetainedReplay {
-  createdAtMs: number
-  pinnedUntilMs: number
-  lastWriteMs: number
-}
-
-/**
- * Retained journals known to quota eviction, so request paths choose victims without listing the directory.
- * Maintenance rebuilds it from disk.
- */
-class RetentionIndex {
-  private readonly entries = new Map<string, RetainedReplay>()
-  oldestCreatedAtMs: number | null = null
-  private readonly activeWindowMs: number
-
-  constructor(activeWindowMs: number) {
-    this.activeWindowMs = activeWindowMs
-  }
-
-  replaceAll(observed: Map<string, RetainedReplay>) {
-    const merged = new Map<string, RetainedReplay>()
-    for (const [matchId, seen] of observed) {
-      const prior = this.entries.get(matchId)
-      merged.set(
-        matchId,
-        prior ? { ...seen, lastWriteMs: Math.max(seen.lastWriteMs, prior.lastWriteMs) } : seen,
-      )
-    }
-    this.entries.clear()
-    for (const [matchId, entry] of merged) {
-      this.entries.set(matchId, entry)
-    }
-    this.refresh()
-  }
-
-  written(matchId: string, nowMs: number, createdAtMs: () => number) {
-    const prior = this.entries.get(matchId)
-    this.entries.set(matchId, {
-      createdAtMs: prior?.createdAtMs ?? createdAtMs(),
-      pinnedUntilMs: prior?.pinnedUntilMs ?? 0,
-      lastWriteMs: nowMs,
-    })
-    this.refresh()
-  }
-
-  pinned(matchId: string, untilMs: number) {
-    const entry = this.entries.get(matchId)
-    if (entry) {
-      this.entries.set(matchId, { ...entry, pinnedUntilMs: untilMs })
-    }
-  }
-
-  removed(matchId: string) {
-    if (this.entries.delete(matchId)) {
-      this.refresh()
-    }
-  }
-
-  /** Unpinned or pin-expired journals idle for the active window, oldest creation first. */
-  evictable(nowMs: number, protectedMatchId: string): [string, RetainedReplay][] {
-    return [...this.entries]
-      .filter(
-        ([matchId, entry]) =>
-          matchId !== protectedMatchId &&
-          entry.pinnedUntilMs <= nowMs &&
-          nowMs - entry.lastWriteMs >= this.activeWindowMs,
-      )
-      .sort(
-        ([a, left], [b, right]) =>
-          left.createdAtMs - right.createdAtMs || (a < b ? -1 : a > b ? 1 : 0),
-      )
-  }
-
-  private refresh() {
-    let oldest: number | null = null
-    for (const entry of this.entries.values()) {
-      oldest = oldest === null ? entry.createdAtMs : Math.min(oldest, entry.createdAtMs)
-    }
-    this.oldestCreatedAtMs = oldest
-  }
 }
 
 export interface ReplayStoreConfig {
@@ -294,37 +93,6 @@ export interface ReplayStorageHealth {
   oldestRetainedAgeMs?: number
 }
 
-async function length(path: string): Promise<number> {
-  try {
-    return (await stat(path)).size
-  } catch {
-    return 0
-  }
-}
-
-async function isFile(path: string): Promise<boolean> {
-  try {
-    return (await stat(path)).isFile()
-  } catch {
-    return false
-  }
-}
-
-function matchIdOf(name: string): string | null {
-  for (const suffix of ['.ndjson.gz', '.ndjson', '.browser.json.gz', '.browser.json']) {
-    if (name.endsWith(suffix)) {
-      return name.slice(0, -suffix.length)
-    }
-  }
-  return APPENDED_JOURNAL.exec(name)?.[1] ?? null
-}
-
-const isLegacyBrowserReplay = (name: string) =>
-  name.endsWith('.browser.json') || name.endsWith('.browser.json.gz')
-const isBrowserReplay = (name: string) => isLegacyBrowserReplay(name) || APPENDED_JOURNAL.test(name)
-const isReplayFile = (name: string) =>
-  name.endsWith('.ndjson') || name.endsWith('.ndjson.gz') || isBrowserReplay(name)
-
 /**
  * Browser replay journals under `<state>/replays`. `<id>.browser-meta.json` is the commit record for
  * `<id>.browser-<generation>.chunks.gz`, a concatenation of gzip members of one JSON line each; bytes past
@@ -334,15 +102,11 @@ export class MatchReplayStore {
   private readonly root: string
   private readonly retentionDays: number
   private readonly pinnedRetentionDays: number
-  readonly maxBytes: number
   private readonly maxMatchBytes: number
   private readonly activeWindowMs: number
-  private readonly evictionHeadroomBytes: number
   private readonly now: () => number
   private readonly retention: RetentionIndex
-  private bytesUsed: number
-  private storageReady = false
-  private evictions = 0
+  private readonly quota: ReplayQuota
   private queue: Promise<unknown> = Promise.resolve()
   private queued = 0
   private closed = false
@@ -352,10 +116,9 @@ export class MatchReplayStore {
     this.root = config.root
     this.retentionDays = config.retentionDays ?? 7
     this.pinnedRetentionDays = config.pinnedRetentionDays ?? 30
-    this.maxBytes = config.maxBytes ?? 512 * 1024 * 1024
+    const maxBytes = config.maxBytes ?? 512 * 1024 * 1024
     this.maxMatchBytes = config.maxMatchBytes ?? 32 * 1024 * 1024
     this.activeWindowMs = config.activeWindowMs ?? 15 * 60_000
-    this.evictionHeadroomBytes = config.evictionHeadroomBytes ?? Math.floor(this.maxBytes / 32)
     this.now = now
     if (this.retentionDays <= 0) {
       throw new Error('Replay retention must be positive')
@@ -363,27 +126,30 @@ export class MatchReplayStore {
     if (this.pinnedRetentionDays < this.retentionDays) {
       throw new Error('Pinned replay retention must not be shorter than normal retention')
     }
-    if (this.maxBytes < MIN_REPLAY_BYTES) {
+    if (maxBytes < MIN_REPLAY_BYTES) {
       throw new Error(`Replay storage quota must be at least ${MIN_REPLAY_BYTES} bytes`)
     }
-    if (this.maxMatchBytes < MIN_REPLAY_BYTES || this.maxMatchBytes > this.maxBytes) {
+    if (this.maxMatchBytes < MIN_REPLAY_BYTES || this.maxMatchBytes > maxBytes) {
       throw new Error(`Replay match quota must be between ${MIN_REPLAY_BYTES} and total quota`)
     }
     this.retention = new RetentionIndex(this.activeWindowMs)
-    this.bytesUsed = this.maxBytes
     try {
       mkdirSync(this.root, { recursive: true })
     } catch (cause) {
       log.error(`Replay storage unavailable (directory=${this.root})`, {}, cause)
     }
-    try {
-      this.bytesUsed = readdirSync(this.root, { withFileTypes: true })
-        .filter((entry) => entry.isFile())
-        .reduce((sum, entry) => sum + statSync(join(this.root, entry.name)).size, 0)
-      this.storageReady = true
-    } catch (cause) {
-      log.error('Replay storage measurement failed', {}, cause)
-    }
+    this.quota = new ReplayQuota(
+      this.root,
+      maxBytes,
+      config.evictionHeadroomBytes ?? Math.floor(maxBytes / 32),
+      this.retention,
+      { bytes: (matchId) => this.matchBytes(matchId), evict: (matchId) => this.evict(matchId) },
+      now,
+    )
+  }
+
+  get maxBytes(): number {
+    return this.quota.maxBytes
   }
 
   /** Runs maintenance now and hourly after that. */
@@ -410,9 +176,9 @@ export class MatchReplayStore {
   health(): ReplayStorageHealth {
     const oldest = this.retention.oldestCreatedAtMs
     return {
-      bytesUsed: this.bytesUsed,
-      maxBytes: this.maxBytes,
-      evictions: this.evictions,
+      bytesUsed: this.quota.bytesUsed,
+      maxBytes: this.quota.maxBytes,
+      evictions: this.quota.evictions,
       ...(oldest === null ? {} : { oldestRetainedAgeMs: Math.max(0, this.now() - oldest) }),
     }
   }
@@ -459,27 +225,27 @@ export class MatchReplayStore {
     afterSeq: number,
     body: Uint8Array,
   ): Promise<number> {
-    requireRequest(BROWSER_MATCH_ID.test(matchId), 'Invalid browser match identity')
-    requireRequest(afterSeq >= 0, 'Invalid replay sequence')
-    requireRequest(body.length <= this.maxMatchBytes, 'Replay match quota exceeded')
+    requireReplay(BROWSER_MATCH_ID.test(matchId), 'Invalid browser match identity')
+    requireReplay(afterSeq >= 0, 'Invalid replay sequence')
+    requireReplay(body.length <= this.maxMatchBytes, 'Replay match quota exceeded')
     const chunk = decodeBundle(body)
     const context = chunk.context
-    requireRequest(context !== null, 'Browser replay context is required')
-    requireRequest(
+    requireReplay(context !== null, 'Browser replay context is required')
+    requireReplay(
       chunk.source === 'forge-web-browser' && context.execution === 'browser',
       'Invalid replay source',
     )
-    requireRequest(
+    requireReplay(
       context.matchId === matchId && chunk.matchId === matchId,
       'Replay match identity mismatch',
     )
-    requireRequest(UUID_PATTERN.test(context.attemptId ?? ''), 'Invalid replay attempt identity')
-    requireRequest(BROWSER_REPLAY_FORMATS.has(context.gameType ?? ''), 'Invalid replay format')
-    requireRequest(
+    requireReplay(UUID_PATTERN.test(context.attemptId ?? ''), 'Invalid replay attempt identity')
+    requireReplay(BROWSER_REPLAY_FORMATS.has(context.gameType ?? ''), 'Invalid replay format')
+    requireReplay(
       chunk.events.length <= 10_000 && chunk.batches.length <= 10_000,
       'Replay chunk is too complex',
     )
-    requireRequest(
+    requireReplay(
       chunk.events.every((event, index) => event.seq === afterSeq + index + 1),
       'Replay chunk sequence is not contiguous',
     )
@@ -490,7 +256,7 @@ export class MatchReplayStore {
     }
     const prior = metadata?.journal ?? null
     const [deviceId, accountId] = this.journalOwner(owner, metadata, prior?.header.context ?? null)
-    requireRequest(
+    requireReplay(
       prior === null || prior.header.context?.attemptId === context.attemptId,
       'Replay attempt identity mismatch',
     )
@@ -500,7 +266,7 @@ export class MatchReplayStore {
       const written = retained.events.filter(
         (event) => event.seq > afterSeq && event.seq <= afterSeq + chunk.events.length,
       )
-      requireRequest(
+      requireReplay(
         JSON.stringify(written) === JSON.stringify(chunk.events) &&
           afterSeq + chunk.events.length <= committedSeq,
         'Replay chunk conflicts with stored sequence',
@@ -508,10 +274,10 @@ export class MatchReplayStore {
       await this.restorePin(matchId, chunk.status.reportId)
       return committedSeq
     }
-    requireRequest(afterSeq === committedSeq, 'Replay chunk has a gap')
+    requireReplay(afterSeq === committedSeq, 'Replay chunk has a gap')
     let status = chunk.status
     if (prior !== null) {
-      requireRequest(
+      requireReplay(
         !prior.status.complete || chunk.events.length === 0,
         'Replay is already complete',
       )
@@ -526,13 +292,13 @@ export class MatchReplayStore {
     const line = isEmptyDelta(chunk) ? new Uint8Array() : encodeDelta(chunk)
     const events = (prior?.events ?? 0) + chunk.events.length
     const batches = (prior?.batches ?? 0) + chunk.batches.length
-    requireRequest(events <= 100_000 && batches <= 50_000, 'Replay is too complex')
+    requireReplay(events <= 100_000 && batches <= 50_000, 'Replay is too complex')
     const decodedBytes = (prior?.decodedBytes ?? 0) + line.length
     const header: ReplayHeader = {
       ...headerOf(chunk),
       context: prior?.header.context ?? { ...context, deviceId, accountId },
     }
-    requireRequest(
+    requireReplay(
       decodedBytes + envelopeBytes(header, status) <= this.maxMatchBytes,
       'Replay match quota exceeded',
     )
@@ -580,7 +346,7 @@ export class MatchReplayStore {
         pair !== null && (pair[0] !== null || pair[1] !== null),
     )
     for (const [device, account] of stored) {
-      requireRequest(owns(owner, device, account), 'Replay belongs to another player')
+      requireReplay(owns(owner, device, account), 'Replay belongs to another player')
     }
     const first = stored[0]
     return first ? [first[0], first[1]] : [owner.deviceId, owner.accountId]
@@ -593,9 +359,7 @@ export class MatchReplayStore {
     metadata: JournalMetadata,
     reportId: string | null,
   ) {
-    if (!this.storageReady) {
-      throw new Error('Replay storage usage is unavailable')
-    }
+    this.quota.requireReady()
     const journal = metadata.journal!
     const segment = this.appendedFile(matchId, journal.generation)
     const metadataBytes = utf8(JSON.stringify(metadata))
@@ -607,7 +371,7 @@ export class MatchReplayStore {
       (await length(segment)) +
       (metadataBytes.length - (await length(this.metadataFile(matchId)))) +
       (pin === null ? 0 : pin.length - (await length(this.pinFile(matchId))))
-    if (!(await this.reserve(delta, matchId))) {
+    if (!(await this.quota.reserve(delta, matchId))) {
       throw new ReplayStorageCapacityExceeded()
     }
     // An empty member still truncates an unacknowledged tail, which the reservation already subtracted.
@@ -615,14 +379,14 @@ export class MatchReplayStore {
     try {
       await appendMember(segment, committedBytes, member)
     } finally {
-      this.bytesUsed += (await length(segment)) - before
+      this.quota.adjust((await length(segment)) - before)
     }
     // The metadata write commits the appended member; the acknowledgement follows it.
-    await this.writeAccounted(this.metadataFile(matchId), metadataBytes)
+    await this.quota.write(this.metadataFile(matchId), metadataBytes)
     // Retention records the committed write before the pin write, which can fail.
     this.retention.written(matchId, this.now(), () => metadata.createdAtMs ?? this.now())
     if (pin !== null) {
-      await this.writeAccounted(this.pinFile(matchId), pin)
+      await this.quota.write(this.pinFile(matchId), pin)
       this.retention.pinned(matchId, pinnedUntil!)
     }
   }
@@ -642,7 +406,7 @@ export class MatchReplayStore {
   }
 
   private async exportJournal(matchId: string): Promise<ReplayBundle | null> {
-    requireRequest(MATCH_ID.test(matchId), 'Invalid matchId')
+    requireReplay(MATCH_ID.test(matchId), 'Invalid matchId')
     const retained = await this.journalFile(matchId)
     if (retained === null || (await this.expired(matchId, retained))) {
       return null
@@ -684,7 +448,7 @@ export class MatchReplayStore {
   /** Merges the committed members of a journal under its commit record's header and status. */
   private async readAppended(matchId: string, journal: AppendedJournal): Promise<ReplayBundle> {
     if (journal.decodedBytes > this.maxMatchBytes) {
-      throw new BadRequest('Replay match quota exceeded')
+      throw new InvalidReplay('Replay match quota exceeded')
     }
     const handle = await open(this.appendedFile(matchId, journal.generation), 'r')
     let compressed: Buffer
@@ -692,7 +456,7 @@ export class MatchReplayStore {
       compressed = Buffer.alloc(journal.bytes)
       const { bytesRead } = await handle.read(compressed, 0, journal.bytes, 0)
       if (bytesRead < journal.bytes) {
-        throw new BadRequest('Replay journal is shorter than its commit record')
+        throw new InvalidReplay('Replay journal is shorter than its commit record')
       }
     } finally {
       await handle.close()
@@ -714,7 +478,7 @@ export class MatchReplayStore {
         }
         decoded += line.length + 1
         if (decoded > this.maxMatchBytes) {
-          throw new BadRequest('Replay match quota exceeded')
+          throw new InvalidReplay('Replay match quota exceeded')
         }
         const delta = deltaSchema.parse(JSON.parse(line))
         merged.batches.push(...delta.batches)
@@ -730,20 +494,20 @@ export class MatchReplayStore {
   }
 
   private async pinJournal(matchId: string, reportId: string): Promise<boolean> {
-    if (!this.storageReady) {
-      throw new Error('Replay storage usage is unavailable')
-    }
-    requireRequest(MATCH_ID.test(matchId), 'Invalid matchId')
-    requireRequest(REPORT_ID.test(reportId), 'reportId must be 1-100 URL-safe characters')
+    this.quota.requireReady()
+    requireReplay(MATCH_ID.test(matchId), 'Invalid matchId')
+    requireReplay(REPORT_ID.test(reportId), 'reportId must be 1-100 URL-safe characters')
     if ((await this.journalFile(matchId)) === null) {
       return false
     }
     const pinnedUntil = this.pinnedUntilMs()
     const encoded = this.pinBytes(reportId, pinnedUntil)
-    if (!(await this.reserve(encoded.length - (await length(this.pinFile(matchId))), matchId))) {
+    if (
+      !(await this.quota.reserve(encoded.length - (await length(this.pinFile(matchId))), matchId))
+    ) {
       throw new ReplayStorageCapacityExceeded()
     }
-    await this.writeAccounted(this.pinFile(matchId), encoded)
+    await this.quota.write(this.pinFile(matchId), encoded)
     this.retention.pinned(matchId, pinnedUntil)
     return true
   }
@@ -753,81 +517,18 @@ export class MatchReplayStore {
   }
 
   private pinBytes(reportId: string, pinnedUntilMs: number) {
-    requireRequest(REPORT_ID.test(reportId), 'reportId must be 1-100 URL-safe characters')
+    requireReplay(REPORT_ID.test(reportId), 'reportId must be 1-100 URL-safe characters')
     return utf8(JSON.stringify({ reportId, pinnedUntilMs }))
-  }
-
-  /**
-   * Makes room for `required` more bytes by evicting idle unpinned journals, oldest first. Evicts nothing when
-   * they cannot free enough. Once it evicts, it frees the configured headroom too, so ordinary traffic does not
-   * evict on every write. `protectedMatchId` is the journal the caller is about to change.
-   */
-  private async reserve(required: number, protectedMatchId: string): Promise<boolean> {
-    const excess = this.bytesUsed + required - this.maxBytes
-    if (excess <= 0) {
-      return true
-    }
-    const now = this.now()
-    const candidates = this.retention.evictable(now, protectedMatchId)
-    let freeable = 0
-    for (const [matchId] of candidates) {
-      if (freeable >= excess) {
-        break
-      }
-      freeable += (await this.evictableBytes(matchId)) ?? 0
-    }
-    if (freeable < excess) {
-      log.warn(
-        `Replay storage full; eviction cannot make room (matchId=${protectedMatchId}, excessBytes=${excess}, evictableBytes=${freeable}, usedBytes=${this.bytesUsed}, maxBytes=${this.maxBytes})`,
-      )
-      return false
-    }
-    // A failed removal moves on to the next candidate rather than rejecting the write.
-    const target = this.maxBytes - this.evictionHeadroomBytes
-    let evicted = 0
-    for (const [matchId, retained] of candidates) {
-      if (this.bytesUsed + required <= target) {
-        break
-      }
-      const bytes = await this.evictableBytes(matchId)
-      if (bytes === null) {
-        continue
-      }
-      try {
-        await this.evict(matchId)
-        evicted++
-        log.info(
-          `Replay evicted (matchId=${matchId}, bytes=${bytes}, ageMs=${now - retained.createdAtMs})`,
-        )
-      } catch (cause) {
-        log.error(`Replay eviction failed (matchId=${matchId})`, {}, cause)
-      }
-    }
-    log.info(
-      `Replay eviction pass (journals=${evicted}, usedBytes=${this.bytesUsed}, maxBytes=${this.maxBytes}, oldestRetainedCreatedAtMs=${this.retention.oldestCreatedAtMs})`,
-    )
-    return this.bytesUsed + required <= this.maxBytes
-  }
-
-  /** A candidate's size, or null when its commit record cannot be read and the journal must be kept. */
-  private async evictableBytes(matchId: string): Promise<number | null> {
-    try {
-      return await this.matchBytes(matchId)
-    } catch (cause) {
-      log.warn(`Replay eviction skipped an unreadable journal (matchId=${matchId})`, {}, cause)
-      return null
-    }
   }
 
   private async evict(matchId: string) {
     for (const file of await this.journalFiles(matchId)) {
-      await this.deleteAccounted(file)
+      await this.quota.delete(file)
     }
     // A failed journal removal keeps its pin and creation time.
-    await this.deleteAccounted(this.pinFile(matchId))
-    await this.deleteAccounted(this.metadataFile(matchId))
+    await this.quota.delete(this.pinFile(matchId))
+    await this.quota.delete(this.metadataFile(matchId))
     this.retention.removed(matchId)
-    this.evictions++
   }
 
   private async cleanupFiles(): Promise<void> {
@@ -849,7 +550,7 @@ export class MatchReplayStore {
             // A segment whose metadata never committed holds no acknowledged chunk.
             for (const file of files) {
               if (now - (await stat(file)).mtimeMs >= this.activeWindowMs) {
-                await this.deleteAccounted(file)
+                await this.quota.delete(file)
               }
             }
             continue
@@ -860,24 +561,26 @@ export class MatchReplayStore {
               if (file === journal || !isBrowserReplay(file)) {
                 continue
               }
-              await this.deleteAccounted(file).catch((cause) =>
-                log.error(
-                  `Replaced replay copy removal failed (file=${file.slice(this.root.length + 1)})`,
-                  {},
-                  cause,
-                ),
-              )
+              await this.quota
+                .delete(file)
+                .catch((cause) =>
+                  log.error(
+                    `Replaced replay copy removal failed (file=${file.slice(this.root.length + 1)})`,
+                    {},
+                    cause,
+                  ),
+                )
             }
           }
           const createdAt = (await this.createdTime(matchId)) ?? (await stat(journal)).mtimeMs
           const pinnedUntil = (await this.readPin(matchId))?.pinnedUntilMs ?? 0
           if (now >= this.retainedUntil(createdAt, pinnedUntil)) {
             for (const file of files) {
-              await this.deleteAccounted(file)
+              await this.quota.delete(file)
             }
             // Preserve retention metadata when removing any replay copy fails.
-            await this.deleteAccounted(this.pinFile(matchId))
-            await this.deleteAccounted(this.metadataFile(matchId))
+            await this.quota.delete(this.pinFile(matchId))
+            await this.quota.delete(this.metadataFile(matchId))
           } else {
             let lastWrite = 0
             for (const file of files) {
@@ -895,7 +598,7 @@ export class MatchReplayStore {
       }
       this.retention.replaceAll(retained)
     } finally {
-      await this.measure()
+      await this.quota.measure()
     }
   }
 
@@ -931,44 +634,12 @@ export class MatchReplayStore {
       if (!entry.isFile() || !temporary) {
         continue
       }
-      await this.deleteAccounted(join(this.root, entry.name)).catch((cause) =>
-        log.error(`Replay temporary cleanup failed (file=${entry.name})`, {}, cause),
-      )
+      await this.quota
+        .delete(join(this.root, entry.name))
+        .catch((cause) =>
+          log.error(`Replay temporary cleanup failed (file=${entry.name})`, {}, cause),
+        )
     }
-  }
-
-  private async measure() {
-    try {
-      const entries = await readdir(this.root, { withFileTypes: true })
-      let total = 0
-      for (const entry of entries) {
-        if (entry.isFile()) {
-          total += await length(join(this.root, entry.name))
-        }
-      }
-      this.bytesUsed = total
-      this.storageReady = true
-    } catch (cause) {
-      this.storageReady = false
-      throw cause
-    }
-  }
-
-  private async writeAccounted(file: string, bytes: Uint8Array) {
-    const replacing = await length(file)
-    await writeAtomic(file, bytes)
-    this.bytesUsed += bytes.length - replacing
-  }
-
-  private async deleteAccounted(file: string) {
-    let bytes: number
-    try {
-      bytes = (await stat(file)).size
-    } catch {
-      return
-    }
-    await unlink(file)
-    this.bytesUsed -= bytes
   }
 
   private async matchBytes(matchId: string) {
@@ -1085,52 +756,8 @@ export class MatchReplayStore {
     }
     const pin = JSON.parse(text) as { reportId?: unknown; pinnedUntilMs?: unknown }
     if (typeof pin.reportId !== 'string' || !Number.isInteger(pin.pinnedUntilMs)) {
-      throw new BadRequest('Invalid replay pin')
+      throw new InvalidReplay('Invalid replay pin')
     }
     return { reportId: pin.reportId, pinnedUntilMs: pin.pinnedUntilMs as number }
-  }
-}
-
-/** Writes `member` at `committedBytes`, dropping any unacknowledged tail, and syncs it before returning. */
-async function appendMember(file: string, committedBytes: number, member: Uint8Array) {
-  const handle = await open(file, constants.O_CREAT | constants.O_WRONLY)
-  try {
-    if ((await handle.stat()).size > committedBytes) {
-      await handle.truncate(committedBytes)
-    }
-    if ((await handle.stat()).size !== committedBytes) {
-      throw new BadRequest('Replay journal is shorter than its commit record')
-    }
-    let written = 0
-    while (written < member.length) {
-      written += (
-        await handle.write(member, written, member.length - written, committedBytes + written)
-      ).bytesWritten
-    }
-    await handle.sync()
-  } finally {
-    await handle.close()
-  }
-}
-
-/** Publishes `bytes` through a synced temporary file and an atomic rename. */
-async function writeAtomic(file: string, bytes: Uint8Array) {
-  const slash = file.lastIndexOf('/')
-  const temporary = `${file.slice(0, slash + 1)}.${file.slice(slash + 1)}.${process.hrtime.bigint()}.tmp`
-  try {
-    const handle = await open(temporary, 'w')
-    try {
-      let written = 0
-      while (written < bytes.length) {
-        written += (await handle.write(bytes, written, bytes.length - written, written))
-          .bytesWritten
-      }
-      await handle.sync()
-    } finally {
-      await handle.close()
-    }
-    await rename(temporary, file)
-  } finally {
-    await unlink(temporary).catch(() => {})
   }
 }

@@ -6,7 +6,7 @@ import type {
   GreCardMetaDto,
   ParseDecklistResponse,
 } from '@shared/api/contracts'
-import type { DeckView, WebDeckCard } from '@shared/api/wire-schemas'
+import type { DeckView, WebDeckCard } from '@contract/wire-schemas'
 import { formatDecklist } from '@shared/cards/parse-decklist'
 import { cmcOf } from '@shared/cards/deck-builder'
 

@@ -1,5 +1,5 @@
 import { replaySetup } from './replay-setup'
-import { DeckViewSchema } from '@shared/api/wire-schemas'
+import { DeckViewSchema } from '@contract/wire-schemas'
 import { readJson } from '@shared/api/decoding'
 /**
  * AppShell-hosted `/play/game` — owns the persisted player/opponent deck

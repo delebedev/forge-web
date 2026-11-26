@@ -20,7 +20,8 @@
       "@engine/*": ["./src/engine/*"],
       "@features/*": ["./src/features/*"],
       "@shell/*": ["./src/shell/*"],
-      "@shared/*": ["./src/shared/*"]
+      "@shared/*": ["./src/shared/*"],
+      "@contract/*": ["./server/contract/*"]
     },
 
     /* Linting */

@@ -1,21 +1,22 @@
 import { join } from 'node:path'
 import { startHttpServer } from './app.ts'
 import { CourseRecordStore } from './course-records.ts'
-import { WebAuth, devEmailSender, resendEmailSender } from './auth.ts'
+import { devEmailSender, resendEmailSender } from './auth/email.ts'
+import { WebAuth } from './auth/web-auth.ts'
 import { CardImageIndex } from './card-images.ts'
 import {
   ServerConfigError,
   ensureDirectories,
   playerDatabaseFile,
   resolveServerConfig,
-} from './config.ts'
-import { openPlayerDatabase } from './db.ts'
+} from './platform/config.ts'
+import { openPlayerDatabase } from './platform/db.ts'
 import { DeckStore, loadStarterDecks, starterDeckSeeder } from './decks.ts'
-import { backendRelease } from './http.ts'
-import { Logger, configureLogging } from './log.ts'
-import { MatchReplayStore } from './replay-store.ts'
-import { closeErrorReporting, installErrorReporting } from './reporting.ts'
-import { cardImagesFile, starterDeckFiles } from './resources.ts'
+import { backendRelease } from './platform/http.ts'
+import { Logger, configureLogging } from './platform/log.ts'
+import { MatchReplayStore } from './replays/store.ts'
+import { closeErrorReporting, installErrorReporting } from './platform/reporting.ts'
+import { cardImagesFile, starterDeckFiles } from './platform/resources.ts'
 
 const env = process.env
 

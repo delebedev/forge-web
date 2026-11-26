@@ -1,7 +1,7 @@
 import { Database } from 'bun:sqlite'
 import { afterEach, describe, expect, test } from 'bun:test'
 import { CardImageIndex } from './card-images.ts'
-import { OPERATOR_TOKEN, testServer } from './test-support.ts'
+import { OPERATOR_TOKEN, testServer } from './test/test-support.ts'
 
 let server: ReturnType<typeof testServer>
 afterEach(() => server?.stop())
