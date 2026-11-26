@@ -2,7 +2,7 @@
 
 `bun run build` produces route-specific HTML for the public pages (including the roadmap), login and
 constructed and limited setup, plus `private.html`, `404.html`, `sitemap.xml` and
-`seo-routes.conf`. `src/shared/seo.ts` owns metadata for both initial HTML and
+`seo-routes.conf`. `src/app/seo.ts` owns metadata for both initial HTML and
 client navigation. The introduction inside `#app` is readable without
 JavaScript; React replaces it when the interactive interface mounts. The 404
 document renders `NotFoundPage` itself at build time. Its scoped stylesheet
@@ -59,4 +59,4 @@ Console. Staging hosts should require access or send a host-wide
 `public/og-image.png` was created with OpenAI image generation on October 16,
 2026 for Forge Web. It uses the current charcoal and clay palette, the geometric
 brand mark, and original abstract card backs. No external card artwork was used.
-Its 1730 × 909 dimensions and description live in `src/shared/seo.ts`.
+Its 1730 × 909 dimensions and description live in `src/app/seo.ts`.

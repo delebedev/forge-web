@@ -105,7 +105,7 @@ Primary clay marks an available commitment, active priority and combat links. It
 
 **The Action Accent Rule.** Use clay for commitments, priority, combat and legal-action cues outside the hand. Use soft yellow for playable hand-card rings. Use off-white boundaries and explicit selection marks to distinguish selection from availability.
 
-The board uses a quiet radial tonal gradient. Card faces, mana symbols, state colors and card backs keep their own semantics; the interface palette does not recolor them. Shared tokens live in `src/shared/public-theme.css` and apply to the root, `.public-theme` and `[data-board]`.
+The board uses a quiet radial tonal gradient. Card faces, mana symbols, state colors and card backs keep their own semantics; the interface palette does not recolor them. Shared tokens live in `src/shell/public-theme.css` and apply to the root, `.public-theme` and `[data-board]`.
 
 ## Typography
 
@@ -127,7 +127,7 @@ Desktop acceptance covers 1280×720, 1440×900, 1440×1080 and 1920×1080 or lar
 
 **The Visible Commitment Rule.** Scroll decision choices inside their body. Keep the decision heading and commitment footer outside that scrolling area.
 
-`src/features/gre/board/variants/classic/Board.module.css` owns board geometry. Component CSS Modules own cards, hands, stack, prompts, previews and drawers. Avoid another global board skin or broad descendant overrides.
+`src/features/match/board/variants/classic/Board.module.css` owns board geometry. Component CSS Modules own cards, hands, stack, prompts, previews and drawers. Avoid another global board skin or broad descendant overrides.
 
 ## Elevation & Depth
 

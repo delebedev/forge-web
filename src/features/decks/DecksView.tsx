@@ -7,12 +7,12 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useRouter } from '@app/router'
+import { useRouter } from '@shared/router'
 import { decksStore } from '@features/decks/decks-store'
 import type { DeckSummary, DeckCard, DeckDetail } from '@shared/api/contracts'
 import { useDecksSnapshot } from '@features/decks/decks-hooks'
-import { trackDeckDeleted, trackDeckSaved } from '@shared/analytics'
-import { CardHoverPreview } from '@features/gre/board/CardHoverPreview'
+import { trackDeckDeleted, trackDeckSaved } from '@shared/observability/analytics'
+import { CardHoverPreview } from '@shared/cards/CardHoverPreview'
 import { Button } from '@shared/ui/Button'
 import { DeckList } from './DeckList'
 import { DeckDetailPane } from './DeckDetailPane'

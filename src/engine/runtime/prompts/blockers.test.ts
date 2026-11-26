@@ -1,6 +1,6 @@
-import { viewFor } from '@engine/runtime/prompts/prompt-test-harness'
+import { viewFor } from '@engine/testing/prompt-test-harness'
 import { expect, test } from 'bun:test'
-import { bindingFor, encodedPromptHarness, decodeGre } from './prompt-test-harness'
+import { bindingFor, encodedPromptHarness, decodeGre } from '../../testing/prompt-test-harness'
 import { asArray, type ProtoObject } from '@engine/state/gre-state'
 
 test('blocker selection waits for its echo before submitting the fresh envelope', async () => {

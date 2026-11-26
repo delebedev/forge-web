@@ -6,7 +6,7 @@ import {
   encodedPromptHarness,
   decodeGre,
   viewFor,
-} from './prompt-test-harness'
+} from '../../testing/prompt-test-harness'
 import { type GreTables, type ProtoObject } from '@engine/state/gre-state'
 
 test('abortable target prompts cancel without a response id and wait for server state', async () => {

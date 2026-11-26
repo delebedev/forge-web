@@ -1,12 +1,16 @@
 import { clearGreMatchConfig, loadGreMatchConfig, saveGreMatchConfig } from './gre-match'
-import { BrowserDeckRejected, BrowserEngine, BrowserEngineFailure } from './browser-engine'
-import { replayBrowserMatch } from './browser-match-recovery'
+import {
+  BrowserDeckRejected,
+  BrowserEngine,
+  BrowserEngineFailure,
+} from '@engine/worker/browser-engine'
+import { replayBrowserMatch } from '../worker/browser-match-recovery'
 import type { TranscriptBundle } from '@engine/replay/gre-transcript'
-import { browserWarmupState } from './browser-release'
-import type { BrowserEngineEvent } from './browser-match-source'
-import { BrowserProgressWatchdog } from './browser-progress-watchdog'
+import { browserWarmupState } from '../worker/browser-release'
+import type { BrowserEngineEvent } from '../worker/browser-match-source'
+import { BrowserProgressWatchdog } from '../worker/browser-progress-watchdog'
 import { greStore } from './gre-store'
-import { reactNavigate } from '@app/router'
+import { reactNavigate } from '@shared/router'
 import {
   ANALYTICS_RELEASE,
   trackBrowserLifecycle,
@@ -14,8 +18,8 @@ import {
   type BrowserAnalyticsContext,
   type BrowserFailureDiagnostic,
   type BrowserFailureStage,
-} from '@shared/analytics'
-import { reportBrowserFailure } from '@shared/reporting'
+} from '@shared/observability/analytics'
+import { reportBrowserFailure } from '@shared/observability/reporting'
 import { authStore } from '@shared/auth/auth'
 import type { GreGameType, GreStartConfig } from './start'
 

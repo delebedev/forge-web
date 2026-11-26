@@ -1,8 +1,9 @@
 # Frontend Route Map
 
 One React root renders every route. `src/app/main.ts` loads `src/app/mount.tsx`,
-which mounts `RouterProvider` and `ShellRoot`. `src/app/router.tsx` matches
-`location.pathname` against the `ROUTES` table in `src/app/routes.ts`, and
+which installs the route resolver and mounts `RouterProvider` and `ShellRoot`.
+`resolveRoute` in `src/app/routes.ts` matches `location.pathname` against its
+`ROUTES` table; `src/shared/router.tsx` owns the router store and `useRouter`, and
 `ShellRoot` dispatches on the resolved route name. Every navigation is
 client-side.
 
@@ -67,7 +68,7 @@ puzzle can be rated without an account, once per device.
 
 Each store is a plain TypeScript class with an explicit `subscribe`/`notify`
 shape, read by React through a `createExternalStore` + `useSyncExternalStore`
-seams (`src/engine/runtime/hooks.ts`, feature-local hook modules, and `src/features/gre/priority-runtime.ts`).
+seams (`src/engine/runtime/hooks.ts`, feature-local hook modules, and `src/features/match/priority-runtime.ts`).
 Single-writer pattern — one store owns each signal.
 
 | Store | File | Owns | Drives |

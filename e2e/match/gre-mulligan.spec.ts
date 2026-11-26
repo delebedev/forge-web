@@ -11,7 +11,7 @@ test('Commander with a chosen companion reaches its opening hand and plays a lan
   await authenticateShell(page)
   await page.goto('/play/game?traffic=smoke')
   await page.evaluate(async () => {
-    const viewPath = '/src/features/gre/board/board-view.ts'
+    const viewPath = '/src/features/match/board/board-view.ts'
     const { boardView } = await import(viewPath)
     boardView.setHideCardArt(true)
     const modulePath = '/src/engine/runtime/gre-session.ts'

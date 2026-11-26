@@ -15,7 +15,7 @@ import {
   ROUTE_META,
   SITE_URL,
   type PageMeta,
-} from '../../src/shared/seo'
+} from '../../src/app/seo'
 
 const STATIC_META: Record<string, PageMeta> = {
   ...PUBLIC_META,

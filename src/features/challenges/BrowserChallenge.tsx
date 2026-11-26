@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
-import { useRouter } from '@app/router'
+import { useRouter } from '@shared/router'
 import { useBoardSnapshot, useGreSessionSnapshot } from '@engine/runtime/hooks'
 import { greSession } from '@engine/runtime/gre-session'
-import { GrePlay } from '@features/gre/GrePlay'
+import { GrePlay } from '@features/match/GrePlay'
 import { Button } from '@shared/ui/Button'
-import { telemetry } from '@shared/telemetry'
+import { telemetry } from '@shared/observability/telemetry'
 import {
   browserChallenge,
   browserChallengePath,

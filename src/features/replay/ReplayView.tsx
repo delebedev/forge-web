@@ -27,13 +27,13 @@ import {
 } from '@engine/replay/gre-transcript'
 import { createExternalStore } from '@shared/react/create-external-store'
 import { cx } from '@shared/react/cx'
-import { Board } from '@features/gre/board/variants/classic/Board'
+import { Board } from '@features/match/board/variants/classic/Board'
 import {
   currentZoneViewer,
   currentHandHoveredCard,
   type ZoneViewerState,
-} from '@features/gre/board/types'
-import { READ_ONLY_INTERACTIONS } from '@features/gre/board/read-only-interactions'
+} from '@features/match/board/types'
+import { READ_ONLY_INTERACTIONS } from '@features/match/board/read-only-interactions'
 import { buildReplayTimeline, nextStackRun, type ReplayTimeline } from './replay-timeline'
 import type { CuratedReplay } from './curated-replays'
 import styles from './ReplayView.module.css'

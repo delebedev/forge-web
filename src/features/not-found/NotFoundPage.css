@@ -1,4 +1,4 @@
-@import '../../shared/public-theme.css';
+@import '../../shell/public-theme.css';
 
 body { margin: 0; }
 .public-not-found-content, .public-static-content { box-sizing: border-box; }

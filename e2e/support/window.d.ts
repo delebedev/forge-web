@@ -1,4 +1,4 @@
-import type { GreDebugWindow } from '../../src/shared/debug/gre-debug-contract'
+import type { GreDebugWindow } from '../../src/engine/debug/gre-debug-contract'
 
 declare global {
   interface Window extends GreDebugWindow {}

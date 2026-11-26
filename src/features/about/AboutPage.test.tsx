@@ -1,6 +1,6 @@
 import { afterEach, expect, test } from 'bun:test'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { RouterProvider } from '@app/router'
+import { RouterProvider } from '@shared/router'
 import { AboutPage } from './AboutPage'
 
 const originalWindow = Object.getOwnPropertyDescriptor(globalThis, 'window')

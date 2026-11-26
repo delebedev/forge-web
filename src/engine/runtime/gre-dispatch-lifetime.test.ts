@@ -1,4 +1,4 @@
-import { viewFor } from '@engine/runtime/prompts/prompt-test-harness'
+import { viewFor } from '../testing/prompt-test-harness'
 import { expect, test } from 'bun:test'
 import { GreDispatch } from '@engine/runtime/gre-dispatch'
 import {
@@ -7,7 +7,7 @@ import {
   bindingFor,
   encodedPromptHarness,
   decodeGre,
-} from './prompts/prompt-test-harness'
+} from '@engine/testing/prompt-test-harness'
 import type { ProtoObject } from '@engine/state/gre-state'
 test('decision horizon exposes the exact pending prompt identity without response access', () => {
   const dispatch = new GreDispatch(dispatchHost())

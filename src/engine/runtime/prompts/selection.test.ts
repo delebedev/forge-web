@@ -1,5 +1,5 @@
 import { promptInstruction, promptHeading } from '@engine/state/gre-prompt-view'
-import { viewFor } from '@engine/runtime/prompts/prompt-test-harness'
+import { viewFor } from '../../testing/prompt-test-harness'
 import { expect, test } from 'bun:test'
 import { GreDispatch } from '../gre-dispatch'
 import {
@@ -8,7 +8,7 @@ import {
   encodedPromptHarness,
   decodeGre,
   promptHarness,
-} from './prompt-test-harness'
+} from '@engine/testing/prompt-test-harness'
 import type { CardMeta, GreTables, ProtoObject } from '@engine/state/gre-state'
 test('open static SelectN uses its domain and submits zero-valued choices', async () => {
   const sent: { type: string; payload: ProtoObject }[] = []

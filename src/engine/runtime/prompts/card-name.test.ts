@@ -1,5 +1,10 @@
 import { expect, test } from 'bun:test'
-import { bindingFor, decodeGre, encodedPromptHarness, promptHarness } from './prompt-test-harness'
+import {
+  bindingFor,
+  decodeGre,
+  encodedPromptHarness,
+  promptHarness,
+} from '@engine/testing/prompt-test-harness'
 import { decodeMessage, encodeMessage, enumValue } from '@engine/wire/gre-proto'
 
 const request = (msgId = 7, error = '') => ({

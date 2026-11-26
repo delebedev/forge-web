@@ -1,7 +1,7 @@
 /** Owns import validation until the caller commits the resolved deck. */
 
 import { useEffect, useRef, useState } from 'react'
-import { trackDeckImportRejected, trackDeckPaste } from '@shared/analytics'
+import { trackDeckImportRejected, trackDeckPaste } from '@shared/observability/analytics'
 import { decklistRejectionCauses } from '@shared/cards/decklist-rejection'
 import { parseManaSymbols } from '@shared/cards/mana'
 import {

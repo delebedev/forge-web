@@ -1,7 +1,12 @@
-import { viewFor } from './prompt-test-harness'
+import { viewFor } from '../../testing/prompt-test-harness'
 import { expect, test } from 'bun:test'
 import { GreDispatch } from '@engine/runtime/gre-dispatch'
-import { dispatchHost, encodedPromptHarness, bindingFor, decodeGre } from './prompt-test-harness'
+import {
+  dispatchHost,
+  encodedPromptHarness,
+  bindingFor,
+  decodeGre,
+} from '@engine/testing/prompt-test-harness'
 import type { CardMeta, GreTables, ProtoObject } from '@engine/state/gre-state'
 import { replacementPrompt } from './replacement'
 import { optionalActionPrompt } from './optional-action'

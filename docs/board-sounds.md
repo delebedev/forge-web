@@ -6,7 +6,7 @@ Frequent actions should remain comfortable over a whole match.
 
 ## Cue direction and initial clips
 
-The manifest is `src/shared/sound-cues.ts`. Relative gain and repeat limits live
+The manifest is `src/features/match/board/sound-cues.ts`. Relative gain and repeat limits live
 beside each cue. Files are under `public/sounds/kenney/`.
 
 | Cue | Player-visible event | Initial Kenney source clips |

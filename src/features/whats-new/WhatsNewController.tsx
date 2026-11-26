@@ -8,8 +8,8 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import { useRouter } from '@app/router'
-import { trackWhatsNewClosed, trackWhatsNewOpened } from '@shared/analytics'
+import { useRouter } from '@shared/router'
+import { trackWhatsNewClosed, trackWhatsNewOpened } from '@shared/observability/analytics'
 import { useAuthSnapshot } from '@shared/auth/hooks'
 import { useBoardSnapshot, useGreSessionSnapshot } from '@engine/runtime/hooks'
 import { loadWhatsNew, type WhatsNewDay } from './feed'

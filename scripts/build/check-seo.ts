@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { chromium, expect } from '@playwright/test'
 import { preview } from 'vite'
-import { PUBLIC_META } from '../../src/shared/seo'
+import { PUBLIC_META } from '../../src/app/seo'
 import {
   BROWSER_CHALLENGES,
   browserChallengePath,

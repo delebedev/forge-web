@@ -1,8 +1,8 @@
 import { AuthViewSchema } from '@contract/wire-schemas'
-import { reactNavigate } from '@app/router'
-import { setAnalyticsAccountId } from '@shared/analytics'
-import { setReportingUser } from '@shared/reporting'
-import { setSessionReplayAuthenticated } from '@shared/session-replay'
+import { reactNavigate } from '@shared/router'
+import { setAnalyticsAccountId } from '@shared/observability/analytics'
+import { setReportingUser } from '@shared/observability/reporting'
+import { setSessionReplayAuthenticated } from '@shared/observability/session-replay'
 
 export interface AuthPlayer {
   id: string

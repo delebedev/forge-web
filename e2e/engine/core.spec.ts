@@ -5,7 +5,7 @@ import { expect, test, type Page } from '@playwright/test'
 import { setTimeout as delay } from 'node:timers/promises'
 import { driveMatch } from '../../tools/browser-driver/runner.ts'
 import type { CopilotProposal } from '../../tools/browser-driver/types.ts'
-import type { BrowserRelease } from '../../src/engine/runtime/browser-release'
+import type { BrowserRelease } from '../../src/engine/worker/browser-release'
 
 async function authenticate(page: Page): Promise<void> {
   const email = `browser-engine-${Date.now()}@example.test`

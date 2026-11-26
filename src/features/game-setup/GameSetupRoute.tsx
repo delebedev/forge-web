@@ -32,8 +32,8 @@ import {
   shouldReplaceAutoDeck,
 } from './recent-decks'
 import { createGameSetupStarter } from './setup-game-start'
-import { currentBrowserPreflight } from '@engine/runtime/browser-support'
-import { warmBrowserRelease } from '@engine/runtime/browser-release'
+import { currentBrowserPreflight } from '@engine/worker/browser-support'
+import { warmBrowserRelease } from '@engine/worker/browser-release'
 
 migrateStoredDeckKey('forge:constructed:playerDeck', STORAGE_KEY_GAME_PLAYER)
 migrateStoredDeckKey('forge:constructed:aiDeck', STORAGE_KEY_GAME_OPPONENT)

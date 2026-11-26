@@ -1,6 +1,6 @@
 import { expect, test as base, type Page, type TestInfo } from '@playwright/test'
 import { existsSync, readFileSync } from 'node:fs'
-import type { GreDebugResult, GreDebugWindow } from '../../src/shared/debug/gre-debug-contract'
+import type { GreDebugResult, GreDebugWindow } from '../../src/engine/debug/gre-debug-contract'
 
 type GreHarness = {
   start(config: Parameters<GreDebugWindow['__greStart']>[0]): Promise<GreDebugResult>

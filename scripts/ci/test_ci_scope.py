@@ -59,11 +59,11 @@ class CiScopeTest(unittest.TestCase):
 class ProofBreadthTest(unittest.TestCase):
     def test_product_changes_and_engine_pins_keep_representative_pr_proof(self):
         for paths in [['leyline'], ['src/engine/runtime/gre-store.ts'],
-                      ['src/features/gre/board/Board.tsx', 'e2e/match/gre-priority.spec.ts'],
+                      ['src/features/match/board/Board.tsx', 'e2e/match/gre-priority.spec.ts'],
                       ['e2e/match/gre-cost-choice.spec.ts'], ['e2e/match/gre-mana-payment.spec.ts'],
                       ['e2e/match/gre-library-permissions.spec.ts'], ['e2e/match/gre-player-counters.spec.ts'],
-                      ['src/shared/audio.test.ts'],
-                      ['src/features/gre/MatchRoute.tsx', 'e2e/match/match-route.spec.ts']]:
+                      ['src/features/match/board/audio.test.ts'],
+                      ['src/features/match/MatchRoute.tsx', 'e2e/match/match-route.spec.ts']]:
             self.assertEqual('pr', ci_scope.proof_breadth(paths))
 
     def test_control_inputs_helpers_fixtures_and_unknown_specs_force_full(self):

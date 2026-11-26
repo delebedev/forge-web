@@ -1,9 +1,9 @@
 import type { ReactNode } from 'react'
-import { useRouter } from '@app/router'
+import { useRouter } from '@shared/router'
 import { cx } from '@shared/react/cx'
 import { TopBar } from './TopBar'
 import { LobbyHeader } from './LobbyHeader'
-import '@shared/public-theme.css'
+import './public-theme.css'
 import styles from './AppShell.module.css'
 
 export function AppShell({

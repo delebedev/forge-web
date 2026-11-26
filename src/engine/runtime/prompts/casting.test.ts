@@ -1,7 +1,7 @@
 import type { PromptView } from '@engine/state/gre-state'
 import { promptInstruction, promptHeading } from '@engine/state/gre-prompt-view'
 import { castingInstruction } from './casting'
-import { viewFor } from '@engine/runtime/prompts/prompt-test-harness'
+import { viewFor } from '../../testing/prompt-test-harness'
 import { expect, test } from 'bun:test'
 import { GreDispatch } from '../gre-dispatch'
 import {
@@ -10,7 +10,7 @@ import {
   encodedPromptHarness,
   promptHarness,
   decodeGre,
-} from './prompt-test-harness'
+} from '@engine/testing/prompt-test-harness'
 import type { GreTables, ProtoObject } from '@engine/state/gre-state'
 test('modal casting response preserves request identities before the next prompt', async () => {
   const sent: { type: string; payload: ProtoObject }[] = []

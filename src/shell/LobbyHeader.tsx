@@ -1,6 +1,6 @@
 import { useMemo, type MouseEvent } from 'react'
-import { SiteHeader } from '@shared/SiteHeader'
-import { useRouter } from '@app/router'
+import { SiteHeader } from './SiteHeader'
+import { useRouter } from '@shared/router'
 import { prepareBugReport, trackBugReportOpen } from '@shared/feedback'
 import { authStore } from '@shared/auth/auth'
 import { useAuthSnapshot } from '@shared/auth/hooks'

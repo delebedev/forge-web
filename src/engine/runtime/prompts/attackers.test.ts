@@ -1,6 +1,6 @@
-import { viewFor } from '@engine/runtime/prompts/prompt-test-harness'
+import { viewFor } from '@engine/testing/prompt-test-harness'
 import { expect, test } from 'bun:test'
-import { bindingFor, encodedPromptHarness, decodeGre } from './prompt-test-harness'
+import { bindingFor, encodedPromptHarness, decodeGre } from '../../testing/prompt-test-harness'
 import type { ProtoObject } from '@engine/state/gre-state'
 
 test('attacker selection carries its recipient and submits only after the fresh echo', async () => {

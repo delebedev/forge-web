@@ -1,6 +1,11 @@
 import { expect, test } from 'bun:test'
 import { GreDispatch } from '@engine/runtime/gre-dispatch'
-import { dispatchHost, encodedPromptHarness, bindingFor, decodeGre } from './prompt-test-harness'
+import {
+  dispatchHost,
+  encodedPromptHarness,
+  bindingFor,
+  decodeGre,
+} from '@engine/testing/prompt-test-harness'
 import { enumValue } from '@engine/wire/gre-proto'
 import type { GreTables, ProtoObject } from '@engine/state/gre-state'
 

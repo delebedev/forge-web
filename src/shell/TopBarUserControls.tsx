@@ -1,7 +1,7 @@
 import type { MessageTypeEntry, TrafficStats } from '@engine/state/gre-state'
 import type { GreGameType } from '@engine/runtime/start'
 import { cx } from '@shared/react/cx'
-import { ConnectionPopup } from './chrome/ConnectionPopup'
+import { ConnectionPopup } from '../features/match/board/ConnectionPopup'
 import type { ChromeLogEntry, GreConnectionStatus } from './chrome-derive'
 import styles from './TopBar.module.css'
 

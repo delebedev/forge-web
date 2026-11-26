@@ -1,4 +1,4 @@
-import { trackJourney, type AnalyticsProps } from '@shared/analytics'
+import { trackJourney, type AnalyticsProps } from '@shared/observability/analytics'
 
 export type JourneyBoundary = 'game-start' | 'action-response' | 'reconnect'
 export type JourneyOutcome = 'success' | 'failure' | 'timeout' | 'cancelled'

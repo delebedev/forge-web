@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { BrowserEngine } from '@engine/runtime/browser-engine'
+import { BrowserEngine } from '@engine/worker/browser-engine'
 
 const DraftStateSchema = z.object({
   packNumber: z.number().int(),

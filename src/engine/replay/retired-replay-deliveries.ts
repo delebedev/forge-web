@@ -1,4 +1,4 @@
-import { reportDiagnostic } from '@shared/reporting'
+import { reportDiagnostic } from '@shared/observability/reporting'
 
 // Keep a short restart history, not every match abandoned in a long-lived tab.
 // The byte budget usually fits one full prefix plus its pending body, or two smaller journals.

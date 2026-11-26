@@ -21,7 +21,7 @@ graph TB
     end
 
     subgraph "Shell"
-        ROUTER["app/router.tsx"]
+        ROUTER["shared/router.tsx + app/routes.ts"]
         CHROME["engine/runtime/hooks.ts + feature hooks<br/><small>external-store hooks</small>"]
     end
 
@@ -38,9 +38,14 @@ graph TB
 
 | Frontend home | Owner |
 | --- | --- |
-| `src/features/*` | Feature UI, state stores, and feature-specific React hooks |
-| `src/shared/api`, `auth`, `cards`, `ui` | HTTP contracts/client, cross-feature authentication, card utilities, and generic UI |
+| `src/app` | Mounting, route table and resolver, page metadata |
+| `src/shell` | Lobby and public page chrome, shared public theme |
+| `src/features/*` | Feature UI, state stores, and feature-specific React hooks; `features/match` owns the game board |
+| `src/shared/api`, `auth`, `cards`, `ui`, `router.tsx` | HTTP contracts/client, cross-feature authentication, card utilities and visuals, generic UI, and the router store |
+| `src/shared/observability` | Analytics, error reporting, telemetry, session replay and failure snapshots |
 | `src/engine/wire`, `state`, `runtime`, `priority`, `replay` | GRE wire codec, projected state, match lifecycle, priority policy, and replay formatting |
+| `src/engine/worker` | Browser worker host: release assets, worker lifecycle, recovery and diagnostics |
+| `src/engine/debug`, `testing` | The GRE debug bridge, and test-only frame and prompt helpers |
 | `src/engine/generated` | Generated GRE message descriptor |
 
 - `server/` is the product server, TypeScript on Bun. `server/main.ts` is the entry point; releases ship
@@ -92,7 +97,7 @@ graph TB
   contents. Migration V9 copied existing draft and sealed courses with a pool,
   and their completed draft's bot decks, into documents without a seed.
 - `runtime/gre-launch.ts` builds GRE start payloads for constructed, puzzle, and saved-deck entries.
-- `runtime/browser-match-recovery.ts` reuses the Browser Local seed and in-page journal after an active worker failure. `GreSession` permits one four-minute attempt for constructed and Commander games. Replay uses a fresh worker and match identity, advances saved decisions without transporting intermediate frames, and resyncs through the existing connection handshake. Engine version, recovered board, pending choice and boundary state must match before `GreStore` installs the full state and rebound prompt. The final submitted response and all later progress are undone, with an acknowledgement before input resumes. This checks decision continuity, not complete hidden engine state. Reloads and browser crashes lose the in-page journal.
+- `worker/browser-match-recovery.ts` reuses the Browser Local seed and in-page journal after an active worker failure. `GreSession` permits one four-minute attempt for constructed and Commander games. Replay uses a fresh worker and match identity, advances saved decisions without transporting intermediate frames, and resyncs through the existing connection handshake. Engine version, recovered board, pending choice and boundary state must match before `GreStore` installs the full state and rebound prompt. The final submitted response and all later progress are undone, with an acknowledgement before input resumes. This checks decision continuity, not complete hidden engine state. Reloads and browser crashes lose the in-page journal.
 - Browser match journals contain local decisions and frames. Players may upload
   them through the authenticated replay API. Existing operator replay reads remain available.
 - `runtime/gre-store.ts` owns frame-source attachment, state projection, actions,

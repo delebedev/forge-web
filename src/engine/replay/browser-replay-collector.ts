@@ -1,4 +1,4 @@
-import type { BrowserFailureSnapshot } from '@shared/browser-failure-snapshot'
+import type { BrowserFailureSnapshot } from '@shared/observability/browser-failure-snapshot'
 import type { CardMeta } from '@engine/state/gre-state'
 import type { ProtoObject } from '@engine/wire/gre-proto'
 import type { GreStartConfig } from '@engine/runtime/start'

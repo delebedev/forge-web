@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
-import '../public-theme.css'
+import '../../shell/public-theme.css'
 import { SelectField, TextArea, TextField } from './Field'
 
 function Fields() {

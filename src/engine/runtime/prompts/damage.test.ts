@@ -1,7 +1,12 @@
-import { viewFor } from '@engine/runtime/prompts/prompt-test-harness'
+import { viewFor } from '@engine/testing/prompt-test-harness'
 import { expect, test } from 'bun:test'
 import { GreDispatch } from '../gre-dispatch'
-import { dispatchHost, bindingFor, encodedPromptHarness, decodeGre } from './prompt-test-harness'
+import {
+  dispatchHost,
+  bindingFor,
+  encodedPromptHarness,
+  decodeGre,
+} from '@engine/testing/prompt-test-harness'
 import type { ProtoObject } from '@engine/state/gre-state'
 test('damage assignment preserves ranges while allowing free creature splits', async () => {
   const sent: ProtoObject[] = []

@@ -2,9 +2,9 @@
  * Draft pack header, controls, and selectable card grid.
  */
 
-import { Card } from '@features/gre/board/Card'
+import { Card } from '@shared/cards/Card'
 import type { DraftCard } from '@shared/api/contracts'
-import { catalogCardView } from '@features/gre/board/catalog-card-view'
+import { catalogCardView } from '@shared/cards/catalog-card-view'
 import { cx } from '@shared/react/cx'
 import styles from './DraftPackArea.module.css'
 

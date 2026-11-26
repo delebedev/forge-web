@@ -1,5 +1,5 @@
 import { noCardMeta } from './gre-card-meta'
-import type { BrowserFailureSnapshot } from '@shared/browser-failure-snapshot'
+import type { BrowserFailureSnapshot } from '@shared/observability/browser-failure-snapshot'
 import { buildGreWrapper, enumValue, type ProtoObject } from '@engine/wire/gre-proto'
 import {
   ACTION_PASS,
@@ -70,9 +70,9 @@ import {
   trackTurnMilestone,
   trackBrowserLifecycle,
   type GameMode,
-} from '@shared/analytics'
-import { telemetry } from '@shared/telemetry'
-import { reportGreFailure, type ReportingMatchContext } from '@shared/reporting'
+} from '@shared/observability/analytics'
+import { telemetry } from '@shared/observability/telemetry'
+import { reportGreFailure, type ReportingMatchContext } from '@shared/observability/reporting'
 
 const META_FETCH_DELAY_MS = 50
 const TURN_MILESTONES = new Set([1, 5, 10, 20])

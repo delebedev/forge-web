@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { encodeMessage } from '@engine/wire/gre-proto'
-import { BrowserMatchSource } from './browser-match-source'
+import { BrowserMatchSource } from '../worker/browser-match-source'
 import { type GreFrameBatch, type GreFrameSink } from './gre-frame-source'
 
 for (const execution of ['browser'] as const) {

@@ -1,5 +1,5 @@
 import type { MouseEvent } from 'react'
-import { useRouter } from '@app/router'
+import { useRouter } from '@shared/router'
 import styles from './AboutPage.module.css'
 import { productionFeedbackEnabled } from '@shared/feedback'
 
