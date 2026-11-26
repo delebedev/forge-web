@@ -370,6 +370,52 @@ test('lobby resolves a case-insensitive commander name, persists it and launches
   await expect(page.getByRole('region', { name: 'Battlefield', exact: true })).toContainText('40')
 })
 
+test('an exported Commander list with set codes, tags and a bare card name imports and launches', async ({
+  page,
+}, info) => {
+  test.setTimeout(300_000)
+  await page.addInitScript(() =>
+    localStorage.setItem('forge:gre:priority-flag:hideCardArt', 'true'),
+  )
+  await signIn(page)
+  await page.goto('/play/game')
+  await page.getByRole('button', { name: 'Commander', exact: true }).click()
+  await page.getByRole('button', { name: 'Import a deck', exact: true }).click()
+  await page
+    .getByRole('textbox', { name: 'Deck list', exact: true })
+    .fill(
+      [
+        'Commander (1)',
+        '1x Kenrith, the Returned King (eld) 303 *F* [Commander{top}]',
+        '',
+        'Creature (1)',
+        '1x Isamaru, Hound of Konda (chk) 35 [Creature] ^Have,#37d67a^',
+        'Artifact',
+        'Sol Ring',
+        'Lands (97)',
+        '97x Plains (eld) 250 [Land]',
+      ].join('\n'),
+    )
+  await page.getByRole('button', { name: 'Check deck', exact: true }).click()
+  // The first decklist check starts the browser engine.
+  await expect(page.getByRole('button', { name: 'Import and select', exact: true })).toBeEnabled({
+    timeout: 60_000,
+  })
+  await expect(page.getByRole('alert')).toHaveCount(0)
+  await page.getByRole('textbox', { name: 'Deck name', exact: true }).fill('Kenrith export')
+  await page.getByRole('dialog').screenshot({ path: info.outputPath('exported-list-import.png') })
+  await page.getByRole('button', { name: 'Import and select', exact: true }).click()
+  await expect(page.getByText('Imported and saved to your library.', { exact: true })).toBeVisible()
+  await localStart(page).click()
+  await page.waitForURL(/\/match\/(?:commander|constructed)$/)
+  expect((await savedConfig(page)).seat1Deck).toBe(
+    '[Commander]\n1 Kenrith, the Returned King\n[Deck]\n1 Isamaru, Hound of Konda\n1 Sol Ring\n97 Plains',
+  )
+  await waitForLocalBoard(page)
+  await expect(page.getByRole('region', { name: 'Battlefield', exact: true })).toContainText('40')
+  await page.screenshot({ path: info.outputPath('exported-list-board.png') })
+})
+
 const commanderFixtures = [
   'Atraxa - Counter Growth',
   'Krenko - Goblin Swarm',

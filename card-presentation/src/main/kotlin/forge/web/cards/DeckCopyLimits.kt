@@ -34,7 +34,8 @@ fun validateDeckCopies(
         val limit = format.getMaxCardCopies(entries.first().key)
         val quantity = entries.sumOf { it.value.toLong() }
         if (quantity > limit) {
-            throw DecklistException(listOf("$name allows at most $limit copies across the main deck and sideboard."))
+            val copies = if (limit == 1) "1 copy" else "$limit copies"
+            throw DecklistException(listOf("$name allows at most $copies across the main deck and sideboard."))
         }
     }
 }

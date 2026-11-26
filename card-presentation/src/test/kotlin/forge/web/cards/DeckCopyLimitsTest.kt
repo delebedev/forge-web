@@ -7,6 +7,7 @@ import leyline.domain.deck.DeckSource
 import leyline.domain.deck.DecklistException
 import kotlin.test.BeforeTest
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 
 class DeckCopyLimitsTest {
@@ -24,7 +25,12 @@ class DeckCopyLimitsTest {
     fun `combined copies are bounded without requiring a complete deck`() {
         validate("[Deck]\n2 Grizzly Bears\n[Sideboard]\n2 Grizzly Bears")
         assertFailsWith<DecklistException> { validate("[Deck]\n4 Grizzly Bears\n[Sideboard]\n1 Grizzly Bears") }
-        assertFailsWith<DecklistException> { validate("[Deck]\n1 Grizzly Bears\n[Sideboard]\n1 Grizzly Bears", deckCopyFormat("Brawl")) }
+        assertEquals(
+            listOf("Grizzly Bears allows at most 1 copy across the main deck and sideboard."),
+            assertFailsWith<DecklistException> {
+                validate("[Deck]\n1 Grizzly Bears\n[Sideboard]\n1 Grizzly Bears", deckCopyFormat("Brawl"))
+            }.errors,
+        )
     }
 
     @Test

@@ -1,4 +1,5 @@
 import type { BrowserFailureSnapshot } from './browser-failure-snapshot'
+import { DECKLIST_REJECTION_CAUSES, type DecklistRejectionCause } from './cards/decklist-rejection'
 import { deviceId } from './device-id'
 /**
  * Umami custom event tracking.
@@ -21,6 +22,7 @@ const EVENTS = {
   GAME_RECOVERY: 'game-recovery',
   LOGIN: 'login',
   DECK_PASTE: 'deck-paste',
+  DECK_IMPORT_REJECTED: 'deck-import-rejected',
   DECK_SEARCH: 'deck-search',
   DECK_SAVED: 'deck-saved',
   DECK_DELETED: 'deck-deleted',
@@ -513,6 +515,38 @@ export function trackDeckPaste(props: {
     data['lineCount'] = props.lineCount
   }
   track(EVENTS.DECK_PASTE, data)
+}
+
+/**
+ * A pasted decklist the import dialog refused. Carries the step that refused it and
+ * a count per bounded cause; never the decklist, card names or error text.
+ */
+export function trackDeckImportRejected(props: {
+  stage: 'parse' | 'prepare' | 'validate'
+  causes: Partial<Record<DecklistRejectionCause, number>>
+  errorCount: number
+  inputLength: number
+  lineCount: number
+}): void {
+  const data: AnalyticsProps = {
+    stage: props.stage,
+    errorCount: props.errorCount,
+    inputLength: props.inputLength,
+    lineCount: props.lineCount,
+  }
+  let primary: DecklistRejectionCause | null = null
+  for (const cause of DECKLIST_REJECTION_CAUSES) {
+    const count = props.causes[cause]
+    if (!count) {
+      continue
+    }
+    data[`cause_${cause}`] = count
+    if (primary === null || count > (props.causes[primary] ?? 0)) {
+      primary = cause
+    }
+  }
+  data['cause'] = primary ?? 'other'
+  track(EVENTS.DECK_IMPORT_REJECTED, data)
 }
 
 export function trackDeckSearch(props: {
