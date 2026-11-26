@@ -47,6 +47,44 @@ class ReleaseNotesTest(unittest.TestCase):
                 items = notes.changes(shallow, deployed, git('rev-parse', 'HEAD'), 'leyline')
                 self.assertEqual([item['title'] for item in items], ['Treasure fix'])
 
+    def test_merged_pull_request_is_one_change_with_its_whole_diff(self):
+        with tempfile.TemporaryDirectory() as directory:
+            repo = Path(directory)
+            def git(*args):
+                return notes.run('git', *args, cwd=repo)
+            git('init', '-q', '-b', 'main'); git('config', 'user.email', 'test@example.com'); git('config', 'user.name', 'Test')
+            file = repo / 'game.txt'
+            file.write_text('base\n'); git('add', '.'); git('commit', '-qm', 'Base')
+            base = git('rev-parse', 'HEAD')
+            git('checkout', '-qb', 'docs')
+            for step in range(3):
+                (repo / f'doc{step}.md').write_text(f'{step}\n'); git('add', '.'); git('commit', '-qm', f'Docs step {step}')
+            git('checkout', '-q', 'main')
+            file.write_text('base\nland fix\n'); git('commit', '-qam', 'Land fix (#7)')
+            git('merge', '-q', '--no-ff', 'docs', '-m', 'Merge pull request #8 from owner/docs')
+            pulls = {'7': {'html_url': 'pull/7', 'body': 'Fix.'}, '8': {'html_url': 'pull/8', 'title': 'Explain docs', 'body': 'Docs.'}}
+            with patch.object(notes, 'api', side_effect=lambda path: pulls[path.rsplit('/', 1)[1]]):
+                items = notes.changes(repo, base, git('rev-parse', 'HEAD'), 'leyline')
+        self.assertEqual([item['title'] for item in items], ['Land fix (#7)', 'Explain docs (#8)'])
+        self.assertEqual(items[1]['files'], ['doc0.md', 'doc1.md', 'doc2.md'])
+        self.assertIn('+2', items[1]['diff'])
+
+    def test_oversized_backlog_drafts_every_change_with_shorter_excerpts(self):
+        manifest = {'day': '2026-11-26', 'changes': [
+            {'id': f'leyline:{index}', 'title': f'Change {index}', 'files': ['a.kt'],
+             'description': 'd' * 6000, 'diff': 'x' * 24000, 'diff_truncated': False}
+            for index in range(120)]}
+        candidate = {'headline': 'No player changes', 'bullets': [], 'coverage': [
+            {'id': item['id'], 'audience': 'internal', 'fact': 'Internal change.', 'reason': 'No player effect.'}
+            for item in manifest['changes']]}
+        with tempfile.TemporaryDirectory() as directory, patch.object(notes, 'model_candidate', return_value={'candidate': candidate}) as model:
+            notes.generate(manifest, Path(directory))
+            model.assert_called_once()
+            evidence = notes.json.loads((Path(directory) / 'model-evidence.json').read_text())
+        self.assertLessEqual(len(notes.json.dumps(evidence)), notes.EVIDENCE_BUDGET)
+        self.assertEqual([item['id'] for item in evidence['changes']], [item['id'] for item in manifest['changes']])
+        self.assertTrue(all(item['diff'] and item['diff_truncated'] and item['description_truncated'] for item in evidence['changes']))
+
     def test_redeploy_without_changes_spends_nothing(self):
         with tempfile.TemporaryDirectory() as directory, patch.object(notes, 'model_candidate', side_effect=AssertionError('Model should not run')):
             result = notes.generate({'day': '2026-10-01', 'changes': []}, Path(directory))

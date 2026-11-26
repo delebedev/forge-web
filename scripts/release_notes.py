@@ -64,23 +64,28 @@ def changes(repo, before, after, label):
         run('git', 'fetch', '--no-tags', '--unshallow', 'origin', before, after, cwd=repo)
     if subprocess.run(['git', 'merge-base', before, after], cwd=repo, capture_output=True).returncode:
         raise ValueError('Source histories have no common baseline')
-    rows = run('git', 'log', '--left-right', '--cherry-pick', '--reverse',
+    # First-parent history lists each landed change once; a merged pull request
+    # contributes its merge commit, not every commit from its branch.
+    rows = run('git', 'log', '--first-parent', '--left-right', '--cherry-pick', '--reverse',
                '--format=%m%H%x09%s', f'{before}...{after}', cwd=repo)
     result = []
     for row in rows.splitlines():
         marked_sha, title = row.split('\t', 1)
         removed, sha = marked_sha[0] == '<', marked_sha[1:]
-        diff = run('git', 'show', '--format=', '--no-ext-diff', '--no-renames',
+        diff = run('git', 'show', '--format=', '--no-color', '--no-ext-diff', '--no-renames', '--diff-merges=first-parent',
                    *(['-R'] if removed else []), sha, cwd=repo)
-        match = re.search(r'\(#(\d+)\)$', title)
+        match = re.search(r'\(#(\d+)\)$', title) or re.match(r'Merge pull request #(\d+) ', title)
         pr = {}
         if match:
             owner = 'delebedev/leyline' if label == 'leyline' else REPO
             pr = api(f'repos/{owner}/pulls/{match[1]}')
+            if title.startswith('Merge pull request') and pr.get('title'):
+                title = f"{pr['title']} (#{match[1]})"
         result.append({'id': f'{label}:{sha[:8]}', 'title': ('Removed deployed change: ' if removed else '') + title,
                        'removed': removed, 'revision': sha,
                        'pr': pr.get('html_url'), 'description': pr.get('body', ''),
-                       'files': run('git', 'diff-tree', '--no-commit-id', '--name-only', '-r', sha, cwd=repo).splitlines(),
+                       'files': run('git', 'diff-tree', '--no-commit-id', '--name-only', '-r',
+                                    '--diff-merges=first-parent', sha, cwd=repo).splitlines(),
                        'diff': diff[:24000], 'diff_truncated': len(diff) > 24000})
     return result
 
@@ -166,18 +171,27 @@ def validate_candidate(candidate, manifest):
         raise ValueError(f'Public bullets must retain earlier published changes and cite these missing carried IDs: {sorted(carried - covered)}')
 
 
+EVIDENCE_BUDGET = 600000
+
+
 def model_evidence(manifest):
-    packet = dict(manifest)
-    packet['changes'] = []
-    for item in manifest['changes']:
-        compact = dict(item)
-        if 'diff' in compact:
-            compact['diff'] = item['diff'][:4000]
-            compact['diff_truncated'] = item['diff_truncated'] or len(item['diff']) > 4000
-        if 'description' in compact:
-            compact['description'] = item['description'][:4000]
-            compact['description_truncated'] = len(item['description']) > 4000
-        packet['changes'].append(compact)
+    # Every change keeps its title, files and PR link; a large backlog shortens
+    # each diff and description excerpt until the packet fits the budget.
+    for limit in (4000, 2000, 1000, 500):
+        packet = dict(manifest)
+        packet['changes'] = []
+        for item in manifest['changes']:
+            compact = dict(item)
+            if 'diff' in compact:
+                compact['diff'] = item['diff'][:limit]
+                compact['diff_truncated'] = item['diff_truncated'] or len(item['diff']) > limit
+            if 'description' in compact:
+                description = item['description'] or ''
+                compact['description'] = description[:limit]
+                compact['description_truncated'] = len(description) > limit
+            packet['changes'].append(compact)
+        if len(json.dumps(packet)) <= EVIDENCE_BUDGET:
+            break
     return packet
 
 
@@ -238,8 +252,9 @@ def entry(day, candidate):
 def generate(manifest, output):
     output.mkdir(parents=True, exist_ok=True)
     write_json(output / 'manifest.json', manifest)
-    write_json(output / 'model-evidence.json', model_evidence(manifest))
-    if len(json.dumps(model_evidence(manifest))) > 600000:
+    evidence = model_evidence(manifest)
+    write_json(output / 'model-evidence.json', evidence)
+    if len(json.dumps(evidence)) > EVIDENCE_BUDGET:
         raise ValueError('Evidence exceeds draft budget; publish the backlog in smaller verified bundles')
     if any(not item['id'].startswith('carried:') for item in manifest['changes']):
         result = model_candidate(MODEL, manifest)
