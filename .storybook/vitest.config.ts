@@ -12,6 +12,9 @@ export default mergeConfig(
   { ...viteConfig, server },
   defineConfig({
     plugins: [storybookTest({ configDir: fileURLToPath(new URL('.', import.meta.url)) })],
+    // Vite finds these only after the first stories run. Re-optimizing then reloads the
+    // browser and fails whichever story is loading, so they are pre-bundled up front.
+    optimizeDeps: { include: ['@sentry/react'] },
     test: {
       name: 'storybook',
       browser: {
