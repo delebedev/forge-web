@@ -1,8 +1,9 @@
-import { afterEach, expect, test } from 'bun:test'
+import { afterEach, expect, spyOn, test } from 'bun:test'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import replayChunk from './fixtures/commander-first-chunk.json'
+import { Logger } from './log.ts'
 import { ReplayAdmission } from './replay-admission.ts'
 import { MAX_BROWSER_REPLAY_CHUNK_BYTES } from './replay-routes.ts'
 import { MatchReplayStore } from './replay-store.ts'
@@ -61,6 +62,56 @@ test('invalid uploads are refused before storage', async () => {
   expect((await upload('nope')).status).toBe(400)
   // Last: Bun's fetch client reuses the connection after this early response and the next request on it stalls.
   expect((await upload('x'.repeat(MAX_BROWSER_REPLAY_CHUNK_BYTES + 1))).status).toBe(413)
+})
+
+test('a refused chunk logs its reason without echoing the body', async () => {
+  server = testServer()
+  const warn = spyOn(Logger.prototype, 'warn').mockImplementation(() => {})
+  try {
+    const wrongFormat = JSON.stringify({
+      ...replayChunk,
+      context: { ...replayChunk.context, gameType: 'two-headed' },
+    })
+    const refused = await upload(wrongFormat)
+    expect([refused.status, await refused.text()]).toEqual([400, 'Invalid replay format'])
+    expect((await upload('{"secret-token')).status).toBe(400)
+    expect((await upload(JSON.stringify({ ...replayChunk, events: 'none' }))).status).toBe(400)
+    expect((await upload(JSON.stringify(replayChunk), 'x')).status).toBe(400)
+    expect(
+      (await upload(JSON.stringify(replayChunk), '0', { 'X-Device-Id': 'kiosk' })).status,
+    ).toBe(400)
+    expect(warn.mock.calls).toEqual([
+      [
+        'Replay chunk rejected',
+        {
+          matchId: MATCH,
+          afterSeq: '0',
+          bytes: wrongFormat.length,
+          reason: 'Invalid replay format',
+        },
+      ],
+      [
+        'Replay chunk rejected',
+        { matchId: MATCH, afterSeq: '0', bytes: 14, reason: 'Invalid replay JSON' },
+      ],
+      [
+        'Replay chunk rejected',
+        expect.objectContaining({
+          reason: 'Invalid replay at events: Invalid input: expected array, received string',
+        }),
+      ],
+      [
+        'Replay chunk rejected',
+        { matchId: MATCH, afterSeq: 'invalid', bytes: 0, reason: 'Invalid X-Replay-After-Seq' },
+      ],
+      [
+        'Replay chunk rejected',
+        { matchId: MATCH, afterSeq: '0', bytes: 0, reason: 'Invalid device identity' },
+      ],
+    ])
+  } finally {
+    warn.mockRestore()
+  }
 })
 
 test('throttled uploads carry Retry-After', async () => {

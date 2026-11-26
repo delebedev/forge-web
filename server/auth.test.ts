@@ -1,7 +1,8 @@
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, spyOn, test } from 'bun:test'
 import { createHmac } from 'node:crypto'
-import { type LoginCodeEmail } from './auth.ts'
+import { resendEmailSender, type LoginCodeEmail } from './auth.ts'
 import { javaInstant } from './db.ts'
+import { Logger } from './log.ts'
 import { InMemoryRateLimiter } from './rate-limit.ts'
 import { TEST_LOGIN_CODE, TEST_SECRET, testAuth, testDatabase } from './test-support.ts'
 
@@ -122,6 +123,41 @@ describe('WebAuth', () => {
     expect(auth.verify('player@example.test', TEST_LOGIN_CODE, 'ip', null).kind).toBe(
       'invalid_or_expired',
     )
+  })
+
+  test('a failed send logs its status and error class, never the address or code', async () => {
+    const warn = spyOn(Logger.prototype, 'warn').mockImplementation(() => {})
+    const fetch = spyOn(globalThis, 'fetch').mockResolvedValue(new Response('', { status: 422 }))
+    try {
+      const auth = testAuth({
+        sendEmail: resendEmailSender('re_key', 'Leyline <login@example.test>'),
+      })
+      expect(await auth.requestCode('player@example.test', 'ip', null)).toBe('email_send_failed')
+      const unreachable = testAuth({
+        sendEmail: async () => {
+          throw Object.assign(new TypeError('fetch failed for player@example.test'), {
+            code: 'ConnectionRefused',
+          })
+        },
+      })
+      expect(await unreachable.requestCode('other@example.test', 'ip', null)).toBe(
+        'email_send_failed',
+      )
+      expect(warn.mock.calls).toEqual([
+        [
+          'Login email send failed',
+          { status: 422, errorClass: 'EmailSendError', errorCode: undefined },
+        ],
+        [
+          'Login email send failed',
+          { status: 'none', errorClass: 'TypeError', errorCode: 'ConnectionRefused' },
+        ],
+      ])
+      expect(JSON.stringify(warn.mock.calls)).not.toMatch(/example\.test|re_key|\d{6}/)
+    } finally {
+      fetch.mockRestore()
+      warn.mockRestore()
+    }
   })
 
   test('a send that fails after a resend retires only its own code', async () => {

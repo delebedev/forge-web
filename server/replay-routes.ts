@@ -1,8 +1,19 @@
 import { z } from 'zod'
 import { deviceId, isOperator, sessionPlayer, type WebAuth } from './auth.ts'
-import { ResponseError, empty, json, readJson, text, type Context, type Routes } from './http.ts'
+import {
+  BadRequest,
+  ResponseError,
+  empty,
+  json,
+  readJson,
+  text,
+  type Context,
+  type Routes,
+} from './http.ts'
+import { Logger } from './log.ts'
 import { ReplayAdmission } from './replay-admission.ts'
 import {
+  BROWSER_MATCH_ID,
   ReplayJournalRetired,
   ReplayStorageBusy,
   ReplayStorageCapacityExceeded,
@@ -54,6 +65,10 @@ async function storage<T>(action: () => Promise<T>): Promise<T> {
   }
 }
 
+const log = new Logger('forge.web.server.match.BrowserReplayRoutes')
+
+const AFTER_SEQ = /^[+-]?\d{1,18}$/
+
 const pinRequest = z.object({ reportId: z.string() })
 
 export function replayRoutes(
@@ -70,33 +85,52 @@ export function replayRoutes(
     '/api/browser-replays/:matchId/chunks': {
       POST: async (ctx) => {
         ctx.headers.set('Cache-Control', 'no-store')
-        const owner = {
-          deviceId: deviceId(ctx),
-          accountId: sessionPlayer(auth, ctx.req)?.playerId ?? null,
-        }
-        const rejection = admission.admit(owner.deviceId, ctx.ip)
-        if (rejection !== null) {
-          return empty(rejection.unavailable ? 503 : 429, {
-            'Retry-After': String(rejection.retryAfterSeconds),
-          })
-        }
-        const afterSeq = ctx.req.headers.get('X-Replay-After-Seq')
-        if (afterSeq === null || !/^[+-]?\d{1,18}$/.test(afterSeq)) {
-          return empty(400)
-        }
-        const declared = Number(ctx.req.headers.get('Content-Length') ?? 0)
-        if (declared > MAX_BROWSER_REPLAY_CHUNK_BYTES) {
-          return empty(413)
-        }
-        const body = await readBounded(ctx.req, MAX_BROWSER_REPLAY_CHUNK_BYTES)
-        if (body === null) {
-          return empty(413)
-        }
         const matchId = ctx.params['matchId'] ?? ''
-        const seq = await storage(() =>
-          store.ingestBrowserChunk(owner, matchId, Number(afterSeq), body),
-        )
-        return text(200, String(seq))
+        const afterSeq = ctx.req.headers.get('X-Replay-After-Seq')
+        const validSeq = afterSeq !== null && AFTER_SEQ.test(afterSeq)
+        let bytes = 0
+        const rejected = (reason: string) =>
+          log.warn('Replay chunk rejected', {
+            // The path and header are caller-chosen; only well-formed values are logged.
+            matchId: BROWSER_MATCH_ID.test(matchId) ? matchId : 'invalid',
+            afterSeq: validSeq ? afterSeq : afterSeq === null ? 'missing' : 'invalid',
+            bytes,
+            reason,
+          })
+        try {
+          const owner = {
+            deviceId: deviceId(ctx),
+            accountId: sessionPlayer(auth, ctx.req)?.playerId ?? null,
+          }
+          const rejection = admission.admit(owner.deviceId, ctx.ip)
+          if (rejection !== null) {
+            return empty(rejection.unavailable ? 503 : 429, {
+              'Retry-After': String(rejection.retryAfterSeconds),
+            })
+          }
+          if (!validSeq) {
+            rejected('Invalid X-Replay-After-Seq')
+            return empty(400)
+          }
+          const declared = Number(ctx.req.headers.get('Content-Length') ?? 0)
+          if (declared > MAX_BROWSER_REPLAY_CHUNK_BYTES) {
+            return empty(413)
+          }
+          const body = await readBounded(ctx.req, MAX_BROWSER_REPLAY_CHUNK_BYTES)
+          if (body === null) {
+            return empty(413)
+          }
+          bytes = body.length
+          const seq = await storage(() =>
+            store.ingestBrowserChunk(owner, matchId, Number(afterSeq), body),
+          )
+          return text(200, String(seq))
+        } catch (cause) {
+          if (cause instanceof BadRequest) {
+            rejected(cause.message)
+          }
+          throw cause
+        }
       },
     },
     '/api/operator/replays/:matchId': {
