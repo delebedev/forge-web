@@ -8,62 +8,19 @@ unofficial project with no human-versus-human matchmaking.
 
 ## Quick start
 
-Requires Git, Node.js 24, Bun 1.3+, JDK 21, Maven 3.9+, Python 3, and
-[just](https://just.systems/). Install JDK 17 as well for browser execution.
-The product server needs only Bun; the JDKs build the browser engine, whose
-Leyline build scripts compile with JDK 21.
-Ensure Java installations are discoverable by Gradle. macOS and Linux are the
-current development targets. Bootstrap downloads the pinned submodules and
-build dependencies. Sibling caches are optional; production credentials are
-not required.
-
 ```bash
 git clone https://github.com/delebedev/forge-web.git
 cd forge-web
 bun run bootstrap
-cp .env.example .env.local
-set -a
-. ./.env.local
-set +a
-export LEYLINE_WEB_AUTH_SECRET="$(openssl rand -hex 32)"
-bun run server
 ```
 
-In a second terminal:
-
-```bash
-bun run dev --host 127.0.0.1 --port 5173 --strictPort
-```
-
-Once the server is ready, seed the development account:
-
-```bash
-bun run dev:seed
-```
-
-Open the URL printed by Vite. The seeded development account is
-`player@example.test` with code `123456`. See
-[Local iteration](docs/local-iteration.md) for worktrees, alternate ports, and
-remote browser feedback. Fixed login codes are for local development only.
-Keep `.env.local` and your state directory out of Git.
-A relative `LEYLINE_PATHS_STATE` resolves against the server's working directory,
-which is the repository root for `bun run server`.
-
-For UI work without a backend or engine build:
-
-```bash
-bun install --frozen-lockfile
-bun run storybook
-```
-
-Open the printed URL and choose a Shared UI or Gameplay story. Storybook uses
-authored scenarios; it does not prove engine behavior. For full browser play,
-run `bun run browser:assets` after bootstrap and whenever the runtime changes.
-Server execution can be used without those browser assets.
+[Local iteration](docs/local-iteration.md) owns the prerequisites, starting the
+server and Vite, the seeded development account, worktrees and the
+Storybook-only path.
 
 ## Product surfaces
 
-- `/` — public AI-versus-AI spectator feed.
+- `/` and `/watch` — continuous playback of curated saved games.
 - `/challenge/:id` — a direct, curated browser puzzle link with anonymous play.
 - `/challenges` — development-only scenario editor, not a public puzzle gallery.
 - `/play/*` — authenticated constructed and limited play.
@@ -99,7 +56,6 @@ production feedback forms. Report vulnerabilities using [SECURITY.md](SECURITY.m
 - [Authentication boundaries and abuse budgets](docs/authentication.md)
 - [Challenges](docs/challenges.md)
 - [Card images](docs/card-images.md)
-- [Changelog](CHANGELOG.md)
 
 ## Verification
 

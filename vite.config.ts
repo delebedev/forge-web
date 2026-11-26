@@ -26,35 +26,6 @@ const allowedHosts =
     .map((host) => host.trim())
     .filter(Boolean) ?? []
 
-/**
- * Serves `dev/transcripts/*.greplay.json` at `/transcripts/…` for the replay
- * tool, in dev only.
- *
- * They live outside `public/` on purpose: everything in `public/` is copied into
- * a production build, and a saved-game transcript is a development input, not
- * something to ship. `apply: 'serve'` keeps this out of the build entirely.
- */
-function devTranscripts(): Plugin {
-  return {
-    name: 'forge-web-dev-transcripts',
-    apply: 'serve',
-    configureServer(server) {
-      server.middlewares.use('/transcripts', (req, res, next) => {
-        const name = (req.url ?? '').replace(/^\//, '').split('?')[0] ?? ''
-        if (!/^[\w.-]+\.greplay\.json$/.test(name)) {
-          return next()
-        }
-        const file = fileURLToPath(new URL(`./dev/transcripts/${name}`, import.meta.url))
-        if (!existsSync(file)) {
-          return next()
-        }
-        res.setHeader('Content-Type', 'application/json')
-        createReadStream(file).pipe(res)
-      })
-    },
-  }
-}
-
 /** Serves Leyline puzzle fixtures to the development challenge pages. */
 function devPuzzles(): Plugin {
   return {
@@ -81,7 +52,7 @@ export default defineConfig({
   define: {
     __GIT_SHA__: JSON.stringify(gitSha()),
   },
-  plugins: [react(), devTranscripts(), devPuzzles(), seo()],
+  plugins: [react(), devPuzzles(), seo()],
   resolve: {
     alias: {
       '@app': fileURLToPath(new URL('./src/app', import.meta.url)),

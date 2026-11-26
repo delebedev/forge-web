@@ -41,33 +41,6 @@ export const GeneratedPuzzleSchema = z.object({
 })
 export type GeneratedPuzzle = z.infer<typeof GeneratedPuzzleSchema>
 
-export const PuzzleAttemptSchema = z.object({
-  featuredCard: z.string(),
-  puzzleText: z.string().nullable(),
-  validation: z.string().nullable(),
-  trial: z.string().nullable(),
-  withoutFeaturedTrial: z.string().nullable(),
-  jevAssessment: z.string().nullable(),
-  rejection: z.string().nullable(),
-})
-export type PuzzleAttempt = z.infer<typeof PuzzleAttemptSchema>
-
-export const PuzzleRunSchema = z.object({
-  id: z.string(),
-  ownerId: z.string(),
-  createdAt: z.string(),
-  updatedAt: z.string(),
-  status: z.string(),
-  stage: z.string(),
-  model: z.string(),
-  promptVersion: z.string(),
-  sampledCards: z.array(z.string()),
-  attempts: z.array(PuzzleAttemptSchema),
-  puzzleId: z.string().nullable(),
-  error: z.string().nullable(),
-})
-export type PuzzleRun = z.infer<typeof PuzzleRunSchema>
-
 export const PuzzleRatingRequestInputSchema = z.object({
   reaction: z.string(),
   comment: z.string().nullable().optional(),
@@ -132,7 +105,6 @@ export const responseSchemas = {
   'PUT /api/roadmap/{itemId}/vote': {},
   'DELETE /api/roadmap/{itemId}/vote': {},
   'GET /api/puzzles': { '200': z.array(GeneratedPuzzleSchema) },
-  'GET /api/puzzles/runs/{runId}': { '200': PuzzleRunSchema },
   'GET /api/puzzles/{puzzleId}': { '200': GeneratedPuzzleSchema },
   'POST /api/puzzles/{puzzleId}/ratings': {},
   'GET /api/public/cards/image': {},

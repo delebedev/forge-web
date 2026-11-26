@@ -2,7 +2,7 @@
 
 All gameplay runs in a browser worker through the pinned Leyline runtime.
 The product server in `server/` owns accounts, saved decks, course records,
-saved puzzles, roadmap votes and replay uploads. It builds without Leyline, Forge
+the frozen generated puzzle pool and its ratings, roadmap votes and replay uploads. It builds without Leyline, Forge
 or `card-presentation`, constructs no games, and exposes no card or gameplay routes.
 Unsupported browsers show a retryable error instead of switching execution hosts.
 
@@ -66,7 +66,7 @@ graph TB
   not check again: library decks were checked on save, pasted lists on import,
   and starter and bot decks are trusted. The engine's own start rejects a
   malformed deck through the match screen's launch failure and retry.
-  `server/.../decks/DeckStore.kt` checks only a save's shape: name, format,
+  `server/decks.ts` checks only a save's shape: name, format,
   positive card rows, at most 250 cards per main deck or sideboard, at most two
   commanders, a commander for Commander decks, and 200 decks per account.
   Starter decks are name lists seeded at registration.
@@ -77,7 +77,7 @@ graph TB
   check the next time the deck is edited or launched.
 - Replay viewers read card metadata embedded in the replay journal. A replay
   without it shows cards without names or text; there is no server fallback.
-- `server/.../limited/CourseRecordStore.kt` keeps one JSON course document per
+- `server/course-records.ts` keeps one JSON course document per
   account and event in `course_records` (`/api/course-records`). A save names
   the revision it read; a stale revision gets 409 and the browser reloads the
   record. The server checks only that the document is a JSON object, its event

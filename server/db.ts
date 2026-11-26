@@ -65,74 +65,83 @@ const HISTORY_TABLE = `CREATE TABLE IF NOT EXISTS "flyway_schema_history" (
 CREATE INDEX IF NOT EXISTS "flyway_schema_history_s_idx" ON "flyway_schema_history" ("success");`
 
 interface HistoryRow {
+  installed_rank: number
   version: string | null
   success: number
 }
 
 /**
- * Creates the schema in an empty database, recording Flyway history so the previous server accepts it.
- * Otherwise the history must end at the newest script with every row successful.
+ * Applies every script newer than the recorded history, writing Flyway history rows so the previous
+ * server accepts the result. An empty database runs every script. Existing history must have every
+ * row successful and end at a version this server knows.
  */
 export function migrate(db: Database, scripts: MigrationScript[] = migrationScripts): void {
   const latest = migrationVersion(scripts.at(-1)?.script ?? 'V0__')
-  // One transaction from the history check to the last script: an interrupted first start leaves an
-  // empty database that the next start initializes.
-  const created = writeTransaction(db, () => {
+  // One transaction from the history check to the last script: an interrupted start leaves the
+  // database at its previous version for the next start to retry.
+  writeTransaction(db, () => {
     const hasHistory =
       db
         .query(
           "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'flyway_schema_history'",
         )
         .get() !== null
+    let current = 0
+    let rank = 0
     if (hasHistory) {
-      return false
+      const rows = db
+        .query(
+          'SELECT installed_rank, version, success FROM flyway_schema_history ORDER BY installed_rank',
+        )
+        .all() as HistoryRow[]
+      const failed = rows.find((row) => row.success !== 1)
+      if (failed) {
+        throw new Error(`Schema history has a failed migration (version ${failed.version})`)
+      }
+      const version = rows.at(-1)?.version
+      current = Number(version)
+      if (version == null || !(current >= 1 && current <= latest)) {
+        throw new Error(
+          `Schema history ends at version ${version ?? 'none'}; this server requires ${latest}`,
+        )
+      }
+      rank = rows.at(-1)!.installed_rank
+    } else {
+      const tables = db
+        .query("SELECT COUNT(*) AS count FROM sqlite_master WHERE type = 'table'")
+        .get() as {
+        count: number
+      }
+      if (tables.count > 0) {
+        throw new Error('Found non-empty schema without a schema history table')
+      }
+      db.run(HISTORY_TABLE)
     }
-    const tables = db
-      .query("SELECT COUNT(*) AS count FROM sqlite_master WHERE type = 'table'")
-      .get() as {
-      count: number
-    }
-    if (tables.count > 0) {
-      throw new Error('Found non-empty schema without a schema history table')
-    }
-    db.run(HISTORY_TABLE)
-    scripts.forEach((script, index) => {
+    for (const script of scripts) {
+      const version = migrationVersion(script.script)
+      if (version <= current) {
+        continue
+      }
       const started = performance.now()
       db.run(script.sql)
+      rank += 1
       db.query(
         `INSERT INTO flyway_schema_history
              (installed_rank, version, description, type, script, checksum, installed_by, execution_time, success)
            VALUES (?, ?, ?, 'SQL', ?, ?, '', ?, 1)`,
       ).run(
-        index + 1,
-        String(migrationVersion(script.script)),
+        rank,
+        String(version),
         migrationDescription(script.script),
         script.script,
         flywayChecksum(script.sql),
         Math.round(performance.now() - started),
       )
       log.info(
-        `Migrating schema "main" to version "${migrationVersion(script.script)} - ${migrationDescription(script.script)}"`,
+        `Migrating schema "main" to version "${version} - ${migrationDescription(script.script)}"`,
       )
-    })
-    return true
+    }
   })
-  if (created) {
-    return
-  }
-  const rows = db
-    .query('SELECT version, success FROM flyway_schema_history ORDER BY installed_rank')
-    .all() as HistoryRow[]
-  const failed = rows.find((row) => row.success !== 1)
-  if (failed) {
-    throw new Error(`Schema history has a failed migration (version ${failed.version})`)
-  }
-  const current = rows.at(-1)?.version
-  if (current !== String(latest)) {
-    throw new Error(
-      `Schema history ends at version ${current ?? 'none'}; this server requires ${latest}`,
-    )
-  }
 }
 
 export function openPlayerDatabase(file: string): Database {

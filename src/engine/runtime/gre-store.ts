@@ -738,9 +738,7 @@ export class GreStore {
             ? 'frame decode error'
             : phase === 'apply'
               ? 'frame apply error'
-              : execution === 'browser'
-                ? 'browser engine error'
-                : 'websocket error'
+              : 'browser engine error'
         this.diagnostics.errorCount += 1
         this.publish()
       },

@@ -13,7 +13,6 @@ const ignored = [
   'node_modules/**',
   'dist/**',
   'dist-browser/**',
-  'dist-ssr/**',
   'server/build/**',
   'card-presentation/build/**',
   'browser-engine/build/**',
@@ -22,7 +21,6 @@ const ignored = [
   'playwright-report/**',
   'storybook-static/**',
   'src/engine/generated/**',
-  'src/shared/api/types.ts',
   '**/*.module.css.d.ts',
 ]
 

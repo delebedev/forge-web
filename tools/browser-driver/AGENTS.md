@@ -10,8 +10,9 @@ validation, loading, and copilot decisions; reuse the normal gameplay board.
    session. Use real Node for standalone Playwright, Bun for repository scripts.
 2. Run `node --experimental-strip-types tools/browser-driver/cli.ts --help`
    from the checkout root. Choose the workload, finite time/action budgets, and
-   a fresh output directory. The driver opens its own browser; a match URL
-   needs that match owner's session and does not attach to an existing tab.
+   a fresh output directory. The driver opens its own browser and does not
+   attach to an existing tab. Games run in that browser, so a `--url` entry
+   must start one itself, such as a challenge link.
 3. Run headed through visible entry and gameplay controls. Retain the report
    and terminal screenshot; retain trace/video when timing, missing controls,
    or a demo require the interaction sequence. Finish with a terminal verdict

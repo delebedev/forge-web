@@ -11,18 +11,36 @@ For changes spanning Forge Web and Leyline, use the
 [coupled fix workflow](#coupled-leyline-fixes).
 
 Use `git worktree list` and the PR head branch to identify the checkout. Read
-that checkout's `AGENTS.md`, not another branch's copy. Run `bun run bootstrap`
-for a fresh checkout. Run commands from its root. Prerequisites and the
-server-free Storybook path are in [README.md](../README.md#quick-start).
-Bootstrap resolves the pinned HTTPS submodules without requiring sibling
-repositories. Existing sibling clones are optional download caches.
-Copy `.env.example` to `.env.local` once for local fixed-login and state defaults;
-Export that file in the server terminal and generate a fresh auth secret
-as shown below. Do not use these fixed-login settings on a reachable deployment.
+that checkout's `AGENTS.md`, not another branch's copy. Run commands from its root.
+
+### Prerequisites
+
+Git, Node.js 24, Bun 1.3+, JDK 21, JDK 17, Maven 3.9+, Python 3, and
+[just](https://just.systems/). The product server needs only Bun. The JDKs build
+the browser engine: Leyline's build scripts compile with JDK 21 and the browser
+runtime targets Java 17. Ensure both Java installations are discoverable by
+Gradle. macOS and Linux are the current development targets.
+
+### Bootstrap
+
+```bash
+git clone https://github.com/delebedev/forge-web.git
+cd forge-web
+bun run bootstrap
+cp .env.example .env.local
+```
+
+Bootstrap resolves the pinned HTTPS submodules and build dependencies without
+requiring sibling repositories. Existing sibling clones are optional download
+caches; production credentials are not required. `.env.example` holds local
+fixed-login and state defaults. Do not use these fixed-login settings on a
+reachable deployment. Keep `.env.local` and your state directory out of Git.
 
 Browser execution is the only gameplay host. Unsupported browsers show an error and retry. Run `bun run browser:assets`
 once per worktree, and again after changing the engine or catalog, to serve the
-browser release from Vite. The build requires Java 17 alongside Java 21, which compiles Leyline's build scripts.
+browser release from Vite.
+
+### Start
 
 The backend serves product APIs and catalog data. It does not run games. `bun run server` runs
 `server/main.ts` from source; `bun run server:build` compiles the binary that releases ship.
@@ -40,6 +58,23 @@ bun run server
 bun run dev --host 127.0.0.1 --port 5173 --strictPort
 bun run dev:seed
 ```
+
+Seed once the server is ready, then open the URL printed by Vite. The seeded
+development account is `player@example.test` with code `123456`. A relative
+`LEYLINE_PATHS_STATE` resolves against the server's working directory, which is
+the repository root for `bun run server`.
+
+### Storybook only
+
+UI work that needs neither the server nor an engine build can start Storybook:
+
+```bash
+bun install --frozen-lockfile
+bun run storybook
+```
+
+Choose a Shared UI or Gameplay story. Storybook uses authored scenarios; it does
+not prove engine behavior.
 
 Keep the auth secret stable across backend restarts in the same session.
 The browser runs games without engine animation sleeps and owns presentation timing.

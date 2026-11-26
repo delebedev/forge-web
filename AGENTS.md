@@ -41,6 +41,12 @@ checkout, create ready sibling worktrees with `just ws <branch>`.
   challenge product.
 - **Card images:** read `docs/card-images.md` before changing the image index,
   artwork resolution, or browser image assets.
+- **CI and publication:** read `docs/ci.md` before changing workflows, browser
+  proof selection, or the publish path.
+- **Release notes:** read `docs/release-notes.md` before changing the daily
+  release notes pipeline or the What's new feed.
+- **Card art loading:** read [ADR-005](docs/adr/005-load-visible-card-art-eagerly.md)
+  before changing card image loading priority or preconnects.
 
 ## Delivery authority
 

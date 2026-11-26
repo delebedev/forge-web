@@ -17,7 +17,6 @@ for (const sample of CURATED_REPLAYS) {
     const forbidden: string[] = []
     const errors: string[] = []
     page.on('pageerror', (error) => errors.push(error.message))
-    page.on('websocket', (socket) => forbidden.push(socket.url()))
     page.on('request', (request) => {
       const url = new URL(request.url())
       if (

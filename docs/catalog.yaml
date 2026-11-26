@@ -12,12 +12,11 @@
 #   n/a       — not applicable
 #
 # Ground truth: docs/architecture.md, docs/frontend-routes.md, the code under
-# src/, and the e2e suites. GRE (Game Rules Engine) is the active match runtime;
-# the pre-GRE lobby/room-code backend (LobbyHandler, RoomId, GameActionBridge,
-# PlayableActionDto) is gone — forge-web is browser UX in front of the pinned
-# product APIs and browser-local pinned Leyline runtime.
+# src/, and the e2e suites. GRE (Game Rules Engine) is the match protocol
+# between the board and the browser-local pinned Leyline runtime; the product
+# server owns accounts, saved decks, courses and replays.
 #
-# Updated: 2026-10-03
+# Updated: 2026-11-26
 
 # ─── Public Roadmap ────────────────────────────────────────────────
 
@@ -75,7 +74,7 @@ game-modes:
       Constructed and Commander run in the browser when the secure context,
       Worker, WebAssembly, decompression, and cryptography capabilities are
       available. Browser identity and device class do not decide eligibility.
-      A startup failure stays visible with a browser retry. There is no server gameplay fallback.
+      A startup failure stays visible with a browser retry.
 
   puzzle:
     status: partial
@@ -86,17 +85,16 @@ game-modes:
       Puzzle matches themselves still run — the GRE play route accepts a
       puzzle param, /dev/puzzle/:id (DevLoader) auto-boots one, and the
       acceptance suites drive it. A development-only curated launcher is
-      available at /challenges when both frontend development mode and the
-      server's explicit development-tools flag are enabled.
+      available at /challenges in frontend development mode.
 
   public-challenges:
     status: partial
     notes: >
-      Daily puzzle navigation rotates among three stable singular
-      /challenge/<versioned-id> links. Static .pzl fixtures run locally in the
-      browser without auth or a server match. The same three repeat every
-      three UTC days. No browse/catalog, saved
-      progress, or public puzzle creation.
+      Daily puzzle navigation rotates among the eight bundled singular
+      /challenge/<versioned-id> links by UTC day. Static .pzl fixtures run
+      locally in the browser without auth. /challenge/random selects from the
+      frozen generated pool. No browse/catalog, saved progress, or public
+      puzzle creation.
       The older plural /challenges launcher is development-only and uses the
       browser-local /match/puzzle route.
 
@@ -120,7 +118,7 @@ game-modes:
     status: works
     notes: >
       Landing and /watch offer complete saved games. Playback uses static
-      transcripts and creates no live match or gameplay WebSocket.
+      transcripts and starts no engine.
 
 
 # ─── GRE Match Runtime ────────────────────────────────────────────
@@ -152,8 +150,8 @@ gre-runtime:
       Both players have persistent creator-image emblem tiles in the left margin. Inspection
       shows creator identity and the emblem effect without creature stats or
       cast actions. Later triggers identify the emblem on the stack and in
-      targeting after the creator leaves. Server and Browser Local share
-      this projection; Sephiroth persistence and lethal drain are verified.
+      targeting after the creator leaves. Sephiroth persistence and lethal
+      drain are verified.
       Ring progression and a complete emblem-card inventory are outside this slice.
 
   combat-and-targeting:

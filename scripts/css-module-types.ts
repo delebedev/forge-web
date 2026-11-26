@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 
 const check = process.argv.includes('--check')
 const stale: string[] = []
@@ -33,8 +33,25 @@ for await (const cssPath of new Bun.Glob('src/**/*.module.css').scan('.')) {
   }
 }
 
+const orphans: string[] = []
+if (check) {
+  for await (const declarationPath of new Bun.Glob('src/**/*.module.css.d.ts').scan('.')) {
+    if (!existsSync(declarationPath.slice(0, -'.d.ts'.length))) {
+      orphans.push(declarationPath)
+    }
+  }
+}
+
+if (orphans.length > 0) {
+  console.error(`Orphan CSS module declarations:\n${orphans.map((path) => `- ${path}`).join('\n')}`)
+  console.error('Delete each declaration whose stylesheet no longer exists.')
+}
+
 if (stale.length > 0) {
   console.error(`Stale CSS module declarations:\n${stale.map((path) => `- ${path}`).join('\n')}`)
   console.error('Run: bun run css:types')
+}
+
+if (stale.length > 0 || orphans.length > 0) {
   process.exit(1)
 }

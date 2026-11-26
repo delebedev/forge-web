@@ -11,12 +11,9 @@ there is no promised response time or release cadence. Fixes use the normal revi
 
 ## Start locally
 
-Follow [README.md](README.md#quick-start) for prerequisites, bootstrap, the
-seeded development account, and the lighter Storybook path. Follow
-[local iteration](docs/local-iteration.md) for ports and engine-backed scenarios.
-A fresh clone resolves pinned HTTPS submodules itself. Optional sibling caches
-speed downloads but are not part of the build contract. Do not change submodule
-pins as a side effect of setup.
+Follow [local iteration](docs/local-iteration.md) for prerequisites, bootstrap,
+the seeded development account, ports and the lighter Storybook path. Do not
+change submodule pins as a side effect of setup.
 
 Create a feature branch. Keep changes focused and run the tests that exercise
 the behavior you changed. Frontend checks include `bun test path/to/file.test.ts`

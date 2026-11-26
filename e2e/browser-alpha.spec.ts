@@ -40,7 +40,6 @@ test('browser play is the lazy default and opens both shared match formats', asy
   const engineRequests: string[] = []
   const gameplayRequests: string[] = []
   const configRequests: string[] = []
-  const gameplaySockets: string[] = []
   page.on('request', (request) => {
     const url = new URL(request.url())
     if (url.pathname === '/api/client-config') {
@@ -51,11 +50,6 @@ test('browser play is the lazy default and opens both shared match formats', asy
     }
     if (/^\/api\/gre\/(?:start|resume|abandon)$/.test(url.pathname)) {
       gameplayRequests.push(url.pathname)
-    }
-  })
-  page.on('websocket', (socket) => {
-    if (new URL(socket.url()).pathname === '/gre') {
-      gameplaySockets.push(socket.url())
     }
   })
 
@@ -105,14 +99,9 @@ test('browser play is the lazy default and opens both shared match formats', asy
 
   expect(configRequests).toEqual([])
   expect(gameplayRequests).toEqual([])
-  expect(gameplaySockets).toEqual([])
   expect(engineRequests).toContain('/browser-engine/release.json')
   await info.attach('network-boundary', {
-    body: JSON.stringify(
-      { engineRequests, configRequests, gameplayRequests, gameplaySockets },
-      null,
-      2,
-    ),
+    body: JSON.stringify({ engineRequests, configRequests, gameplayRequests }, null, 2),
     contentType: 'application/json',
   })
 })

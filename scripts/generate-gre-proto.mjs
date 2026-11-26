@@ -7,9 +7,7 @@ const outputDir = path.join(rootDir, 'src/engine/generated')
 const output = path.join(outputDir, 'messages.json')
 const candidates = [
   process.env.LEYLINE_MESSAGES_PROTO,
-  path.resolve(rootDir, 'leyline/engine/src/main/proto/messages.proto'),
   path.resolve(rootDir, 'leyline/proto/src/main/proto/messages.proto'),
-  path.join(process.env.HOME ?? '', 'src/leyline/engine/src/main/proto/messages.proto'),
 ].filter(Boolean)
 
 const proto = await firstExisting(candidates)

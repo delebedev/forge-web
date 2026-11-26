@@ -14,55 +14,28 @@ continues to select an accepted generated puzzle or bundled fallback. Each route
 loads its `.pzl` into the Forge browser worker and uses the normal board and
 puzzle win condition. Retry restarts the position. After victory or defeat,
 players can select one of three ratings and optionally leave a comment.
-The owner sees Generate next; it starts a vetted server job and shows its
-progress before opening the accepted puzzle. Other players get another puzzle
-from the pool. If the pool is empty or unavailable, the bundled browser
-challenges remain playable as a fallback. The worker's versioned assets can be
-cached; the release manifest revalidates. Browser play is not part of the
-generation gate.
+Next opens another puzzle from the pool. If the pool is empty or unavailable,
+the bundled browser challenges remain playable as a fallback. The worker's
+versioned assets can be cached; the release manifest revalidates.
 
 Bundled challenges have one authored catalog: `public/challenges/*.pzl`.
 `bun run challenge:manifest` derives the frontend manifest from each file's
 metadata, and builds reject a stale manifest. Do not maintain a parallel
 TypeScript list.
 
-## Generated puzzle pipeline (server)
+## Generated puzzle pool (server)
 
-The product server keeps an owner-triggered generation job and a shared accepted
-puzzle pool in `player.db`. Set `OPEN_ROUTER_API_KEY` and
-`FORGE_WEB_PUZZLE_GENERATOR_EMAIL` to enable generation; otherwise the pool
-remains readable but no job can start. One job runs at a time. Its polling
-status reports idea, building, engine test, shortcut check, and ready/failure.
-The browser session cookie is explicitly SameSite=Lax, and the billable
-generation POST rejects a cross-origin Origin header.
+The product server keeps the shared accepted puzzle pool in `player.db`. Nothing
+generates or adds puzzles, so the pool is frozen. `GET /api/puzzles` and
+`GET /api/puzzles/{id}` expose its positions.
 
-The job samples 20 Forge cards, asks Jev to rank seeds, asks Gemini Flash via
-OpenRouter for one `.pzl` per tried seed, then loads and executes each candidate
-in the headless engine. Publication requires a won main trial and a lost control
-trial with the featured card removed. An observed control win rejects the
-candidate. The loaded candidate must declare a one-turn Win goal. Both trials
-store bounded decisions and GRE event summaries; Jev
-receives these plus the puzzle position for an advisory interest assessment.
-The control is a necessity probe, not exhaustive shortcut search. Model and
-prompt version, failed drafts, validation, trials, and assessment remain in
-the private generation ledger. A job has a 60-second budget and returns a
-failure status rather than a weak fallback puzzle.
-
-SQLite is the source of truth for accepted puzzles that can be added without a
-web release. Checked-in `.pzl` files are the small offline fallback and browser
-regression set. Remote publication must use an owner-only validation route; it
-must not write directly to `player.db`.
-
-`GET /api/puzzles` and `GET /api/puzzles/{id}` expose accepted positions.
-`GET /api/puzzles/capabilities` tells the UI whether the current session may
-generate. The owner can start `POST /api/puzzles/generate` and poll
-`GET /api/puzzles/runs/{id}`. Any player can submit one of `fun`, `meh`, or
-`bad`, optional comment, terminal outcome, and bounded action labels to
-`POST /api/puzzles/{id}/ratings`. The request carries the browser's device id in
-`X-Device-Id`; one device keeps one rating per puzzle, and rating again replaces
-it. A signed-in rating also records the account. One client address may send
-30 ratings an hour and the server 1,000; more return 429. The current browser rating
-submits an empty action list; it does not yet serialize the player's move trace.
+Any player can submit one of `fun`, `meh`, or `bad`, optional comment, terminal
+outcome, and bounded action labels to `POST /api/puzzles/{id}/ratings`. The
+request carries the browser's device id in `X-Device-Id`; one device keeps one
+rating per puzzle, and rating again replaces it. A signed-in rating also records
+the account. One client address may send 30 ratings an hour and the server
+1,000; more return 429. The current browser rating submits an empty action list;
+it does not yet serialize the player's move trace.
 
 ## Development launcher
 
@@ -81,14 +54,8 @@ Challenges in desktop navigation.
 - `/dev/puzzle/:id` preserves direct access to any existing fixture.
 Each fixture's `[metadata]` section supplies the name, engine goal, turn limit, and supporting
 description. The launcher also accepts editable puzzle text. Validation loads
-the exact text through the engine and returns an opaque candidate id only when
-the puzzle is valid. Editing the text clears that id and any earlier validation
-or trial result.
-
-Validated candidates are immutable, owner scoped, and held in bounded memory.
-The developer may run a bounded engine trial or play the candidate directly;
-a lost or inconclusive trial remains a trial result and does not make a loaded
-puzzle invalid.
+the exact text in a dedicated browser worker. Editing the text clears any
+earlier validation, and a validated candidate can be played directly.
 
 ## Match ownership
 
@@ -97,9 +64,8 @@ A challenge starts `greSession` with a puzzle initial state plus
 `/match/puzzle` route renders `GrePlay`, the classic `Board`, and `PromptDock`.
 `greStore` remains the only board state and action owner.
 
-Candidate play passes only its server-owned candidate id into the same launch
-path. Restart resolves that id to the same validated text and creates a fresh
-match from the same initial position.
+Candidate play passes its validated text into the same launch path. Restart
+creates a fresh match from that text.
 
 The board shows the objective during play. Restart first confirms retirement of
 the active match, then launches the same initial fixture. A retirement failure

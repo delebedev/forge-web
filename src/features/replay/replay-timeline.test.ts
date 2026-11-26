@@ -3,7 +3,7 @@ import { greNormalizer } from '@engine/replay/gre-enum-names'
 import { parseTranscriptBundle, transcriptFrames } from '@engine/replay/gre-transcript'
 import { buildReplayTimeline, nextStackRun } from './replay-timeline'
 
-const BUNDLE_PATH = 'dev/transcripts/sample.greplay.json'
+const BUNDLE_PATH = 'public/replays/green-stompy-v-red-burn-v1.greplay.json'
 
 /** A frame putting `ids` on the shared stack zone. */
 function stackFrame(gameStateId: number, ids: number[]) {
@@ -79,7 +79,7 @@ test('the next run wraps around so the button always goes somewhere', async () =
   expect(nextStackRun({ occupied: [], runs: [] }, 0)).toBeNull()
 })
 
-test('the sample transcript has findable stack moments', async () => {
+test('the curated transcript has findable stack moments', async () => {
   const bundle = parseTranscriptBundle(await Bun.file(BUNDLE_PATH).json())
   const timeline = buildReplayTimeline(transcriptFrames(bundle), await greNormalizer())
   const occupiedFrames = timeline.occupied.filter(Boolean).length

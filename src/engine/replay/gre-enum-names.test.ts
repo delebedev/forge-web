@@ -3,7 +3,7 @@ import { greNormalizer } from './gre-enum-names'
 import { parseTranscriptBundle, transcriptFrames } from './gre-transcript'
 import { GAME_STATE_TYPE_FULL } from '@engine/state/gre-state'
 
-const BUNDLE_PATH = 'dev/transcripts/sample.greplay.json'
+const BUNDLE_PATH = 'public/replays/green-stompy-v-red-burn-v1.greplay.json'
 
 test('a type-name-prefixed enum resolves to the same number as the bare name', async () => {
   const normalizer = await greNormalizer()
@@ -64,7 +64,7 @@ test('fields the descriptor does not know pass through instead of being dropped'
   expect(message['notAField']).toBe('kept')
 })
 
-test('every enum name in the sample transcript resolves', async () => {
+test('every enum name in the curated transcript resolves', async () => {
   const bundle = parseTranscriptBundle(await Bun.file(BUNDLE_PATH).json())
   const normalizer = await greNormalizer()
   const frames = transcriptFrames(bundle)
@@ -78,7 +78,7 @@ test('every enum name in the sample transcript resolves', async () => {
   expect(frames.length).toBeGreaterThan(100)
 })
 
-test('the sample transcript folds to numeric enums the store can read', async () => {
+test('the curated transcript folds to numeric enums the store can read', async () => {
   const bundle = parseTranscriptBundle(await Bun.file(BUNDLE_PATH).json())
   const normalizer = await greNormalizer()
 

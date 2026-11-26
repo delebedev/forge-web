@@ -4,14 +4,13 @@
 migrations live in `server/migrations` and are embedded in the compiled server by
 `server/resources.ts`. Never edit a migration that may have run.
 
-A fresh database runs every script in version order and records each in `flyway_schema_history` with Flyway's
-checksum, which the earlier Flyway-based release also reads. An existing database starts only when
-its history ends at the newest embedded version and every row succeeded; checksums are not recomputed. Startup
-refuses a nonempty database without history and history from a newer or older release.
+Startup runs every embedded script newer than the recorded history in version order, in one transaction, and
+records each in `flyway_schema_history` with Flyway's checksum, which the earlier Flyway-based release also reads.
+A fresh database runs every script. Checksums of applied scripts are not recomputed. Startup refuses a nonempty
+database without history, history with a failed row, and history from a newer release.
 
-The server has no runner for scripts newer than V10 yet. A schema change adds its `V<n>__description.sql`, lists it
-in `server/resources.ts`, and extends `migrate` to apply pending scripts and write their history rows in the same
-table. Saved decks and course documents store card names; the server does not check them against a card catalog.
+A schema change adds its `V<n>__description.sql` and lists it in `server/resources.ts`. Saved decks and course
+documents store card names; the server does not check them against a card catalog.
 
 SQLite migrations are transactional, but SQLite does not coordinate concurrent writers starting up. Start one
 candidate backend at a time. Rehearse normal startup against a database copy with the exact release binary, then
