@@ -17,7 +17,6 @@ bin/
 .kotlin/
 dist/
 public/browser-engine/
-dist-browser/
 *.local
 *storybook.log
 storybook-static/

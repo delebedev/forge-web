@@ -28,6 +28,8 @@ test('local About invites contribution without embedding production feedback', (
   const html = about('http://localhost:5173')
   expect(html).toContain('href="https://github.com/delebedev/forge-web"')
   expect(html).toContain('Explore the source and contribute')
+  expect(html).toContain('href="https://cheerpj.com"')
+  expect(html).toContain('Built with CheerpJ')
   expect(html).toContain('mailto:hello@forgeweb.app')
   expect(html).toContain('This copy does not send reports')
   expect(html).not.toContain('tally.so')

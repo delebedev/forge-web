@@ -28,7 +28,7 @@ verification remain deployment responsibilities. Their operating procedure is
 owned by the deployment runbook.
 
 Full-breadth Web CI runs all Bun unit tests, Python script tests, native Node
-checks, server and shared card-presentation tests, Java 17 browser-engine tests,
+checks, server tests, Java 17 browser-engine tests,
 SEO and distribution checks. Product and local gameplay journeys
 run in parallel lanes. They cover login, deck import and editing, match setup,
 challenges, catalog mechanics, priority and recovery. Login,
@@ -132,10 +132,10 @@ The server builder validates and packages the compiled Bun server and
 cross-compiles the linux-arm64 release binary. It needs neither Java nor Forge,
 so it checks out Leyline without its nested submodules.
 The browser runtime builder prepares pinned Forge dependencies, then builds
-Leyline once for Java 17. It runs the card-presentation and browser-engine tests
+Leyline once for Java 17. It runs the browser-engine checks
 and packages the Browser Local distribution. Gradle itself runs on Java 21.
 Gradle caches task outputs using its tracked input fingerprints. Browser tests use the same
-pruning setting as the shipped distribution. Root configuration
+pruning setting as the shipped distribution. Configuration
 caching is enabled.
 CI uses the compiler inside the Gradle process and stops Gradle after assembly.
 Build and dependency caches remain local to each ephemeral hosted job.

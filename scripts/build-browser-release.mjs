@@ -21,7 +21,7 @@ rmSync(objects, { recursive: true, force: true })
 
 mkdirSync(join(output, 'web'), { recursive: true })
 for (const name of ['engine-worker.js', 'runtime-preload.json']) {
-  cpSync(join(root, 'browser-engine/web', name), join(output, 'web', name))
+  cpSync(join(root, 'browser-engine/worker', name), join(output, 'web', name))
 }
 
 function files(directory) {

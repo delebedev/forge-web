@@ -2,4 +2,4 @@ leyline/
 src/engine/generated/
 **/*.module.css.d.ts
 
-card-presentation/build/
+browser-engine/build/

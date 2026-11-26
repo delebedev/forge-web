@@ -27,7 +27,7 @@ def suite(path):
     parts = path.parts
     if path.name == 'junit.xml':
         return 'Unit (Bun)' if path.parent.name == 'test-results' else path.parent.name
-    for module in ['server', 'browser-engine', 'card-presentation']:
+    for module in ['server', 'browser-engine']:
         if module in parts:
             return module
     return path.parent.name

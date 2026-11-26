@@ -3,7 +3,7 @@
 All gameplay runs in a browser worker through the pinned Leyline runtime.
 The product server in `server/` owns accounts, saved decks, course records,
 the frozen generated puzzle pool and its ratings, roadmap votes and replay uploads. It builds without Leyline, Forge
-or `card-presentation`, constructs no games, and exposes no card or gameplay routes.
+or `browser-engine`, constructs no games, and exposes no card or gameplay routes.
 Unsupported browsers show a retryable error instead of switching execution hosts.
 
 ```mermaid
@@ -48,13 +48,13 @@ graph TB
   [schema migrations](database-migrations.md), persistence and browser replay storage.
   `server/main.ts` is the entry point; releases ship it compiled by `bun build --compile` as one binary.
   The database remains `<resolved stateDir>/player.db`.
-  The server imports nothing from Leyline; only `browser-engine/` and `card-presentation/`
-  build against the Leyline composite build, and only `browser-engine/` launches games.
+  The server imports nothing from Leyline; only `browser-engine/`
+  builds against the Leyline composite build and launches games.
   A Leyline pin change therefore ships as a frontend release.
-- `card-presentation/` owns the Java 17 card presentation DTOs, Forge projection and Web decklist rules used by the browser worker and its card index build.
+- `browser-engine/` is one Java 17 Gradle build. Its `forge.web.browser.cards` package owns the card presentation DTOs, Forge projection and Web decklist rules used by the browser worker and its card index build.
 - The browser reads cards from the static card index in the
   browser release (`shared/cards/card-index.ts`). `browser-engine`'s
-  `cardIndex` task projects every card with `card-presentation`, adds Commander
+  `cardIndex` task projects every card with that package, adds Commander
   eligibility, search names and the limited set list, and the release manifest
   checks its size and SHA-256. The index identifies cards by name; its `grpId`
   values belong to one catalog build. Deck and limited HTTP requests and
