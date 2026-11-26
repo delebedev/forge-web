@@ -9,7 +9,7 @@ import type { TranscriptBundle } from '@engine/replay/gre-transcript'
 import { browserWarmupState } from '../worker/browser-release'
 import type { BrowserEngineEvent } from '../worker/browser-match-source'
 import { BrowserProgressWatchdog } from '../worker/browser-progress-watchdog'
-import { greStore } from './gre-store'
+import { greStore, type GreStore } from './gre-store'
 import { reactNavigate } from '@shared/router'
 import {
   ANALYTICS_RELEASE,
@@ -99,11 +99,19 @@ export class GreSessionStore {
   private browserRecoveryAttempted = false
   private browserRecovered = false
   private readonly browserEngineFactory: BrowserEngineFactory
+  private readonly store: GreStore
+  private readonly reportFailure: typeof reportBrowserFailure
 
   constructor(
     config: GreStartConfig | null | undefined = undefined,
     browserEngineFactory: BrowserEngineFactory = (onEvent) => new BrowserEngine(onEvent),
+    {
+      store = greStore,
+      reportFailure = reportBrowserFailure,
+    }: { store?: GreStore; reportFailure?: typeof reportBrowserFailure } = {},
   ) {
+    this.store = store
+    this.reportFailure = reportFailure
     const restored = config === undefined
     this.config = restored ? loadGreMatchConfig() : config
     this.browserEngineFactory = browserEngineFactory
@@ -151,7 +159,7 @@ export class GreSessionStore {
     this.browserLastStage = 'attempt'
     this.launchKey++
     saveGreMatchConfig(config)
-    greStore.clearSession()
+    this.store.clearSession()
     this.notify()
     if (navigate) {
       reactNavigate(this.matchPath(config.gameType ?? this.inferGameType(config)))
@@ -230,7 +238,7 @@ export class GreSessionStore {
     const abort = () => {
       if (engine && this.browserLaunchGeneration === generation && this.browserEngine === engine) {
         const context = this.browserContext(config)
-        if (context && (this.browserPhase !== 'active' || !greStore.isBrowserBoardReady)) {
+        if (context && (this.browserPhase !== 'active' || !this.store.isBrowserBoardReady)) {
           this.trackBrowserCancellation(context, 'route-unmount')
         }
         this.disposeBrowserEngine()
@@ -285,7 +293,7 @@ export class GreSessionStore {
         this.config = activeConfig
         saveGreMatchConfig(activeConfig)
       }
-      greStore.connectSource(match.source, {
+      this.store.connectSource(match.source, {
         ...activeConfig,
         matchId: match.matchId,
         fetchCardMeta: (ids) => connectedEngine.fetchCardMeta(ids),
@@ -329,7 +337,7 @@ export class GreSessionStore {
       void this.failBrowser(event.data)
       return
     }
-    if (event.event === 'closed' && this.browserPhase === 'active' && !greStore.gameOver) {
+    if (event.event === 'closed' && this.browserPhase === 'active' && !this.store.gameOver) {
       void this.failBrowser('The local engine stopped unexpectedly.', {
         category: 'worker',
         operation: 'match',
@@ -388,14 +396,14 @@ export class GreSessionStore {
     this.browserWatchdog?.stop()
     this.browserWatchdog = new BrowserProgressWatchdog(
       () => ({
-        matchId: greStore.currentMatchId,
-        gameStateId: greStore.gameStateId,
-        gameOver: greStore.gameOver,
-        prompt: greStore.prompt != null,
-        canPass: greStore.canPass,
-        legalActionCount: greStore.legalActions.length,
+        matchId: this.store.currentMatchId,
+        gameStateId: this.store.gameStateId,
+        gameOver: this.store.gameOver,
+        prompt: this.store.prompt != null,
+        canPass: this.store.canPass,
+        legalActionCount: this.store.legalActions.length,
       }),
-      (listener) => greStore.subscribe(listener),
+      (listener) => this.store.subscribe(listener),
       () =>
         void this.failBrowser('The local engine stopped making progress.', {
           category: 'progress',
@@ -463,7 +471,7 @@ export class GreSessionStore {
           durationMs: Math.max(0, Math.round(performance.now() - this.browserStartedAt)),
         })
       }
-      greStore.connectSource(
+      this.store.connectSource(
         match.source,
         {
           ...config,
@@ -532,7 +540,7 @@ export class GreSessionStore {
   }
 
   playAgain(): Promise<boolean> {
-    return this.transition(!this.config?.courseEvent || !greStore.gameOver)
+    return this.transition(!this.config?.courseEvent || !this.store.gameOver)
   }
   leave(): Promise<boolean> {
     return this.transition(false)
@@ -568,7 +576,7 @@ export class GreSessionStore {
       const { matchId: _matchId, attemptId: _attemptId, seed: _seed, ...restartConfig } = previous
       const config =
         previous.execution === 'browser' ? browserIdentity(restartConfig) : restartConfig
-      greStore.clearSession()
+      this.store.clearSession()
       this.config = config
       this.browserRecovery = null
       this.browserRecoveryAttempted = false
@@ -607,7 +615,7 @@ export class GreSessionStore {
   clear(): void {
     this.disarmBrowserExit()
     this.disposeBrowserEngine()
-    greStore.clearSession()
+    this.store.clearSession()
     this.config = null
     this.browserRecovery = null
     this.browserRecovered = false
@@ -629,7 +637,7 @@ export class GreSessionStore {
           trackBrowserLifecycle('left', context)
         }
       }
-      greStore.disconnect()
+      this.store.disconnect()
       if (trackLeave || this.browserPhase === 'recovering') {
         this.disposeBrowserEngine()
       }
@@ -664,11 +672,11 @@ export class GreSessionStore {
   private async failBrowser(error: unknown, fallback?: BrowserFailureDiagnostic): Promise<void> {
     if (
       this.browserPhase === 'active' &&
-      !greStore.gameOver &&
+      !this.store.gameOver &&
       !this.browserRecoveryAttempted &&
       (this.config?.gameType === 'constructed' || this.config?.gameType === 'commander')
     ) {
-      const journal = greStore.browserReplaySnapshot()
+      const journal = this.store.browserReplaySnapshot()
       this.browserRecovery =
         journal?.context?.engineBuild && !journal.status?.truncated ? journal : null
     }
@@ -692,9 +700,9 @@ export class GreSessionStore {
       return
     }
     const context = this.browserContext()
-    const replayContext = greStore.reportingContext()
+    const replayContext = this.store.reportingContext()
     // Retire streaming before its final failure upload so teardown cannot replace the reason.
-    greStore.disconnect()
+    this.store.disconnect()
     if (context && this.markBrowserTerminal(context)) {
       if (this.browserPhase === 'recovering') {
         trackGameRecovery('failed', context, performance.now() - this.browserStartedAt)
@@ -710,9 +718,9 @@ export class GreSessionStore {
         heartbeatState: diagnostic.heartbeatState,
       })
       if (diagnostic.snapshot) {
-        greStore.retainBrowserFailure(diagnostic.snapshot)
+        this.store.retainBrowserFailure(diagnostic.snapshot)
       }
-      reportBrowserFailure(
+      this.reportFailure(
         error instanceof Error ? error : new Error(message),
         diagnostic,
         context,
@@ -731,7 +739,7 @@ export class GreSessionStore {
     if (this.config?.challengeId && this.config.execution === 'browser') {
       return false
     }
-    return greStore.uploadBrowserReplay(reason, reportId)
+    return this.store.uploadBrowserReplay(reason, reportId)
   }
 
   private browserContext(config = this.config): BrowserAnalyticsContext | null {
@@ -761,7 +769,7 @@ export class GreSessionStore {
     const handler = () => {
       if (
         this.config?.attemptId === context.attemptId &&
-        (this.browserPhase !== 'active' || !greStore.isBrowserBoardReady)
+        (this.browserPhase !== 'active' || !this.store.isBrowserBoardReady)
       ) {
         this.trackBrowserCancellation(context, 'page-exit')
       }

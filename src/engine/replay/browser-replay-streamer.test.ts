@@ -12,8 +12,8 @@ const owned: BrowserReplayStreamer[] = []
 const flushing = new Set<Promise<boolean>>()
 
 beforeEach(() => {
-  retired = new RetiredReplayDeliveries()
   reportFailure = mock<typeof reporting.reportDiagnostic>(() => {})
+  retired = new RetiredReplayDeliveries(() => {})
 })
 
 afterEach(async () => {
@@ -401,7 +401,7 @@ test('retired matches retry transient final delivery independently, without noti
   const replacement = createStreamer(
     collector('new-match'),
     'new-match',
-    undefined,
+    (async () => new Response('0')) as unknown as typeof fetch,
     undefined,
     time,
   )

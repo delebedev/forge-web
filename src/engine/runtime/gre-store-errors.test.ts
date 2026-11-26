@@ -1,7 +1,8 @@
-import { expect, spyOn, test } from 'bun:test'
+import { expect, mock, spyOn, test } from 'bun:test'
 import * as reporting from '@shared/observability/reporting'
 import * as Sentry from '@sentry/react'
 import type { GreFrameSink, GreFrameSource } from './gre-frame-source'
+import type { GreStoreDependencies } from './gre-store'
 
 class Source implements GreFrameSource {
   readonly canSend = false
@@ -14,13 +15,17 @@ class Source implements GreFrameSource {
   send(): void {}
 }
 
-async function storeWithSource(execution: 'browser', journal = false) {
+async function storeWithSource(
+  execution: 'browser',
+  journal = false,
+  dependencies: Partial<GreStoreDependencies> = {},
+) {
   Object.defineProperty(globalThis, 'location', {
     configurable: true,
     value: new URL('http://localhost'),
   })
-  const { GreStore } = await import('./gre-store')
-  const store = new GreStore()
+  const { offlineGreStore } = await import('../testing/offline-match')
+  const store = offlineGreStore(dependencies)
   const source = new Source()
   store.connectSource(source, {
     matchId: 'synthetic-match',
@@ -35,26 +40,34 @@ async function storeWithSource(execution: 'browser', journal = false) {
 
 for (const execution of ['browser'] as const) {
   test(`${execution} source failures report their cause and phase once`, async () => {
-    const report = spyOn(reporting, 'reportGreFailure').mockImplementation(() => {})
-    const { store, source } = await storeWithSource(execution)
+    const report = mock<typeof reporting.reportDiagnostic>(() => {})
+    const { store, source } = await storeWithSource(execution, false, { report })
     try {
       const cause = new Error('synthetic apply failure')
       source.sink.onError(cause, 'apply')
       expect(report.mock.calls).toEqual([
-        [cause, { phase: 'apply', execution, matchId: 'synthetic-match' }],
+        [
+          cause,
+          'Gameplay frame failed',
+          {
+            failure_category: 'gameplay-frame',
+            failure_phase: 'apply',
+            execution,
+            match_id: 'synthetic-match',
+          },
+        ],
       ])
       expect(store.status).toBe('frame apply error')
       expect(store.errorCount).toBe(1)
     } finally {
       store.clearSession()
-      report.mockRestore()
     }
   })
 }
 
 test('retired sources cannot report errors against the current match', async () => {
-  const report = spyOn(reporting, 'reportGreFailure').mockImplementation(() => {})
-  const { store, source } = await storeWithSource('browser')
+  const report = mock<typeof reporting.reportDiagnostic>(() => {})
+  const { store, source } = await storeWithSource('browser', false, { report })
   try {
     const replacement = new Source()
     store.attachSource(replacement)
@@ -64,18 +77,26 @@ test('retired sources cannot report errors against the current match', async () 
     const cause = new Error('current decode failure')
     replacement.sink.onError(cause, 'decode')
     expect(report.mock.calls).toEqual([
-      [cause, { phase: 'decode', execution: 'browser', matchId: 'synthetic-match' }],
+      [
+        cause,
+        'Gameplay frame failed',
+        {
+          failure_category: 'gameplay-frame',
+          failure_phase: 'decode',
+          execution: 'browser',
+          match_id: 'synthetic-match',
+        },
+      ],
     ])
     expect(store.status).toBe('frame decode error')
   } finally {
     store.clearSession()
-    report.mockRestore()
   }
 })
 
 test('browser worker transport failures retain the existing session reporting owner', async () => {
-  const report = spyOn(reporting, 'reportGreFailure').mockImplementation(() => {})
-  const { store, source } = await storeWithSource('browser')
+  const report = mock<typeof reporting.reportDiagnostic>(() => {})
+  const { store, source } = await storeWithSource('browser', false, { report })
   try {
     source.sink.onError(undefined, 'transport')
     expect(report).not.toHaveBeenCalled()
@@ -83,7 +104,6 @@ test('browser worker transport failures retain the existing session reporting ow
     expect(store.errorCount).toBe(1)
   } finally {
     store.clearSession()
-    report.mockRestore()
   }
 })
 
@@ -103,13 +123,12 @@ test('reporting context carries the active match builds and disappears on retire
 })
 
 test('idle replay failure and recovery update reporting scope without another game frame', async () => {
-  const previousFetch = globalThis.fetch
   let status = 503
   let now = Date.now()
   const clock = spyOn(Date, 'now').mockImplementation(() => now)
-  globalThis.fetch = (async (_input: RequestInfo | URL) =>
+  const replayUpload = (async (_input: RequestInfo | URL) =>
     new Response(status === 200 ? '0' : null, { status })) as typeof fetch
-  const { store } = await storeWithSource('browser', true)
+  const { store } = await storeWithSource('browser', true, { replayUpload })
   const unsubscribe = store.subscribe(() => reporting.setReportingContext(store.reportingContext()))
   try {
     expect(await store.uploadBrowserReplay('feedback')).toBe(false)
@@ -133,7 +152,6 @@ test('idle replay failure and recovery update reporting scope without another ga
     store.clearSession()
     unsubscribe()
     reporting.setReportingContext(undefined)
-    globalThis.fetch = previousFetch
     clock.mockRestore()
   }
 })

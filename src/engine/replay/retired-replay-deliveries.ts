@@ -17,6 +17,11 @@ export class RetiredReplayDeliveries {
   private abandoned = 0
   private expired = 0
   private reported = false
+  private readonly report: typeof reportDiagnostic
+
+  constructor(report: typeof reportDiagnostic = reportDiagnostic) {
+    this.report = report
+  }
 
   retain(delivery: RetiredReplay): void {
     this.entries.add(delivery)
@@ -40,7 +45,7 @@ export class RetiredReplayDeliveries {
     }
     if (!this.reported) {
       this.reported = true
-      reportDiagnostic(undefined, 'Retired browser replay delivery abandoned', {
+      this.report(undefined, 'Retired browser replay delivery abandoned', {
         failure_category: 'replay-retention',
         replay_failure: reason,
         replay_retired_matches: this.entries.size,

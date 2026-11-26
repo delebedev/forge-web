@@ -2,7 +2,7 @@ import type { PromptBinding } from './prompts/family'
 import { viewFor } from '@engine/testing/prompt-test-harness'
 import { httpCardMeta } from '@shared/api/http-test-fixtures'
 import { parseGreCardMeta } from './gre-card-meta'
-import type { GreStore } from './gre-store'
+import type { GreStore, GreStoreDependencies } from './gre-store'
 import type { ReplacementControls, OptionalActionControls, PaymentControls } from './prompts/family'
 import { expect, test } from 'bun:test'
 import type { GreFrameSink, GreFrameSource } from './gre-frame-source'
@@ -59,13 +59,13 @@ const BATTLEFIELD_ZONE = { zoneId: 28, type: ZONE_BATTLEFIELD, ownerSeatId: 0 }
 const GRAVEYARD_ZONE = { zoneId: 29, type: ZONE_GRAVEYARD, ownerSeatId: 1 }
 const EXILE_ZONE = { zoneId: 30, type: ZONE_EXILE, ownerSeatId: 1 }
 
-async function freshStore() {
+async function freshStore(dependencies: Partial<GreStoreDependencies> = {}) {
   Object.defineProperty(globalThis, 'location', {
     configurable: true,
     value: new URL('http://localhost'),
   })
-  const { GreStore } = await import('./gre-store')
-  return new GreStore()
+  const { offlineGreStore } = await import('../testing/offline-match')
+  return offlineGreStore(dependencies)
 }
 
 test('a batch folds every message it carries and publishes exactly once', async () => {
@@ -720,13 +720,12 @@ test('a recovered browser source restores only its live request without a second
 })
 
 test('browser match reaches game over when replay upload fails', async () => {
-  const originalFetch = globalThis.fetch
   const requests: string[] = []
-  globalThis.fetch = (async (input: RequestInfo | URL) => {
+  const replayUpload = (async (input: RequestInfo | URL) => {
     requests.push(String(input))
     throw new Error('Replay endpoint unavailable')
   }) as unknown as typeof fetch
-  const store = await freshStore()
+  const store = await freshStore({ replayUpload })
   try {
     const source = new FakeSource()
     source.canSend = true
@@ -751,12 +750,10 @@ test('browser match reaches game over when replay upload fails', async () => {
     expect(store.gameOver).toBe(true)
   } finally {
     store.clearSession()
-    globalThis.fetch = originalFetch
   }
 })
 
 test('terminal replay completion includes the asynchronous checkpoint after the final game state', async () => {
-  const originalFetch = globalThis.fetch
   const uploads: {
     status: number
     complete: boolean
@@ -764,7 +761,7 @@ test('terminal replay completion includes the asynchronous checkpoint after the 
   }[] = []
   let committedComplete = false
   let committedSeq = 0
-  globalThis.fetch = (async (_input: RequestInfo | URL, options: RequestInit) => {
+  const replayUpload = (async (_input: RequestInfo | URL, options: RequestInit) => {
     const chunk = JSON.parse(String(options.body))
     const status = committedComplete && chunk.events.length ? 400 : 200
     uploads.push({ status, complete: chunk.status.complete, events: chunk.events })
@@ -780,7 +777,7 @@ test('terminal replay completion includes the asynchronous checkpoint after the 
     committedComplete ||= chunk.status.complete
     return new Response(String(committedSeq))
   }) as typeof fetch
-  const store = await freshStore()
+  const store = await freshStore({ replayUpload })
   const source = new FakeSource()
   source.canSend = true
   try {
@@ -819,15 +816,13 @@ test('terminal replay completion includes the asynchronous checkpoint after the 
     expect(committedSeq).toBe(store.browserReplaySnapshot()!.events!.at(-1)!.seq)
   } finally {
     store.clearSession()
-    globalThis.fetch = originalFetch
   }
 })
 
 for (const fence of ['closed-checkpoint', 'source-close', 'disconnect'] as const) {
   test(`terminal replay drains at ${fence} without a successful checkpoint send`, async () => {
-    const originalFetch = globalThis.fetch
     const uploads: { status: { complete: boolean }; events: { seq: number }[] }[] = []
-    globalThis.fetch = (async (_input: RequestInfo | URL, options: RequestInit) => {
+    const replayUpload = (async (_input: RequestInfo | URL, options: RequestInit) => {
       const chunk = JSON.parse(String(options.body))
       uploads.push(chunk)
       return new Response(
@@ -837,7 +832,7 @@ for (const fence of ['closed-checkpoint', 'source-close', 'disconnect'] as const
         ),
       )
     }) as typeof fetch
-    const store = await freshStore()
+    const store = await freshStore({ replayUpload })
     const source = new FakeSource()
     source.canSend = true
     try {
@@ -870,16 +865,14 @@ for (const fence of ['closed-checkpoint', 'source-close', 'disconnect'] as const
       expect(source.sent).toHaveLength(0)
     } finally {
       store.clearSession()
-      globalThis.fetch = originalFetch
     }
   })
 }
 
 test('an old terminal checkpoint cannot finish a replacement match replay', async () => {
-  const originalFetch = globalThis.fetch
   const uploads: { matchId: string; status: { complete: boolean }; events: { seq: number }[] }[] =
     []
-  globalThis.fetch = (async (_input: RequestInfo | URL, options: RequestInit) => {
+  const replayUpload = (async (_input: RequestInfo | URL, options: RequestInit) => {
     const chunk = JSON.parse(String(options.body))
     uploads.push(chunk)
     return new Response(
@@ -889,7 +882,7 @@ test('an old terminal checkpoint cannot finish a replacement match replay', asyn
       ),
     )
   }) as typeof fetch
-  const store = await freshStore()
+  const store = await freshStore({ replayUpload })
   const oldSource = new FakeSource()
   oldSource.canSend = true
   try {
@@ -918,7 +911,6 @@ test('an old terminal checkpoint cannot finish a replacement match replay', asyn
     expect(store.gameOver).toBe(false)
   } finally {
     store.clearSession()
-    globalThis.fetch = originalFetch
   }
 })
 

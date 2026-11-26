@@ -72,7 +72,15 @@ import {
   type GameMode,
 } from '@shared/observability/analytics'
 import { telemetry } from '@shared/observability/telemetry'
-import { reportGreFailure, type ReportingMatchContext } from '@shared/observability/reporting'
+import {
+  reportDiagnostic,
+  reportGreFailure,
+  type ReportingMatchContext,
+} from '@shared/observability/reporting'
+import {
+  retiredReplayDeliveries,
+  type RetiredReplayDeliveries,
+} from '@engine/replay/retired-replay-deliveries'
 
 const META_FETCH_DELAY_MS = 50
 const TURN_MILESTONES = new Set([1, 5, 10, 20])
@@ -187,8 +195,26 @@ function debugAnnotation(
 export type { GameOutcome } from '@engine/state/gre-outcome'
 export type { GreGameType, GreStartConfig } from './start'
 
+/** Where a match store sends replay chunks and failure reports. */
+export interface GreStoreDependencies {
+  /** The page fetch when absent, read at match start so instrumentation wrappers apply. */
+  replayUpload?: typeof fetch
+  report: typeof reportDiagnostic
+  retiredReplays: RetiredReplayDeliveries
+}
+
+const pageDependencies: GreStoreDependencies = {
+  report: reportDiagnostic,
+  retiredReplays: retiredReplayDeliveries,
+}
+
 export class GreStore {
   private readonly journey = new JourneyHealth()
+  private readonly dependencies: GreStoreDependencies
+
+  constructor(dependencies: GreStoreDependencies = pageDependencies) {
+    this.dependencies = dependencies
+  }
   private backendRelease = 'unknown'
   connected = false
   status = 'idle'
@@ -730,7 +756,11 @@ export class GreStore {
         const execution = this.analyticsContext?.execution ?? 'browser'
         // Browser worker failures already carry their diagnostic through the session owner.
         if (!(execution === 'browser' && phase === 'transport' && error === undefined)) {
-          reportGreFailure(error, { phase, execution, matchId: this.matchId })
+          reportGreFailure(
+            error,
+            { phase, execution, matchId: this.matchId },
+            this.dependencies.report,
+          )
         }
         this.journey.end('failure', phase)
         this.status =
@@ -780,7 +810,15 @@ export class GreStore {
     this.browserReplay = recovered?.collector ?? new BrowserReplayCollector(config)
     this.browserReplayStreamer = config.challengeId
       ? null
-      : new BrowserReplayStreamer(this.browserReplay, config.matchId, fetch, () => this.publish())
+      : new BrowserReplayStreamer(
+          this.browserReplay,
+          config.matchId,
+          this.dependencies.replayUpload ?? fetch,
+          () => this.publish(),
+          undefined,
+          this.dependencies.retiredReplays,
+          this.dependencies.report,
+        )
     this.attachSource(source, false, !recovered)
   }
 

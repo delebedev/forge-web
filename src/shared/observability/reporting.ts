@@ -13,8 +13,43 @@ const release =
   import.meta.env['VITE_SENTRY_RELEASE']?.trim() ||
   (typeof __GIT_SHA__ === 'string' ? __GIT_SHA__ : 'dev')
 const BROWSER_FAILURE_BUDGET = 3
-const reportedBrowserAttempts = new Set<string>()
-let browserFailureReports = 0
+const DIAGNOSTIC_REPORT_BUDGET = 10
+
+/**
+ * Report caps for one page: three browser failures, one per attempt, and ten caught
+ * diagnostics, each owned cause once. The module instance covers the page.
+ */
+export class ReportBudget {
+  private browserFailures = 0
+  private readonly browserAttempts = new Set<string>()
+  private diagnostics = 0
+  private readonly causes = new WeakSet<object>()
+
+  takeBrowserFailure(attemptId: string): boolean {
+    if (this.browserFailures >= BROWSER_FAILURE_BUDGET || this.browserAttempts.has(attemptId)) {
+      return false
+    }
+    this.browserAttempts.add(attemptId)
+    this.browserFailures++
+    return true
+  }
+
+  takeDiagnostic(error: unknown): boolean {
+    if (
+      this.diagnostics >= DIAGNOSTIC_REPORT_BUDGET ||
+      (error instanceof Error && this.causes.has(error))
+    ) {
+      return false
+    }
+    this.diagnostics++
+    if (error instanceof Error) {
+      this.causes.add(error)
+    }
+    return true
+  }
+}
+
+const pageBudget = new ReportBudget()
 
 export interface ReportingMatchContext {
   match_id: string
@@ -27,10 +62,6 @@ export interface ReportingMatchContext {
   replay_failure?: string
   replay_http_status?: number
 }
-
-const DIAGNOSTIC_REPORT_BUDGET = 10
-let diagnosticReports = 0
-const reportedCauses = new WeakSet<object>()
 
 /** Update the scope before capture; delayed processing keeps the original event's match. */
 export function setReportingContext(context: ReportingMatchContext | undefined): void {
@@ -51,6 +82,7 @@ export function setReportingContext(context: ReportingMatchContext | undefined):
   }
 }
 
+/** Reports a gameplay frame failure through `report`, the page reporter by default. */
 export function reportGreFailure(
   error: unknown,
   context: {
@@ -58,8 +90,9 @@ export function reportGreFailure(
     execution: 'browser'
     matchId: string
   },
+  report: typeof reportDiagnostic = reportDiagnostic,
 ): void {
-  reportDiagnostic(error, 'Gameplay frame failed', {
+  report(error, 'Gameplay frame failed', {
     failure_category: 'gameplay-frame',
     failure_phase: context.phase,
     execution: context.execution,
@@ -72,16 +105,10 @@ export function reportDiagnostic(
   error: unknown,
   message: string,
   tags: Record<string, string | number>,
+  budget: ReportBudget = pageBudget,
 ): void {
-  if (
-    diagnosticReports >= DIAGNOSTIC_REPORT_BUDGET ||
-    (error instanceof Error && reportedCauses.has(error))
-  ) {
+  if (!budget.takeDiagnostic(error)) {
     return
-  }
-  diagnosticReports++
-  if (error instanceof Error) {
-    reportedCauses.add(error)
   }
   try {
     Sentry.withScope((scope) => {
@@ -115,15 +142,11 @@ export function reportBrowserFailure(
   diagnostic: BrowserFailureDiagnostic,
   context: BrowserAnalyticsContext,
   replayContext?: ReportingMatchContext,
+  budget: ReportBudget = pageBudget,
 ): void {
-  if (
-    browserFailureReports >= BROWSER_FAILURE_BUDGET ||
-    reportedBrowserAttempts.has(context.attemptId)
-  ) {
+  if (!budget.takeBrowserFailure(context.attemptId)) {
     return
   }
-  reportedBrowserAttempts.add(context.attemptId)
-  browserFailureReports += 1
   try {
     Sentry.withScope((scope) => {
       const details = browserFailureDetails(error)
