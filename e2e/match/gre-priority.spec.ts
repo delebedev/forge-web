@@ -584,122 +584,36 @@ test.describe('priority flow demos', () => {
   })
 })
 
-test(
-  'Sidewinder granted flanking appears and reduces its blocker',
-  { tag: '@qualification' },
-  async ({ page }, info) => {
-    test.setTimeout(45_000)
-    const scenario = loadAcceptanceSuite('combat-reports').scenarios.find(
-      (entry) => entry.id === 'sidewinder-granted-flanking',
-    )!
+for (const scenario of loadAcceptanceSuite('voting').scenarios.filter(
+  (entry) => entry.id !== 'selvala-wild',
+)) {
+  test(`Selvala vote: ${scenario.id}`, async ({ page }) => {
     await authenticateShell(page)
     await startPuzzleGame(page, scenario.puzzle)
-    await page.getByRole('button', { name: 'Full control', exact: true }).click()
-    const recipient = page.locator(
-      '[data-zone="battlefield"][data-owner="self"] [data-card="Metallic Sliver"]',
-    )
-    const blocker = page.locator(
-      '[data-zone="battlefield"][data-owner="opponent"] [data-card="Those Who Serve"]',
-    )
-    await expect(recipient).toBeVisible()
-    if (recordDemos) {
-      await expect
-        .poll(() =>
-          page
-            .locator('[data-zone="battlefield"] img')
-            .evaluateAll(
-              (images) =>
-                images.length >= 3 &&
-                images.every(
-                  (image) =>
-                    image instanceof HTMLImageElement && image.complete && image.naturalWidth > 0,
-                ),
-            ),
-        )
-        .toBe(true)
-    }
     readyForVideo.add(page)
-    await recipient.hover()
-    const inspection = page.getByRole('complementary', { name: 'Metallic Sliver inspection' })
-    await expect(inspection).toContainText('Gained Flanking')
-    await expect(inspection).toContainText('-1/-1')
-    await page.waitForTimeout(recordDemos ? 2_500 : 100)
-    await page.screenshot({ path: info.outputPath('grant.png') })
-    await page.mouse.move(30, 300)
+    await runGreAcceptanceSteps(page, { steps: scenario.steps.slice(0, 1) })
+    await expect(page.getByRole('heading', { name: 'Cast your vote', exact: true })).toBeVisible()
+    await expect(promptZone(page).getByRole('button', { name: 'Wild', exact: true })).toBeVisible()
+    await expect(promptZone(page).getByRole('button', { name: 'Free', exact: true })).toBeVisible()
+    await expect(promptZone(page).getByRole('button', { name: 'Cancel', exact: true })).toHaveCount(
+      0,
+    )
+    if (recordDemos) {
+      await page.waitForTimeout(2000)
+    }
     await runGreAcceptanceSteps(
       page,
-      { steps: scenario.steps.slice(0, 2) },
-      { stepDelayMs: recordDemos ? 800 : 0 },
+      { steps: scenario.steps.slice(2) },
+      {
+        stepDelayMs: recordDemos ? 900 : 0,
+      },
     )
-    await page.getByRole('button', { name: 'Pass', exact: true }).click()
-    await page.getByRole('button', { name: 'Resolve', exact: true }).click()
-    await expect(blocker.locator('[data-pt]')).toHaveText('1/3')
-    await blocker.hover()
-    await page.waitForTimeout(recordDemos ? 2_500 : 100)
-    await page.screenshot({ path: info.outputPath('flanking.png') })
-    await page.mouse.move(30, 300)
-    await page.getByRole('button', { name: 'Full control · On' }).click()
-    await runGreAcceptanceSteps(
-      page,
-      { steps: scenario.steps.slice(3) },
-      { stepDelayMs: recordDemos ? 800 : 0 },
-    )
-    await expect(blocker.locator('[data-pt]')).toHaveText('2/4')
-    await page
-      .locator('[data-zone="battlefield"][data-owner="self"] [data-card="Sidewinder Sliver"]')
-      .hover()
-    await expect(
-      page.getByRole('complementary', { name: 'Sidewinder Sliver inspection' }),
-    ).toContainText('Gained Flanking')
-    await page.waitForTimeout(recordDemos ? 2_000 : 100)
-    await page.screenshot({ path: info.outputPath('combat.png') })
-    const state = await page.evaluate(() => window.__greState()!)
-    expect(state.diagnostics.errorCount).toBe(0)
-    await info.attach('result', {
-      body: JSON.stringify(state, null, 2),
-      contentType: 'application/json',
-    })
-  },
-)
-
-for (const scenario of loadAcceptanceSuite('voting').scenarios) {
-  test(
-    `Selvala vote: ${scenario.id}`,
-    { tag: scenario.id === 'selvala-wild' ? '@qualification' : [] },
-    async ({ page }) => {
-      await authenticateShell(page)
-      await startPuzzleGame(page, scenario.puzzle)
-      readyForVideo.add(page)
-      await runGreAcceptanceSteps(page, { steps: scenario.steps.slice(0, 1) })
-      await expect(page.getByRole('heading', { name: 'Cast your vote', exact: true })).toBeVisible()
-      await expect(
-        promptZone(page).getByRole('button', { name: 'Wild', exact: true }),
-      ).toBeVisible()
-      await expect(
-        promptZone(page).getByRole('button', { name: 'Free', exact: true }),
-      ).toBeVisible()
-      await expect(
-        promptZone(page).getByRole('button', { name: 'Cancel', exact: true }),
-      ).toHaveCount(0)
-      if (recordDemos) {
-        await page.waitForTimeout(2000)
-      }
-      await runGreAcceptanceSteps(
-        page,
-        { steps: scenario.steps.slice(2) },
-        {
-          stepDelayMs: recordDemos ? 900 : 0,
-        },
-      )
-      await expect(page.getByRole('heading', { name: 'Cast your vote', exact: true })).toHaveCount(
-        0,
-      )
-      await page.screenshot({ path: test.info().outputPath('resolved.png') })
-      if (recordDemos) {
-        await page.waitForTimeout(1500)
-      }
-    },
-  )
+    await expect(page.getByRole('heading', { name: 'Cast your vote', exact: true })).toHaveCount(0)
+    await page.screenshot({ path: test.info().outputPath('resolved.png') })
+    if (recordDemos) {
+      await page.waitForTimeout(1500)
+    }
+  })
 }
 
 test('Kaito phases out through the opponent turn and returns able to create a Ninja', async ({

@@ -80,21 +80,39 @@ test('CLI expands missing history for catalog and preserves child failure', () =
     const sharded = invoke(['gre', 'full', '', '--fully-parallel', '--shard=2/4', '--workers=1'])
     assert.equal(sharded.status, 0)
     assert.match(sharded.stdout, /--fully-parallel\n--shard=2\/4\n--workers=1/)
-    assert.match(sharded.stdout, /--grep-invert\n@mechanic\|@qualification/)
+    assert.doesNotMatch(sharded.stdout, /--grep-invert/)
     assert.equal(invoke(['gre', 'full', '', '--shard=1/4'], '8').status, 8)
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
 })
 
-test('every registered GRE spec reaches changed-spec selection with representatives', () => {
-  const inventory = readdirSync('e2e/match')
-    .map((file) => `e2e/match/${file}`)
-    .filter((file) => suites.gre.test(file))
-  assert.ok(inventory.includes('e2e/match/gre-priority.spec.ts'))
-  assert.ok(inventory.includes('e2e/match/gre-play.spec.ts'))
-  assert.ok(inventory.includes('e2e/match/gre-protection-mixed.spec.ts'))
-  for (const file of inventory) {
+test('every spec belongs to one manifest suite or a dedicated config', () => {
+  const manifest = JSON.parse(readFileSync('e2e/suites.json', 'utf8'))
+  // These run under their own Playwright suites or configs, outside the CI lanes.
+  const dedicated = new Set([
+    'e2e/product/curated-replays.spec.ts',
+    'e2e/product/mobile-challenge-video.spec.ts',
+    'e2e/product/screenshots.spec.ts',
+    'e2e/engine/core.spec.ts',
+    'e2e/engine/demo.spec.ts',
+    'e2e/engine/diagnostics.spec.ts',
+    'e2e/engine/emblems.spec.ts',
+    'e2e/engine/telemetry.spec.ts',
+  ])
+  const specs = ['match', 'product', 'engine'].flatMap((folder) =>
+    readdirSync(`e2e/${folder}`)
+      .filter((file) => file.endsWith('.spec.ts'))
+      .map((file) => `e2e/${folder}/${file}`),
+  )
+  for (const file of specs) {
+    const owners = Object.keys(manifest).filter((suite) => manifest[suite].includes(file))
+    assert.equal(owners.length + (dedicated.has(file) ? 1 : 0), 1, `${file}: ${owners}`)
+  }
+  for (const file of Object.values(manifest).flat()) {
+    assert.ok(specs.includes(file), `Manifest lists a missing spec: ${file}`)
+  }
+  for (const file of suites.gre) {
     assert.ok(selection('gre', 'pr', [file]).includes(file), `Changed spec omitted: ${file}`)
   }
 })

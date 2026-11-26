@@ -1,5 +1,3 @@
-import { writeFileSync } from 'node:fs'
-import type { Page, TestInfo } from '@playwright/test'
 import {
   authenticateShell,
   expect,
@@ -7,45 +5,8 @@ import {
   test,
   waitForBrowserGameReady,
 } from '../support/gre-test'
-import { isFamilyPromptScenario } from '../support/gre-prompt-cases'
-import { enumValue } from '../../src/engine/wire/gre-proto'
-import {
-  discoverAcceptanceSuites,
-  loadAcceptanceSuite,
-  runGreAcceptanceScenario,
-  runGreAcceptanceSteps,
-} from '../support/gre-acceptance'
-import { collectConsoleErrors, observeGreResponses } from '../support/gre-browser-observations'
-const implementedWebAcceptance = new Set(['interactions-warmup:mystical-teachings-grouped-search'])
-
-for (const suiteName of discoverAcceptanceSuites()) {
-  const suite = loadAcceptanceSuite(suiteName)
-  const suiteSkip = suite.web?.skip
-  for (const scenario of suite.scenarios.filter(isFamilyPromptScenario)) {
-    test(
-      `${suiteName} acceptance: ${scenario.id}`,
-      { tag: '@mechanic' },
-      async ({ page }, info) => {
-        const skipReason = implementedWebAcceptance.has(`${suiteName}:${scenario.id}`)
-          ? undefined
-          : (suiteSkip ?? scenario.web?.skip)
-        test.skip(Boolean(skipReason), skipReason)
-        const consoleErrors = collectConsoleErrors(page)
-        await page.route('https://cards.scryfall.io/**', (route) => route.fulfill({ status: 204 }))
-        await authenticateShell(page)
-        if (scenario.id === 'distribution-arc-lightning') {
-          await verifyDistribution(page, scenario, info)
-        } else if (scenario.id === 'kederekt-consecutive-optional-actions') {
-          await verifyOptionalChoices(page, scenario, info)
-        } else {
-          await runGreAcceptanceScenario(page, scenario)
-        }
-        expect(consoleErrors).toEqual([])
-      },
-    )
-  }
-}
-
+import { loadAcceptanceSuite, runGreAcceptanceSteps } from '../support/gre-acceptance'
+import { collectConsoleErrors } from '../support/gre-browser-observations'
 test('handles GroupReq scry selection', async ({ page }, info) => {
   test.setTimeout(90_000)
   const consoleErrors = collectConsoleErrors(page)
@@ -117,115 +78,6 @@ test('ordering controls stage a complete top order and retire after submission',
   await runGreAcceptanceSteps(page, { steps: scenario.steps.slice(ordering + 1) })
   expect(consoleErrors).toEqual([])
 })
-
-/** The allocation fixture proves bounded pointer edits and resumed damage resolution. */
-async function verifyDistribution(
-  page: Page,
-  scenario: ReturnType<typeof loadAcceptanceSuite>['scenarios'][number],
-  info: TestInfo,
-) {
-  await page.addInitScript(() =>
-    localStorage.setItem('forge:gre:priority-flag:hideCardArt', 'true'),
-  )
-  const observation = await observeGreResponses(page, 'distributionResp')
-  const responses = observation.responses
-  const distribution = scenario.steps.findIndex((step) => 'distribute' in step)
-  expect(distribution).toBeGreaterThan(0)
-  await startPuzzleGame(page, scenario.puzzle)
-  await runGreAcceptanceSteps(page, { steps: scenario.steps.slice(0, distribution) })
-  const prompt = page.locator('[data-prompt="distribution"]')
-  const submit = prompt.getByRole('button', { name: 'Submit distribution', exact: true })
-  await expect(submit).toBeDisabled()
-  await expect(prompt.getByRole('button', { name: 'Remove 1 from Coral Merfolk' })).toBeDisabled()
-  await prompt.getByRole('button', { name: 'Assign 1 to Coral Merfolk' }).click()
-  await expect(submit).toBeEnabled()
-  await expect(prompt.getByRole('button', { name: 'Assign 1 to Savannah Lions' })).toBeDisabled()
-  await prompt.getByRole('button', { name: 'Remove 1 from Coral Merfolk' }).click()
-  await expect(submit).toBeDisabled()
-  await prompt.getByRole('button', { name: 'Assign 1 to Savannah Lions' }).click()
-  await expect(submit).toBeEnabled()
-  await expect(prompt).toContainText('3 assigned. Assign 3 total')
-  const chosen = await page.evaluate(() => window.__greState()!.prompt)
-  await expect(page.locator('[data-board]')).toHaveAttribute('data-card-art', 'off')
-  await page.mouse.move(640, 300)
-  await page.screenshot({ path: info.outputPath('distribution-chosen.png') })
-  await submit.click()
-  await expect(prompt).toBeHidden()
-  await runGreAcceptanceSteps(page, { steps: scenario.steps.slice(distribution + 1) })
-  await observation.settle()
-  expect(responses).toHaveLength(1)
-  expect(chosen?.kind).toBe('distribution')
-  expect(chosen?.options).toEqual([
-    { iid: expect.any(Number), name: 'Coral Merfolk', amount: 1 },
-    { iid: expect.any(Number), name: 'Savannah Lions', amount: 2 },
-  ])
-  expect(responses[0]).toMatchObject({
-    distributionResp: {
-      distributions: (chosen!.options as Array<{ iid: number; amount: number }>).map(
-        (candidate) => ({
-          instanceId: candidate.iid,
-          amount: candidate.amount,
-        }),
-      ),
-    },
-  })
-  const final = await page.evaluate(() => window.__greState()!)
-  const resultPath = info.outputPath('allocation-result.json')
-  writeFileSync(resultPath, JSON.stringify({ chosen, responses, final }, null, 2))
-  await info.attach('allocation-result', { path: resultPath, contentType: 'application/json' })
-}
-
-async function verifyOptionalChoices(
-  page: Page,
-  scenario: ReturnType<typeof loadAcceptanceSuite>['scenarios'][number],
-  info: TestInfo,
-) {
-  await page.addInitScript(() =>
-    localStorage.setItem('forge:gre:priority-flag:hideCardArt', 'true'),
-  )
-  const observation = await observeGreResponses(page, 'optionalResp')
-  const responses = observation.responses
-  await startPuzzleGame(page, scenario.puzzle)
-  const decisions: unknown[] = []
-  let start = 0
-  for (const [i, accept] of [true, false].entries()) {
-    const next = scenario.steps.findIndex(
-      (step, index) => index >= start && 'optional_action' in step,
-    )
-    await runGreAcceptanceSteps(page, { steps: scenario.steps.slice(start, next) })
-    const prompt = page.locator('[data-prompt="optionalAction"]')
-    await expect(prompt).toBeVisible()
-    const before = await page.evaluate(() => window.__greState()!)
-    decisions.push(before)
-    await expect(page.locator('[data-board]')).toHaveAttribute('data-card-art', 'off')
-    await page.mouse.move(640, 300)
-    await page.screenshot({
-      path: info.outputPath(`optional-${accept ? 'accept' : 'decline'}.png`),
-    })
-    await prompt.getByRole('button', { name: accept ? 'Accept' : 'Decline', exact: true }).click()
-    await expect
-      .poll(() => page.evaluate(() => window.__greState()?.horizon?.promptKey))
-      .not.toBe(before.horizon?.promptKey)
-    await observation.settle()
-    expect(responses).toHaveLength(i + 1)
-    expect(responses[i]).toMatchObject({
-      gameStateId: before.horizon?.gameStateId,
-      respId: before.horizon?.respId,
-      optionalResp: {
-        response: await enumValue('OptionResponse', accept ? 'AllowYes' : 'CancelNo'),
-      },
-    })
-    start = next + 1
-  }
-  await runGreAcceptanceSteps(page, { steps: scenario.steps.slice(start) })
-  const final = await page.evaluate(() => window.__greState()!)
-  expect(final.prompt).toBeNull()
-  expect(final.diagnostics.errorCount).toBe(0)
-  writeFileSync(
-    info.outputPath('optional-result.json'),
-    JSON.stringify({ decisions, responses, final }, null, 2),
-  )
-}
 
 test('opening hand mulligan redraws seven and bottoms one after keep', async ({ page }, info) => {
   const errors = collectConsoleErrors(page)

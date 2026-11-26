@@ -1,5 +1,6 @@
 """Select runtime gates independently of deployment scope."""
-from pathlib import PurePosixPath
+import json
+from pathlib import Path, PurePosixPath
 import subprocess
 import sys
 
@@ -10,6 +11,21 @@ ASSET_SUFFIXES = {'.css', '.svg', '.png', '.jpg', '.jpeg', '.webp', '.gif', '.ic
 
 # Markdown that a build, test or release step reads stays on the full path.
 MARKDOWN_INPUTS = ('scripts/', 'src/', 'public/')
+
+# Release tooling and repository settings that no Web CI runtime job reads. The
+# changes job still runs the script unit tests.
+TOOLING_INPUTS = ('scripts/release/notes/', 'scripts/release/release_notes.py',
+                  'scripts/release/test_release_notes.py',
+                  'scripts/release/frontend-release-scope.py',
+                  'scripts/release/test_frontend_release_scope.py',
+                  'scripts/release/build-full-release.sh',
+                  '.github/CODEOWNERS', '.github/ISSUE_TEMPLATE/')
+
+# Browser suites whose proof breadth is selected per suite.
+SUITES = ('product', 'gre', 'catalog')
+
+MANIFEST = json.loads((Path(__file__).resolve().parents[2] / 'e2e/suites.json').read_text())
+SUITE_SPECS = {spec for specs in MANIFEST.values() for spec in specs}
 
 
 def ui_only(path):
@@ -23,44 +39,63 @@ def ui_only(path):
     return path.startswith(('src/', 'public/')) and PurePosixPath(path).suffix in ASSET_SUFFIXES
 
 
+def tooling_only(path):
+    if path.startswith('.github/workflows/'):
+        return path != '.github/workflows/web-ci.yml'
+    return path.startswith(TOOLING_INPUTS)
+
+
 def classify_paths(paths):
     # Unknown inputs and executable source require the real runtime gates.
-    return 'web' if paths and all(ui_only(path) for path in paths) else 'full'
+    light = paths and all(ui_only(path) or tooling_only(path) for path in paths)
+    return 'web' if light else 'full'
 
 
-def proof_breadth(paths):
-    """Known product inputs get representative proof; control inputs require every gate."""
+def path_breadth(path, suite):
+    """Changed specs run in full, so product inputs need only representative proof."""
+    if ui_only(path) or tooling_only(path) or path == 'leyline':
+        return 'pr'
+    if path.startswith(('src/', 'browser-engine/')) or path in SUITE_SPECS:
+        return 'pr'
+    # The product lane owns the server's player journeys; gameplay lanes only need to
+    # reach the server through their representatives.
+    if path.startswith(('server/', 'e2e/server-parity/')):
+        return 'full' if suite == 'product' else 'pr'
+    # Control inputs, helpers, fixtures loaded by name and unknown files reach every gate.
+    return 'full'
+
+
+def proof_breadth(paths, suite=None):
+    """Breadth for one suite, or `full` only when every suite runs in full."""
     if not paths:
         return 'full'
-    for path in paths:
-        if ui_only(path) or path == 'leyline' or path.startswith('src/'):
-            continue
-        if path.startswith('e2e/') and path.endswith('.spec.ts') and path.split('/')[-1] in PR_SPECS:
-            continue
-        return 'full'
-    return 'pr'
+    if suite is None:
+        breadths = {proof_breadth(paths, name) for name in SUITES}
+        return 'full' if breadths == {'full'} else 'pr'
+    if suite not in SUITES:
+        raise ValueError(f'Unknown suite {suite}')
+    return 'full' if any(path_breadth(path, suite) == 'full' for path in paths) else 'pr'
 
 
-PR_SPECS = {
-    'auth-passwordless.spec.ts', 'bootstrap.spec.ts', 'deck-import.spec.ts',
-    'decks.spec.ts', 'draft.spec.ts', 'product-smoke.spec.ts',
-    'react-challenge.spec.ts', 'whats-new.spec.ts', 'gre-play.spec.ts',
-    'gre-partner-decks.spec.ts', 'gre-modal-cancel.spec.ts', 'gre-search-owner.spec.ts', 'gre-prompts.spec.ts', 'gre-recovery.spec.ts', 'gre-priority.spec.ts',
-    'gre-sounds.spec.ts', 'gre-equip-cost.spec.ts', 'gre-repeatable-cost.spec.ts', 'gre-alternate-life-cost.spec.ts', 'gre-cost-choice.spec.ts', 'forge-catalog.spec.ts',
-    'match-route.spec.ts', 'gre-known-opponent-hand.spec.ts', 'gre-warp.spec.ts', 'gre-library-permissions.spec.ts', 'gre-player-counters.spec.ts', 'gre-mana-payment.spec.ts',
-}
+def changed(checkout, base):
+    paths = subprocess.check_output(
+        ['git', '-C', checkout, 'diff', '--no-renames', '--name-only', '-z', base, 'HEAD', '--'],
+        text=True, stderr=subprocess.DEVNULL,
+    ).split('\0')
+    return [path for path in paths if path]
 
 
-def classify(checkout, base, breadth=False):
+def classify(checkout, base, breadth=False, suite=None):
     try:
-        paths = subprocess.check_output(
-            ['git', '-C', checkout, 'diff', '--no-renames', '--name-only', '-z', base, 'HEAD', '--'],
-            text=True, stderr=subprocess.DEVNULL,
-        ).split('\0')
+        paths = changed(checkout, base)
     except subprocess.CalledProcessError:
         return 'full'
-    return (proof_breadth if breadth else classify_paths)([path for path in paths if path])
+    return proof_breadth(paths, suite) if breadth else classify_paths(paths)
 
 
 if __name__ == '__main__':
-    print(classify(*sys.argv[1:3], breadth='--breadth' in sys.argv[3:]))
+    options = sys.argv[3:]
+    suite = next((option.split('=', 1)[1] for option in options
+                  if option.startswith('--breadth=')), None)
+    breadth = suite is not None or '--breadth' in options
+    print(classify(*sys.argv[1:3], breadth=breadth, suite=suite))

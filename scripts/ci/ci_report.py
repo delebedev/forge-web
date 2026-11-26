@@ -150,8 +150,7 @@ def render(root, metadata):
                           for elapsed, label, name in rows]
                 lines += ['']
         lines += ['</details>', '']
-    lines += ['Extended qualification is separate from this gate. Coverage and historical '
-              'flake rates are not measured by this report.', '']
+    lines += ['Coverage and historical flake rates are not measured by this report.', '']
     lines += [f'**Report warning:** {cell(warning)}' for warning in warnings]
     return '\n'.join(lines) + '\n'
 

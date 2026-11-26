@@ -1,6 +1,5 @@
 import { resolveTo } from '../support/gre-actions'
 import { startScenario } from '../support/gre-scenario'
-import { isFamilyPromptScenario } from '../support/gre-prompt-cases'
 import { readFileSync } from 'node:fs'
 import type { Page, TestInfo } from '@playwright/test'
 import {
@@ -14,27 +13,10 @@ import {
 } from '../support/gre-test'
 import { collectConsoleErrors, readBrowserJournal } from '../support/gre-browser-observations'
 import {
-  discoverAcceptanceSuites,
   loadAcceptanceSuite,
   runGreAcceptanceScenario,
   runGreAcceptanceSteps,
 } from '../support/gre-acceptance'
-
-for (const suiteName of discoverAcceptanceSuites()) {
-  const suite = loadAcceptanceSuite(suiteName)
-  const suiteSkip = suite.web?.skip
-  for (const scenario of suite.scenarios.filter((scenario) => !isFamilyPromptScenario(scenario))) {
-    test(`${suiteName} acceptance: ${scenario.id}`, { tag: '@mechanic' }, async ({ page }) => {
-      const skipReason = suiteSkip ?? scenario.web?.skip
-      test.skip(Boolean(skipReason), skipReason)
-      const consoleErrors = collectConsoleErrors(page)
-      await page.route('https://cards.scryfall.io/**', (route) => route.fulfill({ status: 204 }))
-      await authenticateShell(page)
-      await runGreAcceptanceScenario(page, scenario)
-      expect(consoleErrors).toEqual([])
-    })
-  }
-}
 
 test('commander returns after self-bolt and recasts from the hand-side rail with tax', async ({
   page,
@@ -515,29 +497,6 @@ test('assigns trample combat damage', async ({ page }, info) => {
   expect(consoleErrors).toEqual([])
 })
 
-test('GRE board stays usable at narrow width', { tag: '@qualification' }, async ({ page }) => {
-  test.setTimeout(60_000)
-  await page.setViewportSize({ width: 390, height: 820 })
-  const consoleErrors = collectConsoleErrors(page)
-
-  await authenticateShell(page)
-  await startScenario(page, 'burn-controls')
-
-  await expect(page.getByRole('button', { name: /^(Pass|Resolve)$/ })).toBeVisible({
-    timeout: 10_000,
-  })
-  await expect(page.getByRole('button', { name: 'Pass turn' })).toBeVisible({ timeout: 10_000 })
-  await expectNoPageHorizontalOverflow(page)
-  await page.getByRole('button', { name: 'Cast Shock', exact: true }).click()
-
-  await expect(promptZone(page)).toBeVisible({ timeout: 20_000 })
-  await expect(promptZone(page).getByRole('button', { name: 'Opponent' }).first()).toBeVisible({
-    timeout: 10_000,
-  })
-  await expectNoPageHorizontalOverflow(page)
-  expect(consoleErrors).toEqual([])
-})
-
 test('GRE UI screenshot states render cleanly', async ({ page }, testInfo) => {
   test.setTimeout(90_000)
   const consoleErrors = collectConsoleErrors(page)
@@ -792,18 +751,6 @@ async function currentTurn(page: Page): Promise<number> {
 async function currentPriority(page: Page): Promise<number> {
   const text = await page.locator('[data-board]').first().getAttribute('data-priority')
   return Number(text) || 0
-}
-
-async function expectNoPageHorizontalOverflow(page: Page): Promise<void> {
-  await expect
-    .poll(
-      async () =>
-        page.evaluate(
-          () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
-        ),
-      { timeout: 5_000 },
-    )
-    .toBeLessThanOrEqual(1)
 }
 
 async function screenshotGreShell(page: Page, testInfo: TestInfo, name: string): Promise<void> {

@@ -62,6 +62,10 @@ Import across directories through `@app`, `@engine`, `@features`, `@shell`,
 use relative imports within one directory. Shared feature logic lives
 in `shared/` or `engine/`.
 
+The SEO plugin bundles page sources through the Vite config, which does not
+resolve these aliases. Files it reaches, such as `app/seo.ts` and the pages it
+renders, use relative imports; an alias there breaks `bun run build`.
+
 ### C10. Every Mutation Publishes
 
 Every observable GRE mutation publishes through the external-store boundary.

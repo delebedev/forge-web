@@ -18,6 +18,9 @@ jobs:
     outputs:
       kind: ${{ steps.scope.outputs.kind }}
       breadth: ${{ steps.scope.outputs.breadth }}
+      breadth-product: ${{ steps.scope.outputs.breadth-product }}
+      breadth-gre: ${{ steps.scope.outputs.breadth-gre }}
+      breadth-catalog: ${{ steps.scope.outputs.breadth-catalog }}
       run-tests: ${{ steps.reuse.outputs.run-tests }}
       source-run: ${{ steps.candidate.outputs.result }}
     steps:
@@ -78,16 +81,26 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: |
+          suites=(product gre catalog)
+          declare -A suite_breadth
           if [[ "$GITHUB_EVENT_NAME" == 'pull_request' ]]; then
             kind=$(python3 scripts/ci/ci_scope.py . "$BASE_SHA")
             breadth=$(python3 scripts/ci/ci_scope.py . "$BASE_SHA" --breadth)
+            for suite in "${suites[@]}"; do
+              suite_breadth[$suite]=$(python3 scripts/ci/ci_scope.py . "$BASE_SHA" "--breadth=$suite")
+            done
           else
             kind=full
             breadth=full
+            for suite in "${suites[@]}"; do suite_breadth[$suite]=full; done
           fi
           printf 'kind=%s\n' "$kind" >> "$GITHUB_OUTPUT"
           printf 'breadth=%s\n' "$breadth" >> "$GITHUB_OUTPUT"
-          printf 'CI scope: %s, browser proof: %s\n' "$kind" "$breadth" >> "$GITHUB_STEP_SUMMARY"
+          for suite in "${suites[@]}"; do
+            printf 'breadth-%s=%s\n' "$suite" "${suite_breadth[$suite]}" >> "$GITHUB_OUTPUT"
+          done
+          printf 'CI scope: %s, browser proof: product %s, gre %s, catalog %s\n' "$kind" \
+            "${suite_breadth[product]}" "${suite_breadth[gre]}" "${suite_breadth[catalog]}" >> "$GITHUB_STEP_SUMMARY"
   ui:
     name: UI (TypeScript)
     needs: changes
@@ -495,7 +508,7 @@ jobs:
           overwrite: true
     env:
       FORGE_CI_REPORT_DIR: test-results/ci
-      PROOF_BREADTH: ${{ needs.changes.outputs.breadth }}
+      PROOF_BREADTH: ${{ needs.changes.outputs[format('breadth-{0}', matrix.suite)] }}
       BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
       FORGE_WEB_SERVER_DIST: ci-runtime/server
       FORGE_WEB_FRONTEND_DIST: dist

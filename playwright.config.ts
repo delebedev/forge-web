@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { defineConfig, devices, type PlaywrightTestConfig } from '@playwright/test'
 
 import { managedPorts } from './scripts/lib/playwright-ports'
@@ -6,9 +7,18 @@ const suite = process.env['FORGE_WEB_PLAYWRIGHT_SUITE']
 
 const IPAD_VIEWPORT = { width: 1024, height: 1366 }
 
+// e2e/suites.json lists the specs of each CI suite; CI selection reads the same file.
+const suiteSpecs = JSON.parse(
+  readFileSync(new URL('./e2e/suites.json', import.meta.url), 'utf8'),
+) as Record<'product' | 'gre' | 'catalog' | 'transport', string[]>
+
+function suiteMatch(name: keyof typeof suiteSpecs): RegExp {
+  const files = suiteSpecs[name].map((file) => file.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+  return new RegExp(`/(?:${files.join('|')})$`)
+}
+
 // The managed `gre` suite and the standalone `gre` project run the same specs.
-const GRE_SPECS =
-  /gre-(?:play|prompts|gavi-cycling|optional-shuffle|mulligan|recovery|priority|sounds|cost-choice|affinity-cost|combat-assignments|equip-cost|repeatable-cost|alternate-life-cost|modal-cancel|search-owner|library-permissions|partner-decks|known-opponent-hand|warp|player-counters|mana-payment|triggered-payment|protection-mixed|proliferate|facedown-projection|lost-keywords|hand-reach)\.spec\.ts/
+const GRE_SPECS = suiteMatch('gre')
 
 const standaloneConfig = defineConfig({
   testDir: './e2e',
@@ -178,7 +188,7 @@ const screenshotsBase = makeSmokeConfig({
 
 const forgeCatalogBase = makeSmokeConfig({
   name: 'forge-catalog',
-  testMatch: /forge-catalog\.spec\.ts/,
+  testMatch: suiteMatch('catalog'),
   timeout: 120_000,
   frontendPort: 15179,
   webPort: 15189,
@@ -200,7 +210,7 @@ const transportPort = managedPorts(
 const managedConfigs: Record<string, PlaywrightTestConfig> = {
   transport: defineConfig({
     testDir: './e2e',
-    testMatch: /(?:(?:gre-prompt|gre-static-choice)-transport|match-route|course-result)\.spec\.ts/,
+    testMatch: suiteMatch('transport'),
     timeout: 30_000,
     retries: 0,
     use: {
@@ -262,8 +272,7 @@ const managedConfigs: Record<string, PlaywrightTestConfig> = {
   }),
   product: makeSmokeConfig({
     name: 'product',
-    testMatch:
-      /(?:auth-passwordless|bootstrap|deck-import|decks|draft|limited-course|product-smoke|react-challenge|whats-new)\.spec\.ts$/,
+    testMatch: suiteMatch('product'),
     timeout: 60_000,
     frontendPort: 15174,
     webPort: 15184,
