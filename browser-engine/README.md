@@ -82,7 +82,7 @@ offline guarantee or multiplayer authority. Worker recycling limits accumulation
 between games but is not a hard tab-memory cap. Only current desktop Chrome is
 qualified.
 
-CheerpJ is loaded from its hosted runtime and credited in `NOTICE`. Hosted
+CheerpJ is loaded from its hosted runtime and credited on the About page. Hosted
 use and any self-hosted or offline distribution must comply with the vendor's
 [licensing terms](https://cheerpj.com/docs/licensing).
 

@@ -69,6 +69,11 @@ export function AboutPage() {
           <p className={styles.affiliation}>
             An independent project, not affiliated with the Card-Forge team.
           </p>
+          <p className={styles.affiliation}>
+            <a href="https://cheerpj.com" target="_blank" rel="noopener noreferrer">
+              Built with CheerpJ
+            </a>
+          </p>
         </section>
       </div>
       <section className={styles.contact} aria-labelledby="contact-title">
