@@ -59,35 +59,63 @@ jobs:
             --append-system-prompt-file ${{ runner.temp }}/review-guidance.md
 
       - name: Post the verdict
+        if: ${{ !cancelled() && steps.start.outcome == 'success' }}
+        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
           PR: ${{ github.event.pull_request.number }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           SINCE: ${{ steps.start.outputs.at }}
-          EXECUTION_FILE: ${{ steps.review.outputs.execution_file }}
+          EXECUTION_FILE: ${{ runner.temp }}/claude-execution-output.json
         run: |
-          # This run's inline comments on the reviewed head; the review starts
-          # each one with its severity.
+          # The review's closing result message, or null when the run never finished.
+          result=null
+          if [ -f "$EXECUTION_FILE" ]; then
+            result=$(jq -c 'map(select(.type == "result")) | last // null' "$EXECUTION_FILE")
+          fi
+
+          # Inline comments posted since this run started. The review starts each
+          # one with its severity. A push during the review moves comments to the
+          # new head, so the reviewed head is not used as a filter.
           gh api --paginate "repos/$REPO/pulls/$PR/comments" --jq '.[]' |
-            jq -s --arg sha "$HEAD_SHA" --arg since "$SINCE" '
-              map(select(.user.login == "github-actions[bot]" and .commit_id == $sha and .created_at >= $since))' \
+            jq -s --arg since "$SINCE" 'map(select(.user.login == "github-actions[bot]" and .created_at >= $since))' \
             > findings.json
           important=$(jq -r '.[] | select(.body | test("^\\W*Important"; "i"))
             | "- `\(.path):\(.line // .original_line)` \(.body | sub("^\\W*Important\\W*"; ""; "i") | split("\n")[0] | .[0:160])"' findings.json)
+          # A finding the review could not anchor to a changed line stays in its result text.
+          if jq -e '.result // "" | test("🔴")' <<<"$result" >/dev/null && [ -z "$important" ]; then
+            important="- Important findings did not post inline; see this run's summary."
+          fi
+
           {
-            if [ -n "$important" ]; then echo "Verdict: CHANGES"; else echo "Verdict: APPROVE"; fi
-            echo "Reviewed head: $HEAD_SHA"
-            if [ -n "$important" ]; then echo "$important"; fi
+            if [ "$(jq -r '.subtype // "missing"' <<<"$result")" != success ]; then
+              echo "Verdict: INCOMPLETE"
+              echo "Reviewed head: $HEAD_SHA"
+              echo "- The review did not finish; re-add the label to run it again."
+            elif [ -n "$important" ]; then
+              echo "Verdict: CHANGES"
+              echo "Reviewed head: $HEAD_SHA"
+              echo "$important"
+            else
+              echo "Verdict: APPROVE"
+              echo "Reviewed head: $HEAD_SHA"
+            fi
           } > verdict.md
           gh pr comment "$PR" --repo "$REPO" --body-file verdict.md
 
+          stats="$(jq length findings.json) inline findings"
+          if [ -f "$EXECUTION_FILE" ]; then
+            stats="$stats; $(jq -r '[.[] | select(.type == "assistant") | .message.content[]? | select(.type == "tool_use") | .name]
+              | group_by(.) | map("\(.[0]) \(length)") | "tool calls: " + join(", ")' "$EXECUTION_FILE")"
+          fi
+          stats="$stats; $(jq -r 'if . == null then "no result" else "turns \(.num_turns), cost \(.total_cost_usd), refused \(.permission_denials | map(.tool_name) | join(" ") | if . == "" then "none" else . end)" end' <<<"$result")"
+          echo "$stats"
           {
             echo "## Claude review"
-            echo "$(jq length findings.json) inline findings."
-            if [ -f "$EXECUTION_FILE" ]; then
-              jq -r 'if type == "array" then . else [.] end | map(select(.type == "result")) | last // empty
-                | "Turns: \(.num_turns), cost: \(.total_cost_usd), refused tool calls: \(.permission_denials | map(.tool_name) | join(", "))\n\n\(.result // "")"' \
-                "$EXECUTION_FILE"
-            fi
+            cat verdict.md
+            echo
+            echo "$stats"
+            echo
+            jq -r '.result // ""' <<<"$result"
           } >> "$GITHUB_STEP_SUMMARY"
