@@ -39,7 +39,8 @@
     "e2e/match/gre-fabricate.spec.ts",
     "e2e/match/gre-facedown-projection.spec.ts",
     "e2e/match/gre-lost-keywords.spec.ts",
-    "e2e/match/gre-hand-reach.spec.ts"
+    "e2e/match/gre-hand-reach.spec.ts",
+    "e2e/match/gre-route-history.spec.ts"
   ],
   "catalog": ["e2e/engine/forge-catalog.spec.ts"],
   "transport": [

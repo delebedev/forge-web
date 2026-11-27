@@ -749,3 +749,111 @@ it('checks decklists in the engine the next browser match reuses', async () => {
     navigate.mockRestore()
   }
 })
+
+it('gives every launched match its own identity, so each replay journal has one writer', async () => {
+  class LaunchWorker {
+    onmessage: ((event: MessageEvent<BrowserEngineEvent>) => void) | null = null
+    onerror: ((event: ErrorEvent) => void) | null = null
+    onmessageerror: (() => void) | null = null
+    starts: string[] = []
+    rejectStarts = false
+
+    postMessage(command: { type: string; id?: number; [key: string]: unknown }): void {
+      if (command.type === 'start') {
+        this.starts.push(String(command['matchId']))
+      }
+      if (command.type === 'start' && this.rejectStarts) {
+        queueMicrotask(() =>
+          this.emit({ event: 'reply', data: { id: command.id, error: 'Start rejected' }, at: 0 }),
+        )
+        return
+      }
+      if (command.type === 'failure-diagnostic') {
+        queueMicrotask(() =>
+          this.emit({ event: 'failure-diagnostic', data: { runtime: 'available' }, at: 0 }),
+        )
+        return
+      }
+      if (command.id == null) {
+        return
+      }
+      const result = command.type === 'start' ? { matchId: command['matchId'] } : undefined
+      queueMicrotask(() =>
+        this.onmessage?.({
+          data: { event: 'reply', data: { id: command.id, result }, at: 0 },
+        } as MessageEvent<BrowserEngineEvent>),
+      )
+    }
+
+    emit(event: BrowserEngineEvent): void {
+      this.onmessage?.({ data: event } as MessageEvent<BrowserEngineEvent>)
+    }
+
+    terminate(): void {}
+  }
+
+  const navigate = spyOn(router, 'reactNavigate').mockImplementation(() => {})
+  const lifecycle = spyOn(analytics, 'trackBrowserLifecycle').mockImplementation(() => {})
+  const worker = new LaunchWorker()
+  const session = sessionStore(
+    null,
+    (onEvent) =>
+      new BrowserEngine(onEvent, () => worker as unknown as Worker, {
+        heartbeatIntervalMs: 60_000,
+      }),
+  )
+  try {
+    session.startBrowser({
+      gameType: 'commander',
+      seat1Deck: '99 Island\nCommander\n1 Empress Galina',
+      seat2Deck: '99 Mountain\nCommander\n1 Zo-Zu the Punisher',
+      seed: 42,
+    })
+    const launched = session.config!
+    const matchId = await session.connectBrowser(launched)
+    session.recordMatchId(matchId)
+
+    // Leaving the match route and returning mounts the match view again with the same config.
+    expect(await session.connectBrowser(session.config!)).toBe(matchId)
+    expect(worker.starts).toEqual([matchId])
+    expect(greStore.currentMatchId).toBe(matchId)
+    expect(session.snapshot().browserPhase).toBe('active')
+
+    worker.emit({ event: 'error', data: 'The local engine failed.', at: 0 })
+    await Bun.sleep(0)
+    expect(session.snapshot().browserPhase).toBe('failed')
+
+    // A view mounted after the failure restarts the session under a new identity, which the
+    // view then launches.
+    const launchKey = session.snapshot().launchKey
+    expect(
+      await session.connectBrowser(session.config!).catch((error: unknown) => error),
+    ).toMatchObject({ name: 'AbortError' })
+    const relaunch = session.config!
+    expect(relaunch.attemptId).not.toBe(launched.attemptId)
+    expect(relaunch.matchId).not.toBe(matchId)
+    expect(session.snapshot().launchKey).toBe(launchKey + 1)
+    expect(lifecycle).toHaveBeenCalledWith(
+      'retry',
+      expect.objectContaining({ attemptId: relaunch.attemptId }),
+      expect.anything(),
+    )
+
+    // A failed relaunch is reported under its own attempt.
+    worker.rejectStarts = true
+    expect(await session.connectBrowser(relaunch).catch((error: unknown) => error)).toBeInstanceOf(
+      Error,
+    )
+    expect(worker.starts).toEqual([matchId, relaunch.matchId!])
+    expect(session.snapshot().browserPhase).toBe('failed')
+    expect(lifecycle).toHaveBeenCalledWith(
+      'failed',
+      expect.objectContaining({ attemptId: relaunch.attemptId }),
+      expect.anything(),
+    )
+  } finally {
+    session.clear()
+    navigate.mockRestore()
+    lifecycle.mockRestore()
+  }
+})

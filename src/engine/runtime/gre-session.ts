@@ -93,6 +93,8 @@ export class GreSessionStore {
   private browserEngineBuild = ''
   private browserLastStage: BrowserFailureStage = 'attempt'
   private browserTerminalAttemptId = ''
+  /** The attempt whose match the store last connected, and so whose replay journal exists. */
+  private streamedAttemptId = ''
   private browserExitHandler: (() => void) | null = null
   private browserRecovery: TranscriptBundle | null = null
   private browserRecoveryController: AbortController | null = null
@@ -212,6 +214,20 @@ export class GreSessionStore {
   }
 
   async connectBrowser(config: GreStartConfig, signal?: AbortSignal): Promise<string> {
+    if (config.attemptId && config.attemptId === this.streamedAttemptId) {
+      // A remounted match view asks for the match it already runs; launching again would restart it.
+      if (
+        config.matchId &&
+        this.browserPhase === 'active' &&
+        this.store.currentMatchId === config.matchId
+      ) {
+        return config.matchId
+      }
+      // The attempt's match ended. Each launch streams its own replay journal, keyed by match id,
+      // so start again under a new identity as Play again does; the match view launches it.
+      await this.transition(true)
+      throw new DOMException('Browser match start was superseded', 'AbortError')
+    }
     if (
       config.execution !== 'browser' ||
       (config.gameType !== 'constructed' &&
@@ -298,6 +314,7 @@ export class GreSessionStore {
         matchId: match.matchId,
         fetchCardMeta: (ids) => connectedEngine.fetchCardMeta(ids),
       })
+      this.streamedAttemptId = activeConfig.attemptId!
       this.watchBrowserProgress()
       this.browserPhase = 'active'
       this.browserLastStage = 'match-started'
@@ -480,6 +497,7 @@ export class GreSessionStore {
         },
         recovered,
       )
+      this.streamedAttemptId = config.attemptId!
       this.watchBrowserProgress()
       this.browserPhase = 'active'
       this.browserRecovered = true
