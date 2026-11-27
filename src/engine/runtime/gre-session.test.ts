@@ -1,25 +1,41 @@
-import { afterEach, expect, it, spyOn } from 'bun:test'
+import { afterEach, beforeEach, expect, it, mock, spyOn } from 'bun:test'
 import { GreSessionStore } from './gre-session'
 import { parseGreMatchConfig } from './gre-match'
 import { BrowserDeckRejected, BrowserEngine } from '../worker/browser-engine'
 import type { BrowserEngineEvent } from '../worker/browser-match-source'
-import { greStore } from './gre-store'
+import type { GreStore } from './gre-store'
+import { offlineGreStore } from '../testing/offline-match'
 import type { GreFrameSink, GreFrameSource } from './gre-frame-source'
 import { fullGameState } from '../testing/gre-test-frames'
 import { ZONE_HAND } from '@engine/state/gre-state'
 import { parseGreCardMeta } from './gre-card-meta'
 import * as router from '@shared/router'
 import * as analytics from '@shared/observability/analytics'
-import * as reporting from '@shared/observability/reporting'
+import type * as reporting from '@shared/observability/reporting'
 import { BrowserReplayCollector } from '@engine/replay/browser-replay-collector'
+
+let greStore: GreStore
+let reportFailure: ReturnType<typeof mock<typeof reporting.reportBrowserFailure>>
+
+beforeEach(() => {
+  greStore = offlineGreStore()
+  reportFailure = mock<typeof reporting.reportBrowserFailure>(() => {})
+})
 
 afterEach(() => {
   greStore.clearSession()
 })
 
+function sessionStore(
+  config?: ConstructorParameters<typeof GreSessionStore>[0],
+  factory?: ConstructorParameters<typeof GreSessionStore>[1],
+): GreSessionStore {
+  return new GreSessionStore(config, factory, { store: greStore, reportFailure })
+}
+
 it('keeps public browser challenges off the replay upload path', async () => {
   const upload = spyOn(greStore, 'uploadBrowserReplay')
-  const session = new GreSessionStore({
+  const session = sessionStore({
     execution: 'browser',
     gameType: 'puzzle',
     challengeId: 'bolt-at-three-v1',
@@ -47,7 +63,7 @@ it('replaces browser metadata and state when starting another browser game', asy
     zones: [{ zoneId: 31, type: ZONE_HAND, ownerSeatId: 1, objectInstanceIds: [100] }],
     gameObjects: [{ instanceId: 100, grpId: 42, ownerSeatId: 1, controllerSeatId: 1 }],
   })
-  const session = new GreSessionStore({ execution: 'browser', gameType: 'constructed' })
+  const session = sessionStore({ execution: 'browser', gameType: 'constructed' })
   try {
     greStore.connectSource(source, {
       execution: 'browser',
@@ -122,7 +138,7 @@ it('owns browser launches, retries, and disposal without server match requests',
   }) as unknown as typeof fetch
   const navigate = spyOn(router, 'reactNavigate').mockImplementation(() => {})
   const worker = new SessionWorker()
-  const session = new GreSessionStore(
+  const session = sessionStore(
     null,
     (onEvent) =>
       new BrowserEngine(onEvent, () => worker as unknown as Worker, {
@@ -256,7 +272,7 @@ it('routes native start rejection through browser failure recovery', async () =>
   const navigate = spyOn(router, 'reactNavigate').mockImplementation(() => {})
   const retained = spyOn(greStore, 'retainBrowserFailure')
   const worker = new RejectingWorker()
-  const session = new GreSessionStore(
+  const session = sessionStore(
     null,
     (onEvent) => new BrowserEngine(onEvent, () => worker as unknown as Worker),
   )
@@ -291,9 +307,9 @@ it('ends an unplayable deck launch without a crash report and keeps the engine',
     Promise.reject(rejected),
   )
   const navigate = spyOn(router, 'reactNavigate').mockImplementation(() => {})
-  const reported = spyOn(reporting, 'reportBrowserFailure').mockImplementation(() => {})
+  const reported = reportFailure
   const lifecycle = spyOn(analytics, 'trackBrowserLifecycle').mockImplementation(() => {})
-  const session = new GreSessionStore(null, () => engine)
+  const session = sessionStore(null, () => engine)
 
   try {
     session.startBrowser({
@@ -318,7 +334,6 @@ it('ends an unplayable deck launch without a crash report and keeps the engine',
     session.clear()
     createMatch.mockRestore()
     lifecycle.mockRestore()
-    reported.mockRestore()
     navigate.mockRestore()
     engine.dispose()
   }
@@ -326,7 +341,7 @@ it('ends an unplayable deck launch without a crash report and keeps the engine',
 
 it('retires streaming before failure upload when the engine is already disposed', async () => {
   const navigate = spyOn(router, 'reactNavigate').mockImplementation(() => {})
-  const session = new GreSessionStore(null)
+  const session = sessionStore(null)
   const delivery: string[] = []
   let activeHealth = true
   const health = spyOn(greStore, 'reportingContext').mockImplementation(() =>
@@ -341,7 +356,7 @@ it('retires streaming before failure upload when the engine is already disposed'
         }
       : undefined,
   )
-  const reported = spyOn(reporting, 'reportBrowserFailure').mockImplementation(() => {})
+  const reported = reportFailure
   const disconnect = spyOn(greStore, 'disconnect').mockImplementation(() => {
     delivery.push('disconnect')
     activeHealth = false
@@ -379,7 +394,6 @@ it('retires streaming before failure upload when the engine is already disposed'
     })
     expect(greStore.reportingContext()).toBeUndefined()
   } finally {
-    reported.mockRestore()
     health.mockRestore()
     disconnect.mockRestore()
     upload.mockRestore()
@@ -404,7 +418,7 @@ it('preserves the recovery timeout reason and diagnostic after abort retires the
     },
     diagnostics: () => ({ failed: false, disposed }),
   } as unknown as BrowserEngine
-  const session = new GreSessionStore(null, () => engine)
+  const session = sessionStore(null, () => engine)
   try {
     session.startBrowser({
       gameType: 'constructed',
@@ -444,7 +458,7 @@ it('preserves the recovery timeout reason and diagnostic after abort retires the
 
 it('routes synchronous worker construction failure through browser failure recovery', async () => {
   const navigate = spyOn(router, 'reactNavigate').mockImplementation(() => {})
-  const session = new GreSessionStore(null, () => {
+  const session = sessionStore(null, () => {
     throw new Error('Worker construction failed')
   })
 
@@ -498,7 +512,7 @@ it('cancels a pending browser launch and ignores its late reply', async () => {
   const worker = new PendingWorker()
   const attachSource = spyOn(greStore, 'attachSource')
   const navigate = spyOn(router, 'reactNavigate').mockImplementation(() => {})
-  const session = new GreSessionStore(
+  const session = sessionStore(
     null,
     (onEvent) =>
       new BrowserEngine(onEvent, () => worker as unknown as Worker, {
@@ -564,7 +578,7 @@ it('records cancellation while browser startup is still pending', async () => {
     createMatch: () => pending,
     dispose: () => rejectLaunch(new DOMException('Browser launch aborted', 'AbortError')),
   } as unknown as BrowserEngine
-  const session = new GreSessionStore(null, () => engine)
+  const session = sessionStore(null, () => engine)
   const controller = new AbortController()
 
   try {
@@ -615,7 +629,7 @@ it('restores a refreshed browser match as lost instead of starting it again', ()
     },
   })
   try {
-    const restored = new GreSessionStore()
+    const restored = sessionStore()
 
     expect(restored.snapshot()).toMatchObject({
       browserPhase: 'lost',
@@ -644,7 +658,7 @@ it('course startup and refresh retry locally with the same receipt, while comple
   const navigate = spyOn(router, 'reactNavigate').mockImplementation(() => {})
   try {
     for (const failure of ['startup', 'refresh']) {
-      const session = new GreSessionStore(null, () => {
+      const session = sessionStore(null, () => {
         throw new Error('Worker unavailable')
       })
       session.startBrowser(
@@ -714,7 +728,7 @@ it('checks decklists in the engine the next browser match reuses', async () => {
     dispose: () => {},
   }
   let created = 0
-  const session = new GreSessionStore(null, () => {
+  const session = sessionStore(null, () => {
     created++
     return engine as unknown as BrowserEngine
   })

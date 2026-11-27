@@ -3,6 +3,9 @@ import { BrowserReplayCollector } from './browser-replay-collector'
 import { BrowserReplayStreamer, type ReplayClock } from './browser-replay-streamer'
 import { RetiredReplayDeliveries, MAX_RETIRED_REPLAY_BYTES } from './retired-replay-deliveries'
 
+// Deliveries can report after their test ends, so each one gets this reporter.
+const quiet = () => {}
+
 class Clock implements ReplayClock {
   nowMs = 0
   id = 0
@@ -67,6 +70,8 @@ test('feedback during a completed multi-chunk upload cannot replace terminal com
     }) as typeof fetch,
     undefined,
     time,
+    new RetiredReplayDeliveries(quiet),
+    quiet,
   )
   streamer.finish('completed')
   expect(await streamer.flush('feedback', 'report-test')).toBe(false)
@@ -95,6 +100,8 @@ test('feedback after completed delivery sends a complete status-only report asso
     }) as typeof fetch,
     undefined,
     time,
+    new RetiredReplayDeliveries(quiet),
+    quiet,
   )
   streamer.finish('completed')
   await Bun.sleep(0)
@@ -129,6 +136,7 @@ function retiredCohort(time: Clock, retired: RetiredReplayDeliveries) {
       },
       time,
       retired,
+      quiet,
     )
     streamers.push(streamer)
     streamer.finish('left')
@@ -138,7 +146,7 @@ function retiredCohort(time: Clock, retired: RetiredReplayDeliveries) {
 
 test('forty failed retirements bound retained collectors and future retries across matches', async () => {
   const time = new Clock()
-  const retired = new RetiredReplayDeliveries()
+  const retired = new RetiredReplayDeliveries(quiet)
   const { streamers, references, calls } = retiredCohort(time, retired)
   await Bun.sleep(0)
   Bun.gc(true)
@@ -172,6 +180,8 @@ test('terminal retry guidance beyond the lifetime expires without an external fl
     }) as typeof fetch,
     undefined,
     time,
+    new RetiredReplayDeliveries(quiet),
+    quiet,
   )
   streamer.finish('completed')
   await Bun.sleep(0)
@@ -187,7 +197,7 @@ test('terminal retry guidance beyond the lifetime expires without an external fl
 
 test('byte pressure includes newly prepared bodies and evicts the oldest retired journal', async () => {
   const time = new Clock()
-  const retired = new RetiredReplayDeliveries()
+  const retired = new RetiredReplayDeliveries(quiet)
   const streamers = []
   for (let index = 0; index < 2; index++) {
     const journal = collector(`large-${index}`)
@@ -201,6 +211,7 @@ test('byte pressure includes newly prepared bodies and evicts the oldest retired
       undefined,
       time,
       retired,
+      quiet,
     )
     streamer.finish('completed')
     streamers.push(streamer)
@@ -216,7 +227,7 @@ test('byte pressure includes newly prepared bodies and evicts the oldest retired
 
 test('retirement releases the match callback but preserves an active collector and match identity', async () => {
   const time = new Clock()
-  const retired = new RetiredReplayDeliveries()
+  const retired = new RetiredReplayDeliveries(quiet)
   const journal = collector('active-match')
   journal.incoming([{ type: 1 }])
   const requests: { url: string; body: string }[] = []
@@ -241,6 +252,7 @@ test('retirement releases the match callback but preserves an active collector a
     observer.callback,
     time,
     retired,
+    quiet,
   )
   observer.callback = () => {}
   streamer.finish('left')
@@ -259,7 +271,7 @@ test('retirement releases the match callback but preserves an active collector a
 
 test('expiry aborts an in-flight retired request and ignores any later acknowledgement', async () => {
   const time = new Clock()
-  const retired = new RetiredReplayDeliveries()
+  const retired = new RetiredReplayDeliveries(quiet)
   const journal = collector()
   journal.incoming([{ type: 1 }])
   let signal: AbortSignal | undefined
@@ -277,6 +289,7 @@ test('expiry aborts an in-flight retired request and ignores any later acknowled
     undefined,
     time,
     retired,
+    quiet,
   )
   streamer.finish('completed')
   await time.advance(1_800_000)
@@ -291,7 +304,7 @@ test('expiry aborts an in-flight retired request and ignores any later acknowled
 
 test('persistent storage rejection reaches its autonomous deadline after bounded retries', async () => {
   const time = new Clock()
-  const retired = new RetiredReplayDeliveries()
+  const retired = new RetiredReplayDeliveries(quiet)
   const journal = collector()
   journal.incoming([{ type: 1 }])
   let calls = 0
@@ -305,6 +318,7 @@ test('persistent storage rejection reaches its autonomous deadline after bounded
     undefined,
     time,
     retired,
+    quiet,
   )
   streamer.finish('completed')
   await Bun.sleep(0)
@@ -321,7 +335,7 @@ test('persistent storage rejection reaches its autonomous deadline after bounded
 
 test('feedback during a completed retry keeps the immutable prefix and final completion', async () => {
   const time = new Clock()
-  const retired = new RetiredReplayDeliveries()
+  const retired = new RetiredReplayDeliveries(quiet)
   const journal = collector()
   for (let index = 0; index < 2; index++) {
     journal.incoming([{ type: 1, payload: 'x'.repeat(2_200_000) }])
@@ -337,6 +351,7 @@ test('feedback during a completed retry keeps the immutable prefix and final com
     undefined,
     time,
     retired,
+    quiet,
   )
   streamer.finish('completed')
   await Bun.sleep(0)
@@ -372,6 +387,7 @@ function largeBusyCohort(time: Clock, retired: RetiredReplayDeliveries) {
       undefined,
       time,
       retired,
+      quiet,
     )
     streamer.finish('left')
     return { journal, streamer, release, sent }
@@ -380,7 +396,7 @@ function largeBusyCohort(time: Clock, retired: RetiredReplayDeliveries) {
 
 test('a coalesced busy flush rechecks late collector growth and cannot reschedule an eviction', async () => {
   const time = new Clock()
-  const retired = new RetiredReplayDeliveries()
+  const retired = new RetiredReplayDeliveries(quiet)
   const cohort = largeBusyCohort(time, retired)
   expect(retired.diagnostics().matches).toBe(2)
   expect(retired.diagnostics().bytes).toBeLessThanOrEqual(MAX_RETIRED_REPLAY_BYTES)
@@ -410,7 +426,7 @@ test('a coalesced busy flush rechecks late collector growth and cannot reschedul
 
 test('a transient response rechecks unannounced collector growth before scheduling its retry', async () => {
   const time = new Clock()
-  const retired = new RetiredReplayDeliveries()
+  const retired = new RetiredReplayDeliveries(quiet)
   const cohort = largeBusyCohort(time, retired)
   cohort[0]!.journal.incoming([{ type: 2, payload: 'y'.repeat(2_000_000) }])
   for (const item of cohort) {

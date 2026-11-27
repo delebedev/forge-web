@@ -1,4 +1,5 @@
-import { afterEach, beforeEach, expect, it } from 'bun:test'
+import { afterEach, beforeEach, expect, it, spyOn } from 'bun:test'
+import * as reporting from '@shared/observability/reporting'
 import { authStore } from '@shared/auth/auth'
 import { courseRecordServer } from '@shared/api/course-records-test-server'
 import { installCardIndexForTest } from '@shared/cards/card-index'
@@ -106,7 +107,12 @@ it('a failed reload says so and keeps the builder for a retry', async () => {
     (init?.method ?? 'GET') === 'GET'
       ? new Response(null, { status: 503 })
       : server.fetch(input, init)) as typeof fetch
-  await store.submitDeck(['Bear'], [])
+  const report = spyOn(reporting, 'reportDiagnostic').mockImplementation(() => {})
+  try {
+    await store.submitDeck(['Bear'], [])
+  } finally {
+    report.mockRestore()
+  }
   expect(store.snapshot().phase).toBe('deck_build')
   expect(store.snapshot().error).toBe(
     'This course changed in another window. Reloading it failed: The course could not be loaded (503).',

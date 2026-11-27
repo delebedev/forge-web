@@ -2,7 +2,9 @@ import { describe, expect, spyOn, test } from 'bun:test'
 import type { BrowserFailureDiagnostic } from './analytics'
 import * as Sentry from '@sentry/react'
 import {
+  ReportBudget,
   reportBrowserFailure,
+  reportDiagnostic,
   reportGreFailure,
   setReportingContext,
   sanitizeReportingEvent,
@@ -87,29 +89,7 @@ test('allowlists and bounds failure context without retaining payloads', () => {
   expect(JSON.stringify(snapshot)).not.toContain('private text')
 })
 
-/**
- * Report budgets are page-scoped module state that other test files in the same
- * process spend, so budget-sensitive tests rerun alone in a child process.
- * Returns true in the parent once the child has passed.
- */
-function ranInFreshPage(testName: string): boolean {
-  if (process.env['FORGE_WEB_REPORTING_TEST_CHILD'] === '1') {
-    return false
-  }
-  const child = Bun.spawnSync(
-    [process.execPath, 'test', import.meta.path, '--test-name-pattern', testName],
-    {
-      env: { ...process.env, FORGE_WEB_REPORTING_TEST_CHILD: '1' },
-    },
-  )
-  expect(child.exitCode, new TextDecoder().decode(child.stderr)).toBe(0)
-  return true
-}
-
 test('failure details enrich one report per attempt and retain the page budget', () => {
-  if (ranInFreshPage('failure details enrich')) {
-    return
-  }
   const reports: ReturnType<ReturnType<typeof Sentry.getCurrentScope>['getScopeData']>[] = []
   const capture = spyOn(Sentry, 'captureException').mockImplementation(() => {
     reports.push(Sentry.getCurrentScope().getScopeData())
@@ -133,16 +113,23 @@ Caused by: java.lang.ArithmeticException
       matchId: 'test-match',
       gameType: 'constructed',
     } as const
+    const budget = new ReportBudget()
     expect(reports).toHaveLength(0)
-    reportBrowserFailure(error, diagnostic, context, {
-      match_id: 'test-match',
-      execution: 'browser',
-      replay_state: 'failed',
-      replay_ack_seq: 7,
-      replay_failure: 'http',
-      replay_http_status: 503,
-    })
-    reportBrowserFailure(error, diagnostic, context)
+    reportBrowserFailure(
+      error,
+      diagnostic,
+      context,
+      {
+        match_id: 'test-match',
+        execution: 'browser',
+        replay_state: 'failed',
+        replay_ack_seq: 7,
+        replay_failure: 'http',
+        replay_http_status: 503,
+      },
+      budget,
+    )
+    reportBrowserFailure(error, diagnostic, context, undefined, budget)
     expect(reports).toHaveLength(1)
     expect(reports[0]!.fingerprint).toContain('java.lang.ArithmeticException')
     expect(reports[0]!.tags['runtime_loader_version']).toBe('4.3')
@@ -156,7 +143,7 @@ Caused by: java.lang.ArithmeticException
       projection: { grpId: 42, field: 'colors', value: 1 },
     })
     for (const attemptId of ['second', 'third', 'fourth']) {
-      reportBrowserFailure(error, diagnostic, { ...context, attemptId })
+      reportBrowserFailure(error, diagnostic, { ...context, attemptId }, undefined, budget)
     }
     expect(reports).toHaveLength(3)
   } finally {
@@ -191,19 +178,19 @@ test('generic errors retain capture-time match context and exit clears the repor
 })
 
 test('gameplay diagnostics retain the original cause once without inventing a transport stack', () => {
-  if (ranInFreshPage('gameplay diagnostics retain the original cause')) {
-    return
-  }
   const capture = spyOn(Sentry, 'captureException').mockReturnValue('event')
   const message = spyOn(Sentry, 'captureMessage').mockReturnValue('message')
   try {
     const error = new TypeError('Cannot apply frame')
     const context = { phase: 'apply', execution: 'browser', matchId: 'match' } as const
-    reportGreFailure(error, context)
-    reportGreFailure(error, context)
+    const budget = new ReportBudget()
+    const report: typeof reportDiagnostic = (cause, text, tags) =>
+      reportDiagnostic(cause, text, tags, budget)
+    reportGreFailure(error, context, report)
+    reportGreFailure(error, context, report)
     expect(capture).toHaveBeenCalledTimes(1)
     expect(capture.mock.calls[0]?.[0]).toBe(error)
-    reportGreFailure(undefined, { ...context, phase: 'transport', execution: 'browser' })
+    reportGreFailure(undefined, { ...context, phase: 'transport', execution: 'browser' }, report)
     expect(capture).toHaveBeenCalledTimes(1)
     expect(message).toHaveBeenCalledTimes(1)
   } finally {
@@ -213,9 +200,6 @@ test('gameplay diagnostics retain the original cause once without inventing a tr
 })
 
 test('late reports for a retired match cannot borrow replacement match versions', () => {
-  if (ranInFreshPage('late reports for a retired match')) {
-    return
-  }
   setReportingContext({
     match_id: 'new',
     execution: 'browser',
@@ -232,7 +216,12 @@ test('late reports for a retired match cannot borrow replacement match versions'
     return 'event'
   })
   try {
-    reportGreFailure(undefined, { phase: 'transport', execution: 'browser', matchId: 'old' })
+    const budget = new ReportBudget()
+    reportGreFailure(
+      undefined,
+      { phase: 'transport', execution: 'browser', matchId: 'old' },
+      (cause, text, tags) => reportDiagnostic(cause, text, tags, budget),
+    )
     expect(tags['match_id']).toBe('old')
     expect(tags['engine_build']).toBeUndefined()
     expect(tags['replay_ack_seq']).toBeUndefined()
