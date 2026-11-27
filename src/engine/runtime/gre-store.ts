@@ -1280,11 +1280,11 @@ export class GreStore {
         this.dispatch.applyFamilyRequest(message)
         break
       case 6:
-        // Sent to the opponent's seat, which the server plays for us — so this
-        // is not ours to answer and normally never reaches us. The seat list it
-        // carries is the choice being offered, not our seat; reading a seat out
-        // of it makes the client render the wrong player's zones.
-        this.log('ChooseStartingPlayerReq: belongs to the opponent seat')
+        // Sent to the die-roll winner. The match starts without a response, so
+        // the client never answers it. The seat list it carries is the choice
+        // being offered, not our seat; reading a seat out of it makes the
+        // client render the wrong player's zones.
+        this.log('ChooseStartingPlayerReq: not answered by the client')
         break
       case 38:
         // DieRollResults is informational and goes to BOTH seats. Answering it
