@@ -209,6 +209,19 @@ class ReleaseNotesTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 notes.feed('deploy-20', output)
 
+    def test_release_tag_is_created_as_a_ref_before_the_release(self):
+        sha = 'a' * 40
+        missing = notes.subprocess.CalledProcessError(1, ['gh', 'api'])
+        with patch.object(notes, 'api', side_effect=missing), patch.object(notes, 'run') as run:
+            notes.ensure_tag('deploy-9', sha)
+        run.assert_called_once_with('gh', 'api', '--method', 'POST', f'repos/{notes.REPO}/git/refs',
+                                    '-f', 'ref=refs/tags/deploy-9', '-f', f'sha={sha}')
+        with patch.object(notes, 'api', return_value={'object': {'sha': sha}}), patch.object(notes, 'run') as run:
+            notes.ensure_tag('deploy-9', sha)
+        run.assert_not_called()
+        with patch.object(notes, 'api', return_value={'object': {'sha': 'b' * 40}}), self.assertRaises(ValueError):
+            notes.ensure_tag('deploy-9', sha)
+
 
 if __name__ == '__main__':
     unittest.main()
