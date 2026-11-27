@@ -5,6 +5,7 @@ import {
   ZONE_COMMAND,
   ZONE_EXILE,
   ZONE_GRAVEYARD,
+  ZONE_HAND,
   ZONE_LIBRARY,
   type CardView,
   type LegalAction,
@@ -14,7 +15,7 @@ import styles from './NonHandActionRail.module.css'
 
 export type NonHandActionEntry = {
   card: CardView
-  zone: 'Graveyard' | 'Exile' | 'Command zone' | 'Library top'
+  zone: 'Graveyard' | 'Exile' | 'Command zone' | 'Library top' | 'Opponent hand'
   zoneType: number
   actions: LegalAction[]
 }
@@ -40,7 +41,9 @@ function zoneLabel(zoneType: number): NonHandActionEntry['zone'] | null {
         ? 'Command zone'
         : zoneType === ZONE_LIBRARY
           ? 'Library top'
-          : null
+          : zoneType === ZONE_HAND
+            ? 'Opponent hand'
+            : null
 }
 
 export function nonHandActionEntries(board: NonHandActionBoard): NonHandActionEntry[] {
@@ -129,7 +132,9 @@ export function NonHandActionRail({
                     ? 'EX'
                     : entry.zone === 'Library top'
                       ? 'TOP'
-                      : 'CMD'}
+                      : entry.zone === 'Opponent hand'
+                        ? 'OPP'
+                        : 'CMD'}
               </span>
               <Card
                 card={entry.card}

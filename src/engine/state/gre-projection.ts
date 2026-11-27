@@ -106,7 +106,11 @@ export function buildBoardProjection(
       action.zoneType !== ZONE_GRAVEYARD &&
       action.zoneType !== ZONE_EXILE &&
       action.zoneType !== ZONE_LIBRARY &&
-      action.zoneType !== ZONE_COMMAND
+      action.zoneType !== ZONE_COMMAND &&
+      !(
+        action.zoneType === ZONE_HAND &&
+        inOtherPlayersHand(action.instanceId, current.tables, viewerSeatId)
+      )
     ) {
       return []
     }
@@ -169,4 +173,18 @@ export function buildBoardProjection(
       opponentSeatId > 0 ? cardsInZone(tables, ZONE_EXILE, opponentSeatId, actions, cardMeta) : [],
     canPass: passAction(actions) != null,
   }
+}
+
+/** A controlled player's hand card offered to the viewer while they make that player's decisions. */
+function inOtherPlayersHand(
+  instanceId: number,
+  tables: GameState['tables'],
+  viewerSeatId: number,
+): boolean {
+  for (const zone of tables.zones.values()) {
+    if (zone.type === ZONE_HAND && zone.objectInstanceIds.includes(instanceId)) {
+      return zone.ownerSeatId !== viewerSeatId
+    }
+  }
+  return false
 }

@@ -7,6 +7,7 @@ import {
   ZONE_COMMAND,
   ZONE_EXILE,
   ZONE_GRAVEYARD,
+  ZONE_HAND,
   ZONE_LIBRARY,
   ZONE_SIDEBOARD,
   type CardView,
@@ -190,4 +191,24 @@ test('library actions use the existing rail with exact source and casting identi
   expect(html).toContain('TOP')
   expect(html).toContain('data-source-zone="1"')
   expect(html).toContain('Cast Grizzly Bears from library')
+})
+
+test('controlled opponent hand actions use the rail with their source zone', () => {
+  const bears = { ...card(8, 'Grizzly Bears'), controllerSeatId: 2 }
+  const cast = { ...action(8, ZONE_HAND), label: 'Cast Grizzly Bears' }
+  const entries = nonHandActionEntries({ nonHandActionCards: [{ card: bears, action: cast }] })
+  expect(entries).toEqual([
+    { card: bears, zone: 'Opponent hand', zoneType: ZONE_HAND, actions: [cast] },
+  ])
+  const html = renderToStaticMarkup(
+    createElement(NonHandActionRail, {
+      entries,
+      disabled: false,
+      onAction: () => {},
+      onHover: () => {},
+    }),
+  )
+  expect(html).toContain('OPP')
+  expect(html).toContain(`data-source-zone="${ZONE_HAND}"`)
+  expect(html).toContain('Cast Grizzly Bears')
 })
