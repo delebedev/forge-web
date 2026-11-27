@@ -32,20 +32,26 @@ function run(command, args, options = {}) {
 
 export const FORGE_INSTALL_ATTEMPTS = 3
 
-export const MAVEN_CENTRAL_MIRROR_SETTINGS = resolve(import.meta.dirname, 'maven-central-mirror.xml')
+export const MAVEN_CENTRAL_MIRROR_SETTINGS = resolve(
+  import.meta.dirname,
+  'maven-central-mirror.xml',
+)
 
 /**
  * Environment for each Forge install attempt. Every attempt passes -e so a
  * failed resolution prints its cause through -q. Retries pass -U, because Maven
  * otherwise reuses a failed download it recorded in the local repository, and
  * resolve from Google's Central mirror, because a runner that cannot reach
- * repo.maven.apache.org fails every attempt against that host.
+ * repo.maven.apache.org fails every attempt against that host. The mvn launcher
+ * splits MAVEN_ARGS on whitespace, so a settings path containing whitespace
+ * cannot be passed and retries then keep the default repository.
  */
-export function forgeInstallEnvironments(env) {
+export function forgeInstallEnvironments(env, mirrorSettings = MAVEN_CENTRAL_MIRROR_SETTINGS) {
   const args = (...extra) => [env.MAVEN_ARGS, '-e', ...extra].filter(Boolean).join(' ')
+  const mirror = /\s/.test(mirrorSettings) ? [] : ['-gs', mirrorSettings]
   return Array.from({ length: FORGE_INSTALL_ATTEMPTS }, (_, attempt) => ({
     ...env,
-    MAVEN_ARGS: attempt === 0 ? args() : args('-U', '-gs', MAVEN_CENTRAL_MIRROR_SETTINGS),
+    MAVEN_ARGS: attempt === 0 ? args() : args('-U', ...mirror),
   }))
 }
 
