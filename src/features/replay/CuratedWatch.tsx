@@ -67,7 +67,7 @@ export function CuratedWatch({
         <SiteHeader onNavigate={follow}>
           <nav className="site-header-links" aria-label="Main navigation">
             <a href="/play/game" onClick={follow}>
-              Play against AI
+              Play a game
             </a>
           </nav>
         </SiteHeader>

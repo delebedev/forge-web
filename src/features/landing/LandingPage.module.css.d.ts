@@ -5,6 +5,7 @@ declare const styles: {
   readonly "disclaimer": string
   readonly "expand": string
   readonly "expanded": string
+  readonly "guest": string
   readonly "invitation": string
   readonly "main": string
   readonly "match": string

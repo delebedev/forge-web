@@ -58,6 +58,7 @@
 .site-header-links a, .site-header-links button { padding: 10px 0; border: 0; background: none; color: var(--public-text); font: 14px var(--public-body); text-decoration: none; cursor: pointer; }
 .site-header-links a:hover, .site-header-links button:hover { color: var(--public-accent); }
 .site-header-links .site-contact { color: var(--public-accent); }
+.site-header-links .site-optional { color: var(--public-muted); }
 .site-header .nav-link-with-badge { display: inline-flex; align-items: center; gap: 8px; }
 .nav-badge { padding: 2px 5px; border: 1px solid var(--public-accent); border-radius: 3px; color: var(--public-accent); font-size: 10px; font-weight: 700; line-height: 1; letter-spacing: .08em; text-transform: uppercase; }
 .nav-badge[data-complete='true'] { border-color: var(--public-line); color: var(--public-muted); }

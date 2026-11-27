@@ -31,6 +31,7 @@ const EVENTS = {
   WHATS_NEW_OPENED: 'whats-new-opened',
   WHATS_NEW_CLOSED: 'whats-new-closed',
   DISCORD_CLICK: 'discord-click',
+  PLAY_WITHOUT_ACCOUNT: 'play-without-account',
 } as const
 
 export type BrowserAnalyticsContext = {
@@ -557,6 +558,11 @@ export type DiscordPlacement = 'post-game' | 'whats-new' | 'bug-report'
 
 export function trackDiscordClick(placement: DiscordPlacement): void {
   track(EVENTS.DISCORD_CLICK, { placement })
+}
+
+/** A visitor on the sign-in screen chose to play without an account. */
+export function trackPlayWithoutAccount(): void {
+  track(EVENTS.PLAY_WITHOUT_ACCOUNT, { source: 'login' })
 }
 
 export function trackChallengeEvent(props: {

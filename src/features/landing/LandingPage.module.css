@@ -21,4 +21,9 @@
 .back:hover { color: var(--public-text); }
 
 
+.guest { display: grid; gap: 12px; max-width: 370px; margin: 28px 0 0; padding-top: 24px; border-top: 1px solid var(--public-line); }
+.guest p { margin: 0; color: var(--public-muted); font-size: 14px; }
+.guest a { display: flex; align-items: center; justify-content: center; min-height: 48px; border: 1px solid var(--public-line); border-radius: var(--public-radius); color: var(--public-text); font: 600 14px var(--public-body); text-decoration: none; }
+.guest a:hover { border-color: var(--public-accent); color: var(--public-accent); }
+
 .disclaimer { max-width: 34ch; margin: 32px 0 0; color: var(--public-muted); font-size: 11px; line-height: 1.5; }

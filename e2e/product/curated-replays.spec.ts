@@ -120,7 +120,7 @@ test('full games rotate after the outcome, pause while hidden, and stop on unmou
     `/play/game?replay=${next.id}`,
   )
   await expect.poll(() => requests).toEqual([first.url, next.url])
-  await page.getByRole('link', { name: 'Play against AI' }).click()
+  await page.getByRole('link', { name: 'Play a game' }).click()
   await expect(page.getByRole('heading', { name: 'What are you playing?' })).toBeVisible()
   await expect(page.getByRole('region', { name: 'Continuous gameplay' })).toHaveCount(0)
   await expect(page.getByRole('main', { name: 'Continuous gameplay' })).toHaveCount(0)

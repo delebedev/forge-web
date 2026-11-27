@@ -10,6 +10,7 @@ import styles from './LandingPage.module.css'
 import { dailyBrowserChallengePath } from '@features/challenges/browser-challenges'
 import { productionFeedbackEnabled } from '@shared/feedback'
 import { hasCompletedDailyPuzzle } from '@features/challenges/daily-progress'
+import { trackPlayWithoutAccount } from '@shared/observability/analytics'
 
 /** One public shell keeps the replay mounted through landing, login and About. */
 export function LandingPage({
@@ -76,8 +77,8 @@ export function LandingPage({
             {showingAbout ? 'Back to table' : 'About'}
           </a>
           {!signingIn && auth.ready && !auth.isAuthenticated && (
-            <a href="/login" onClick={follow}>
-              Sign in
+            <a className="site-optional" href="/login" onClick={follow}>
+              Sign in to save decks
             </a>
           )}
         </nav>
@@ -105,15 +106,27 @@ export function LandingPage({
                 the roadmap. Enter your email and we’ll send you a sign-in code.
               </p>
               {login}
+              <div className={styles.guest}>
+                <p>No account needed to play.</p>
+                <a
+                  href="/play/game"
+                  onClick={(event) => {
+                    trackPlayWithoutAccount()
+                    follow(event)
+                  }}
+                >
+                  Play without an account
+                </a>
+              </div>
             </>
           ) : (
             <>
               <h1 id="entry-title">Play your next game.</h1>
               <p className={styles.description}>
-                Choose a deck or bring your own. Play against AI, right in your browser.
+                Pick a ready-made deck or bring your own. Free in your browser, no account needed.
               </p>
               <a className="public-primary" href="/play/game" onClick={follow}>
-                Play against AI
+                Play a game
               </a>
             </>
           )}
