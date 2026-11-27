@@ -20,7 +20,7 @@ jobs:
       github.event.pull_request.head.repo.full_name == github.repository &&
       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association)
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 30
     permissions:
       contents: read
       pull-requests: write
@@ -31,7 +31,7 @@ jobs:
           persist-credentials: false
 
       - id: start
-        name: Record the reviewed head and repository guidance
+        name: Record the review start and the reviewed head
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
@@ -40,33 +40,25 @@ jobs:
           echo "at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
           # `gh pr diff` reads the current head, which may be newer than the labelled one.
           echo "head=$(gh pr view "$PR" --repo "$REPO" --json headRefOid --jq .headRefOid)" >> "$GITHUB_OUTPUT"
-          cat > "$RUNNER_TEMP/review-guidance.md" <<'EOF'
-          Repository guidance for this pull request review:
-          - The root REVIEW.md defines what blocks a merge and what not to report. Read it before judging findings.
-          - Read the pull request description with `gh pr view` and check its claims against the diff.
-          - Report only problems this change introduces or makes worse; post no pre-existing findings.
-          - Pass `confirmed: true` to the inline comment tool, and start each comment with its severity: `Important:` or `Nit:`.
-          - End the final reply with the line `Guidance: applied`.
-          EOF
 
       - id: review
         uses: anthropics/claude-code-action@4411a9e9b0283becf4b924f7bce360fd7756c78c # v1.0.290
         # Below the job limit, so a review that runs long still gets an INCOMPLETE verdict.
-        timeout-minutes: 35
+        timeout-minutes: 20
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           # The job token posts the review, so no GitHub App or OIDC exchange is needed.
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          # `max` fans finder angles out to subagents, verifies each candidate and
-          # sweeps for misses; lower levels review in a single context without a
-          # verify pass. The subagent tool is `Agent` (`Task` in older builds).
-          prompt: /code-review max --comment ${{ github.event.pull_request.number }}
+          # `high` is the level Claude Code tunes for this model. `max` adds finder
+          # subagents and a verify pass at about fifty times the cost and twenty
+          # times the duration. The review takes its criteria from REVIEW.md
+          # through AGENTS.md, which every review agent loads.
+          prompt: /code-review high --comment ${{ github.event.pull_request.number }}
           claude_args: |
             --model claude-opus-5-5
-            --max-turns 120
+            --max-turns 80
             --permission-mode dontAsk
-            --allowedTools "Agent,Task,Read,Glob,Grep,Bash(gh pr diff:*),Bash(gh pr view:*),mcp__github_inline_comment__create_inline_comment"
-            --append-system-prompt-file ${{ runner.temp }}/review-guidance.md
+            --allowedTools "Read,Glob,Grep,Bash(gh pr diff:*),Bash(gh pr view:*),mcp__github_inline_comment__create_inline_comment"
 
       - name: Post the verdict
         if: ${{ !cancelled() && steps.start.outcome == 'success' }}
@@ -94,7 +86,7 @@ jobs:
           important=$(jq -r '.[] | select(.body | test("^\\W*Important"; "i"))
             | "- `\(.path):\(.line // .original_line)` \(.body | sub("^\\W*Important\\W*"; ""; "i") | split("\n")[0] | .[0:160])"' findings.json)
           # A finding the review could not anchor to a changed line stays in its result text.
-          if [ -z "$important" ] && jq -e '.result // "" | test("🔴|\"severity\"\\s*:\\s*\"important\"|(^|\\n)\\W*Important:"; "i")' <<<"$result" >/dev/null; then
+          if [ -z "$important" ] && jq -e '.result // "" | test("🔴|\"severity\"\\s*:\\s*\"important\"")' <<<"$result" >/dev/null; then
             important="- Important findings did not post inline; see this run's summary."
           fi
 
