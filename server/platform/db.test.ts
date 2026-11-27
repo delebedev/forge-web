@@ -42,7 +42,7 @@ describe('migrate', () => {
     // Checksums Flyway computed for the same scripts.
     expect(migrationScripts.map((script) => flywayChecksum(script.sql))).toEqual([
       -804907241, -1746738572, -774043303, -1843266107, -1295234804, 874364225, 1613305339,
-      -1503855439, -410657886, -107026384, -1786531358,
+      -1503855439, -410657886, -107026384, -601604119,
     ])
     expect(db.query('SELECT COUNT(*) AS n FROM roadmap_items').get()).toEqual({ n: 6 })
     expect(db.query('PRAGMA foreign_keys').get()).toEqual({ foreign_keys: 1 })
@@ -69,10 +69,13 @@ describe('migrate', () => {
     db.close()
   })
 
-  test('a database at an older version applies only the newer scripts', () => {
+  test('a database at an older version applies only the newer scripts and keeps match_outcomes', () => {
     const db = new Database(':memory:')
     migrate(db, migrationScripts.slice(0, 10))
     db.run("INSERT INTO decks (deck_id, player_id, name) VALUES ('d1', 'p1', 'Kept')")
+    db.run(
+      "INSERT INTO match_outcomes (match_id, started_at, release, mode, public_match) VALUES ('m1', '2026-11-25T14:52:56Z', 'r1', 'play', 0)",
+    )
     migrate(db)
     const rows = db
       .query(
@@ -83,11 +86,14 @@ describe('migrate', () => {
     expect(rows.at(-1)).toEqual({
       installed_rank: 11,
       version: '11',
-      script: 'V11__drop_match_outcomes.sql',
+      script: 'V11__keep_match_outcomes.sql',
     })
     expect(
       db.query("SELECT COUNT(*) AS n FROM sqlite_master WHERE name = 'match_outcomes'").get(),
-    ).toEqual({ n: 0 })
+    ).toEqual({ n: 1 })
+    expect(db.query('SELECT match_id, release, mode FROM match_outcomes').all()).toEqual([
+      { match_id: 'm1', release: 'r1', mode: 'play' },
+    ])
     expect(db.query('SELECT name FROM decks').all()).toEqual([{ name: 'Kept' }])
   })
 
