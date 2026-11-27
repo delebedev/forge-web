@@ -111,9 +111,13 @@ test('public navigation preserves the replay through sign-in, About and expansio
     .elementHandle()
   expect(table).not.toBeNull()
   await expect(page.getByRole('region', { name: 'Battlefield', exact: true })).toBeVisible()
-  await page.getByRole('link', { name: 'Sign in', exact: true }).click()
+  await page.getByRole('link', { name: 'Sign in to save decks', exact: true }).click()
   await expect(page.getByTestId('auth-email')).toBeVisible()
   await expect(page.getByRole('link', { name: 'Back', exact: true })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Play without an account' })).toHaveAttribute(
+    'href',
+    '/play/game',
+  )
   expect(await table!.evaluate((node) => node.isConnected)).toBe(true)
   await page.getByRole('link', { name: 'About', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'A seat at the table. Any time.' })).toBeVisible()
@@ -128,7 +132,7 @@ test('public navigation preserves the replay through sign-in, About and expansio
   await expect(page.getByRole('heading', { name: 'Play your next game.' })).toBeHidden()
   expect(await table!.evaluate((node) => node.isConnected)).toBe(true)
   await page.getByRole('button', { name: 'Back to landing', exact: true }).click()
-  await expect(page.getByRole('link', { name: 'Play against AI', exact: true })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Play a game', exact: true })).toBeVisible()
 })
 
 test('replay download failure does not block sign-in', async ({ page }) => {
@@ -137,7 +141,7 @@ test('replay download failure does not block sign-in', async ({ page }) => {
   )
   await page.goto('/')
   await expect(page.getByRole('alert')).toContainText(/could not be loaded/)
-  await page.getByRole('link', { name: 'Sign in', exact: true }).click()
+  await page.getByRole('link', { name: 'Sign in to save decks', exact: true }).click()
   await expect(page.getByTestId('auth-email')).toBeEnabled()
 })
 
@@ -155,7 +159,7 @@ test('a player without an account plays from the landing page and uploads the re
     { timeout: 120_000 },
   )
   await page.goto('/')
-  await page.getByRole('link', { name: 'Play against AI', exact: true }).click()
+  await page.getByRole('link', { name: 'Play a game', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'What are you playing?' })).toBeVisible()
   await expect(page.getByRole('link', { name: 'Sign in', exact: true })).toBeVisible()
   await localStart(page).click()
@@ -541,7 +545,7 @@ test('return to game resumes a local match and stays hidden after leaving and wa
   await expect(page.getByRole('link', { name: 'Return to game' })).toHaveCount(0)
   await page.getByRole('link', { name: 'Forge Web home' }).click()
   await expect(page.getByRole('region', { name: 'Continuous gameplay' })).toBeVisible()
-  await page.getByRole('link', { name: 'Play against AI', exact: true }).click()
+  await page.getByRole('link', { name: 'Play a game', exact: true }).click()
   await expect(page.getByRole('link', { name: 'Return to game' })).toHaveCount(0)
 })
 

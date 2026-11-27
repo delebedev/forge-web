@@ -72,12 +72,11 @@ export function EntryDirections({ login }: { login: ReactNode }) {
                 <p className="entry-description">
                   <>
                     Bring your favorite deck to the table.
-                    <br className="entry-desktop-break" /> Play against AI, whenever you feel like
-                    it.
+                    <br className="entry-desktop-break" /> Play a game, whenever you feel like it.
                   </>
                 </p>
                 <a className="entry-play" href={href('login')}>
-                  Play against AI{' '}
+                  Play a game{' '}
                   <svg viewBox="0 0 20 20" aria-hidden="true">
                     <path d="m7 4 6 6-6 6" fill="none" stroke="currentColor" strokeWidth="1.6" />
                   </svg>

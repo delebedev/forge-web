@@ -124,6 +124,7 @@ and lines, stays in the dialog.
 | `whats-new-opened`                                                                                        | `source` (`landing`, `header`, or `auto`), `latest_date` (ISO publication date or empty)                                                                                     |
 | `whats-new-closed`                                                                                        | `source` (`landing`, `header`, or `auto`), `latest_date` from that opening                                                                                                   |
 | `discord-click` | `placement` (`post-game`, `whats-new`, or `bug-report`) |
+| `play-without-account`                                                                                    | `source` (`login`)                                                                                                                                                           |
 | `challenge-opened`, `challenge-restart`, `challenge-first-action`, `challenge-solved`, `challenge-failed` | Bounded `challengeId`; first action includes numeric `actionType`, terminal events include `result`                                                                          |
 
 Generated puzzle UUIDs use the `generated` challenge ID in these events; the
