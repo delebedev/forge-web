@@ -1,11 +1,16 @@
 import { readFileSync } from 'node:fs'
 import type { Page } from '@playwright/test'
-import { waitForBrowserGameReady } from './gre-test'
+import { appLoaded, enterWarmApp, waitForBrowserGameReady } from './gre-test'
 
 /** Set up the real runtime; all scenario actions remain visible browser input. */
 export async function startScenario(page: Page, name: string, seed?: number): Promise<void> {
   const text = readFileSync(new URL(`../fixtures/${name}.pzl`, import.meta.url), 'utf8')
-  await page.goto('/play/game?traffic=smoke')
+  // A loaded app starts the match in place and keeps its engine.
+  if (await appLoaded(page)) {
+    await enterWarmApp(page)
+  } else {
+    await page.goto('/play/game?traffic=smoke')
+  }
   await page.evaluate(
     async ({ name, text, seed }) => {
       const modulePath = '/src/engine/runtime/gre-session.ts'

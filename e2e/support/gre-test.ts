@@ -1,4 +1,12 @@
-import { expect, test as base, type Page, type TestInfo } from '@playwright/test'
+import {
+  expect,
+  test as base,
+  type Browser,
+  type BrowserContext,
+  type BrowserContextOptions,
+  type Page,
+  type TestInfo,
+} from '@playwright/test'
 import { existsSync, readFileSync } from 'node:fs'
 import type { GreDebugResult, GreDebugWindow } from '../../src/engine/debug/gre-debug-contract'
 
@@ -6,7 +14,148 @@ type GreHarness = {
   start(config: Parameters<GreDebugWindow['__greStart']>[0]): Promise<GreDebugResult>
 }
 
-export const test = base.extend<{ gre: GreHarness }>({
+type WarmPage = { context: BrowserContext; page: Page }
+
+type WorkerFixtures = {
+  /** Engine suites keep one page, and so one booted engine, per Playwright worker. */
+  warmEngine: boolean
+  warmPage: { current: WarmPage | null }
+}
+
+// Page events a test may subscribe to; listeners it adds leave with it.
+const TEST_EVENTS = [
+  'console',
+  'dialog',
+  'download',
+  'pageerror',
+  'popup',
+  'request',
+  'requestfailed',
+  'requestfinished',
+  'response',
+  'websocket',
+  'worker',
+] as const
+
+const TEST_COOKIE = 'forge-e2e-test'
+
+// Page is an event emitter at runtime; its typings list only the typed overloads.
+type Emitter = {
+  listeners(event: string): unknown[]
+  off(event: string, listener: unknown): unknown
+}
+
+async function openWarmPage(browser: Browser, testInfo: TestInfo): Promise<WarmPage> {
+  const use = testInfo.project.use
+  const options: BrowserContextOptions = {
+    baseURL: use.baseURL,
+    viewport: use.viewport,
+    deviceScaleFactor: use.deviceScaleFactor,
+    colorScheme: use.colorScheme,
+  }
+  const context = await browser.newContext(options)
+  return { context, page: await context.newPage() }
+}
+
+/** An init script that runs only for the test that registered it. */
+function scopedInitScript(testId: string, script: unknown, arg: unknown): string {
+  const source =
+    typeof script === 'function'
+      ? `(${script.toString()})(${arg === undefined ? '' : JSON.stringify(arg)})`
+      : typeof script === 'string'
+        ? script
+        : null
+  if (source === null) {
+    throw new Error('Warm pages accept init scripts as functions or source text')
+  }
+  return `if (document.cookie.split('; ').includes(${JSON.stringify(`${TEST_COOKIE}=${testId}`)})) { ${source} }`
+}
+
+/** Whether the page already runs the app, so a match can start without reloading it. */
+export async function appLoaded(page: Page): Promise<boolean> {
+  if (!/^https?:/.test(page.url())) {
+    return false
+  }
+  // A test may replace the document with setContent, which keeps the old window globals.
+  return page
+    .evaluate(
+      () =>
+        typeof window.__greState === 'function' &&
+        (document.getElementById('app')?.childElementCount ?? 0) > 0,
+    )
+    .catch(() => false)
+}
+
+export const test = base.extend<{ gre: GreHarness }, WorkerFixtures>({
+  warmEngine: [false, { option: true, scope: 'worker' }],
+  warmPage: [
+    // eslint-disable-next-line no-empty-pattern
+    async ({}, use) => {
+      const holder: { current: WarmPage | null } = { current: null }
+      await use(holder)
+      await holder.current?.context.close()
+    },
+    { scope: 'worker' },
+  ],
+  // A warm test reuses the worker's page, and with it the booted engine. Matches start
+  // in place, and each test still gets fresh cookies, storage, routes and listeners.
+  // Tests tagged @cold keep their own page, so the first boot stays covered.
+  page: async ({ page, browser, warmEngine, warmPage }, use, testInfo) => {
+    if (!warmEngine || testInfo.tags.includes('@cold')) {
+      await use(page)
+      return
+    }
+    warmPage.current ??= await openWarmPage(browser, testInfo)
+    const { context, page: shared } = warmPage.current
+    const baseURL = testInfo.project.use.baseURL!
+    const viewport = testInfo.project.use.viewport
+    if (viewport) {
+      await shared.setViewportSize(viewport)
+    }
+    await shared.emulateMedia({
+      colorScheme: testInfo.project.use.colorScheme ?? null,
+      media: null,
+    })
+    await context.clearCookies()
+    await context.addCookies([{ name: TEST_COOKIE, value: testInfo.testId, url: baseURL }])
+    if (await appLoaded(shared)) {
+      await shared.evaluate((keep) => {
+        const kept = sessionStorage.getItem(keep)
+        localStorage.clear()
+        sessionStorage.clear()
+        if (kept !== null) {
+          sessionStorage.setItem(keep, kept)
+        }
+      }, 'forgeweb:telemetry:test')
+    }
+    const emitter = shared as unknown as Emitter
+    const listeners = new Map(TEST_EVENTS.map((event) => [event, emitter.listeners(event)]))
+    const addInitScript = shared.addInitScript.bind(shared)
+    shared.addInitScript = (async (script: unknown, arg?: unknown) => {
+      const source = scopedInitScript(testInfo.testId, script, arg)
+      await addInitScript(source)
+      if (await appLoaded(shared)) {
+        await shared.evaluate(source)
+      }
+    }) as Page['addInitScript']
+    try {
+      await use(shared)
+    } finally {
+      shared.addInitScript = addInitScript
+      await shared.unrouteAll({ behavior: 'ignoreErrors' })
+      for (const [event, before] of listeners) {
+        for (const listener of emitter.listeners(event)) {
+          if (!before.includes(listener)) {
+            emitter.off(event, listener)
+          }
+        }
+      }
+      if (testInfo.status !== testInfo.expectedStatus) {
+        warmPage.current = null
+        await context.close()
+      }
+    }
+  },
   gre: async ({ page }, use, testInfo) => {
     const browserErrors: string[] = []
     page.on('console', (message) => {
@@ -64,8 +213,68 @@ export function promptZone(page: Page) {
   return page.locator('[data-prompt]')
 }
 
+/**
+ * Readies a loaded app for the next match as a player leaving one would: back on the
+ * setup route, so the match screen mounts fresh, with session and preferences re-read.
+ */
+export async function enterWarmApp(page: Page): Promise<void> {
+  // The session first, so the setup route loads the current test's account.
+  await refreshAppState(page)
+  await page.evaluate(async () => {
+    const routerPath = '/src/shared/router.tsx'
+    const { reactNavigate } = await import(routerPath)
+    reactNavigate('/play/game?traffic=smoke')
+  })
+  await page.waitForURL(/\/play\/game/, { timeout: 20_000 })
+  await expect(page.getByRole('region', { name: 'Battlefield', exact: true })).toHaveCount(0)
+}
+
+/**
+ * Re-reads the session and the preferences the app caches at load, so the cookies and
+ * storage a warm test reset or set apply to its match. On a fresh page this reads the
+ * same values the app just loaded.
+ */
+export async function refreshAppState(page: Page): Promise<void> {
+  await page.evaluate(async () => {
+    const authPath = '/src/shared/auth/auth.ts'
+    const boardViewPath = '/src/features/match/board/board-view.ts'
+    const audioPath = '/src/features/match/board/audio.ts'
+    const [{ authStore }, { boardView }, { boardAudio }] = await Promise.all([
+      import(authPath),
+      import(boardViewPath),
+      import(audioPath),
+    ])
+    boardView.reload()
+    boardAudio.reload()
+    await authStore.refresh()
+  })
+}
+
+/** Starts a Leyline puzzle; a loaded app starts it in place and keeps its engine. */
 export async function startPuzzleGame(page: Page, puzzle: string): Promise<void> {
-  await page.goto(`/dev/puzzle/${encodeURIComponent(puzzle)}`)
+  if (await appLoaded(page)) {
+    await enterWarmApp(page)
+    await page.evaluate(async (puzzleId) => {
+      const challengePath = '/src/features/challenges/model/challenge.ts'
+      const launchPath = '/src/engine/runtime/gre-launch.ts'
+      const sessionPath = '/src/engine/runtime/gre-session.ts'
+      const [{ fetchDevPuzzle }, { puzzleToGreStartConfig }, { greSession }] = await Promise.all([
+        import(challengePath),
+        import(launchPath),
+        import(sessionPath),
+      ])
+      const content = await fetchDevPuzzle(puzzleId)
+      if (!content) {
+        throw new Error(`Puzzle content is unavailable: ${puzzleId}`)
+      }
+      greSession.startBrowser({
+        ...puzzleToGreStartConfig(puzzleId, content.challenge),
+        puzzleText: content.text,
+      })
+    }, puzzle)
+  } else {
+    await page.goto(`/dev/puzzle/${encodeURIComponent(puzzle)}`)
+  }
   await page.waitForURL(/\/match\/puzzle/, { timeout: 20_000 })
   await waitForBrowserGameReady(page)
 }
