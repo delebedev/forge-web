@@ -73,6 +73,9 @@ describe('migrate', () => {
     const db = new Database(':memory:')
     migrate(db, migrationScripts.slice(0, 10))
     db.run("INSERT INTO decks (deck_id, player_id, name) VALUES ('d1', 'p1', 'Kept')")
+    db.run(
+      "INSERT INTO match_outcomes (match_id, started_at, release, mode, public_match) VALUES ('m1', '2026-11-25T14:52:56Z', 'r1', 'play', 0)",
+    )
     migrate(db)
     const rows = db
       .query(
@@ -88,6 +91,9 @@ describe('migrate', () => {
     expect(
       db.query("SELECT COUNT(*) AS n FROM sqlite_master WHERE name = 'match_outcomes'").get(),
     ).toEqual({ n: 1 })
+    expect(db.query('SELECT match_id, release, mode FROM match_outcomes').all()).toEqual([
+      { match_id: 'm1', release: 'r1', mode: 'play' },
+    ])
     expect(db.query('SELECT name FROM decks').all()).toEqual([{ name: 'Kept' }])
   })
 
