@@ -14,17 +14,19 @@ export function OptionalActionPrompt({
     <div className={styles.promptFooter}>
       <button
         className={cx(styles.target, styles.done)}
+        data-optional-response="yes"
         onClick={() => void controls?.respond(true)}
         disabled={!controls || view.waiting}
       >
-        {view.paymentCost ? 'Pay' : 'Accept'}
+        {view.choiceLabels?.accept ?? (view.paymentCost ? 'Pay' : 'Accept')}
       </button>
       <button
         className={styles.target}
+        data-optional-response="no"
         onClick={() => void controls?.respond(false)}
         disabled={!controls || view.waiting}
       >
-        {view.paymentCost ? 'Don’t pay' : 'Decline'}
+        {view.choiceLabels?.decline ?? (view.paymentCost ? 'Don’t pay' : 'Decline')}
       </button>
     </div>
   )

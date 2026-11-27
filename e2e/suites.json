@@ -36,6 +36,7 @@
     "e2e/match/gre-triggered-payment.spec.ts",
     "e2e/match/gre-protection-mixed.spec.ts",
     "e2e/match/gre-proliferate.spec.ts",
+    "e2e/match/gre-fabricate.spec.ts",
     "e2e/match/gre-facedown-projection.spec.ts",
     "e2e/match/gre-lost-keywords.spec.ts",
     "e2e/match/gre-hand-reach.spec.ts"

@@ -202,6 +202,49 @@ test('optional actions prefer localized ability text and retain source context',
   })
 })
 
+test('a granted Fabricate trigger names the counter and Servo outcomes', () => {
+  const fabricateTables: GreTables = {
+    objects: new Map([
+      [100, { instanceId: 100, type: 1, grpId: 42 }],
+      [101, { instanceId: 101, type: 3, grpId: 900, parentId: 100 }],
+    ]),
+    zones: new Map(),
+    players: new Map(),
+  }
+  const fabricate = (keyword: string) =>
+    new Map<number, CardMeta>([
+      [42, { grpId: 42, name: 'Bear' }],
+      [
+        43,
+        {
+          grpId: 43,
+          name: 'Granting card',
+          abilities: { 900: { keyword, text: 'Fabricate reminder text.' } },
+        },
+      ],
+    ])
+  const request = { optionalActionMessage: { sourceId: 101 } }
+
+  expect(optionalActionPresentation(request, fabricateTables, fabricate('Fabricate 1'))).toEqual({
+    title: 'Fabricate 1 for Bear',
+    detail: 'Put a +1/+1 counter on Bear, or create a 1/1 Servo.',
+    choiceLabels: { accept: '+1/+1 counter', decline: 'Servo' },
+  })
+  expect(
+    optionalActionPresentation(request, fabricateTables, fabricate('Fabricate 2')).choiceLabels,
+  ).toEqual({ accept: '2 +1/+1 counters', decline: '2 Servos' })
+  expect(
+    optionalActionPresentation(
+      { optionalActionMessage: { sourceId: 100 } },
+      fabricateTables,
+      fabricate('Fabricate 1'),
+    ),
+  ).toEqual({
+    title: 'Optional action for Bear',
+    detail: "Choose whether to use Bear's optional effect.",
+  })
+})
+
 test('modal projection exposes additional costs, exclusions, and payable subsets', () => {
   const request = {
     ctoId: 9,

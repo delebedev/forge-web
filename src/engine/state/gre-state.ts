@@ -499,6 +499,8 @@ export type OptionalActionPromptView = PromptPresentation & {
   kind: 'optionalAction'
   result: string
   paymentCost?: string
+  /** Replaces Accept and Decline when the effect names both outcomes. */
+  choiceLabels?: { accept: string; decline: string }
 }
 export type PromptView =
   | DamagePromptView
