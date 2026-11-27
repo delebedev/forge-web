@@ -13,6 +13,7 @@ declare const styles: {
   readonly "stackLabel": string
   readonly "stackPanel": string
   readonly "stackSlot": string
+  readonly "targets": string
   readonly "topCard": string
 }
 
