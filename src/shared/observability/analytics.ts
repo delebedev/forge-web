@@ -30,6 +30,7 @@ const EVENTS = {
   BUG_REPORT_OPENED: 'bug-report-opened',
   WHATS_NEW_OPENED: 'whats-new-opened',
   WHATS_NEW_CLOSED: 'whats-new-closed',
+  DISCORD_CLICK: 'discord-click',
 } as const
 
 export type BrowserAnalyticsContext = {
@@ -550,6 +551,12 @@ export function trackWhatsNewClosed(props: {
   latestDate: string
 }): void {
   track(EVENTS.WHATS_NEW_CLOSED, { source: props.source, latest_date: props.latestDate })
+}
+
+export type DiscordPlacement = 'post-game' | 'whats-new' | 'bug-report'
+
+export function trackDiscordClick(placement: DiscordPlacement): void {
+  track(EVENTS.DISCORD_CLICK, { placement })
 }
 
 export function trackChallengeEvent(props: {

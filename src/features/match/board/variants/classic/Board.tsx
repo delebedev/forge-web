@@ -15,6 +15,7 @@ import type { PresentationMotionKind } from '@engine/state/presentation-policy'
 import { legalActionKey } from '@engine/state/gre-state'
 import type { BoardSnapshot } from '@engine/runtime/snapshot'
 import { cx } from '@shared/react/cx'
+import { discordLinkProps } from '@shared/community'
 import { BoardConnectionDetails } from '@features/match/board/BoardConnectionDetails'
 import { PromptDock } from '../../../prompts/PromptDock'
 import { ActionButton } from '../../ActionButton'
@@ -430,6 +431,9 @@ export function Board({
                 )}
               </div>
             )}
+            <a className={styles.outcomeCommunity} {...discordLinkProps('post-game')}>
+              Questions or ideas? Join the Discord ↗
+            </a>
           </dialog>
         </div>
       )}
@@ -446,6 +450,15 @@ export function Board({
             title="Report a bug (opens in a new tab)"
           >
             Report a bug ↗
+          </a>
+        )}
+        {!replay && interactive && bugReport && (
+          <a
+            className={styles.reportBug}
+            {...discordLinkProps('bug-report')}
+            title="Community Discord (opens in a new tab)"
+          >
+            Discord ↗
           </a>
         )}
         {!replay && context && onPlayAgain && !board.gameOver && (

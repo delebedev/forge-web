@@ -1,5 +1,6 @@
 declare const styles: {
   readonly "body": string
+  readonly "community": string
   readonly "date": string
   readonly "empty": string
   readonly "entry": string
