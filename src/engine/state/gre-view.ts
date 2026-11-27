@@ -21,7 +21,10 @@ export type OptionalActionPresentation = {
   title: string
   detail: string
   paymentCost?: string
+  choiceLabels?: OptionalActionChoiceLabels
 }
+
+export type OptionalActionChoiceLabels = { accept: string; decline: string }
 
 const CARD_MECHANIC_ZONE_TRANSFER = 22
 const CARD_MECHANIC_EXPLORE = 46
@@ -41,10 +44,14 @@ export function optionalActionPresentation(
   const card = source?.parentId ? tables.objects.get(source.parentId) : source
   const meta = cardMeta.get(card?.grpId ?? 0)
   const sourceName = meta?.name ?? ''
-  const abilityText =
+  // A granted ability is described by the card that grants it, not by the card it is on.
+  const ability =
     source?.type === GAME_OBJECT_TYPE_ABILITY
-      ? meta?.abilities?.[source.grpId ?? 0]?.text
+      ? (meta?.abilities?.[source.grpId ?? 0] ??
+        Array.from(cardMeta.values()).find((entry) => entry.abilities?.[source.grpId ?? 0])
+          ?.abilities?.[source.grpId ?? 0])
       : undefined
+  const abilityText = ability?.text
   const recipientName = asArray(request['recipientIds'])
     .map(asNumber)
     .filter((id) => id > 0)
@@ -69,6 +76,11 @@ export function optionalActionPresentation(
     }
   }
 
+  const fabricate = fabricatePresentation(ability?.keyword, sourceName)
+  if (fabricate) {
+    return fabricate
+  }
+
   return {
     title: sourceName ? `Optional action for ${sourceName}` : 'Optional action',
     detail:
@@ -77,6 +89,30 @@ export function optionalActionPresentation(
       (sourceName
         ? `Choose whether to use ${sourceName}'s optional effect.`
         : 'Choose whether to continue this optional effect.'),
+  }
+}
+
+/**
+ * Fabricate's optional action accepts the +1/+1 counters; declining creates the Servos.
+ */
+function fabricatePresentation(
+  keyword: string | null | undefined,
+  sourceName: string,
+): OptionalActionPresentation | null {
+  const amount = Number(/^Fabricate (\d+)$/.exec(keyword ?? '')?.[1] ?? 0)
+  if (amount < 1) {
+    return null
+  }
+  const subject = sourceName || 'this creature'
+  const counters = amount === 1 ? 'a +1/+1 counter' : `${amount} +1/+1 counters`
+  const servos = amount === 1 ? 'a 1/1 Servo' : `${amount} 1/1 Servos`
+  return {
+    title: sourceName ? `Fabricate ${amount} for ${sourceName}` : `Fabricate ${amount}`,
+    detail: `Put ${counters} on ${subject}, or create ${servos}.`,
+    choiceLabels: {
+      accept: amount === 1 ? '+1/+1 counter' : `${amount} +1/+1 counters`,
+      decline: amount === 1 ? 'Servo' : `${amount} Servos`,
+    },
   }
 }
 

@@ -424,7 +424,16 @@ async function executePrompt(
       )
       return promptButton(page, proposal, expected, 'Submit search', actions)
     case 'optional_action':
-      return promptButton(page, proposal, expected, proposal.accept ? 'Accept' : 'Decline', actions)
+      return click(
+        page,
+        expected,
+        page.locator(
+          `[data-prompt] button[data-optional-response="${proposal.accept ? 'yes' : 'no'}"]`,
+        ),
+        `optional:${proposal.accept ? 'yes' : 'no'}`,
+        proposal.intent,
+        actions,
+      )
     case 'keep_hand':
       return promptButton(page, proposal, expected, 'Keep hand', actions)
     case 'cancel':

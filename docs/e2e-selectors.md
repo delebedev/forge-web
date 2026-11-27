@@ -58,6 +58,7 @@ so they survive restyling and recomposition.
 | `data-replacement-effect-id` | Replacement choice control | GRE replacement effect id |
 | `data-option-type` | Casting option control | GRE casting option type |
 | `data-option-index` | Prompt option | Engine option index |
+| `data-optional-response` | Optional action control | `yes` or `no`, the response the control sends |
 | `data-recipient` | Attack option | Damage recipient identity: `type:teamId:playerSystemSeatId:planeswalkerInstanceId` |
 | `data-outcome` | Match outcome banner | `win`, `loss`, `draw` |
 | `data-card-art` | Board root | `on` or `off`, from the viewer artwork preference |

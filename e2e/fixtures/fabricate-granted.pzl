@@ -1,0 +1,23 @@
+# Design Narrative
+# Mechanic: Cayth grants Fabricate 1 to another nontoken creature as it enters.
+# Forcing: Grizzly Bears is the only spell; Cayth is the only Fabricate source on the battlefield.
+# AI behavior: No opposing hand or board decisions compete with resolution.
+# Failure modes: A prompt without the counter-or-Servo outcomes, a wrong outcome, or stale priority fails the flow.
+# Card roles: Cayth grants Fabricate; Grizzly Bears enters; two Forests pay; Forest in hand proves continued play.
+# Protocol path: Fabricate trigger on the stack, OptionalActionMessage naming it, counter or Servo, fresh legal actions.
+[metadata]
+Name:Granted Fabricate
+Goal:Survive
+Turns:4
+Difficulty:Easy
+Description:Choose between a +1/+1 counter and a Servo for a creature that gains Fabricate.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+humanhand=Grizzly Bears;Forest
+humanbattlefield=Cayth, Famed Mechanist;Forest;Forest
+humanlibrary=Forest;Forest;Forest;Forest
+ailibrary=Island;Island;Island;Island

@@ -1309,8 +1309,7 @@ async function respondToVisibleOptionalAction(
   dispatch: ControlDispatch = clickControl,
 ): Promise<boolean> {
   const target = page
-    .locator('[data-prompt]')
-    .getByRole('button', { name: accept ? 'Accept' : 'Decline', exact: true })
+    .locator(`[data-prompt] button[data-optional-response="${accept ? 'yes' : 'no'}"]`)
     .first()
   if (!(await target.isVisible({ timeout: 100 }).catch(() => false))) {
     return false

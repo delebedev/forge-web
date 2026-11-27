@@ -38,6 +38,25 @@ test('optionalAction renderer sends bound choice values and disables waiting and
   }
 })
 
+test('named outcome labels bind to accept and decline', () => {
+  const calls: boolean[] = []
+  const tree = OptionalActionPrompt({
+    view: { ...view, choiceLabels: { accept: '+1/+1 counter', decline: 'Servo' } },
+    controls: {
+      respond: async (accept) => {
+        calls.push(accept)
+        return true
+      },
+    },
+  })
+  const options = buttons(tree)
+  expect(options.map((button) => button.props.children)).toEqual(['+1/+1 counter', 'Servo'])
+  for (const button of options) {
+    button.props.onClick()
+  }
+  expect(calls).toEqual([true, false])
+})
+
 test('payment intent labels bind pay and refusal to their existing response values', () => {
   const calls: boolean[] = []
   const tree = OptionalActionPrompt({
