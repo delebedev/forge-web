@@ -31,11 +31,12 @@ export const representatives = {
   },
 }
 
+// CI suite membership comes from the manifest Playwright reads.
+const manifest = JSON.parse(readFileSync(new URL('../../e2e/suites.json', import.meta.url), 'utf8'))
 export const suites = {
-  product:
-    /(?:auth-passwordless|bootstrap|deck-import|decks|draft|product-smoke|react-challenge|whats-new)\.spec\.ts$/,
-  gre: /gre-(?:play|prompts|mulligan|recovery|priority|sounds|cost-choice|equip-cost|repeatable-cost|alternate-life-cost|modal-cancel|search-owner|library-permissions|partner-decks|known-opponent-hand|warp|player-counters|mana-payment|protection-mixed|proliferate)\.spec\.ts$/,
-  catalog: /forge-catalog\.spec\.ts$/,
+  product: manifest.product,
+  gre: manifest.gre,
+  catalog: manifest.catalog,
 }
 
 export function representativeLocations(file, source, titles) {
@@ -79,7 +80,7 @@ export function selection(suite, breadth, changed, read = (file) => readFileSync
   if (breadth === 'full') {
     return []
   }
-  const files = changed.filter((file) => file.startsWith('e2e/') && suites[suite].test(file))
+  const files = changed.filter((file) => suites[suite].includes(file))
   for (const file of files) {
     read(file)
   }
@@ -125,11 +126,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     selectors = []
   }
   console.log(`${suite} selection: ${selectors.length ? selectors.join(', ') : 'full suite'}`)
-  const args = ['run', ...commands[suite], ...selectors]
-  if (suite === 'gre') {
-    args.push('--grep-invert', '@mechanic|@qualification')
-  }
-  args.push(...extra)
+  const args = ['run', ...commands[suite], ...selectors, ...extra]
   const result = spawnSync('bun', args, { stdio: 'inherit', env: process.env })
   if (result.error) {
     throw result.error

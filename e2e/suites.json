@@ -1,0 +1,52 @@
+{
+  "product": [
+    "e2e/product/auth-passwordless.spec.ts",
+    "e2e/product/bootstrap.spec.ts",
+    "e2e/product/deck-import.spec.ts",
+    "e2e/product/decks.spec.ts",
+    "e2e/product/draft.spec.ts",
+    "e2e/product/limited-course.spec.ts",
+    "e2e/product/product-smoke.spec.ts",
+    "e2e/product/react-challenge.spec.ts",
+    "e2e/product/whats-new.spec.ts"
+  ],
+  "gre": [
+    "e2e/match/gre-play.spec.ts",
+    "e2e/match/gre-prompts.spec.ts",
+    "e2e/match/gre-gavi-cycling.spec.ts",
+    "e2e/match/gre-optional-shuffle.spec.ts",
+    "e2e/match/gre-mulligan.spec.ts",
+    "e2e/match/gre-recovery.spec.ts",
+    "e2e/match/gre-priority.spec.ts",
+    "e2e/match/gre-sounds.spec.ts",
+    "e2e/match/gre-cost-choice.spec.ts",
+    "e2e/match/gre-affinity-cost.spec.ts",
+    "e2e/match/gre-combat-assignments.spec.ts",
+    "e2e/match/gre-equip-cost.spec.ts",
+    "e2e/match/gre-repeatable-cost.spec.ts",
+    "e2e/match/gre-alternate-life-cost.spec.ts",
+    "e2e/match/gre-modal-cancel.spec.ts",
+    "e2e/match/gre-search-owner.spec.ts",
+    "e2e/match/gre-library-permissions.spec.ts",
+    "e2e/match/gre-partner-decks.spec.ts",
+    "e2e/match/gre-known-opponent-hand.spec.ts",
+    "e2e/match/gre-warp.spec.ts",
+    "e2e/match/gre-player-counters.spec.ts",
+    "e2e/match/gre-mana-payment.spec.ts",
+    "e2e/match/gre-triggered-payment.spec.ts",
+    "e2e/match/gre-protection-mixed.spec.ts",
+    "e2e/match/gre-proliferate.spec.ts",
+    "e2e/match/gre-facedown-projection.spec.ts",
+    "e2e/match/gre-lost-keywords.spec.ts",
+    "e2e/match/gre-hand-reach.spec.ts"
+  ],
+  "catalog": [
+    "e2e/engine/forge-catalog.spec.ts"
+  ],
+  "transport": [
+    "e2e/match/gre-prompt-transport.spec.ts",
+    "e2e/match/gre-static-choice-transport.spec.ts",
+    "e2e/match/match-route.spec.ts",
+    "e2e/product/course-result.spec.ts"
+  ]
+}

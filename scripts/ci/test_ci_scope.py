@@ -12,7 +12,9 @@ class CiScopeTest(unittest.TestCase):
                      'src/engine/runtime/gre-store.test.ts', 'src/ui/Board.stories.tsx',
                      'src/shared/Card.test.tsx', 'public/icon.svg', 'docs/architecture.md',
                      '.storybook/preview.ts', 'README.md', 'e2e/AGENTS.md',
-                     '.github/pull_request_template.md']:
+                     '.github/pull_request_template.md', 'scripts/release/notes/history.md',
+                     'scripts/release/release_notes.py', '.github/CODEOWNERS',
+                     '.github/workflows/release-notes.yml', '.github/workflows/chromatic.yml']:
             with self.subTest(path=path):
                 self.assertEqual('web', ci_scope.classify_paths([path]))
         for path in ['src/engine/runtime/gre-store.ts',
@@ -21,7 +23,10 @@ class CiScopeTest(unittest.TestCase):
                      'public/browser-engine/release.json', 'browser-engine/worker/engine-worker.js',
                      'server/app.ts', 'leyline', 'package.json', 'bunfig.toml',
                      'scripts/ci/ci_scope.py', 'index.html', 'unknown-input',
-                     'scripts/release/notes/history.md', 'public/whats-new.md']:
+                     'public/whats-new.md', '.github/workflows/web-ci.yml',
+                     '.github/actions/playwright-browsers/action.yml',
+                     'scripts/release/build-server.sh',
+                     'scripts/release/check-server-distribution.sh', 'e2e/suites.json']:
             with self.subTest(path=path):
                 self.assertEqual('full', ci_scope.classify_paths(['src/ui/Board.module.css', path]))
         self.assertEqual('full', ci_scope.classify_paths([]))
@@ -62,20 +67,41 @@ class ProofBreadthTest(unittest.TestCase):
                       ['src/features/match/board/Board.tsx', 'e2e/match/gre-priority.spec.ts'],
                       ['e2e/match/gre-cost-choice.spec.ts'], ['e2e/match/gre-mana-payment.spec.ts'],
                       ['e2e/match/gre-library-permissions.spec.ts'], ['e2e/match/gre-player-counters.spec.ts'],
+                      ['e2e/match/gre-hand-reach.spec.ts'], ['e2e/product/limited-course.spec.ts'],
                       ['src/features/match/board/audio.test.ts'],
-                      ['src/features/match/MatchRoute.tsx', 'e2e/match/match-route.spec.ts']]:
+                      ['src/features/match/MatchRoute.tsx', 'e2e/match/match-route.spec.ts'],
+                      ['browser-engine/worker/index.js'], ['scripts/release/notes/history.md']]:
+            for suite in ci_scope.SUITES:
+                with self.subTest(paths=paths, suite=suite):
+                    self.assertEqual('pr', ci_scope.proof_breadth(paths, suite))
             self.assertEqual('pr', ci_scope.proof_breadth(paths))
+
+    def test_server_changes_run_the_product_lane_in_full_and_gameplay_representatives(self):
+        for path in ['server/app.ts', 'server/contract/wire-schemas.ts', 'e2e/server-parity/auth.test.ts']:
+            with self.subTest(path=path):
+                self.assertEqual('full', ci_scope.proof_breadth([path], 'product'))
+                self.assertEqual('pr', ci_scope.proof_breadth([path], 'gre'))
+                self.assertEqual('pr', ci_scope.proof_breadth([path], 'catalog'))
+                self.assertEqual('pr', ci_scope.proof_breadth([path]))
 
     def test_control_inputs_helpers_fixtures_and_unknown_specs_force_full(self):
         for path in ['scripts/ci/ci_scope.py', 'scripts/ci/ci-browser-selection.mjs',
-                     '.github/workflows/web-ci.yml', 'playwright.config.ts',
+                     '.github/workflows/web-ci.yml', 'playwright.config.ts', 'e2e/suites.json',
                      'e2e/support/gre-acceptance.ts', 'e2e/support/gre-test.ts', 'e2e/new-family.spec.ts',
-                     'e2e/fixtures/new.pzl', 'server/app.ts', 'browser-engine/worker/index.js',
-                     'package.json', 'unknown-input']:
-            self.assertEqual('full', ci_scope.proof_breadth(['leyline', path]))
+                     'e2e/fixtures/new.pzl', 'package.json', 'unknown-input']:
+            with self.subTest(path=path):
+                for suite in ci_scope.SUITES:
+                    self.assertEqual('full', ci_scope.proof_breadth(['leyline', path], suite))
+                self.assertEqual('full', ci_scope.proof_breadth(['leyline', path]))
         self.assertEqual('full', ci_scope.proof_breadth([]))
         self.assertEqual('full', ci_scope.proof_breadth(
             ['e2e/fixtures/new.pzl', 'e2e/match/gre-priority.spec.ts']))
+
+    def test_manifest_lists_existing_specs(self):
+        root = Path(__file__).resolve().parents[2]
+        for spec in ci_scope.SUITE_SPECS:
+            with self.subTest(spec=spec):
+                self.assertTrue((root / spec).is_file())
 
 
 if __name__ == '__main__':

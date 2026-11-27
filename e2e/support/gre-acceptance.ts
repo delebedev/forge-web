@@ -1,6 +1,6 @@
 import { test, expect, errors, type Locator, type Page } from '@playwright/test'
 import { startPuzzleGame } from './gre-test'
-import { readdirSync, readFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { parse } from 'yaml'
 import type { ActionCompletionState } from './action-completion'
@@ -49,14 +49,6 @@ type AttackSpec = {
 const LEYLINE_ROOT = process.env['LEYLINE_ROOT'] ?? resolve(import.meta.dirname, '../../leyline')
 const pendingOptionalActions = new WeakMap<Page, boolean>()
 const settledStaticChoice = new WeakMap<Page, boolean>()
-
-/** Suite name stems (no `.yaml`) for every acceptance suite in the pinned leyline checkout, sorted. */
-export function discoverAcceptanceSuites(): string[] {
-  return readdirSync(resolve(LEYLINE_ROOT, 'data/puzzles/sets'))
-    .filter((name) => name.endsWith('.yaml'))
-    .map((name) => name.replace(/\.yaml$/, ''))
-    .sort()
-}
 
 export function loadAcceptanceSuite(suiteName: string): RawSuite {
   const suitePath = resolve(

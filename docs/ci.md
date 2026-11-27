@@ -40,18 +40,7 @@ catalog-only configuration.
 Browser Local combines the validated Java 17 assets with the UI job's tested
 frontend distribution for the generated
 saved-puzzle read/play/rating journey and one bundled combat puzzle. The complete bundled challenge
-sweep, daily completion, retry, load recovery and phone checks run in extended
-qualification.
-
-Extended gameplay qualification runs weekly and by manual dispatch. Desktop
-Chrome checks browser game setup, card inspection, startup failure/retry, worker recovery,
-bounded Commander tax and keyword inspection scenarios on a hosted runner.
-It also checks the imported mechanic fixture corpus. Those extended checks are separate from the PR gate. Failures still fail their
-qualification job and keep traces or diagnostic artifacts. The imported corpus includes intentional Web
-skips and is not yet a green baseline. The Sidewinder full-control setup,
-Selvala Wild and narrow-board input checks also remain in qualification until
-their failures are classified and repaired. These failures do not certify
-release readiness.
+sweep and the browser-engine specs under `e2e/engine/` are local helpers.
 
 Screenshot and video authoring, live telemetry delivery and additional device
 viewports remain explicit local helpers. The live telemetry check sends real events to
@@ -62,10 +51,18 @@ parked without an active browser journey.
 
 ## PR browser proof
 
-PRs retain all source checks, the Bun server build and Java 17 browser build validation. Known product-source
-changes and Leyline pin updates run representative browser proof. Main and manual
-runs retain the complete regular product, catalog, GRE suites.
-Browser Local still runs its generated and bundled startup/action smoke on both.
+`scripts/ci/ci_scope.py` decides from the changed paths which jobs run and the
+breadth of each browser suite. Docs, styles, stories, unit tests, release-notes
+tooling, CODEOWNERS and workflows other than Web CI run only the UI and
+script checks. Any other change runs the source checks, the Bun server build and
+the Java 17 browser build. Frontend source, browser-engine changes, listed specs
+and Leyline pin updates run representative proof in every suite. Server changes
+run the product suite in full and representative GRE and catalog proof. Main and
+manual runs retain the complete product, catalog and GRE suites. Browser Local
+still runs its generated and bundled startup/action smoke on both.
+
+`e2e/suites.json` lists the specs of each CI suite. The Playwright suites, PR
+spec selection and scope classification all read it.
 
 `scripts/ci/ci-browser-selection.mjs` resolves the following authored test calls to
 Playwright file/line selectors. Template calls select every generated case at
@@ -81,15 +78,13 @@ history expand the affected suite to full coverage.
 | Recovery | Urborg and Takenuma survive priority and pay for a spell | complete recovery suite |
 | Terminal outcome | lethal burn | full outcome and retirement cases |
 | Additional costs | every generated `additional cost:` case | complete life/kicker/offspring matrix |
-| Browser Local startup and action | existing generated/bundled puzzle smoke | same required smoke, extended qualification unchanged |
+| Browser Local startup and action | existing generated/bundled puzzle smoke | same required smoke |
 
 Every new or changed managed spec runs its entire regular suite file on PRs,
-without a smoke tag. This includes generated test matrices. Existing explicit
-`@mechanic` and `@qualification` exclusions remain in their qualification lanes;
-they are not representative-selection tags. Shared test helpers, puzzle
+without a smoke tag. This includes generated test matrices. Shared test helpers, puzzle
 fixtures, runtime/build configuration, workflow/selector changes and unknown
-paths force full browser breadth. Unknown new spec families force full
-breadth and still need registration in the managed Playwright configuration.
+paths force full browser breadth. Specs missing from `e2e/suites.json` force full
+breadth and fail the manifest check until they are listed.
 
 The monolithic priority spec intentionally limits selectivity: a change anywhere
 in it runs every regular priority case. This favors reliable inclusion over
@@ -115,8 +110,7 @@ do not require another case to run first.
 
 All ten runtime jobs verify the same sealed server, frontend and Browser assets.
 Representative and changed-spec selection happens before sharding. A changed
-spec still contributes every regular case, with the existing qualification
-exclusions. The required gate waits for the complete runtime matrix. Artifact
+spec still contributes every regular case. The required gate waits for the complete runtime matrix. Artifact
 names include the unique lane, and unknown or inconsistent lane entries fail.
 Each runtime job stops after two failed tests and remains failed. Other matrix
 jobs continue, and successful runs execute every selected test.
@@ -175,7 +169,6 @@ engine-backed browser work. Conservative path classification stays in place.
 | Real action, priority, combat, reconnect, terminal outcome and replay                       | GRE browser lane                                         |
 | Catalog identity and representative mechanics                                               | Isolated catalog browser lane                            |
 | Browser Local startup and one generated/bundled puzzle action                               | Browser Local smoke                                      |
-| Exhaustive mechanic corpus and additional device qualification                  | Weekly/manual qualification                              |
 
 Bounded lethal-burn and concession scenarios prove terminal outcomes and retired
 controls. Normal deck launch, opening, first action and restart remain browser journeys.
@@ -204,8 +197,7 @@ times, command durations, sampled memory versus limits, CPU consumption and
 memory event deltas. Earlier successful producer attempts remain identified on
 partial reruns. Retry delay is included in trigger-to-gate time and marked as
 such. Gradle cached outcomes are labelled; they are not presented as newly
-executed tests. Extended qualification,
-coverage and historical flake rates are outside this report.
+executed tests. Coverage and historical flake rates are outside this report.
 
 Rollback workflow, selection and proof logic together. Keep the required
 `CI gate` name.

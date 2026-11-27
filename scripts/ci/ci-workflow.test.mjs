@@ -178,7 +178,7 @@ test('browser jobs install Playwright browsers through the cached, bounded actio
     download.run,
     /timeout --kill-after=30s 8m bun x --bun playwright install \$BROWSERS/,
   )
-  for (const name of ['web-ci', 'browser-qualification']) {
+  for (const name of ['web-ci']) {
     const jobs = YAML.parse(readFileSync(`.github/workflows/${name}.yml`, 'utf8')).jobs
     for (const job of Object.values(jobs)) {
       for (const step of job.steps) {
