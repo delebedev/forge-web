@@ -139,6 +139,8 @@ function makeSmokeConfig({
       },
       {
         command: `LEYLINE_WEBDOOR_URL=http://127.0.0.1:${webPort} node node_modules/vite/bin/vite.js --host 127.0.0.1 --port ${frontendPort} --strictPort`,
+        // Vite logs why it reloads pages, which explains a test's lost page context.
+        stdout: 'pipe',
         url: `http://127.0.0.1:${frontendPort}`,
         timeout: 60_000,
         reuseExistingServer: false,

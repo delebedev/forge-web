@@ -1,5 +1,20 @@
 import { expect, test } from 'bun:test'
-import { LEYLINE_BUILD_TASKS, leylineNestedSubmodulePlan } from './bootstrap.mjs'
+import {
+  FORGE_INSTALL_ATTEMPTS,
+  forgeInstallEnvironments,
+  LEYLINE_BUILD_TASKS,
+  leylineNestedSubmodulePlan,
+} from './bootstrap.mjs'
+
+test('Forge install retries force Maven to recheck failed downloads', () => {
+  const environments = forgeInstallEnvironments({ PATH: '/bin', MAVEN_ARGS: '-B' })
+  expect(environments).toHaveLength(FORGE_INSTALL_ATTEMPTS)
+  expect(environments[0]).toEqual({ PATH: '/bin', MAVEN_ARGS: '-B' })
+  for (const env of environments.slice(1)) {
+    expect(env).toEqual({ PATH: '/bin', MAVEN_ARGS: '-B -U' })
+  }
+  expect(forgeInstallEnvironments({})[1]).toEqual({ MAVEN_ARGS: '-U' })
+})
 
 test('bootstrap compiles only consumed Leyline modules', () => {
   expect(LEYLINE_BUILD_TASKS).toEqual([':gre-proto:classes', ':domain:classes', ':engine:classes'])

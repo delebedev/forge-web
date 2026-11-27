@@ -30,6 +30,34 @@ function run(command, args, options = {}) {
   }
 }
 
+export const FORGE_INSTALL_ATTEMPTS = 3
+
+/**
+ * Environment for each Forge install attempt. Retries pass -U, because Maven
+ * otherwise reuses a failed download it recorded in the local repository.
+ */
+export function forgeInstallEnvironments(env) {
+  return Array.from({ length: FORGE_INSTALL_ATTEMPTS }, (_, attempt) =>
+    attempt === 0 ? env : { ...env, MAVEN_ARGS: [env.MAVEN_ARGS, '-U'].filter(Boolean).join(' ') },
+  )
+}
+
+// Forge's build resolves plugins from Maven Central, which intermittently fails a download.
+function installForge() {
+  const attempts = forgeInstallEnvironments(process.env)
+  for (const [index, env] of attempts.entries()) {
+    const result = spawnSync('just', ['install-forge'], { cwd: leylinePath, stdio: 'inherit', env })
+    if (result.status === 0) {
+      return
+    }
+    if (index < attempts.length - 1) {
+      console.error(`Forge install attempt ${index + 1} of ${attempts.length} failed; retrying`)
+    } else {
+      process.exit(result.status ?? 1)
+    }
+  }
+}
+
 function capture(command, args, cwd) {
   const result = spawnSync(command, args, { cwd, encoding: 'utf8' })
   if (result.status !== 0) {
@@ -110,7 +138,7 @@ function main() {
     submoduleUpdate(path, reference, leylinePath)
     validatePinnedSubmodule(path, leylinePath)
   }
-  run('just', ['install-forge'], { cwd: leylinePath })
+  installForge()
   if (process.argv.includes('--prepare-only')) {
     return
   }

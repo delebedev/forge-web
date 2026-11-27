@@ -234,6 +234,7 @@ jobs:
           bun-version: 1.3.11
       - name: Install build dependencies
         run: bun install --frozen-lockfile
+      - uses: ./.github/actions/forge-maven
       - name: Prepare pinned Forge dependencies
         run: python3 scripts/ci/ci-measure.py prepare bash -eo pipefail -c 'node scripts/dev/bootstrap.mjs --prepare-only'
       # JVM checks run in browser-runtime-test so runtime lanes start as soon as the artifact exists.
@@ -298,6 +299,7 @@ jobs:
           bun-version: 1.3.11
       - name: Install build dependencies
         run: bun install --frozen-lockfile
+      - uses: ./.github/actions/forge-maven
       - name: Prepare pinned Forge dependencies
         run: python3 scripts/ci/ci-measure.py prepare-test bash -eo pipefail -c 'node scripts/dev/bootstrap.mjs --prepare-only'
       - name: Check browser runtime
