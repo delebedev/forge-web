@@ -251,6 +251,11 @@ export class BrowserEngine implements BrowserMatchHost {
   send(source: BrowserMatchSource, bytes: Uint8Array): void {
     this.assertCurrentSource(source)
     void this.sendAndWait(source, bytes).catch((error: unknown) => {
+      // Retiring a match, such as the recycle before a new one, rejects its unanswered
+      // sends. That ends the old match only; the engine has not failed.
+      if (source !== this.currentSource || source.isRetired) {
+        return
+      }
       this.fail(error instanceof Error ? error : new Error(String(error)))
     })
   }

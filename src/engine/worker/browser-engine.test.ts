@@ -3,7 +3,12 @@ import { encodeMessage } from '@engine/wire/gre-proto'
 import type { GreFrameBatch, GreFrameSink } from '../runtime/gre-frame-source'
 import { BrowserMatchSource, type BrowserEngineEvent } from './browser-match-source'
 import { BrowserDiagnostics } from './browser-diagnostics'
-import { BrowserDeckRejected, BrowserEngine, BrowserEngineFailure } from './browser-engine'
+import {
+  BrowserDeckRejected,
+  BrowserEngine,
+  BrowserEngineFailure,
+  type BrowserMatch,
+} from './browser-engine'
 import type { BrowserRelease } from './browser-release'
 import { sanitizeBrowserFailureSnapshot } from '@shared/observability/browser-failure-snapshot'
 
@@ -16,6 +21,7 @@ class FakeWorker {
   commands: WorkerCommand[] = []
   terminated = false
   respond = true
+  holdSends = false
   failNextStart = false
   rejectNextStart: Record<string, unknown> | null = null
   failNextClose = false
@@ -76,7 +82,7 @@ class FakeWorker {
           at: 0,
         })
       }
-      if (!this.respond) {
+      if (!this.respond || (command.type === 'send' && this.holdSends)) {
         return
       }
       if (command.type === 'initialize' && this.failNextInitialize) {
@@ -602,6 +608,37 @@ describe('BrowserEngine', () => {
     expect(latest.errors()).toBe(0)
     expect(engine.diagnostics()).toMatchObject({ generation: 2, matches: 1, failed: false })
     expect(events.filter((event) => event.event === 'engine-recycled')).toHaveLength(1)
+    engine.dispose()
+  })
+
+  it('starts a sixth match while the fifth still awaits a send', async () => {
+    const workers: FakeWorker[] = []
+    const engine = new BrowserEngine(
+      () => {},
+      () => {
+        const worker = new FakeWorker()
+        workers.push(worker)
+        return worker as unknown as Worker
+      },
+    )
+    let previous: BrowserMatch | null = null
+    for (let seed = 1; seed <= 5; seed += 1) {
+      previous = await engine.createMatch('a', 'b', seed)
+      previous.source.start(sink().value)
+    }
+    workers[0]!.holdSends = true
+    previous!.source.send(new Uint8Array([1]))
+    await Promise.resolve()
+
+    const sixth = await engine.createMatch('a', 'b', 6)
+    const latest = sink()
+    sixth.source.start(latest.value)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(workers).toHaveLength(2)
+    expect(previous!.source.isRetired).toBe(true)
+    expect(latest.errors()).toBe(0)
+    expect(engine.diagnostics()).toMatchObject({ generation: 2, matches: 1, failed: false })
     engine.dispose()
   })
 
