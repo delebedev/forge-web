@@ -102,8 +102,8 @@ function loadOverlap(): number {
 
 const WIDTHS: readonly BoardWidth[] = ['full', 'laptop', 'tablet']
 
-class BoardViewStore {
-  private state: BoardViewSnapshot = {
+function loadState(): BoardViewSnapshot {
+  return {
     width: loadChoice('width', WIDTHS, BOARD_VIEW_DEFAULTS.width),
     cardScale: loadScale('cardScale', BOARD_VIEW_DEFAULTS.cardScale),
     handScale: loadScale('handScale', BOARD_VIEW_DEFAULTS.handScale),
@@ -113,10 +113,19 @@ class BoardViewStore {
     hideStack: loadFlag('hideStack', BOARD_VIEW_DEFAULTS.hideStack),
     hideCardArt: loadFlag('hideCardArt', BOARD_VIEW_DEFAULTS.hideCardArt),
   }
+}
+
+class BoardViewStore {
+  private state: BoardViewSnapshot = loadState()
 
   private listeners = new Set<() => void>()
 
   snapshot = (): BoardViewSnapshot => this.state
+
+  /** Re-reads saved preferences, for a page whose storage changed under it. */
+  reload = (): void => {
+    this.set(loadState())
+  }
 
   subscribe = (listener: () => void): (() => void) => {
     this.listeners.add(listener)

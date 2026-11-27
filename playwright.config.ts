@@ -69,6 +69,7 @@ function makeSmokeConfig({
   frontendPort,
   webPort,
   builtFrontendPort,
+  warmEngine = false,
 }: {
   name: string
   testMatch: string | RegExp
@@ -76,6 +77,8 @@ function makeSmokeConfig({
   frontendPort: number
   webPort: number
   builtFrontendPort?: number
+  /** One page and booted engine per worker; see `e2e/support/gre-test.ts`. */
+  warmEngine?: boolean
 }): PlaywrightTestConfig {
   if (suite === name) {
     const ports = managedPorts({
@@ -118,6 +121,8 @@ function makeSmokeConfig({
       deviceScaleFactor: 2,
       colorScheme: 'dark',
       trace: 'retain-on-failure',
+      // Read by the warmEngine worker option in e2e/support/gre-test.ts.
+      ...({ warmEngine } as object),
     },
     projects: [
       {
@@ -176,6 +181,7 @@ const greBase = makeSmokeConfig({
   timeout: 90_000,
   frontendPort: 15176,
   webPort: 15186,
+  warmEngine: true,
 })
 
 const screenshotsBase = makeSmokeConfig({
@@ -192,6 +198,7 @@ const forgeCatalogBase = makeSmokeConfig({
   timeout: 120_000,
   frontendPort: 15179,
   webPort: 15189,
+  warmEngine: true,
 })
 
 const engineBase = makeSmokeConfig({

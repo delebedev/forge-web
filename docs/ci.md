@@ -69,16 +69,16 @@ Playwright file/line selectors. Template calls select every generated case at
 that location. Missing or ambiguous representatives and missing comparison
 history expand the affected suite to full coverage.
 
-| Claim | PR case | Main regression coverage |
-| --- | --- | --- |
-| Real login and persisted session | email code login persists after reload | all authentication cases |
-| Deck import, editing and selection | deck library controls; playable deck import and launch | full product suite, including Draft, challenges, curated watch and local recovery |
-| Opening and action | first land | all regular GRE cases |
-| Combat and catalog identity | attacker submission; Jungle Lion cast and combat damage | full catalog and GRE combat cases |
-| Recovery | Urborg and Takenuma survive priority and pay for a spell | complete recovery suite |
-| Terminal outcome | lethal burn | full outcome and retirement cases |
-| Additional costs | every generated `additional cost:` case | complete life/kicker/offspring matrix |
-| Browser Local startup and action | existing generated/bundled puzzle smoke | same required smoke |
+| Claim                              | PR case                                                  | Main regression coverage                                                          |
+| ---------------------------------- | -------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Real login and persisted session   | email code login persists after reload                   | all authentication cases                                                          |
+| Deck import, editing and selection | deck library controls; playable deck import and launch   | full product suite, including Draft, challenges, curated watch and local recovery |
+| Opening and action                 | first land                                               | all regular GRE cases                                                             |
+| Combat and catalog identity        | attacker submission; Jungle Lion cast and combat damage  | full catalog and GRE combat cases                                                 |
+| Recovery                           | Urborg and Takenuma survive priority and pay for a spell | complete recovery suite                                                           |
+| Terminal outcome                   | lethal burn                                              | full outcome and retirement cases                                                 |
+| Additional costs                   | every generated `additional cost:` case                  | complete life/kicker/offspring matrix                                             |
+| Browser Local startup and action   | existing generated/bundled puzzle smoke                  | same required smoke                                                               |
 
 Every new or changed managed spec runs its entire regular suite file on PRs,
 without a smoke tag. This includes generated test matrices. Shared test helpers, puzzle
@@ -105,8 +105,16 @@ counts keep every shard of a recent full run under about 13 minutes of tests.
 Each product shard starts its own server and state directory. The curated replay
 journeys run once, on the first product shard, with their own output directory
 so they do not clear that shard's results. Each job retains `--workers=1`, so browser engines do not
-compete within a runner. Tests have isolated browser contexts and accounts and
+compete within a runner. Product tests have isolated browser contexts and accounts and
 do not require another case to run first.
+
+GRE and catalog tests share one page per Playwright worker, so the booted Browser
+engine serves every match on that worker. Before each test the fixture in
+`e2e/support/gre-test.ts` resets the viewport, cookies, storage, routes and
+listeners, and scopes `addInitScript` to the test that registered it. A warm start
+returns to the setup route and starts the next match in place. A test that needs a
+fresh page, such as one that patches browser APIs before the app loads, carries the
+`@cold` tag. A failed test closes the shared page.
 
 All ten runtime jobs verify the same sealed server, frontend and Browser assets.
 Representative and changed-spec selection happens before sharding. A changed
@@ -159,16 +167,16 @@ Product browser tests wait for the Java 17 artifact but not for its JVM checks.
 The source and builder jobs run independently; failed source checks prevent all
 engine-backed browser work. Conservative path classification stays in place.
 
-| Required claim                                                                              | Owner / proof layer                                      |
-| ------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
-| Formatting, lint, types, reducers, stores, prompt rules, bootstrap helpers                  | UI deterministic checks                                  |
-| HTTP contracts, persistence, product composition, packaging                                 | Bun server tests, parity suite on the compiled binary    |
-| Java 17 engine adapter and shipped dependency graph                                         | Java 17 tests with browser pruning                       |
-| Authored replacement descriptor, pointer input and retirement                               | Vite-only transport integration; no engine or real login |
+| Required claim                                                                           | Owner / proof layer                                      |
+| ---------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| Formatting, lint, types, reducers, stores, prompt rules, bootstrap helpers               | UI deterministic checks                                  |
+| HTTP contracts, persistence, product composition, packaging                              | Bun server tests, parity suite on the compiled binary    |
+| Java 17 engine adapter and shipped dependency graph                                      | Java 17 tests with browser pruning                       |
+| Authored replacement descriptor, pointer input and retirement                            | Vite-only transport integration; no engine or real login |
 | Real login, deck library/import, Draft, lobby-to-game, curated watch and challenge entry | Product browser lane                                     |
-| Real action, priority, combat, reconnect, terminal outcome and replay                       | GRE browser lane                                         |
-| Catalog identity and representative mechanics                                               | Isolated catalog browser lane                            |
-| Browser Local startup and one generated/bundled puzzle action                               | Browser Local smoke                                      |
+| Real action, priority, combat, reconnect, terminal outcome and replay                    | GRE browser lane                                         |
+| Catalog identity and representative mechanics                                            | Isolated catalog browser lane                            |
+| Browser Local startup and one generated/bundled puzzle action                            | Browser Local smoke                                      |
 
 Bounded lethal-burn and concession scenarios prove terminal outcomes and retired
 controls. Normal deck launch, opening, first action and restart remain browser journeys.

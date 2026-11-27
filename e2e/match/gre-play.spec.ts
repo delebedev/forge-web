@@ -247,7 +247,7 @@ for (const payable of [false, true]) {
   })
 }
 
-test('starts GRE game and plays first land', async ({ page }) => {
+test('starts GRE game and plays first land', { tag: '@cold' }, async ({ page }) => {
   const consoleErrors: string[] = []
   page.on('console', (msg) => {
     if (msg.type() === 'error') {

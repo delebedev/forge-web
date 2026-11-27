@@ -212,3 +212,13 @@ test('a slow asset cannot play a stale event even while the board remains active
     now.mockRestore()
   }
 })
+
+test('reload adopts preferences saved after construction', () => {
+  const player = new BoardAudio()
+  players.push(player)
+  expect(player.snapshot().muted).toBe(false)
+  storage.set('forge.soundMuted', '1')
+  storage.set('forge.soundVolume', '0.25')
+  player.reload()
+  expect(player.snapshot()).toEqual({ muted: true, volume: 0.25 })
+})

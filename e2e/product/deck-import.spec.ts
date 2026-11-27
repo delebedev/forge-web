@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { authenticateShell, checkDeck } from '../support/gre-test'
 
 const LOGIN_CODE = '123456'
 // The first decklist check starts the browser engine.
@@ -20,12 +21,31 @@ async function openImportDialog(page: Page) {
   await expect(page.getByRole('dialog', { name: 'Import a deck' })).toBeVisible()
 }
 
+test('a pasted list survives the session resolving after the dialog opens', async ({ page }) => {
+  await authenticateShell(page)
+  let resolveSession!: () => void
+  const sessionHeld = new Promise<void>((resolve) => (resolveSession = resolve))
+  await page.route('**/api/auth/me', async (route) => {
+    await sessionHeld
+    await route.continue()
+  })
+  await page.goto('/play/game')
+  await page.getByRole('button', { name: 'Import a deck', exact: true }).click()
+  const deckList = page.getByRole('textbox', { name: 'Deck list', exact: true })
+  await deckList.fill('60 Forest')
+  // The library loads only once the session names the account, after any remount.
+  const library = page.waitForResponse((response) => response.url().includes('/api/decks?'))
+  resolveSession()
+  await library
+  await expect(deckList).toHaveValue('60 Forest')
+})
+
 test('an unresolved card keeps the dialog open with errors visible', async ({ page }) => {
   await login(page)
   await openImportDialog(page)
 
   await page.getByRole('textbox', { name: 'Deck list' }).fill('4 Not A Real Card At All')
-  await page.getByRole('button', { name: 'Check deck' }).click()
+  await checkDeck(page)
 
   await expect(page.getByText('Card not found: Not A Real Card At All')).toBeVisible({
     timeout: ENGINE_START_MS,
@@ -44,7 +64,7 @@ test('commander choices come from the card index and the engine rejects an ineli
   await page
     .getByRole('textbox', { name: 'Deck list' })
     .fill('98 Swamp\n1 Bloodthirsty Conqueror\n1 Sheoldred, the Apocalypse')
-  await page.getByRole('button', { name: 'Check deck' }).click()
+  await checkDeck(page)
   const commander = page.getByRole('combobox', { name: 'Commander (optional)' })
   await expect(commander.getByRole('option')).toHaveText(
     ['No commander', 'Sheoldred, the Apocalypse'],
@@ -55,7 +75,7 @@ test('commander choices come from the card index and the engine rejects an ineli
   await page
     .getByRole('textbox', { name: 'Deck list' })
     .fill('Commander\n1 Bloodthirsty Conqueror\nDeck\n99 Swamp')
-  await page.getByRole('button', { name: 'Check deck' }).click()
+  await checkDeck(page)
   await expect(page.getByRole('alert')).toContainText("Bloodthirsty Conqueror can't be a commander")
   await expect(page.getByRole('button', { name: 'Open in Editor' })).toHaveCount(0)
   await page.getByRole('dialog').screenshot({ path: info.outputPath('commander-rejected.png') })
@@ -89,7 +109,7 @@ test('a validation result after Back cannot open the editor', async ({ page }) =
   await openImportDialog(page)
 
   await page.getByRole('textbox', { name: 'Deck list' }).fill('60 Mountain')
-  await page.getByRole('button', { name: 'Check deck' }).click()
+  await checkDeck(page)
   await page
     .getByRole('textbox', { name: 'Deck name' })
     .fill('Old name', { timeout: ENGINE_START_MS })
@@ -122,7 +142,7 @@ test('an explicit commander exception reaches the editor and retains its command
   await page
     .getByRole('textbox', { name: 'Deck list' })
     .fill('Deck\n99 Island\nCommander\n1 Teferi, Temporal Archmage')
-  await page.getByRole('button', { name: 'Check deck' }).click()
+  await checkDeck(page)
 
   await expect(page.getByText('Commander: Teferi, Temporal Archmage')).toBeVisible({
     timeout: ENGINE_START_MS,

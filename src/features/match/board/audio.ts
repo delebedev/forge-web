@@ -43,6 +43,11 @@ export class BoardAudio {
 
   snapshot = (): SoundPreferences => this.preferences
 
+  /** Re-reads saved preferences, for a page whose storage changed under it. */
+  reload = (): void => {
+    this.updatePreferences(loadPreferences())
+  }
+
   subscribe = (listener: () => void): (() => void) => {
     this.listeners.add(listener)
     return () => this.listeners.delete(listener)
