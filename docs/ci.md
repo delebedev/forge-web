@@ -148,6 +148,10 @@ caching is enabled.
 CI uses the compiler inside the Gradle process and stops Gradle after assembly.
 `gradle/actions/setup-gradle` restores Gradle caches in both Java jobs. Only
 `main` writes them, so a pull request cannot seed the cache that later runs read.
+Both Java jobs and publication restore the pinned Forge commit's Maven repository
+from the Actions cache. A hit skips Maven, so Forge preparation does not depend on
+Maven Central. A miss installs Forge with up to three attempts and saves the
+repository when the job succeeds.
 Bun installs enforce `bun.lock` and use no persistent cache.
 
 After UI and builder success, hosted runners execute three product shards,
