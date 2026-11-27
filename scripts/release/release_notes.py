@@ -287,6 +287,19 @@ def publication_snapshot(manifest, candidate):
     return public, draft
 
 
+def ensure_tag(tag, sha):
+    # A release created with a target commit needs the workflows permission whenever the
+    # default branch has since changed a workflow, and the Actions token cannot hold it.
+    # Creating the tag ref first and releasing that tag needs only contents: write.
+    try:
+        ref = api(f'repos/{REPO}/git/ref/tags/{tag}')
+    except subprocess.CalledProcessError:
+        run('gh', 'api', '--method', 'POST', f'repos/{REPO}/git/refs', '-f', f'ref=refs/tags/{tag}', '-f', f'sha={sha}')
+        return
+    if ref['object']['sha'] != sha:
+        raise ValueError(f'Tag {tag} points at {ref["object"]["sha"]}, not the deployed frontend {sha}')
+
+
 def draft(deployment, output, base=None, reuse_existing=False):
     run_info = api(f"repos/{REPO}/actions/runs/{deployment['run_id']}")
     if (run_info['conclusion'] != 'success' or run_info['head_branch'] != 'main'
@@ -309,7 +322,8 @@ def draft(deployment, output, base=None, reuse_existing=False):
     if any(r['tag_name'] == tag for r in releases()):
         gh('release', 'edit', tag, '--notes-file', str(output / 'draft.md'))
     else:
-        gh('release', 'create', tag, '--target', deployment['frontend'], '--draft', '--title', manifest['day'], '--notes-file', str(output / 'draft.md'))
+        ensure_tag(tag, deployment['frontend'])
+        gh('release', 'create', tag, '--verify-tag', '--draft', '--title', manifest['day'], '--notes-file', str(output / 'draft.md'))
     public = output / 'public'
     public.mkdir(exist_ok=True)
     manifest_snapshot, draft_snapshot = publication_snapshot(manifest, json.loads((output / 'draft.json').read_text())['candidate'])
