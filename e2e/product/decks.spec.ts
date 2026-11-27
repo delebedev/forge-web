@@ -1,5 +1,5 @@
 import type { Request } from '@playwright/test'
-import { expect } from '../support/gre-test'
+import { checkDeck, expect } from '../support/gre-test'
 import { test, readyForVideo, recordDemos } from '../support/demo-test'
 
 test('imported sideboard cards move, edit, save and reopen with their quantities', async ({
@@ -17,7 +17,7 @@ test('imported sideboard cards move, edit, save and reopen with their quantities
   await page
     .getByRole('textbox', { name: 'Deck list' })
     .fill('Deck\n2 Grizzly Bears\n10 Forest\nSideboard\n2 Grizzly Bears\n2 Island')
-  await page.getByRole('button', { name: 'Check deck', exact: true }).click()
+  await checkDeck(page)
   await expect(page.getByPlaceholder('Deck name...')).toBeVisible({ timeout: 60_000 })
   await page.getByPlaceholder('Deck name...').fill('Sideboard editing')
   readyForVideo.add(page)
@@ -116,7 +116,7 @@ test('deck library import, editing and selection retain their controls at laptop
   await page
     .getByRole('textbox', { name: 'Deck list', exact: true })
     .fill('[Deck]\n4 Jungle Lion\n56x Forest (ARENA)\n[Sideboard]\n2 Negate')
-  await page.getByRole('button', { name: 'Check deck', exact: true }).click()
+  await checkDeck(page)
   await expect(page.getByRole('textbox', { name: 'Deck name', exact: true })).toBeVisible({
     timeout: 60_000,
   })

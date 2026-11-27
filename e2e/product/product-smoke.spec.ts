@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test'
 import type { DeckView } from '../../server/contract/wire-schemas'
-import { expect, test } from '../support/gre-test'
+import { checkDeck, expect, test } from '../support/gre-test'
 import { dailyBrowserChallengePath } from '../../src/features/challenges/browser-challenges'
 import { curatedReplay } from '../../src/features/replay/curated-replays'
 
@@ -175,7 +175,7 @@ test('a player without an account plays a pasted decklist without saving it', as
   await page.getByRole('button', { name: 'Constructed', exact: true }).click()
   await page.getByRole('button', { name: 'Import a deck', exact: true }).click()
   await page.getByRole('textbox', { name: 'Deck list', exact: true }).fill('60 Forest')
-  await page.getByRole('button', { name: 'Check deck', exact: true }).click()
+  await checkDeck(page)
   await page.getByRole('textbox', { name: 'Deck name', exact: true }).fill('Pasted forests')
   await page.getByRole('button', { name: 'Import and select', exact: true }).click()
   await expect(
@@ -253,14 +253,14 @@ test('lobby imports a playable deck into the library and launches it', async ({ 
   await page
     .getByRole('textbox', { name: 'Deck list', exact: true })
     .fill('45 Forest\n[Sideboard]\n15 Plains')
-  await page.getByRole('button', { name: 'Check deck', exact: true }).click()
+  await checkDeck(page)
   await page.getByRole('button', { name: 'Import and select', exact: true }).click()
   await expect(page.getByRole('alert')).toContainText('at least 60 main-deck cards')
   await page.getByRole('button', { name: 'Back', exact: true }).click()
   await page
     .getByRole('textbox', { name: 'Deck list', exact: true })
     .fill('60 Forest\n[Sideboard]\n15 Plains')
-  await page.getByRole('button', { name: 'Check deck', exact: true }).click()
+  await checkDeck(page)
   await page.getByRole('textbox', { name: 'Deck name', exact: true }).fill('Forest test deck')
   await page.getByRole('button', { name: 'Import and select', exact: true }).click()
   await expect(page.getByText('Imported and saved to your library.', { exact: true })).toBeVisible()
@@ -286,7 +286,7 @@ test('lobby resolves a case-insensitive commander name, persists it and launches
   await page
     .getByRole('textbox', { name: 'Deck list', exact: true })
     .fill('99 Plains\n1 kenrith, the returned king')
-  await page.getByRole('button', { name: 'Check deck', exact: true }).click()
+  await checkDeck(page)
   // The first decklist check starts the browser engine.
   await expect(page.getByRole('combobox', { name: 'Choose commander', exact: true })).toHaveValue(
     '',
@@ -364,7 +364,7 @@ test('an exported Commander list with set codes, tags and a bare card name impor
         '97x Plains (eld) 250 [Land]',
       ].join('\n'),
     )
-  await page.getByRole('button', { name: 'Check deck', exact: true }).click()
+  await checkDeck(page)
   // The first decklist check starts the browser engine.
   await expect(page.getByRole('button', { name: 'Import and select', exact: true })).toBeEnabled({
     timeout: 60_000,

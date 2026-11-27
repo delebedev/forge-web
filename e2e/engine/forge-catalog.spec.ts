@@ -4,7 +4,7 @@ import type { Page, TestInfo } from '@playwright/test'
 import type { CardView } from '../../src/engine/state/gre-state'
 import { writeFileSync } from 'node:fs'
 import { test as demoTest, readyForVideo } from '../support/demo-test'
-import { expect, test, startPuzzleGame } from '../support/gre-test'
+import { checkDeck, expect, test, startPuzzleGame } from '../support/gre-test'
 import { runGreAcceptanceSteps, type RawScenario } from '../support/gre-acceptance'
 
 const FORGE_CARD = 'Jungle Lion'
@@ -51,7 +51,7 @@ test('imports, saves, reloads, and searches the same catalog identity', async ({
     .fill(
       `1 ${SPLIT_CARD}\n1 Dead\n1 Gone\n1 ${TRANSFORM_CARD}\n1 ${TRANSFORM_FACE}\n1 ${TRANSFORM_COMBINED}\n1 ${FORGE_CARD}\n53 Forest`,
     )
-  await dialog.getByRole('button', { name: 'Check deck' }).click()
+  await checkDeck(page)
   await expect(dialog.getByText(FORGE_CARD, { exact: true }).last()).toBeVisible({
     timeout: 60_000,
   })

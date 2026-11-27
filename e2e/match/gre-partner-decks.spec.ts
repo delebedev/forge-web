@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test'
 import { test, recordDemos, readyForVideo } from '../support/demo-test'
-import { authenticateShell, expect } from '../support/gre-test'
+import { authenticateShell, checkDeck, expect } from '../support/gre-test'
 import { runGreAcceptanceSteps } from '../support/gre-acceptance'
 import { resolveTo } from '../support/gre-actions'
 
@@ -10,7 +10,7 @@ const pairList = `98 Plains\n1 ${firstCommander}\n1 ${secondCommander}`
 
 async function checkImport(page: Page, text: string, first: string, second?: string) {
   await page.getByRole('textbox', { name: 'Deck list', exact: true }).fill(text)
-  await page.getByRole('button', { name: 'Check deck', exact: true }).click()
+  await checkDeck(page)
   await page
     .getByRole('combobox', { name: 'Commander (optional)', exact: true })
     .selectOption({ label: first })

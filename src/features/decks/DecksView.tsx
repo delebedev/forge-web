@@ -11,6 +11,7 @@ import { useRouter } from '@shared/router'
 import { decksStore } from '@features/decks/decks-store'
 import type { DeckSummary, DeckCard, DeckDetail } from '@shared/api/contracts'
 import { useDecksSnapshot } from '@features/decks/decks-hooks'
+import { useAccountScope } from '@features/decks/account-scope'
 import { trackDeckDeleted, trackDeckSaved } from '@shared/observability/analytics'
 import { CardHoverPreview } from '@shared/cards/CardHoverPreview'
 import { Button } from '@shared/ui/Button'
@@ -34,6 +35,7 @@ export function DecksView({
 }) {
   const router = useRouter()
   const decks = useDecksSnapshot()
+  const importScope = useAccountScope(decks.accountId)
   const viewGeneration = useRef(0)
 
   const [mode, setMode] = useState<'browse' | 'edit'>('browse')
@@ -200,7 +202,7 @@ export function DecksView({
 
       {importOpen && (
         <DeckImportDialog
-          key={decks.accountId}
+          key={importScope}
           destination="editor"
           onClose={() => setImportOpen(false)}
           onImport={handleImport}

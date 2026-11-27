@@ -70,43 +70,99 @@ export async function startPuzzleGame(page: Page, puzzle: string): Promise<void>
   await waitForBrowserGameReady(page)
 }
 
-// The longest readiness wait; shorter test budgets end the wait earlier so a stalled
+// The longest engine wait; shorter test budgets end the wait earlier so a stalled
 // start reports its state instead of a bare test timeout.
-const READINESS_LIMIT_MS = 240_000
-const READINESS_MARGIN_MS = 20_000
+const ENGINE_WAIT_LIMIT_MS = 240_000
+const ENGINE_WAIT_MARGIN_MS = 20_000
+
+/** How long an engine wait may take inside the current test's budget. */
+export function engineWaitTimeout(limit = ENGINE_WAIT_LIMIT_MS): number {
+  const budget = test.info().timeout
+  return budget ? Math.min(limit, budget - ENGINE_WAIT_MARGIN_MS) : limit
+}
+
+/** Match and engine state plus the startup and error messages the page shows. */
+export async function engineStartSnapshot(page: Page): Promise<unknown> {
+  return page
+    .evaluate(async () => {
+      const state = window.__greState?.()
+      const engine = await Promise.race([
+        window.__greBrowserDiagnostics?.().catch((cause: unknown) => String(cause)),
+        new Promise((resolve) => setTimeout(() => resolve('no reply within 2 s'), 2_000)),
+      ])
+      const deckList = document.querySelector<HTMLTextAreaElement>('[role="dialog"] textarea')
+      return {
+        url: location.pathname,
+        status: state?.status ?? null,
+        connected: state?.connected ?? null,
+        horizon: state?.horizon ?? null,
+        lastMessage: state?.diagnostics.lastMessage ?? null,
+        engine: engine ?? null,
+        deckListLength: deckList?.value.length ?? null,
+        dialogButtons: [...document.querySelectorAll('[role="dialog"] button')].map(
+          (button) =>
+            `${button.textContent?.trim()}${(button as HTMLButtonElement).disabled ? ' (disabled)' : ''}`,
+        ),
+        alerts: [...document.querySelectorAll('[role="alert"], [role="status"]')]
+          .map((node) => node.textContent?.trim())
+          .filter(Boolean),
+      }
+    })
+    .catch((cause: unknown) => ({ unavailable: String(cause) }))
+}
+
+/** Waits for an engine-backed condition and reports the engine's state if it never holds. */
+export async function waitForEngine(
+  page: Page,
+  what: string,
+  condition: () => Promise<boolean>,
+  timeout = engineWaitTimeout(),
+): Promise<void> {
+  try {
+    await expect.poll(condition, { timeout }).toBe(true)
+  } catch (error) {
+    throw new Error(
+      `${what} after ${timeout} ms: ${JSON.stringify(await engineStartSnapshot(page))}`,
+      { cause: error },
+    )
+  }
+}
 
 export async function waitForBrowserGameReady(page: Page): Promise<void> {
-  const budget = test.info().timeout
-  const timeout = budget
-    ? Math.min(READINESS_LIMIT_MS, budget - READINESS_MARGIN_MS)
-    : READINESS_LIMIT_MS
-  const ready = () =>
+  await waitForEngine(page, 'Browser game not ready', () =>
     page.evaluate(() => {
       const state = window.__greState?.()
       return Boolean(state?.connected && state.horizon)
-    })
+    }),
+  )
+}
+
+/**
+ * Submits the import dialog's deck list and waits until the check finishes, with its
+ * result or an error shown. The first check in a page starts the browser engine.
+ */
+export async function checkDeck(page: Page): Promise<void> {
+  const button = page.getByRole('button', { name: 'Check deck', exact: true })
   try {
-    await expect.poll(ready, { timeout }).toBe(true)
+    await button.click({ timeout: 15_000 })
   } catch (error) {
-    const snapshot = await page
-      .evaluate(() => {
-        const state = window.__greState?.()
-        return {
-          url: location.pathname,
-          status: state?.status ?? null,
-          connected: state?.connected ?? null,
-          horizon: state?.horizon ?? null,
-          lastMessage: state?.diagnostics.lastMessage ?? null,
-          alerts: [...document.querySelectorAll('[role="alert"], [role="status"]')]
-            .map((node) => node.textContent?.trim())
-            .filter(Boolean),
-        }
-      })
-      .catch((cause: unknown) => ({ unavailable: String(cause) }))
-    throw new Error(`Browser game not ready after ${timeout} ms: ${JSON.stringify(snapshot)}`, {
-      cause: error,
-    })
+    throw new Error(
+      `Check deck could not be clicked: ${JSON.stringify(await engineStartSnapshot(page))}`,
+      { cause: error },
+    )
   }
+  await waitForEngine(page, 'Deck check did not finish', () =>
+    page.evaluate(() => {
+      const dialog = document.querySelector('[role="dialog"]')
+      const labels = [...(dialog?.querySelectorAll('button') ?? [])].map((button) =>
+        button.textContent?.trim(),
+      )
+      if (!dialog || labels.includes('Checking deck…')) {
+        return false
+      }
+      return !labels.includes('Check deck') || dialog.querySelector('[role="alert"]') !== null
+    }),
+  )
 }
 
 /**

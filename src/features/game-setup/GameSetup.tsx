@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useAccountScope } from '@features/decks/account-scope'
 import { useDecksSnapshot } from '@features/decks/decks-hooks'
 import { decksStore } from '@features/decks/decks-store'
 import { importedContent } from '@features/decks/deck-value'
@@ -56,6 +57,7 @@ export function GameSetup({
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const library = useDecksSnapshot()
+  const importScope = useAccountScope(library.accountId)
   useEffect(() => {
     void decksStore.fetchDecks()
   }, [library.accountId])
@@ -240,7 +242,7 @@ export function GameSetup({
           </div>
           {importOpen && (
             <DeckImportDialog
-              key={library.accountId}
+              key={importScope}
               format={commander ? 'Commander' : 'Timeless'}
               destination="play"
               onClose={() => setImportOpen(false)}
