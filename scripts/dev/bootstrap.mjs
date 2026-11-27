@@ -32,14 +32,21 @@ function run(command, args, options = {}) {
 
 export const FORGE_INSTALL_ATTEMPTS = 3
 
+export const MAVEN_CENTRAL_MIRROR_SETTINGS = resolve(import.meta.dirname, 'maven-central-mirror.xml')
+
 /**
- * Environment for each Forge install attempt. Retries pass -U, because Maven
- * otherwise reuses a failed download it recorded in the local repository.
+ * Environment for each Forge install attempt. Every attempt passes -e so a
+ * failed resolution prints its cause through -q. Retries pass -U, because Maven
+ * otherwise reuses a failed download it recorded in the local repository, and
+ * resolve from Google's Central mirror, because a runner that cannot reach
+ * repo.maven.apache.org fails every attempt against that host.
  */
 export function forgeInstallEnvironments(env) {
-  return Array.from({ length: FORGE_INSTALL_ATTEMPTS }, (_, attempt) =>
-    attempt === 0 ? env : { ...env, MAVEN_ARGS: [env.MAVEN_ARGS, '-U'].filter(Boolean).join(' ') },
-  )
+  const args = (...extra) => [env.MAVEN_ARGS, '-e', ...extra].filter(Boolean).join(' ')
+  return Array.from({ length: FORGE_INSTALL_ATTEMPTS }, (_, attempt) => ({
+    ...env,
+    MAVEN_ARGS: attempt === 0 ? args() : args('-U', '-gs', MAVEN_CENTRAL_MIRROR_SETTINGS),
+  }))
 }
 
 // Forge's build resolves plugins from Maven Central, which intermittently fails a download.
