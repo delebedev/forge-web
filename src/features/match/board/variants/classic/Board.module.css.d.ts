@@ -41,6 +41,7 @@ declare const styles: {
   readonly "opponentLands": string
   readonly "outcomeActions": string
   readonly "outcomeBanner": string
+  readonly "outcomeCommunity": string
   readonly "outcomePrimary": string
   readonly "outcomeScrim": string
   readonly "outcomeSecondary": string

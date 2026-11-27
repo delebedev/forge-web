@@ -10,6 +10,7 @@ import type { LegalAction } from '@engine/state/gre-state'
 import { boardView } from '../../board-view'
 import { Card, cardIsPlayable } from '../../../../../shared/cards/Card'
 import { Board, CardActionChooser } from './Board'
+import { DISCORD_INVITE_URL } from '@shared/community'
 
 function action(overrides: Partial<LegalAction>): LegalAction {
   return {
@@ -345,6 +346,7 @@ test('disconnected board keeps session chrome and hides stale game input', () =>
   )
 
   expect(html).toContain('Report a bug')
+  expect(html).toContain(`href="${DISCORD_INVITE_URL}"`)
   expect(html).toContain('End Match')
   expect(html).not.toContain('Keep hand')
   expect(html).not.toContain('aria-label="Pass"')

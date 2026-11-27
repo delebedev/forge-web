@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it } from 'bun:test'
-import { setAnalyticsAccountId, trackWhatsNewClosed, trackWhatsNewOpened } from './analytics'
+import {
+  setAnalyticsAccountId,
+  trackDiscordClick,
+  trackWhatsNewClosed,
+  trackWhatsNewOpened,
+} from './analytics'
 
 let restoreWindow: (() => void) | null = null
 
@@ -82,5 +87,19 @@ describe("What's new analytics", () => {
       },
     })
     expect(() => trackWhatsNewClosed({ source: 'header', latestDate: '2026-09-06' })).not.toThrow()
+  })
+})
+
+describe('Discord analytics', () => {
+  it('reports the clicked placement', () => {
+    const events = capture()
+    trackDiscordClick('post-game')
+
+    expect(events).toEqual([
+      expect.objectContaining({
+        name: 'discord-click',
+        data: expect.objectContaining({ placement: 'post-game', traffic: 'production' }),
+      }),
+    ])
   })
 })

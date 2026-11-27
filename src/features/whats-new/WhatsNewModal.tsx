@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { Modal } from '@shared/ui/Modal'
+import { discordLinkProps } from '@shared/community'
 import { formatWhatsNewDate, type WhatsNewDay } from './feed'
 import styles from './WhatsNewModal.module.css'
 
@@ -44,6 +45,10 @@ export function WhatsNewModal({
             ))}
           </div>
         )}
+        <p className={styles.community}>
+          Questions, ideas or a bug to discuss?{' '}
+          <a {...discordLinkProps('whats-new')}>Join the Forge Web Discord ↗</a>
+        </p>
       </section>
     </Modal>
   )
