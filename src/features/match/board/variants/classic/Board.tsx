@@ -38,7 +38,7 @@ import { NonHandActionRail, nonHandActionEntries } from '../../NonHandActionRail
 import { OppHandFan } from '../../OppHandFan'
 import { PhaseRail } from '../../PhaseRail'
 import { PlayerPlate } from '../../PlayerPlate'
-import { StackPanel } from '../../StackPanel'
+import { StackPanel, stackTargetNames } from '../../StackPanel'
 import { ZoneMotionLayer } from '../../ZoneMotionLayer'
 import type { ZoneViewerSource } from '../../types'
 import { ZoneViewer } from '../../ZoneViewer'
@@ -203,6 +203,20 @@ export function Board({
     ...board.targetArrows,
     ...selectedTargets,
   ]
+  const stackTargets = stackTargetNames(
+    board.targetArrows,
+    [
+      ...board.battlefield,
+      ...board.opponentBattlefield,
+      ...board.stack,
+      ...board.graveyard,
+      ...board.opponentGraveyard,
+      ...board.exile,
+      ...board.opponentExile,
+      ...board.hand,
+    ],
+    !interactive,
+  )
   const view = useBoardView()
   const yourTurn = board.activeSeatId === board.viewerSeatId
   const nonHandEntries = nonHandActionEntries(board)
@@ -863,6 +877,7 @@ export function Board({
             replay={!interactive}
             onHover={onHover}
             motionFor={motionFor}
+            targetsFor={(instanceId) => stackTargets.get(instanceId)}
           />
         )}
         {showPrompt && board.prompt && (

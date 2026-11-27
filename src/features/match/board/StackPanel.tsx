@@ -4,6 +4,7 @@ import {
   GAME_OBJECT_TYPE_TRIGGER_HOLDER,
   type CardView,
 } from '@engine/state/gre-state'
+import type { BoardArrow } from '@engine/state/arrow-view'
 import type { PresentationMotionKind } from '@engine/state/presentation-policy'
 import { cx } from '@shared/react/cx'
 import { artCropUrl } from '@shared/cards/scryfall'
@@ -22,6 +23,48 @@ export function isRenderableStackCard(card: CardView): boolean {
   return Boolean(card.imageUrl || card.typeLine || card.manaCost || card.powerToughness)
 }
 
+/**
+ * Names the confirmed targets of each stack entry from its TargetSpec arrows,
+ * in target-group order. Players read from the viewer's side.
+ */
+export function stackTargetNames(
+  arrows: BoardArrow[],
+  cards: CardView[],
+  replay = false,
+): Map<number, string[]> {
+  const names = new Map(cards.map((card) => [String(card.instanceId), card.name]))
+  const byEntry = new Map<number, string[]>()
+  for (const arrow of arrows) {
+    if (arrow.kind !== 'targetSpec') {
+      continue
+    }
+    const name =
+      arrow.to === 'self'
+        ? replay
+          ? 'Near side'
+          : 'You'
+        : arrow.to === 'opponent'
+          ? replay
+            ? 'Far side'
+            : 'Opponent'
+          : names.get(arrow.to) || 'Hidden card'
+    const entryId = Number(arrow.from)
+    byEntry.set(entryId, [...(byEntry.get(entryId) ?? []), name])
+  }
+  return byEntry
+}
+
+function StackTargets({ names = [] }: { names?: string[] }) {
+  if (names.length === 0) {
+    return null
+  }
+  return (
+    <p className={styles.targets} data-stack-targets>
+      <span>{names.length === 1 ? 'Target' : 'Targets'}</span> {names.join(', ')}
+    </p>
+  )
+}
+
 export function StackPanel({
   cards,
   compact = false,
@@ -30,6 +73,7 @@ export function StackPanel({
   replay = false,
   onHover,
   motionFor,
+  targetsFor,
 }: {
   cards: CardView[]
   compact?: boolean
@@ -38,6 +82,8 @@ export function StackPanel({
   replay?: boolean
   onHover?: (card: CardView | null) => void
   motionFor?: (instanceId: number) => PresentationMotionKind | undefined
+  /** Confirmed target names of a stack entry, in group order. */
+  targetsFor?: (instanceId: number) => string[] | undefined
 }) {
   const entries = cards.filter((card) => card.objectType !== GAME_OBJECT_TYPE_TRIGGER_HOLDER)
   if (entries.length === 0) {
@@ -92,6 +138,7 @@ export function StackPanel({
                 {card.imageUrl && <img src={artCropUrl(card.imageUrl)} alt="" />}
                 <strong>{card.name}</strong>
               </div>
+              <StackTargets names={targetsFor?.(card.instanceId)} />
               {index === 0 && (isRenderableStackCard(card) || card.sourceCard) && (
                 <div className={cx(styles.topCard, card.sourceCard && styles.sourceCard)}>
                   <Card

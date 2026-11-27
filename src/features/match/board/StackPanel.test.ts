@@ -8,10 +8,10 @@ import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { applyGsm, EMPTY_GAME_STATE } from '@engine/state/gre-accumulator'
 import { buildBoardProjection } from '@engine/state/gre-projection'
-import { ZONE_STACK } from '@engine/state/gre-state'
+import { ZONE_BATTLEFIELD, ZONE_STACK } from '@engine/state/gre-state'
 import type { GreFrameSink, GreFrameSource } from '@engine/runtime/gre-frame-source'
 import { diffGameState, fullGameState } from '@engine/testing/gre-test-frames'
-import { isRenderableStackCard, StackPanel } from './StackPanel'
+import { isRenderableStackCard, StackPanel, stackTargetNames } from './StackPanel'
 
 /** A stack entry with no card details resolved — how every entry starts. */
 function entry(over: Partial<CardView> = {}): CardView {
@@ -239,4 +239,64 @@ test('an unlisted activated ability resolves before a listed spell in the panel'
     buildBoardProjection(resynced, new Map(), false).stack.map((card) => card.instanceId),
   ).toEqual([301])
   expect(resynced.tables.stackAbilityOrder).toEqual([])
+})
+
+test("an opponent spell names the viewer's creature it targets", () => {
+  const state = applyGsm(EMPTY_GAME_STATE, {
+    gameStateId: 1,
+    players: [{ systemSeatNumber: 1 }, { systemSeatNumber: 2 }],
+    zones: [
+      { zoneId: 28, type: ZONE_BATTLEFIELD, ownerSeatId: 0, objectInstanceIds: [101] },
+      { zoneId: 27, type: ZONE_STACK, ownerSeatId: 0, objectInstanceIds: [112] },
+    ],
+    gameObjects: [
+      { instanceId: 101, grpId: 9101, type: 1, zoneId: 28, ownerSeatId: 1, controllerSeatId: 1 },
+      { instanceId: 112, grpId: 9112, type: 1, zoneId: 27, ownerSeatId: 2, controllerSeatId: 2 },
+    ],
+    persistentAnnotations: [{ id: 7, type: [26], affectorId: 112, affectedIds: [101] }],
+  })
+  const board = buildBoardProjection(
+    state,
+    new Map([
+      [9101, { grpId: 9101, name: 'Grizzly Bears' }],
+      [9112, { grpId: 9112, name: 'Murder' }],
+    ]),
+    false,
+  )
+  const targets = stackTargetNames(board.targetArrows, [...board.battlefield, ...board.stack])
+  const html = renderToStaticMarkup(
+    createElement(StackPanel, {
+      cards: board.stack,
+      viewerSeatId: 1,
+      canRespond: true,
+      targetsFor: (instanceId: number) => targets.get(instanceId),
+    }),
+  )
+
+  expect(targets.get(112)).toEqual(['Grizzly Bears'])
+  expect(html).toContain('data-stack-targets')
+  expect(html).toMatch(/Target<\/span> Grizzly Bears/)
+})
+
+test('player targets read from the viewer side and replays use seat sides', () => {
+  const arrows = [
+    { id: 'a', kind: 'targetSpec' as const, from: '50', to: 'self' },
+    { id: 'b', kind: 'targetSpec' as const, from: '50', to: 'opponent' },
+    { id: 'c', kind: 'combat' as const, from: '60', to: 'opponent' },
+  ]
+
+  expect(stackTargetNames(arrows, []).get(50)).toEqual(['You', 'Opponent'])
+  expect(stackTargetNames(arrows, [], true).get(50)).toEqual(['Near side', 'Far side'])
+  expect(stackTargetNames(arrows, []).has(60)).toBe(false)
+})
+
+test('a stack entry without confirmed targets shows no target line', () => {
+  const html = renderToStaticMarkup(
+    createElement(StackPanel, {
+      cards: [entry({ objectType: 1, name: 'Divination' })],
+      viewerSeatId: 1,
+      targetsFor: () => undefined,
+    }),
+  )
+  expect(html).not.toContain('data-stack-targets')
 })

@@ -14,6 +14,8 @@
 .entryTitle img { width: 44px; height: 32px; border-radius: 2px; object-fit: cover; }
 .topCard { --preview-card-w: min(var(--card-face-width-detail), 23cqh); width: max-content; margin-top: 12px; }
 .ability { color: var(--muted); font-size: 12px; }
+.targets { margin: 4px 0 0; font-size: 13px; line-height: 1.35; overflow-wrap: anywhere; }
+.targets span { color: var(--muted); }
 .resolvesNext .entry { border-bottom-color: var(--accent-border); }
 .compact { color: inherit; }
 :global([data-board][data-decision]) .topCard { display: none; }
