@@ -1,19 +1,28 @@
 import { expect, test } from 'bun:test'
+import { existsSync } from 'node:fs'
 import {
   FORGE_INSTALL_ATTEMPTS,
   forgeInstallEnvironments,
   LEYLINE_BUILD_TASKS,
+  MAVEN_CENTRAL_MIRROR_SETTINGS,
   leylineNestedSubmodulePlan,
 } from './bootstrap.mjs'
 
-test('Forge install retries force Maven to recheck failed downloads', () => {
+test('Forge install retries recheck failed downloads through the Central mirror', () => {
   const environments = forgeInstallEnvironments({ PATH: '/bin', MAVEN_ARGS: '-B' })
   expect(environments).toHaveLength(FORGE_INSTALL_ATTEMPTS)
-  expect(environments[0]).toEqual({ PATH: '/bin', MAVEN_ARGS: '-B' })
+  expect(environments[0]).toEqual({ PATH: '/bin', MAVEN_ARGS: '-B -e' })
   for (const env of environments.slice(1)) {
-    expect(env).toEqual({ PATH: '/bin', MAVEN_ARGS: '-B -U' })
+    expect(env).toEqual({
+      PATH: '/bin',
+      MAVEN_ARGS: `-B -e -U -gs ${MAVEN_CENTRAL_MIRROR_SETTINGS}`,
+    })
   }
-  expect(forgeInstallEnvironments({})[1]).toEqual({ MAVEN_ARGS: '-U' })
+  expect(forgeInstallEnvironments({})[0]).toEqual({ MAVEN_ARGS: '-e' })
+  expect(existsSync(MAVEN_CENTRAL_MIRROR_SETTINGS)).toBe(true)
+  expect(forgeInstallEnvironments({}, '/My Projects/mirror.xml')[1]).toEqual({
+    MAVEN_ARGS: '-e -U',
+  })
 })
 
 test('bootstrap compiles only consumed Leyline modules', () => {
