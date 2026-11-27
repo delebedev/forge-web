@@ -10,6 +10,7 @@ import v8 from '../migrations/V8__puzzle_rating_device.sql' with { type: 'text' 
 import v9 from '../migrations/V9__course_records.sql' with { type: 'text' }
 import v10 from '../migrations/V10__drop_engine_tables.sql' with { type: 'text' }
 import v11 from '../migrations/V11__keep_match_outcomes.sql' with { type: 'text' }
+import v12 from '../migrations/V12__drop_legacy_decks.sql' with { type: 'text' }
 import starter0 from '../../content/decks/Pauper Green Stompy.txt' with { type: 'text' }
 import starter1 from '../../content/decks/Pauper Red Burn.txt' with { type: 'text' }
 import starter2 from '../../content/decks/Pauper Blue Tempo.txt' with { type: 'text' }
@@ -39,6 +40,7 @@ export const migrationScripts: MigrationScript[] = [
   { script: 'V9__course_records.sql', sql: v9 },
   { script: 'V10__drop_engine_tables.sql', sql: v10 },
   { script: 'V11__keep_match_outcomes.sql', sql: v11 },
+  { script: 'V12__drop_legacy_decks.sql', sql: v12 },
 ]
 
 export const cardImagesFile: string = cardImagesPath

@@ -187,7 +187,7 @@ export class DeckStore {
         .get(playerId) as {
         count: number
       }
-      if (count >= this.maxDecks) {
+      if (count > this.maxDecks) {
         throw deckRejected(['Your library is full. Delete a deck to save another.'])
       }
       this.db
@@ -230,11 +230,9 @@ export class DeckStore {
     })
   }
 
-  delete(playerId: string, deckId: string): boolean {
-    return (
-      this.db.query('DELETE FROM decks WHERE deck_id = ? AND player_id = ?').run(deckId, playerId)
-        .changes > 0
-    )
+  /** Deck ids are random UUIDs, so the id alone names the row. */
+  delete(_playerId: string, deckId: string): boolean {
+    return this.db.query('DELETE FROM decks WHERE deck_id = ?').run(deckId).changes > 0
   }
 }
 
