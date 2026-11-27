@@ -529,7 +529,9 @@ export function Board({
         priority={
           board.connected &&
           board.opponentSeatId > 0 &&
-          board.prioritySeatId === board.opponentSeatId
+          board.prioritySeatId === board.opponentSeatId &&
+          // A pass offered to the viewer means the viewer is deciding for the controlled opponent.
+          !board.canPass
         }
         graveyard={board.opponentGraveyard}
         exile={board.opponentExile}
@@ -556,7 +558,9 @@ export function Board({
         label={interactive ? 'You' : 'Near side'}
         active={yourTurn}
         priority={
-          board.connected && board.viewerSeatId > 0 && board.prioritySeatId === board.viewerSeatId
+          board.connected &&
+          board.viewerSeatId > 0 &&
+          (board.prioritySeatId === board.viewerSeatId || board.canPass)
         }
         libraryTop={board.libraryTop}
         resourceNote={

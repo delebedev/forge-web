@@ -556,3 +556,50 @@ test('phased-out actions cannot shift an adjacent public-zone action card', () =
     action: { instanceId: 443 },
   })
 })
+
+test('a controlled opponent hand card with an offered action joins the non-hand actions', () => {
+  const state = applyGsm(EMPTY_GAME_STATE, {
+    type: GAME_STATE_TYPE_FULL,
+    gameStateId: 1,
+    players: [{ systemSeatNumber: 1 }, { systemSeatNumber: 2 }],
+    zones: [
+      { zoneId: 31, type: ZONE_HAND, ownerSeatId: 1, objectInstanceIds: [10] },
+      { zoneId: 35, type: ZONE_HAND, ownerSeatId: 2, objectInstanceIds: [20, 21] },
+    ],
+    gameObjects: [
+      { instanceId: 10, grpId: 600, type: GAME_OBJECT_TYPE_CARD, zoneId: 31, ownerSeatId: 1 },
+      ...[20, 21].map((instanceId) => ({
+        instanceId,
+        grpId: 600 + instanceId,
+        type: GAME_OBJECT_TYPE_CARD,
+        zoneId: 35,
+        ownerSeatId: 2,
+        controllerSeatId: 2,
+        visibility: 2,
+        viewers: [2, 1],
+      })),
+    ],
+  })
+  const meta = new Map([
+    [600, { grpId: 600, name: 'Own card' }],
+    [620, { grpId: 620, name: 'Grizzly Bears' }],
+    [621, { grpId: 621, name: 'Inert card' }],
+  ])
+  const withActions = applyActions(state, {
+    msgId: 2,
+    actionsAvailableReq: {
+      actions: [
+        { actionType: ACTION_CAST, instanceId: 10, grpId: 600 },
+        { actionType: ACTION_CAST, instanceId: 20, grpId: 620 },
+      ],
+    },
+  })
+
+  const board = buildBoardProjection(withActions, meta, false)
+  expect(board.nonHandActionCards.map(({ card }) => card.instanceId)).toEqual([20])
+  expect(board.nonHandActionCards[0]?.action.zoneType).toBe(ZONE_HAND)
+  expect(board.hand.map((card) => card.instanceId)).toEqual([10])
+
+  const noActions = applyActions(state, { msgId: 3, actionsAvailableReq: { actions: [] } })
+  expect(buildBoardProjection(noActions, meta, false).nonHandActionCards).toEqual([])
+})
