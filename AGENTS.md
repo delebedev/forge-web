@@ -35,8 +35,8 @@ checkout, create ready sibling worktrees with `just ws <branch>`.
 - **Browser driver:** read `tools/browser-driver/AGENTS.md` before running
   autonomous gameplay, evaluating puzzle candidates, or changing the driver.
 - **Code review:** every review, `/code-review` and the `claude-review` label
-  included, judges findings by `REVIEW.md`: what blocks a merge and what not
-  to report.
+  included, takes its criteria from `REVIEW.md`: what blocks a merge and what
+  not to report.
 - **Analytics:** read `docs/analytics.md` before changing tracking, replay, or
   privacy behavior.
 - **SEO:** read `docs/seo.md` before changing public HTML, metadata, or routes.
