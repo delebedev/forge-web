@@ -2,7 +2,18 @@ name: Chromatic
 
 on:
   push:
-    branches: [main, 'codex/**']
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'public/**'
+      - '.storybook/**'
+      - 'package.json'
+      - 'bun.lock'
+      - 'vite.config.ts'
+      - 'scripts/build/seo.ts'
+      - 'chromatic.config.json'
+      - '.github/workflows/chromatic.yml'
+  pull_request:
     paths:
       - 'src/**'
       - 'public/**'
@@ -24,15 +35,21 @@ permissions:
 
 jobs:
   visual:
-    if: vars.CHROMATIC_ENABLED == 'true'
+    # Pull requests from forks have no access to the project token.
+    if: >-
+      vars.CHROMATIC_ENABLED == 'true' &&
+      (github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository)
     name: Visual review
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
       CHROMATIC_PROJECT_TOKEN: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
     steps:
+      # Chromatic compares the PR head commit, not the merge commit GitHub builds by default.
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
       - uses: actions/setup-node@v4
         with:

@@ -176,9 +176,21 @@ export const DenseCreatures: Story = {
           screen.getByRole('complementary', { name: 'Scute Swarm inspection' }),
         ).toBeVisible()
       }
-      lane.focus()
+      // Every card sits in the native tab order, so Tab moves through them in DOM order.
+      // Real Tab presses cover entering the row and reaching its last card. The sweep
+      // between uses focus(), which runs the same scroll-into-view handler. A Tab press
+      // through user-event re-scans the whole page's tab order, and 128 of them took most
+      // of this story's time.
       for (const card of cards) {
-        await userEvent.tab()
+        await expect(card.tabIndex).toBe(0)
+      }
+      lane.focus()
+      await userEvent.tab()
+      await expect(cards[0]).toHaveFocus()
+      await userEvent.tab()
+      await expect(cards[1]).toHaveFocus()
+      for (const card of cards) {
+        card.focus()
         await expect(card).toHaveFocus()
         await waitFor(async () => {
           const bounds = card.getBoundingClientRect()
@@ -187,6 +199,9 @@ export const DenseCreatures: Story = {
           await expect(bounds.right).toBeLessThanOrEqual(viewport.right)
         })
       }
+      cards.at(-2)!.focus()
+      await userEvent.tab()
+      await expect(cards.at(-1)).toHaveFocus()
       cards[0]!.focus()
     }
     const lane = canvas.getByRole('region', { name: 'Your creatures' })

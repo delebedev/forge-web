@@ -70,6 +70,9 @@ bun run server:parity
 UI changes require visual verification at the affected viewport. Use
 `bun run product:smoke` for product-path coverage. Record acceptance evidence
 with a desktop browser by default. Mobile and tablet checks are on demand only.
+Story `play` checks run in the UI CI job; run them locally after changing a story
+or its component (`docs/storybook.md`). The Chromatic workflow posts a visual
+build on each PR that touches the catalogue.
 Inspect Chromatic diffs against the PR scope and rendered UI. Fix unintended
 regressions and continue when changes are expected. Escalate only when you cannot
 confidently judge a visual change. Pending Chromatic UI Tests or UI Review

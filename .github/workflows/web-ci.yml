@@ -113,6 +113,8 @@ jobs:
         uses: ./.github/actions/playwright-browsers
       - name: Check browser driver
         run: python3 scripts/ci/ci-measure.py ui-driver bash -eo pipefail -c 'node --test --experimental-strip-types tools/browser-driver/executor.browser.test.ts && bun x tsc -p tools/browser-driver/tsconfig.json'
+      - name: Check Storybook interactions
+        run: python3 scripts/ci/ci-measure.py ui-storybook bash -eo pipefail -c 'node node_modules/vitest/vitest.mjs run --config .storybook/vitest.config.ts'
       - name: Check public SEO
         run: python3 scripts/ci/ci-measure.py ui-seo bash -eo pipefail -c 'bun run seo:check'
       - name: Check authored transport without an engine
