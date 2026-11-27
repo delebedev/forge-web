@@ -1,0 +1,19 @@
+name: Restore Forge Maven repository
+description: >-
+  Restore the Maven repository that holds the pinned Forge commit's installed
+  jars and build plugins. Leyline's install-forge skips Maven when it finds the
+  repository's install marker, so a hit makes preparation independent of Maven
+  Central. A miss is saved when the job succeeds. Requires the recursive Leyline
+  checkout.
+runs:
+  using: composite
+  steps:
+    - name: Resolve Forge commit
+      id: forge
+      shell: bash
+      run: printf 'commit=%s\n' "$(git -C leyline/forge rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+    - name: Restore Forge Maven repository
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/leyline/forge-m2/${{ steps.forge.outputs.commit }}
+        key: forge-m2-${{ runner.os }}-${{ steps.forge.outputs.commit }}

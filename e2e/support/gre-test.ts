@@ -218,6 +218,23 @@ export function promptZone(page: Page) {
  * setup route, so the match screen mounts fresh, with session and preferences re-read.
  */
 export async function enterWarmApp(page: Page): Promise<void> {
+  try {
+    await navigateToSetup(page)
+  } catch (error) {
+    // The dev server can reload an idle warm page, and the reload destroys the
+    // context these steps evaluate in. The reloaded app is fresh, so repeat them.
+    if (!isNavigationError(error)) {
+      throw error
+    }
+    await page.waitForLoadState('load')
+    await expect.poll(() => appLoaded(page), { timeout: 20_000 }).toBe(true)
+    await navigateToSetup(page)
+  }
+  await page.waitForURL(/\/play\/game/, { timeout: 20_000 })
+  await expect(page.getByRole('region', { name: 'Battlefield', exact: true })).toHaveCount(0)
+}
+
+async function navigateToSetup(page: Page): Promise<void> {
   // The session first, so the setup route loads the current test's account.
   await refreshAppState(page)
   await page.evaluate(async () => {
@@ -225,8 +242,10 @@ export async function enterWarmApp(page: Page): Promise<void> {
     const { reactNavigate } = await import(routerPath)
     reactNavigate('/play/game?traffic=smoke')
   })
-  await page.waitForURL(/\/play\/game/, { timeout: 20_000 })
-  await expect(page.getByRole('region', { name: 'Battlefield', exact: true })).toHaveCount(0)
+}
+
+function isNavigationError(error: unknown): boolean {
+  return error instanceof Error && error.message.includes('Execution context was destroyed')
 }
 
 /**
