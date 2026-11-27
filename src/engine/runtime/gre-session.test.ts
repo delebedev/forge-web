@@ -756,10 +756,17 @@ it('gives every launched match its own identity, so each replay journal has one 
     onerror: ((event: ErrorEvent) => void) | null = null
     onmessageerror: (() => void) | null = null
     starts: string[] = []
+    rejectStarts = false
 
     postMessage(command: { type: string; id?: number; [key: string]: unknown }): void {
       if (command.type === 'start') {
         this.starts.push(String(command['matchId']))
+      }
+      if (command.type === 'start' && this.rejectStarts) {
+        queueMicrotask(() =>
+          this.emit({ event: 'reply', data: { id: command.id, error: 'Start rejected' }, at: 0 }),
+        )
+        return
       }
       if (command.type === 'failure-diagnostic') {
         queueMicrotask(() =>
@@ -786,6 +793,7 @@ it('gives every launched match its own identity, so each replay journal has one 
   }
 
   const navigate = spyOn(router, 'reactNavigate').mockImplementation(() => {})
+  const lifecycle = spyOn(analytics, 'trackBrowserLifecycle').mockImplementation(() => {})
   const worker = new LaunchWorker()
   const session = sessionStore(
     null,
@@ -815,15 +823,37 @@ it('gives every launched match its own identity, so each replay journal has one 
     await Bun.sleep(0)
     expect(session.snapshot().browserPhase).toBe('failed')
 
-    // A view mounted after the failure launches a new match under a new identity.
-    const relaunched = await session.connectBrowser(session.config!)
-    expect(relaunched).not.toBe(matchId)
-    expect(worker.starts).toEqual([matchId, relaunched])
-    expect(session.config).toMatchObject({ matchId: relaunched, seed: 42 })
-    expect(session.config!.attemptId).not.toBe(launched.attemptId)
-    expect(greStore.currentMatchId).toBe(relaunched)
+    // A view mounted after the failure restarts the session under a new identity, which the
+    // view then launches.
+    const launchKey = session.snapshot().launchKey
+    expect(
+      await session.connectBrowser(session.config!).catch((error: unknown) => error),
+    ).toMatchObject({ name: 'AbortError' })
+    const relaunch = session.config!
+    expect(relaunch.attemptId).not.toBe(launched.attemptId)
+    expect(relaunch.matchId).not.toBe(matchId)
+    expect(session.snapshot().launchKey).toBe(launchKey + 1)
+    expect(lifecycle).toHaveBeenCalledWith(
+      'retry',
+      expect.objectContaining({ attemptId: relaunch.attemptId }),
+      expect.anything(),
+    )
+
+    // A failed relaunch is reported under its own attempt.
+    worker.rejectStarts = true
+    expect(await session.connectBrowser(relaunch).catch((error: unknown) => error)).toBeInstanceOf(
+      Error,
+    )
+    expect(worker.starts).toEqual([matchId, relaunch.matchId!])
+    expect(session.snapshot().browserPhase).toBe('failed')
+    expect(lifecycle).toHaveBeenCalledWith(
+      'failed',
+      expect.objectContaining({ attemptId: relaunch.attemptId }),
+      expect.anything(),
+    )
   } finally {
     session.clear()
     navigate.mockRestore()
+    lifecycle.mockRestore()
   }
 })

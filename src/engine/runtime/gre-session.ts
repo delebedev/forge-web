@@ -213,20 +213,20 @@ export class GreSessionStore {
     }
   }
 
-  async connectBrowser(requested: GreStartConfig, signal?: AbortSignal): Promise<string> {
-    let config = requested
-    if (requested.attemptId && requested.attemptId === this.streamedAttemptId) {
+  async connectBrowser(config: GreStartConfig, signal?: AbortSignal): Promise<string> {
+    if (config.attemptId && config.attemptId === this.streamedAttemptId) {
       // A remounted match view asks for the match it already runs; launching again would restart it.
       if (
-        requested.matchId &&
+        config.matchId &&
         this.browserPhase === 'active' &&
-        this.store.currentMatchId === requested.matchId
+        this.store.currentMatchId === config.matchId
       ) {
-        return requested.matchId
+        return config.matchId
       }
-      // Each launch streams its own replay journal, which the server keys by match id.
-      const { matchId: _matchId, attemptId: _attemptId, ...relaunch } = requested
-      config = browserIdentity(relaunch)
+      // The attempt's match ended. Each launch streams its own replay journal, keyed by match id,
+      // so start again under a new identity as Play again does; the match view launches it.
+      await this.transition(true)
+      throw new DOMException('Browser match start was superseded', 'AbortError')
     }
     if (
       config.execution !== 'browser' ||
@@ -305,7 +305,7 @@ export class GreSessionStore {
         ...config,
         engineBuild: connectedEngine.releaseId,
       }
-      if (this.config?.attemptId === requested.attemptId) {
+      if (this.config?.attemptId === config.attemptId) {
         this.config = activeConfig
         saveGreMatchConfig(activeConfig)
       }
