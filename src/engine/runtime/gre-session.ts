@@ -93,6 +93,8 @@ export class GreSessionStore {
   private browserEngineBuild = ''
   private browserLastStage: BrowserFailureStage = 'attempt'
   private browserTerminalAttemptId = ''
+  /** The attempt whose match the store last connected, and so whose replay journal exists. */
+  private streamedAttemptId = ''
   private browserExitHandler: (() => void) | null = null
   private browserRecovery: TranscriptBundle | null = null
   private browserRecoveryController: AbortController | null = null
@@ -211,7 +213,21 @@ export class GreSessionStore {
     }
   }
 
-  async connectBrowser(config: GreStartConfig, signal?: AbortSignal): Promise<string> {
+  async connectBrowser(requested: GreStartConfig, signal?: AbortSignal): Promise<string> {
+    let config = requested
+    if (requested.attemptId && requested.attemptId === this.streamedAttemptId) {
+      // A remounted match view asks for the match it already runs; launching again would restart it.
+      if (
+        requested.matchId &&
+        this.browserPhase === 'active' &&
+        this.store.currentMatchId === requested.matchId
+      ) {
+        return requested.matchId
+      }
+      // Each launch streams its own replay journal, which the server keys by match id.
+      const { matchId: _matchId, attemptId: _attemptId, ...relaunch } = requested
+      config = browserIdentity(relaunch)
+    }
     if (
       config.execution !== 'browser' ||
       (config.gameType !== 'constructed' &&
@@ -289,7 +305,7 @@ export class GreSessionStore {
         ...config,
         engineBuild: connectedEngine.releaseId,
       }
-      if (this.config?.attemptId === config.attemptId) {
+      if (this.config?.attemptId === requested.attemptId) {
         this.config = activeConfig
         saveGreMatchConfig(activeConfig)
       }
@@ -298,6 +314,7 @@ export class GreSessionStore {
         matchId: match.matchId,
         fetchCardMeta: (ids) => connectedEngine.fetchCardMeta(ids),
       })
+      this.streamedAttemptId = activeConfig.attemptId!
       this.watchBrowserProgress()
       this.browserPhase = 'active'
       this.browserLastStage = 'match-started'
@@ -480,6 +497,7 @@ export class GreSessionStore {
         },
         recovered,
       )
+      this.streamedAttemptId = config.attemptId!
       this.watchBrowserProgress()
       this.browserPhase = 'active'
       this.browserRecovered = true
