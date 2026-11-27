@@ -17,7 +17,7 @@ test('attacker can inspect confirmed opponent blocks before a legal sacrifice re
   await authenticateShell(page, 'combat-assignment-proof')
   const release = await (await page.request.get('/browser-engine/release.json')).json()
   writeFileSync(info.outputPath('served-release.json'), JSON.stringify(release))
-  await startScenario(page, 'opponent-blocker-inspection', 'browser', 42)
+  await startScenario(page, 'opponent-blocker-inspection', 42)
   await expect(page.locator('[data-board]')).toHaveAttribute('data-card-art', 'off')
   readyForVideo.add(page)
   try {

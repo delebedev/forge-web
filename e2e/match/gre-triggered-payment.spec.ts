@@ -17,7 +17,7 @@ for (const accept of [true, false]) {
     )
     await authenticateShell(page, 'triggered-payment')
     const release = await (await page.request.get('/browser-engine/release.json')).json()
-    await startScenario(page, 'kitt-tap-payment', 'browser', 42)
+    await startScenario(page, 'kitt-tap-payment', 42)
     await expect(page.locator('[data-board]')).toHaveAttribute('data-card-art', 'off')
     await runGreAcceptanceSteps(page, {
       steps: [{ pass_until: { prompt: 'OptionalActionMessage', max_passes: 8 } }],

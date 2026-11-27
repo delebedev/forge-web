@@ -226,7 +226,6 @@ for (const payable of [false, true]) {
       const state = await page.evaluate(() => window.__greState()!)
       expect(state.diagnostics.errorCount).toBe(0)
       const journal = await readBrowserJournal(page)
-      expect(journal?.context?.execution).toBe('browser')
       expect(journal?.batches.length).toBeGreaterThan(0)
       expect(journal?.status?.truncated).toBe(false)
       await page.screenshot({ path: testInfo.outputPath('priority.png') })
@@ -647,12 +646,6 @@ test('concede shows GRE defeat outcome', async ({ page }) => {
 
 test('play again retires the old match and launches once on the same route', async ({ page }) => {
   const consoleErrors = collectConsoleErrors(page)
-  let serverLaunches = 0
-  page.on('request', (request) => {
-    if (request.url().endsWith('/api/gre/start')) {
-      serverLaunches += 1
-    }
-  })
 
   await authenticateShell(page)
   await startDeckGame(page, '60 Plains', '60 Plains')
@@ -676,7 +669,6 @@ test('play again retires the old match and launches once on the same route', asy
       { timeout: 20_000 },
     )
     .not.toBe(oldMatchId)
-  expect(serverLaunches).toBe(0)
   await expect(handZone(page).first()).toBeVisible({ timeout: 20_000 })
   expect(consoleErrors).toEqual([])
 })

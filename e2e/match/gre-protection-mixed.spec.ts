@@ -12,7 +12,7 @@ test('browser mixed protection preserves artifact and color choices with separat
     localStorage.setItem('forge:gre:priority-flag:hideCardArt', 'true'),
   )
   await authenticateShell(page, 'mixed-protection-proof')
-  await startScenario(page, 'protection-mixed', 'browser')
+  await startScenario(page, 'protection-mixed')
   await expect(page.locator('[data-board]')).toHaveAttribute('data-card-art', 'off')
   await page.getByRole('button', { name: 'Full control', exact: true }).click()
   readyForVideo.add(page)

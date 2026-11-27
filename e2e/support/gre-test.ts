@@ -70,17 +70,43 @@ export async function startPuzzleGame(page: Page, puzzle: string): Promise<void>
   await waitForBrowserGameReady(page)
 }
 
+// The longest readiness wait; shorter test budgets end the wait earlier so a stalled
+// start reports its state instead of a bare test timeout.
+const READINESS_LIMIT_MS = 240_000
+const READINESS_MARGIN_MS = 20_000
+
 export async function waitForBrowserGameReady(page: Page): Promise<void> {
-  await expect
-    .poll(
-      () =>
-        page.evaluate(() => {
-          const state = window.__greState?.()
-          return Boolean(state?.connected && state.horizon)
-        }),
-      { timeout: 240_000 },
-    )
-    .toBe(true)
+  const budget = test.info().timeout
+  const timeout = budget
+    ? Math.min(READINESS_LIMIT_MS, budget - READINESS_MARGIN_MS)
+    : READINESS_LIMIT_MS
+  const ready = () =>
+    page.evaluate(() => {
+      const state = window.__greState?.()
+      return Boolean(state?.connected && state.horizon)
+    })
+  try {
+    await expect.poll(ready, { timeout }).toBe(true)
+  } catch (error) {
+    const snapshot = await page
+      .evaluate(() => {
+        const state = window.__greState?.()
+        return {
+          url: location.pathname,
+          status: state?.status ?? null,
+          connected: state?.connected ?? null,
+          horizon: state?.horizon ?? null,
+          lastMessage: state?.diagnostics.lastMessage ?? null,
+          alerts: [...document.querySelectorAll('[role="alert"], [role="status"]')]
+            .map((node) => node.textContent?.trim())
+            .filter(Boolean),
+        }
+      })
+      .catch((cause: unknown) => ({ unavailable: String(cause) }))
+    throw new Error(`Browser game not ready after ${timeout} ms: ${JSON.stringify(snapshot)}`, {
+      cause: error,
+    })
+  }
 }
 
 /**

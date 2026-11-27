@@ -7,7 +7,6 @@ const savedConfig = {
 }
 
 async function observeAdmission(page: Page, config: unknown) {
-  const starts: unknown[] = []
   await page.addInitScript((value) => {
     if (value) {
       sessionStorage.setItem('forge:gre:lastMatchConfig', JSON.stringify(value))
@@ -25,11 +24,6 @@ async function observeAdmission(page: Page, config: unknown) {
     switch (path) {
       case '/api/auth/me':
         return route.fulfill({ json: { playerId: 'route-fixture', guest: false } })
-      case '/api/gre/start':
-        starts.push(request.postDataJSON())
-        return route.fulfill({
-          json: { matchId: 'route-fixture-match', wireMatchId: 'route-fixture-match' },
-        })
       case '/api/decks':
       case '/api/course-records':
         return route.fulfill({ json: [] })
@@ -37,57 +31,46 @@ async function observeAdmission(page: Page, config: unknown) {
         return route.fulfill({ status: 204 })
     }
   })
-  return { starts }
 }
 
 test('incompatible saved match redirects without starting an engine', async ({ page }, info) => {
-  const observed = await observeAdmission(page, savedConfig)
+  await observeAdmission(page, savedConfig)
   await page.goto('/match/draft')
   await expect(page).toHaveURL(/\/play\/limited\?mode=draft$/)
   await expect(page.getByRole('button', { name: 'Start Draft', exact: true })).toBeVisible()
   await expect(page.getByRole('region', { name: 'Battlefield', exact: true })).toHaveCount(0)
   await page.screenshot({ path: info.outputPath('stale-route-desktop.png') })
-  await info.attach('route-admission', {
-    body: JSON.stringify(observed),
-    contentType: 'application/json',
-  })
-  expect(observed.starts).toEqual([])
   expect(await page.evaluate(() => sessionStorage.getItem('forge:gre:lastMatchConfig'))).toBeNull()
 })
 
 test('missing saved match redirects without starting an engine', async ({ page }) => {
-  const observed = await observeAdmission(page, null)
+  await observeAdmission(page, null)
   await page.goto('/match/constructed')
   await expect(page).toHaveURL(/\/play\/game$/)
   await expect(page.getByRole('button', { name: 'Start game', exact: true })).toBeVisible()
-  expect(observed.starts).toEqual([])
 })
 
 test('legacy replay route ignores saved launch config and opens the transcript player', async ({
   page,
 }) => {
-  const observed = await observeAdmission(page, savedConfig)
+  await observeAdmission(page, savedConfig)
   await page.goto('/match/replay')
   await expect(page).toHaveURL(/\/play\/replay$/)
   await expect(page.getByRole('heading', { name: 'No transcript loaded' })).toBeVisible()
-  expect(observed.starts).toEqual([])
 })
 
-test('historical server matches return to setup without a gameplay request', async ({ page }) => {
-  const observed = await observeAdmission(page, {
+test('a saved non-browser match returns to setup', async ({ page }) => {
+  await observeAdmission(page, {
     ...savedConfig,
     execution: 'server',
     matchId: 'existing-match',
   })
   await page.goto('/match/constructed')
   await expect(page).toHaveURL(/\/play\/game$/)
-  expect(observed.starts).toEqual([])
 })
 
-test('compatible browser match after reload keeps its ended-game controls without server startup', async ({
-  page,
-}) => {
-  const observed = await observeAdmission(page, {
+test('compatible browser match after reload keeps its ended-game controls', async ({ page }) => {
+  await observeAdmission(page, {
     ...savedConfig,
     execution: 'browser',
     attemptId: 'attempt-route-fixture',
@@ -98,5 +81,4 @@ test('compatible browser match after reload keeps its ended-game controls withou
   await expect(page.getByRole('button', { name: 'Start again', exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Back to Play', exact: true })).toBeVisible()
   await expect(page).toHaveURL(/\/match\/constructed$/)
-  expect(observed.starts).toEqual([])
 })

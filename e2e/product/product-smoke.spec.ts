@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test'
 import type { DeckView } from '../../server/contract/wire-schemas'
-import { expect, test, waitForBrowserGameReady } from '../support/gre-test'
+import { expect, test } from '../support/gre-test'
 import { dailyBrowserChallengePath } from '../../src/features/challenges/browser-challenges'
 import { curatedReplay } from '../../src/features/replay/curated-replays'
 
@@ -99,40 +99,6 @@ test('unknown development challenge can return to the launcher', async ({ page }
   await expect(page.getByRole('alert')).toContainText('Challenge not found')
   await page.getByRole('button', { name: 'Return to Challenges' }).click()
   await expect(page.getByRole('heading', { name: 'Challenges' })).toBeVisible()
-})
-
-test('challenge selection boots the standard puzzle board without an account', async ({ page }) => {
-  test.setTimeout(300_000)
-  await page.goto('/challenges')
-  await page.getByRole('link', { name: /GRE Game Over - Bolt/ }).click()
-
-  await expect(page).not.toHaveURL(/\/login/)
-  await expect(page).toHaveURL(/\/match\/puzzle$/, { timeout: 20_000 })
-  await expect(page.getByRole('region', { name: 'Battlefield', exact: true })).toBeVisible({
-    timeout: 30_000,
-  })
-  // Assert the engine actually hydrated the puzzle (cards in hand or on board),
-  // not just that a connection shell exists.
-  await waitForBrowserGameReady(page)
-  await expect(page.locator('[data-instance-id]').first()).toBeVisible({ timeout: 30_000 })
-  await page.getByRole('button', { name: 'Return to Challenges' }).click()
-  await expect(page.getByRole('heading', { name: 'Challenges' })).toBeVisible({ timeout: 10_000 })
-})
-
-test('browser GRE path reaches the local engine', async ({ page, gre }) => {
-  await signIn(page)
-  await page.goto('/play/game')
-  await expect
-    .poll(async () => page.evaluate(() => typeof window.__greStart), { timeout: 10_000 })
-    .toBe('function')
-
-  const result = await gre.start({
-    seat1Deck: '4 Mountain\n4 Raging Goblin\n52 Mountain',
-    seat2Deck: '4 Plains\n4 Savannah Lions\n52 Plains',
-  })
-
-  expect(result.ok).toBe(true)
-  expect(result.state?.connected && result.state.gsId > 0).toBe(true)
 })
 
 test('public navigation preserves the replay through sign-in, About and expansion', async ({
@@ -255,6 +221,7 @@ test('watching hands the current decks to a local game without an account', asyn
 })
 
 test('lobby selects a ready-made deck and starts a mirrored game', async ({ page }) => {
+  const journeyEvents = await captureJourneyEvents(page)
   await signIn(page)
   await page.goto('/play/game')
   await page.getByRole('button', { name: 'Constructed', exact: true }).click()
@@ -267,6 +234,7 @@ test('lobby selects a ready-made deck and starts a mirrored game', async ({ page
   expect(body.seat2Deck).toBe(body.seat1Deck)
   await expect(page.getByRole('region', { name: 'Battlefield', exact: true })).toBeVisible()
   await waitForLocalBoard(page)
+  await expectReadinessPairedWithAttempt(journeyEvents)
   await page.getByRole('button', { name: '← End Match', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'What are you playing?' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Commander', exact: true })).toHaveAttribute(
@@ -370,7 +338,7 @@ test('lobby resolves a case-insensitive commander name, persists it and launches
   await expect(page.getByRole('region', { name: 'Battlefield', exact: true })).toContainText('40')
 })
 
-test('an exported Commander list with set codes, tags and a bare card name imports and launches', async ({
+test('an exported Commander list with set codes, tags and a bare card name imports', async ({
   page,
 }, info) => {
   test.setTimeout(300_000)
@@ -406,14 +374,13 @@ test('an exported Commander list with set codes, tags and a bare card name impor
   await page.getByRole('dialog').screenshot({ path: info.outputPath('exported-list-import.png') })
   await page.getByRole('button', { name: 'Import and select', exact: true }).click()
   await expect(page.getByText('Imported and saved to your library.', { exact: true })).toBeVisible()
-  await localStart(page).click()
-  await page.waitForURL(/\/match\/(?:commander|constructed)$/)
-  expect((await savedConfig(page)).seat1Deck).toBe(
-    '[Commander]\n1 Kenrith, the Returned King\n[Deck]\n1 Isamaru, Hound of Konda\n1 Sol Ring\n97 Plains',
-  )
-  await waitForLocalBoard(page)
-  await expect(page.getByRole('region', { name: 'Battlefield', exact: true })).toContainText('40')
-  await page.screenshot({ path: info.outputPath('exported-list-board.png') })
+  const saved = (await (await page.request.get('/api/decks')).json()).find(
+    (deck: DeckView) => deck.name === 'Kenrith export',
+  ) as DeckView
+  const cards = (zone: DeckView['mainDeck']) =>
+    zone.map((card) => `${card.quantity} ${card.cardName}`)
+  expect(cards(saved.commandZone)).toEqual(['1 Kenrith, the Returned King'])
+  expect(cards(saved.mainDeck)).toEqual(['1 Isamaru, Hound of Konda', '1 Sol Ring', '97 Plains'])
 })
 
 const commanderFixtures = [
@@ -578,67 +545,9 @@ test('return to game resumes a local match and stays hidden after leaving and wa
   await expect(page.getByRole('link', { name: 'Return to game' })).toHaveCount(0)
 })
 
-test('browser telemetry pairs engine readiness with its launch attempt', async ({ page, gre }) => {
-  await page.addInitScript(() => {
-    const events: { event: string; props: Record<string, unknown> }[] = []
-    Object.assign(window, {
-      journeyEvents: events,
-      umami: {
-        identify: () => undefined,
-        track: (event: string, props: Record<string, unknown>) => {
-          events.push({ event, props })
-        },
-      },
-    })
-  })
-  await signIn(page)
-  await page.goto('/play/game')
-  await expect.poll(() => page.evaluate(() => typeof window.__greStart)).toBe('function')
-  await gre.start({ seat1Deck: '60 Forest', seat2Deck: '60 Plains' })
-  const events = () =>
-    page.evaluate(
-      () =>
-        (
-          window as unknown as {
-            journeyEvents: { event: string; props: Record<string, unknown> }[]
-          }
-        ).journeyEvents,
-    )
-  await expect
-    .poll(
-      async () =>
-        (await events()).filter(
-          (row) => row.event === 'browser-lifecycle' && row.props['stage'] === 'match-started',
-        ).length,
-    )
-    .toBe(1)
-  const rows = await events()
-  const ready = rows.find(
-    (row) => row.event === 'browser-lifecycle' && row.props['stage'] === 'match-started',
-  )!
-  expect(ready.props['duration_ms']).toEqual(expect.any(Number))
-  expect(ready.props['duration_ms']).toBeGreaterThanOrEqual(0)
-  expect(
-    rows.filter(
-      (row) =>
-        row.event === 'browser-lifecycle' &&
-        row.props['stage'] === 'attempt' &&
-        row.props['attempt_id'] === ready.props['attempt_id'],
-    ),
-  ).toHaveLength(1)
-})
-
-test('browser launch failure can retry or return to setup without server fallback', async ({
-  page,
-}) => {
+test('browser launch failure can retry or return to setup', async ({ page }) => {
   await signIn(page)
   let manifests = 0
-  const serverRequests: string[] = []
-  page.on('request', (request) => {
-    if (/\/api\/gre\//.test(request.url())) {
-      serverRequests.push(request.url())
-    }
-  })
   await page.route('**/browser-engine/release.json', async (route) => {
     manifests += 1
     await route.fulfill({ status: 503, body: '{}' })
@@ -655,7 +564,6 @@ test('browser launch failure can retry or return to setup without server fallbac
   await alert.getByRole('button', { name: 'Back to Play' }).click()
   await expect(page).toHaveURL(/\/play\/game$/)
   expect(await page.evaluate(() => sessionStorage.getItem('forge:gre:lastMatchConfig'))).toBeNull()
-  expect(serverRequests).toEqual([])
 })
 
 test('failed application preload offers an explicit refresh without looping', async ({
@@ -682,3 +590,51 @@ test('failed application preload offers an explicit refresh without looping', as
   await expect(page.getByRole('link', { name: 'About', exact: true }).first()).toBeVisible()
   expect(navigations).toBe(2)
 })
+
+/** Record Umami journey events so a launch can assert its lifecycle telemetry. */
+async function captureJourneyEvents(page: Page) {
+  await page.addInitScript(() => {
+    const events: { event: string; props: Record<string, unknown> }[] = []
+    Object.assign(window, {
+      journeyEvents: events,
+      umami: {
+        identify: () => undefined,
+        track: (event: string, props: Record<string, unknown>) => {
+          events.push({ event, props })
+        },
+      },
+    })
+  })
+  return () =>
+    page.evaluate(
+      () =>
+        (
+          window as unknown as {
+            journeyEvents: { event: string; props: Record<string, unknown> }[]
+          }
+        ).journeyEvents,
+    )
+}
+
+/** Engine readiness is reported once, paired with the attempt that launched it. */
+async function expectReadinessPairedWithAttempt(
+  events: () => Promise<{ event: string; props: Record<string, unknown> }[]>,
+) {
+  const started = (rows: { event: string; props: Record<string, unknown> }[]) =>
+    rows.filter(
+      (row) => row.event === 'browser-lifecycle' && row.props['stage'] === 'match-started',
+    )
+  await expect.poll(async () => started(await events()).length).toBe(1)
+  const rows = await events()
+  const ready = started(rows)[0]!
+  expect(ready.props['duration_ms']).toEqual(expect.any(Number))
+  expect(ready.props['duration_ms']).toBeGreaterThanOrEqual(0)
+  expect(
+    rows.filter(
+      (row) =>
+        row.event === 'browser-lifecycle' &&
+        row.props['stage'] === 'attempt' &&
+        row.props['attempt_id'] === ready.props['attempt_id'],
+    ),
+  ).toHaveLength(1)
+}

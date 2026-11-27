@@ -6,12 +6,6 @@ import { expect, test } from '../support/gre-test'
 test('authored replacement source echoes the offered descriptor and retires after pointer input', async ({
   page,
 }, info) => {
-  const launches: string[] = []
-  page.on('request', (request) => {
-    if (new URL(request.url()).pathname === '/api/gre/start') {
-      launches.push(request.url())
-    }
-  })
   await page.route('**/api/auth/me', (route) =>
     route.fulfill({ json: { playerId: 'authored-source-player', guest: false } }),
   )
@@ -174,7 +168,6 @@ test('authored replacement source echoes the offered descriptor and retires afte
     }),
   ])
   const final = await page.evaluate(() => window.__greState()!)
-  expect(launches).toEqual([])
   expect(final.prompt).toBeNull()
   expect(final.diagnostics.errorCount).toBe(0)
   writeFileSync(

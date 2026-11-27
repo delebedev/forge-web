@@ -884,32 +884,30 @@ test('required graveyard cost cancels and can be completed on retry', async ({ p
   }
 })
 
-for (const execution of ['browser'] as const) {
-  test(`game log explains a visible burn spell (${execution})`, async ({ page }, info) => {
-    test.setTimeout(120_000)
-    await authenticateShell(page, 'game-log-proof')
-    await startScenario(page, 'burn-controls', execution)
-    await page.getByRole('button', { name: 'Board options', exact: true }).click()
-    await page.getByRole('checkbox', { name: 'Hide card art', exact: true }).check()
-    await page.keyboard.press('Escape')
-    await expect(page.locator('[data-board]')).toHaveAttribute('data-card-art', 'off')
-    readyForVideo.add(page)
-    await castSpell(page, { card: 'Shock', target: 'opponent', until: { opponent_life: 18 } })
-    await page.getByRole('button', { name: 'Game log', exact: true }).click()
-    const log = page.getByRole('dialog', { name: 'Game log', exact: true })
-    await expect(log).toContainText('You cast Shock.')
-    await expect(log).toContainText('2 damage to opponent.')
-    await expect(log).toContainText('Opponent loses 2 life (20 → 18).')
-    await expect(log).toContainText('Shock resolves.')
-    await page.screenshot({ path: info.outputPath('game-log.png'), scale: 'css' })
-    if (recordDemos) {
-      await page.waitForTimeout(2500)
-    }
-    await page.keyboard.press('Escape')
-    await expect(log).toHaveCount(0)
-    await expect(page.getByRole('button', { name: 'Game log', exact: true })).toBeFocused()
-  })
-}
+test(`game log explains a visible burn spell`, async ({ page }, info) => {
+  test.setTimeout(120_000)
+  await authenticateShell(page, 'game-log-proof')
+  await startScenario(page, 'burn-controls')
+  await page.getByRole('button', { name: 'Board options', exact: true }).click()
+  await page.getByRole('checkbox', { name: 'Hide card art', exact: true }).check()
+  await page.keyboard.press('Escape')
+  await expect(page.locator('[data-board]')).toHaveAttribute('data-card-art', 'off')
+  readyForVideo.add(page)
+  await castSpell(page, { card: 'Shock', target: 'opponent', until: { opponent_life: 18 } })
+  await page.getByRole('button', { name: 'Game log', exact: true }).click()
+  const log = page.getByRole('dialog', { name: 'Game log', exact: true })
+  await expect(log).toContainText('You cast Shock.')
+  await expect(log).toContainText('2 damage to opponent.')
+  await expect(log).toContainText('Opponent loses 2 life (20 → 18).')
+  await expect(log).toContainText('Shock resolves.')
+  await page.screenshot({ path: info.outputPath('game-log.png'), scale: 'css' })
+  if (recordDemos) {
+    await page.waitForTimeout(2500)
+  }
+  await page.keyboard.press('Escape')
+  await expect(log).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Game log', exact: true })).toBeFocused()
+})
 
 test('phyrexian casting offers mixed life and mana payment', async ({ page }, info) => {
   test.setTimeout(90000)
@@ -1019,471 +1017,395 @@ for (const choice of [
   })
 }
 
-for (const execution of ['browser'] as const) {
-  test(`Citadel exposes the top-library cast beside the hand and pays life (${execution})`, async ({
-    page,
-  }, info) => {
-    test.setTimeout(120_000)
-    await authenticateShell(page, 'citadel-proof')
-    await startScenario(page, 'citadel-top-library', execution)
-    await page.getByRole('button', { name: 'Board options', exact: true }).click()
-    await page.getByRole('checkbox', { name: 'Hide card art', exact: true }).check()
-    await page.keyboard.press('Escape')
-    await expect(page.locator('[data-board]')).toHaveAttribute('data-card-art', 'off')
-    readyForVideo.add(page)
-    await expect
-      .poll(() => page.evaluate(() => window.__greState()!.actions.join('\n')))
-      .toContain('Cast Grizzly Bears')
-    await page.screenshot({ path: info.outputPath('citadel-available.png'), scale: 'css' })
-    if (recordDemos) {
-      await page.waitForTimeout(1500)
-    }
-    const rail = page.getByRole('region', { name: 'Cards outside your hand' })
-    const bears = rail.locator('[data-card="Grizzly Bears"]')
-    await expect(bears).toBeVisible()
-    await resolveTo(
-      page,
-      { zone_contains: { side: 'ours', zone: 'battlefield', card: 'Grizzly Bears' } },
-      () => bears.click({ timeout: 10_000 }),
-    )
-    await expect(page.locator('[data-player="self"] [data-life]')).toHaveAttribute(
-      'data-life',
-      '18',
-    )
-    await expect(
-      page.locator('[data-zone="battlefield"][data-owner="self"] [data-card="Grizzly Bears"]'),
-    ).toBeVisible()
-    await expect(rail.locator('[data-card="Grizzly Bears"]')).toHaveCount(0)
-    await expect(rail.locator('[data-card="Forest"]')).toBeVisible()
-    await page.screenshot({ path: info.outputPath('citadel-paid-life.png'), scale: 'css' })
-    if (recordDemos) {
-      await page.waitForTimeout(1500)
-    }
-    await castSpell(page, {
-      card: 'Disenchant',
-      target: { side: 'ours', zone: 'battlefield', card: "Bolas's Citadel" },
-      until: { zone_not_contains: { side: 'ours', zone: 'battlefield', card: "Bolas's Citadel" } },
-    })
-    await expect(rail.locator('[data-card="Forest"]')).toHaveCount(0)
-    await expect(page.locator('[data-zone="library"][data-owner="self"]')).not.toHaveRole('button')
-    if (recordDemos) {
-      await page.waitForTimeout(1500)
-    }
-  })
-}
-
-test('independent draft sets preserve an active pool', async ({ page }, info) => {
-  // Two cold browser-engine draft starts.
-  test.setTimeout(300_000)
-  await page.route(/^https:\/\/(cards\.scryfall\.io|api\.scryfall\.com)\//, (route) =>
-    route.fulfill({ status: 204 }),
-  )
-  await authenticateShell(page, 'draft-isolation')
-  await page.goto('/play/limited?mode=draft')
-  await page.getByRole('button', { name: 'Change set', exact: true }).click()
-  await page.getByRole('textbox', { name: 'Search sets' }).fill('TDM')
-  await page.getByRole('button', { name: /TDM.*Tarkir/ }).click()
-  await page.getByRole('button', { name: 'Start Draft', exact: true }).click()
-  await page.locator('button[data-card]').first().click()
-  await expect(page.getByRole('complementary', { name: 'Draft pool' })).toContainText('1 cards')
-  const saved = await (await page.request.get('/api/course-records/QuickDraft_TDM_20260223')).json()
-  await page.goto('/play/limited?mode=draft')
-  await expect(page.getByRole('heading', { name: 'Booster Draft' })).toBeVisible()
+test(`Citadel exposes the top-library cast beside the hand and pays life`, async ({
+  page,
+}, info) => {
+  test.setTimeout(120_000)
+  await authenticateShell(page, 'citadel-proof')
+  await startScenario(page, 'citadel-top-library')
+  await page.getByRole('button', { name: 'Board options', exact: true }).click()
+  await page.getByRole('checkbox', { name: 'Hide card art', exact: true }).check()
+  await page.keyboard.press('Escape')
+  await expect(page.locator('[data-board]')).toHaveAttribute('data-card-art', 'off')
   readyForVideo.add(page)
-  await page.getByRole('button', { name: 'Change set', exact: true }).click()
-  await page.getByRole('textbox', { name: 'Search sets' }).fill('NEO')
-  await page.getByRole('button', { name: /NEO.*Kamigawa/ }).click()
-  await expect(page.getByRole('region', { name: 'New Draft' })).toContainText('NEO')
-  await page.waitForTimeout(1_000)
-  const neoStart = page.waitForResponse(
-    (response) =>
-      response.url().endsWith('/api/course-records/QuickDraft_NEO_20260223') &&
-      response.request().method() === 'PUT',
-  )
-  await page.getByRole('button', { name: 'Start Draft', exact: true }).click()
-  expect((await neoStart).ok()).toBe(true)
-  await expect(page.getByRole('complementary', { name: 'Draft pool' })).toBeVisible()
-  await expect(page.getByText('Round 1', { exact: true })).toBeVisible()
-  await page.screenshot({ path: info.outputPath('draft-after.png') })
-  const resume = await page.request.get('/api/course-records/QuickDraft_TDM_20260223')
-  expect(await resume.json()).toEqual(saved)
-  await page.goto('/play/limited?mode=draft')
-  await page.getByRole('button', { name: 'Change set', exact: true }).click()
-  await page.getByRole('textbox', { name: 'Search sets' }).fill('TDM')
-  await page.getByRole('button', { name: /TDM.*Tarkir/ }).click()
-  await page.getByRole('button', { name: 'Start Draft', exact: true }).click()
-  await expect(page.getByRole('complementary', { name: 'Draft pool' })).toContainText('1 cards', {
-    timeout: 60_000,
-  })
-  await expect(page.getByText('Pick 2', { exact: true })).toBeVisible()
-  await page.screenshot({ path: info.outputPath('draft-preserved.png') })
+  await expect
+    .poll(() => page.evaluate(() => window.__greState()!.actions.join('\n')))
+    .toContain('Cast Grizzly Bears')
+  await page.screenshot({ path: info.outputPath('citadel-available.png'), scale: 'css' })
   if (recordDemos) {
-    // Hold the final frame in the demo video.
-    await page.waitForTimeout(1_000)
+    await page.waitForTimeout(1500)
+  }
+  const rail = page.getByRole('region', { name: 'Cards outside your hand' })
+  const bears = rail.locator('[data-card="Grizzly Bears"]')
+  await expect(bears).toBeVisible()
+  await resolveTo(
+    page,
+    { zone_contains: { side: 'ours', zone: 'battlefield', card: 'Grizzly Bears' } },
+    () => bears.click({ timeout: 10_000 }),
+  )
+  await expect(page.locator('[data-player="self"] [data-life]')).toHaveAttribute('data-life', '18')
+  await expect(
+    page.locator('[data-zone="battlefield"][data-owner="self"] [data-card="Grizzly Bears"]'),
+  ).toBeVisible()
+  await expect(rail.locator('[data-card="Grizzly Bears"]')).toHaveCount(0)
+  await expect(rail.locator('[data-card="Forest"]')).toBeVisible()
+  await page.screenshot({ path: info.outputPath('citadel-paid-life.png'), scale: 'css' })
+  if (recordDemos) {
+    await page.waitForTimeout(1500)
+  }
+  await castSpell(page, {
+    card: 'Disenchant',
+    target: { side: 'ours', zone: 'battlefield', card: "Bolas's Citadel" },
+    until: { zone_not_contains: { side: 'ours', zone: 'battlefield', card: "Bolas's Citadel" } },
+  })
+  await expect(rail.locator('[data-card="Forest"]')).toHaveCount(0)
+  await expect(page.locator('[data-zone="library"][data-owner="self"]')).not.toHaveRole('button')
+  if (recordDemos) {
+    await page.waitForTimeout(1500)
   }
 })
 
-for (const execution of ['browser'] as const) {
-  test(`mixed stack shows and resolves the first entry (${execution})`, async ({ page }, info) => {
-    test.setTimeout(120_000)
-    await authenticateShell(page, 'mixed-stack-proof')
-    await startScenario(page, 'stack-cascade-bloodbraid', execution)
-    await page.getByRole('button', { name: 'Board options', exact: true }).click()
-    await page.getByRole('checkbox', { name: 'Hide card art', exact: true }).check()
-    await page.keyboard.press('Escape')
-    await expect(page.locator('[data-board]')).toHaveAttribute('data-card-art', 'off')
-    readyForVideo.add(page)
-    await page.getByRole('button', { name: 'Full control', exact: true }).click()
-    await cast(page, { type: 'cast', card: 'Bloodbraid Elf' })
-    const entries = page
-      .getByRole('complementary', { name: 'Stack', exact: true })
-      .getByRole('listitem')
-    await expect(entries).toHaveCount(2)
-    await expect(entries.first()).toContainText('Ability')
-    await expect(entries.first()).toContainText('Resolves next')
-    await expect(entries.nth(1)).toContainText('Bloodbraid Elf')
-    await page.mouse.move(24, 90)
-    await page.screenshot({ path: info.outputPath('cascade-first.png'), scale: 'css' })
-    if (recordDemos) {
-      await page.waitForTimeout(1500)
-    }
-    await page.getByRole('button', { name: 'Resolve', exact: true }).click()
-    await cast(page, { type: 'cast', card: 'Llanowar Elves', zone: 'exile' })
-    await expect(entries).toHaveCount(2)
-    await expect(entries.first()).toContainText('Llanowar Elves')
-    await expect(entries.first()).toContainText('Resolves next')
-    await expect(entries.nth(1)).toContainText('Bloodbraid Elf')
-    await page.mouse.move(24, 90)
-    await page.screenshot({ path: info.outputPath('new-spell-first.png'), scale: 'css' })
-    if (recordDemos) {
-      await page.waitForTimeout(1500)
-    }
-    await page.getByRole('button', { name: 'Resolve', exact: true }).click()
-    const battlefield = page.locator('[data-zone="battlefield"][data-owner="self"]')
-    await expect(battlefield.locator('[data-card="Llanowar Elves"]')).toBeVisible()
-    await expect(battlefield.locator('[data-card="Bloodbraid Elf"]')).toHaveCount(0)
-    await expect(entries).toHaveCount(1)
-    await expect(entries.first()).toContainText('Bloodbraid Elf')
-    await expect(entries.first()).toContainText('Resolves next')
-    await page.screenshot({ path: info.outputPath('first-spell-resolved.png'), scale: 'css' })
-    if (recordDemos) {
-      await page.waitForTimeout(1500)
-    }
-    await page.getByRole('button', { name: 'Resolve', exact: true }).click()
-    await expect(battlefield.locator('[data-card="Bloodbraid Elf"]')).toBeVisible()
-    await expect(entries).toHaveCount(0)
-    await expect(page.getByRole('button', { name: 'Pass', exact: true })).toBeVisible()
-    const state = await page.evaluate(() => window.__greState()!)
-    expect(state.diagnostics.errorCount).toBe(0)
-    await info.attach('resolved-stack', {
-      body: JSON.stringify(state, null, 2),
-      contentType: 'application/json',
-    })
-    await page.screenshot({ path: info.outputPath('stack-resolved.png'), scale: 'css' })
-    if (recordDemos) {
-      await page.waitForTimeout(1500)
-    }
-  })
-}
-
-for (const execution of ['browser'] as const) {
-  test(`Red protection excludes its creature from red spell targets (${execution})`, async ({
-    page,
-  }, info) => {
-    test.setTimeout(120_000)
-    await authenticateShell(page, 'protection-proof')
-    await startScenario(page, 'protection-red', execution)
-    await page.getByRole('button', { name: 'Board options', exact: true }).click()
-    await page.getByRole('checkbox', { name: 'Hide card art', exact: true }).check()
-    await page.keyboard.press('Escape')
-    await expect(page.locator('[data-board]')).toHaveAttribute('data-card-art', 'off')
-    readyForVideo.add(page)
-    await castSpell(page, {
-      card: 'Gods Willing',
-      target: { card: 'Grizzly Bears' },
-      until: { prompt: 'SelectNReq' },
-    })
-    const colors = page.locator('[data-prompt="selectN"]')
-    await expect(colors.getByRole('button', { name: 'Red', exact: true })).toBeEnabled()
-    await expect(colors.getByRole('button', { name: 'Colorless', exact: true })).toHaveCount(0)
-    await page.mouse.move(24, 90)
-    await page.screenshot({ path: info.outputPath('protection-colors.png'), scale: 'css' })
-    if (recordDemos) {
-      await page.waitForTimeout(1500)
-    }
-    await colors.getByRole('button', { name: 'Red', exact: true }).click()
-    await resolveTo(page, { prompt: 'GroupReq' }, () =>
-      colors.getByRole('button', { name: 'Submit selection', exact: true }).click(),
-    )
-    await resolveTo(page, { stack_empty: true }, () =>
-      page.getByRole('button', { name: 'Submit groups', exact: true }).click(),
-    )
-    await castSpell(page, { card: 'Shock', until: { prompt: 'SelectTargetsReq' } })
-    const targets = page.locator('[data-prompt="targets"]')
-    await expect(targets.getByRole('button', { name: /Grizzly Bears/ })).toHaveCount(0)
-    const legal = targets.getByRole('button', { name: /Centaur Courser/ })
-    await expect(legal).toBeEnabled()
-    await expect(legal.locator('img')).toHaveCount(1)
-    await expect(legal.locator('img')).toBeHidden()
-    await page.mouse.move(24, 90)
-    await page.screenshot({ path: info.outputPath('protected-target-excluded.png'), scale: 'css' })
-    if (recordDemos) {
-      await page.waitForTimeout(1500)
-    }
-    await resolveTo(
-      page,
-      {
-        all: [{ stack_empty: true }, { prompt: 'DeclareAttackersReq' }],
-      },
-      () => legal.click(),
-    )
-    await expect(
-      page.locator('[data-zone="battlefield"][data-owner="self"] [data-card="Grizzly Bears"]'),
-    ).toBeVisible()
-    await expect(
-      page.locator(
-        '[data-zone="battlefield"][data-owner="opponent"] [data-card="Centaur Courser"]',
-      ),
-    ).toBeVisible()
-    await page.getByRole('button', { name: 'Game log', exact: true }).click()
-    await expect(
-      page.getByText('Shock deals 2 damage to Centaur Courser.', { exact: true }),
-    ).toBeVisible()
-    expect((await page.evaluate(() => window.__greState()!)).diagnostics.errorCount).toBe(0)
-    await page.screenshot({ path: info.outputPath('legal-target-resolved.png'), scale: 'css' })
-    if (recordDemos) {
-      await page.waitForTimeout(1500)
-    }
-  })
-
-  test(`Colorless protection choice resolves with its counter (${execution})`, async ({
-    page,
-  }, info) => {
-    test.setTimeout(120_000)
-    await authenticateShell(page, 'protection-proof')
-    await startScenario(page, 'protection-colorless', execution)
-    await page.getByRole('button', { name: 'Board options', exact: true }).click()
-    await page.getByRole('checkbox', { name: 'Hide card art', exact: true }).check()
-    await page.keyboard.press('Escape')
-    await expect(page.locator('[data-board]')).toHaveAttribute('data-card-art', 'off')
-    readyForVideo.add(page)
-    await castSpell(page, {
-      card: 'Angelic Intervention',
-      target: { card: 'Grizzly Bears' },
-      until: { prompt: 'SelectNReq' },
-    })
-    const colors = page.locator('[data-prompt="selectN"]')
-    const colorless = colors.getByRole('button', { name: 'Colorless', exact: true })
-    await expect(colorless).toHaveAttribute('data-choice-id', '0')
-    await expect(colorless).toBeEnabled()
-    await page.mouse.move(24, 90)
-    await page.screenshot({ path: info.outputPath('colorless-choice.png'), scale: 'css' })
-    if (recordDemos) {
-      await page.waitForTimeout(1500)
-    }
-    await colorless.click()
-    await resolveTo(
-      page,
-      {
-        all: [
-          { stack_empty: true },
-          { battlefield_stats: { side: 'ours', card: 'Grizzly Bears', power: 3, toughness: 3 } },
-          { annotation_seen: { type: 'ChoiceResult', details: { Choice_Value: 0 } } },
-          { prompt: 'DeclareAttackersReq' },
-        ],
-      },
-      () => colors.getByRole('button', { name: 'Submit selection', exact: true }).click(),
-    )
-    await expect(
-      page.locator(
-        '[data-zone="battlefield"][data-owner="self"] [data-card="Grizzly Bears"] [data-pt]',
-      ),
-    ).toHaveText('3/3')
-    expect((await page.evaluate(() => window.__greState()!)).diagnostics.errorCount).toBe(0)
-    await page.screenshot({ path: info.outputPath('colorless-resolved.png'), scale: 'css' })
-    if (recordDemos) {
-      await page.waitForTimeout(1500)
-    }
-  })
-}
-
-for (const execution of ['browser'] as const) {
-  test(`Single Combat keeps the selected second creature (${execution})`, async ({
-    page,
-  }, info) => {
-    test.setTimeout(120_000)
-    await authenticateShell(page, 'effect-choice-proof')
-    await startScenario(page, 'single-combat', execution)
-    await page.getByRole('button', { name: 'Board options', exact: true }).click()
-    await page.getByRole('checkbox', { name: 'Hide card art', exact: true }).check()
-    await page.keyboard.press('Escape')
-    await expect(page.locator('[data-board]')).toHaveAttribute('data-card-art', 'off')
-    readyForVideo.add(page)
-    await castSpell(page, { card: 'Single Combat', until: { prompt: 'SelectNReq' } })
-    const choices = page.locator('[data-prompt="selectN"]')
-    await expect(choices.getByRole('button').first()).toHaveText(/Grizzly Bears/)
-    const chosen = choices.getByRole('button', { name: /Centaur Courser/ })
-    await expect(chosen).toBeEnabled()
-    await expect(chosen.locator('img')).toBeHidden()
-    await chosen.click()
-    await expect(chosen).toHaveAttribute('aria-pressed', 'true')
-    await page.mouse.move(24, 90)
-    await page.screenshot({ path: info.outputPath('single-combat-choice.png'), scale: 'css' })
-    if (recordDemos) {
-      await page.waitForTimeout(1500)
-    }
-    await resolveTo(
-      page,
-      {
-        all: [
-          { stack_empty: true },
-          { zone_not_contains: { side: 'ours', zone: 'battlefield', card: 'Grizzly Bears' } },
-          { prompt: 'DeclareAttackersReq' },
-        ],
-      },
-      () => choices.getByRole('button', { name: 'Submit selection', exact: true }).click(),
-    )
-    await expect(
-      page.locator('[data-zone="battlefield"][data-owner="self"] [data-card="Centaur Courser"]'),
-    ).toBeVisible()
-    await expect(
-      page.locator('[data-zone="battlefield"][data-owner="opponent"] [data-card="Walking Corpse"]'),
-    ).toBeVisible()
-    expect((await page.evaluate(() => window.__greState()!)).diagnostics.errorCount).toBe(0)
-    await page.screenshot({ path: info.outputPath('single-combat-resolved.png'), scale: 'css' })
-    if (recordDemos) {
-      await page.waitForTimeout(1500)
-    }
-  })
-
-  test(`Dragon's Disciple accepts the selected second Dragon (${execution})`, async ({
-    page,
-  }, info) => {
-    test.setTimeout(120_000)
-    await authenticateShell(page, 'effect-choice-proof')
-    await startScenario(page, 'disciple-reveal', execution)
-    await page.getByRole('button', { name: 'Board options', exact: true }).click()
-    await page.getByRole('checkbox', { name: 'Hide card art', exact: true }).check()
-    await page.keyboard.press('Escape')
-    await expect(page.locator('[data-board]')).toHaveAttribute('data-card-art', 'off')
-    readyForVideo.add(page)
-    await castSpell(page, { card: "Dragon's Disciple", until: { prompt: 'SelectNReq' } })
-    const choices = page.locator('[data-prompt="selectN"]')
-    await expect(choices.getByRole('button').first()).toHaveText(/Shivan Dragon/)
-    const chosen = choices.getByRole('button', { name: /Volcanic Dragon/ })
-    await expect(chosen).toBeEnabled()
-    await expect(chosen.locator('img')).toBeHidden()
-    await chosen.click()
-    await expect(chosen).toHaveAttribute('aria-pressed', 'true')
-    await page.mouse.move(24, 90)
-    await page.screenshot({ path: info.outputPath('disciple-choice.png'), scale: 'css' })
-    if (recordDemos) {
-      await page.waitForTimeout(1500)
-    }
-    await resolveTo(
-      page,
-      {
-        all: [
-          { stack_empty: true },
-          {
-            battlefield_stats: { side: 'ours', card: "Dragon's Disciple", power: 2, toughness: 4 },
-          },
-        ],
-      },
-      () => choices.getByRole('button', { name: 'Submit selection', exact: true }).click(),
-    )
-    await expect(handZone(page).filter({ hasText: 'Shivan Dragon' })).toBeVisible()
-    await expect(handZone(page).filter({ hasText: 'Volcanic Dragon' })).toBeVisible()
-    expect((await page.evaluate(() => window.__greState()!)).diagnostics.errorCount).toBe(0)
-    await page.screenshot({ path: info.outputPath('disciple-resolved.png'), scale: 'css' })
-    if (recordDemos) {
-      await page.waitForTimeout(1500)
-    }
-  })
-}
-
-for (const execution of ['browser'] as const) {
-  for (const choice of [
-    {
-      label: 'Creature',
-      id: '2',
-      cards: ['Grizzly Bears', 'Walking Corpse'],
-      discarded: ['Mountain', 'Island'],
-    },
-    {
-      label: 'Land',
-      id: '5',
-      cards: ['Mountain', 'Island'],
-      discarded: ['Grizzly Bears', 'Walking Corpse'],
-    },
-  ]) {
-    test(`Winding Way chooses ${choice.label} and returns matching cards (${execution})`, async ({
-      page,
-    }, info) => {
-      test.setTimeout(120_000)
-      await authenticateShell(page, 'card-type-proof')
-      await startScenario(page, 'winding-way-type-choice', execution)
-      await page.getByRole('button', { name: 'Board options', exact: true }).click()
-      await page.getByRole('checkbox', { name: 'Hide card art', exact: true }).check()
-      await page.keyboard.press('Escape')
-      await expect(page.locator('[data-board]')).toHaveAttribute('data-card-art', 'off')
-      await runGreAcceptanceSteps(page, { steps: [] }, { fullControl: true })
-      readyForVideo.add(page)
-      await castSpell(page, { card: 'Winding Way', until: { prompt: 'SelectNReq' } })
-      const choices = page.locator('[data-prompt="selectN"]')
-      await expect(choices.locator('[data-choice-id]')).toHaveCount(2)
-      await expect(choices.getByRole('button', { name: 'Creature', exact: true })).toHaveAttribute(
-        'data-choice-id',
-        '2',
-      )
-      await expect(choices.getByRole('button', { name: 'Land', exact: true })).toHaveAttribute(
-        'data-choice-id',
-        '5',
-      )
-      const selected = choices.getByRole('button', { name: choice.label, exact: true })
-      await expect(selected).toHaveAttribute('data-choice-id', choice.id)
-      await selected.click()
-      await expect(selected).toHaveAttribute('aria-pressed', 'true')
-      await page.mouse.move(24, 90)
-      await page.screenshot({ path: info.outputPath('card-type-choice.png'), scale: 'css' })
-      if (recordDemos) {
-        await page.waitForTimeout(1500)
-      }
-      await resolveTo(
-        page,
-        {
-          all: [
-            { stack_empty: true },
-            ...choice.cards.map((card) => ({
-              zone_contains: { side: 'ours', zone: 'hand', card },
-            })),
-          ],
-        },
-        () => choices.getByRole('button', { name: 'Submit selection', exact: true }).click(),
-      )
-      for (const card of choice.discarded) {
-        await expect(handZone(page).filter({ hasText: card })).toHaveCount(0)
-      }
-      await page.getByTitle('Your graveyard', { exact: true }).click()
-      const graveyard = page.getByRole('dialog', { name: /Your Graveyard/ })
-      for (const card of choice.discarded) {
-        await expect(graveyard.locator(`[data-card="${card}"]`)).toBeVisible()
-      }
-      await page.mouse.move(24, 90)
-      await page.screenshot({ path: info.outputPath('card-type-result.png'), scale: 'css' })
-      if (recordDemos) {
-        await page.waitForTimeout(1500)
-      }
-      await graveyard.getByRole('button', { name: 'Close Your Graveyard', exact: true }).click()
-      await resolveTo(page, { zone_count: { side: 'ours', zone: 'battlefield', count: 3 } }, () =>
-        runGreAcceptanceSteps(page, { steps: [{ play_land: 'Forest' }] }),
-      )
-      expect((await page.evaluate(() => window.__greState()!)).diagnostics.errorCount).toBe(0)
-      await page.mouse.move(24, 90)
-      await page.screenshot({ path: info.outputPath('card-type-continued.png'), scale: 'css' })
-      if (recordDemos) {
-        await page.waitForTimeout(1500)
-      }
-    })
+test(`mixed stack shows and resolves the first entry`, async ({ page }, info) => {
+  test.setTimeout(120_000)
+  await authenticateShell(page, 'mixed-stack-proof')
+  await startScenario(page, 'stack-cascade-bloodbraid')
+  await page.getByRole('button', { name: 'Board options', exact: true }).click()
+  await page.getByRole('checkbox', { name: 'Hide card art', exact: true }).check()
+  await page.keyboard.press('Escape')
+  await expect(page.locator('[data-board]')).toHaveAttribute('data-card-art', 'off')
+  readyForVideo.add(page)
+  await page.getByRole('button', { name: 'Full control', exact: true }).click()
+  await cast(page, { type: 'cast', card: 'Bloodbraid Elf' })
+  const entries = page
+    .getByRole('complementary', { name: 'Stack', exact: true })
+    .getByRole('listitem')
+  await expect(entries).toHaveCount(2)
+  await expect(entries.first()).toContainText('Ability')
+  await expect(entries.first()).toContainText('Resolves next')
+  await expect(entries.nth(1)).toContainText('Bloodbraid Elf')
+  await page.mouse.move(24, 90)
+  await page.screenshot({ path: info.outputPath('cascade-first.png'), scale: 'css' })
+  if (recordDemos) {
+    await page.waitForTimeout(1500)
   }
+  await page.getByRole('button', { name: 'Resolve', exact: true }).click()
+  await cast(page, { type: 'cast', card: 'Llanowar Elves', zone: 'exile' })
+  await expect(entries).toHaveCount(2)
+  await expect(entries.first()).toContainText('Llanowar Elves')
+  await expect(entries.first()).toContainText('Resolves next')
+  await expect(entries.nth(1)).toContainText('Bloodbraid Elf')
+  await page.mouse.move(24, 90)
+  await page.screenshot({ path: info.outputPath('new-spell-first.png'), scale: 'css' })
+  if (recordDemos) {
+    await page.waitForTimeout(1500)
+  }
+  await page.getByRole('button', { name: 'Resolve', exact: true }).click()
+  const battlefield = page.locator('[data-zone="battlefield"][data-owner="self"]')
+  await expect(battlefield.locator('[data-card="Llanowar Elves"]')).toBeVisible()
+  await expect(battlefield.locator('[data-card="Bloodbraid Elf"]')).toHaveCount(0)
+  await expect(entries).toHaveCount(1)
+  await expect(entries.first()).toContainText('Bloodbraid Elf')
+  await expect(entries.first()).toContainText('Resolves next')
+  await page.screenshot({ path: info.outputPath('first-spell-resolved.png'), scale: 'css' })
+  if (recordDemos) {
+    await page.waitForTimeout(1500)
+  }
+  await page.getByRole('button', { name: 'Resolve', exact: true }).click()
+  await expect(battlefield.locator('[data-card="Bloodbraid Elf"]')).toBeVisible()
+  await expect(entries).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Pass', exact: true })).toBeVisible()
+  const state = await page.evaluate(() => window.__greState()!)
+  expect(state.diagnostics.errorCount).toBe(0)
+  await info.attach('resolved-stack', {
+    body: JSON.stringify(state, null, 2),
+    contentType: 'application/json',
+  })
+  await page.screenshot({ path: info.outputPath('stack-resolved.png'), scale: 'css' })
+  if (recordDemos) {
+    await page.waitForTimeout(1500)
+  }
+})
+
+test(`Red protection excludes its creature from red spell targets`, async ({ page }, info) => {
+  test.setTimeout(120_000)
+  await authenticateShell(page, 'protection-proof')
+  await startScenario(page, 'protection-red')
+  await page.getByRole('button', { name: 'Board options', exact: true }).click()
+  await page.getByRole('checkbox', { name: 'Hide card art', exact: true }).check()
+  await page.keyboard.press('Escape')
+  await expect(page.locator('[data-board]')).toHaveAttribute('data-card-art', 'off')
+  readyForVideo.add(page)
+  await castSpell(page, {
+    card: 'Gods Willing',
+    target: { card: 'Grizzly Bears' },
+    until: { prompt: 'SelectNReq' },
+  })
+  const colors = page.locator('[data-prompt="selectN"]')
+  await expect(colors.getByRole('button', { name: 'Red', exact: true })).toBeEnabled()
+  await expect(colors.getByRole('button', { name: 'Colorless', exact: true })).toHaveCount(0)
+  await page.mouse.move(24, 90)
+  await page.screenshot({ path: info.outputPath('protection-colors.png'), scale: 'css' })
+  if (recordDemos) {
+    await page.waitForTimeout(1500)
+  }
+  await colors.getByRole('button', { name: 'Red', exact: true }).click()
+  await resolveTo(page, { prompt: 'GroupReq' }, () =>
+    colors.getByRole('button', { name: 'Submit selection', exact: true }).click(),
+  )
+  await resolveTo(page, { stack_empty: true }, () =>
+    page.getByRole('button', { name: 'Submit groups', exact: true }).click(),
+  )
+  await castSpell(page, { card: 'Shock', until: { prompt: 'SelectTargetsReq' } })
+  const targets = page.locator('[data-prompt="targets"]')
+  await expect(targets.getByRole('button', { name: /Grizzly Bears/ })).toHaveCount(0)
+  const legal = targets.getByRole('button', { name: /Centaur Courser/ })
+  await expect(legal).toBeEnabled()
+  await expect(legal.locator('img')).toHaveCount(1)
+  await expect(legal.locator('img')).toBeHidden()
+  await page.mouse.move(24, 90)
+  await page.screenshot({ path: info.outputPath('protected-target-excluded.png'), scale: 'css' })
+  if (recordDemos) {
+    await page.waitForTimeout(1500)
+  }
+  await resolveTo(
+    page,
+    {
+      all: [{ stack_empty: true }, { prompt: 'DeclareAttackersReq' }],
+    },
+    () => legal.click(),
+  )
+  await expect(
+    page.locator('[data-zone="battlefield"][data-owner="self"] [data-card="Grizzly Bears"]'),
+  ).toBeVisible()
+  await expect(
+    page.locator('[data-zone="battlefield"][data-owner="opponent"] [data-card="Centaur Courser"]'),
+  ).toBeVisible()
+  await page.getByRole('button', { name: 'Game log', exact: true }).click()
+  await expect(
+    page.getByText('Shock deals 2 damage to Centaur Courser.', { exact: true }),
+  ).toBeVisible()
+  expect((await page.evaluate(() => window.__greState()!)).diagnostics.errorCount).toBe(0)
+  await page.screenshot({ path: info.outputPath('legal-target-resolved.png'), scale: 'css' })
+  if (recordDemos) {
+    await page.waitForTimeout(1500)
+  }
+})
+
+test(`Colorless protection choice resolves with its counter`, async ({ page }, info) => {
+  test.setTimeout(120_000)
+  await authenticateShell(page, 'protection-proof')
+  await startScenario(page, 'protection-colorless')
+  await page.getByRole('button', { name: 'Board options', exact: true }).click()
+  await page.getByRole('checkbox', { name: 'Hide card art', exact: true }).check()
+  await page.keyboard.press('Escape')
+  await expect(page.locator('[data-board]')).toHaveAttribute('data-card-art', 'off')
+  readyForVideo.add(page)
+  await castSpell(page, {
+    card: 'Angelic Intervention',
+    target: { card: 'Grizzly Bears' },
+    until: { prompt: 'SelectNReq' },
+  })
+  const colors = page.locator('[data-prompt="selectN"]')
+  const colorless = colors.getByRole('button', { name: 'Colorless', exact: true })
+  await expect(colorless).toHaveAttribute('data-choice-id', '0')
+  await expect(colorless).toBeEnabled()
+  await page.mouse.move(24, 90)
+  await page.screenshot({ path: info.outputPath('colorless-choice.png'), scale: 'css' })
+  if (recordDemos) {
+    await page.waitForTimeout(1500)
+  }
+  await colorless.click()
+  await resolveTo(
+    page,
+    {
+      all: [
+        { stack_empty: true },
+        { battlefield_stats: { side: 'ours', card: 'Grizzly Bears', power: 3, toughness: 3 } },
+        { annotation_seen: { type: 'ChoiceResult', details: { Choice_Value: 0 } } },
+        { prompt: 'DeclareAttackersReq' },
+      ],
+    },
+    () => colors.getByRole('button', { name: 'Submit selection', exact: true }).click(),
+  )
+  await expect(
+    page.locator(
+      '[data-zone="battlefield"][data-owner="self"] [data-card="Grizzly Bears"] [data-pt]',
+    ),
+  ).toHaveText('3/3')
+  expect((await page.evaluate(() => window.__greState()!)).diagnostics.errorCount).toBe(0)
+  await page.screenshot({ path: info.outputPath('colorless-resolved.png'), scale: 'css' })
+  if (recordDemos) {
+    await page.waitForTimeout(1500)
+  }
+})
+
+test(`Single Combat keeps the selected second creature`, async ({ page }, info) => {
+  test.setTimeout(120_000)
+  await authenticateShell(page, 'effect-choice-proof')
+  await startScenario(page, 'single-combat')
+  await page.getByRole('button', { name: 'Board options', exact: true }).click()
+  await page.getByRole('checkbox', { name: 'Hide card art', exact: true }).check()
+  await page.keyboard.press('Escape')
+  await expect(page.locator('[data-board]')).toHaveAttribute('data-card-art', 'off')
+  readyForVideo.add(page)
+  await castSpell(page, { card: 'Single Combat', until: { prompt: 'SelectNReq' } })
+  const choices = page.locator('[data-prompt="selectN"]')
+  await expect(choices.getByRole('button').first()).toHaveText(/Grizzly Bears/)
+  const chosen = choices.getByRole('button', { name: /Centaur Courser/ })
+  await expect(chosen).toBeEnabled()
+  await expect(chosen.locator('img')).toBeHidden()
+  await chosen.click()
+  await expect(chosen).toHaveAttribute('aria-pressed', 'true')
+  await page.mouse.move(24, 90)
+  await page.screenshot({ path: info.outputPath('single-combat-choice.png'), scale: 'css' })
+  if (recordDemos) {
+    await page.waitForTimeout(1500)
+  }
+  await resolveTo(
+    page,
+    {
+      all: [
+        { stack_empty: true },
+        { zone_not_contains: { side: 'ours', zone: 'battlefield', card: 'Grizzly Bears' } },
+        { prompt: 'DeclareAttackersReq' },
+      ],
+    },
+    () => choices.getByRole('button', { name: 'Submit selection', exact: true }).click(),
+  )
+  await expect(
+    page.locator('[data-zone="battlefield"][data-owner="self"] [data-card="Centaur Courser"]'),
+  ).toBeVisible()
+  await expect(
+    page.locator('[data-zone="battlefield"][data-owner="opponent"] [data-card="Walking Corpse"]'),
+  ).toBeVisible()
+  expect((await page.evaluate(() => window.__greState()!)).diagnostics.errorCount).toBe(0)
+  await page.screenshot({ path: info.outputPath('single-combat-resolved.png'), scale: 'css' })
+  if (recordDemos) {
+    await page.waitForTimeout(1500)
+  }
+})
+
+test(`Dragon's Disciple accepts the selected second Dragon`, async ({ page }, info) => {
+  test.setTimeout(120_000)
+  await authenticateShell(page, 'effect-choice-proof')
+  await startScenario(page, 'disciple-reveal')
+  await page.getByRole('button', { name: 'Board options', exact: true }).click()
+  await page.getByRole('checkbox', { name: 'Hide card art', exact: true }).check()
+  await page.keyboard.press('Escape')
+  await expect(page.locator('[data-board]')).toHaveAttribute('data-card-art', 'off')
+  readyForVideo.add(page)
+  await castSpell(page, { card: "Dragon's Disciple", until: { prompt: 'SelectNReq' } })
+  const choices = page.locator('[data-prompt="selectN"]')
+  await expect(choices.getByRole('button').first()).toHaveText(/Shivan Dragon/)
+  const chosen = choices.getByRole('button', { name: /Volcanic Dragon/ })
+  await expect(chosen).toBeEnabled()
+  await expect(chosen.locator('img')).toBeHidden()
+  await chosen.click()
+  await expect(chosen).toHaveAttribute('aria-pressed', 'true')
+  await page.mouse.move(24, 90)
+  await page.screenshot({ path: info.outputPath('disciple-choice.png'), scale: 'css' })
+  if (recordDemos) {
+    await page.waitForTimeout(1500)
+  }
+  await resolveTo(
+    page,
+    {
+      all: [
+        { stack_empty: true },
+        {
+          battlefield_stats: { side: 'ours', card: "Dragon's Disciple", power: 2, toughness: 4 },
+        },
+      ],
+    },
+    () => choices.getByRole('button', { name: 'Submit selection', exact: true }).click(),
+  )
+  await expect(handZone(page).filter({ hasText: 'Shivan Dragon' })).toBeVisible()
+  await expect(handZone(page).filter({ hasText: 'Volcanic Dragon' })).toBeVisible()
+  expect((await page.evaluate(() => window.__greState()!)).diagnostics.errorCount).toBe(0)
+  await page.screenshot({ path: info.outputPath('disciple-resolved.png'), scale: 'css' })
+  if (recordDemos) {
+    await page.waitForTimeout(1500)
+  }
+})
+
+for (const choice of [
+  {
+    label: 'Creature',
+    id: '2',
+    cards: ['Grizzly Bears', 'Walking Corpse'],
+    discarded: ['Mountain', 'Island'],
+  },
+  {
+    label: 'Land',
+    id: '5',
+    cards: ['Mountain', 'Island'],
+    discarded: ['Grizzly Bears', 'Walking Corpse'],
+  },
+]) {
+  test(`Winding Way chooses ${choice.label} and returns matching cards`, async ({ page }, info) => {
+    test.setTimeout(120_000)
+    await authenticateShell(page, 'card-type-proof')
+    await startScenario(page, 'winding-way-type-choice')
+    await page.getByRole('button', { name: 'Board options', exact: true }).click()
+    await page.getByRole('checkbox', { name: 'Hide card art', exact: true }).check()
+    await page.keyboard.press('Escape')
+    await expect(page.locator('[data-board]')).toHaveAttribute('data-card-art', 'off')
+    await runGreAcceptanceSteps(page, { steps: [] }, { fullControl: true })
+    readyForVideo.add(page)
+    await castSpell(page, { card: 'Winding Way', until: { prompt: 'SelectNReq' } })
+    const choices = page.locator('[data-prompt="selectN"]')
+    await expect(choices.locator('[data-choice-id]')).toHaveCount(2)
+    await expect(choices.getByRole('button', { name: 'Creature', exact: true })).toHaveAttribute(
+      'data-choice-id',
+      '2',
+    )
+    await expect(choices.getByRole('button', { name: 'Land', exact: true })).toHaveAttribute(
+      'data-choice-id',
+      '5',
+    )
+    const selected = choices.getByRole('button', { name: choice.label, exact: true })
+    await expect(selected).toHaveAttribute('data-choice-id', choice.id)
+    await selected.click()
+    await expect(selected).toHaveAttribute('aria-pressed', 'true')
+    await page.mouse.move(24, 90)
+    await page.screenshot({ path: info.outputPath('card-type-choice.png'), scale: 'css' })
+    if (recordDemos) {
+      await page.waitForTimeout(1500)
+    }
+    await resolveTo(
+      page,
+      {
+        all: [
+          { stack_empty: true },
+          ...choice.cards.map((card) => ({
+            zone_contains: { side: 'ours', zone: 'hand', card },
+          })),
+        ],
+      },
+      () => choices.getByRole('button', { name: 'Submit selection', exact: true }).click(),
+    )
+    for (const card of choice.discarded) {
+      await expect(handZone(page).filter({ hasText: card })).toHaveCount(0)
+    }
+    await page.getByTitle('Your graveyard', { exact: true }).click()
+    const graveyard = page.getByRole('dialog', { name: /Your Graveyard/ })
+    for (const card of choice.discarded) {
+      await expect(graveyard.locator(`[data-card="${card}"]`)).toBeVisible()
+    }
+    await page.mouse.move(24, 90)
+    await page.screenshot({ path: info.outputPath('card-type-result.png'), scale: 'css' })
+    if (recordDemos) {
+      await page.waitForTimeout(1500)
+    }
+    await graveyard.getByRole('button', { name: 'Close Your Graveyard', exact: true }).click()
+    await resolveTo(page, { zone_count: { side: 'ours', zone: 'battlefield', count: 3 } }, () =>
+      runGreAcceptanceSteps(page, { steps: [{ play_land: 'Forest' }] }),
+    )
+    expect((await page.evaluate(() => window.__greState()!)).diagnostics.errorCount).toBe(0)
+    await page.mouse.move(24, 90)
+    await page.screenshot({ path: info.outputPath('card-type-continued.png'), scale: 'css' })
+    if (recordDemos) {
+      await page.waitForTimeout(1500)
+    }
+  })
 }

@@ -159,6 +159,25 @@ it('a deck cannot be submitted into a draft still picking', async () => {
   expect(server.document(EVENT)).toEqual(before)
 })
 
+it('a draft in another set keeps the active pool of the first set', async () => {
+  const first = new DraftStore(fakeEngine().engine)
+  await draftTwoPicks(first)
+  const saved = server.document(EVENT)
+
+  const other = new DraftStore(fakeEngine().engine)
+  expect(await other.startDraft('NEO')).toBe(true)
+  await other.pickCard(other.snapshot().pack[0]!.name)
+  expect(server.document('QuickDraft_NEO_20260223')).toMatchObject({
+    set: 'NEO',
+    phase: 'drafting',
+  })
+  expect(server.document(EVENT)).toEqual(saved)
+
+  const resumed = new DraftStore(fakeEngine().engine)
+  expect(await resumed.startDraft('FDN')).toBe(true)
+  expect(resumed.snapshot()).toMatchObject({ phase: 'drafting', sessionId: EVENT, poolSize: 2 })
+})
+
 it('a draft another window starts first opens instead of failing', async () => {
   const { engine } = fakeEngine()
   const draft = engine.draft

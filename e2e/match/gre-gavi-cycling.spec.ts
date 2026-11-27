@@ -20,7 +20,7 @@ for (const choice of ['no-mana-free', 'mana-free', 'mana-paid'] as const) {
     const response = await page.request.get('/browser-engine/release.json')
     expect(response.ok()).toBe(true)
     const release = await response.json()
-    await startScenario(page, paidMana ? 'gavi-paid-cycle' : 'gavi-first-cycle', 'browser', 42)
+    await startScenario(page, paidMana ? 'gavi-paid-cycle' : 'gavi-first-cycle', 42)
     const openingHand = page.locator('[data-zone="hand"][data-owner="self"] [data-card]')
     await expect(openingHand).toHaveCount(3)
     await expect(

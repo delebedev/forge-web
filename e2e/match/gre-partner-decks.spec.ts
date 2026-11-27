@@ -53,81 +53,77 @@ async function importSavedPair(page: Page, name: string) {
   await page.getByRole('combobox', { name: 'AI opponent', exact: true }).selectOption('mirror')
 }
 
-for (const execution of ['Browser'] as const) {
-  test(`Partner deck saves, reopens and casts both commanders on ${execution}`, async ({
-    page,
-  }, info) => {
-    test.setTimeout(240_000)
-    await page.addInitScript(() =>
-      localStorage.setItem('forge:gre:priority-flag:hideCardArt', 'true'),
-    )
-    await authenticateShell(page, `partner-${execution.toLowerCase()}-${Date.now()}`)
-    await importSavedPair(page, `Partner ${execution}`)
-    await page
-      .getByRole('button', {
-        name: 'Start game',
-        exact: true,
-      })
-      .click()
-    // Setup checks both decks in the engine the match then reuses; after the reload it starts cold.
-    await expect(page).toHaveURL(/\/match\/commander$/, { timeout: 240_000 })
-    await expect
-      .poll(() => page.evaluate(() => window.__greState?.()?.connected), { timeout: 240_000 })
-      .toBe(true)
-    await expect
-      .poll(() => page.evaluate(() => window.__greState?.()?.horizon), { timeout: 30_000 })
-      .toBeTruthy()
-    await runGreAcceptanceSteps(page, {
-      steps: [{ pass_until: { action: { type: 'play_land', card: 'Plains' } } }],
+test(`Partner deck saves, reopens and casts both commanders`, async ({ page }, info) => {
+  test.setTimeout(240_000)
+  await page.addInitScript(() =>
+    localStorage.setItem('forge:gre:priority-flag:hideCardArt', 'true'),
+  )
+  await authenticateShell(page, `partner-browser-${Date.now()}`)
+  await importSavedPair(page, 'Partner Browser')
+  await page
+    .getByRole('button', {
+      name: 'Start game',
+      exact: true,
     })
-    await runGreAcceptanceSteps(page, { steps: [{ play_land: 'Plains' }] })
-    const rail = page.getByRole('region', { name: 'Cards outside your hand', exact: true })
-    const commander = (name: string) =>
-      rail.getByRole('button', {
-        name: new RegExp(
-          `^Cast ${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} from command zone(?: · Cost .+)?$`,
-        ),
-      })
-    await expect(commander(firstCommander)).toBeVisible()
-    await expect(commander(secondCommander)).toBeVisible()
-    await expect(page.locator('[data-player="self"] [data-life]')).toHaveText('40')
-    await expect(page.locator('[data-board]')).toHaveAttribute('data-card-art', 'off')
-    readyForVideo.add(page)
-    await page.mouse.move(640, 300)
-    await page.screenshot({
-      path: info.outputPath(`partner-${execution.toLowerCase()}-command-zone.png`),
-    })
-    if (recordDemos) {
-      await page.waitForTimeout(600)
-    }
-    for (const name of [secondCommander, firstCommander]) {
-      await resolveTo(
-        page,
-        { zone_contains: { side: 'ours', zone: 'battlefield', card: name }, stack_empty: true },
-        () => commander(name).click(),
-      )
-      await expect(commander(name)).toHaveCount(0)
-    }
-    await expect(
-      page.getByRole('region', { name: 'Your creatures', exact: true }).locator('[data-card]'),
-    ).toHaveCount(2)
-    const state = await page.evaluate(() => window.__greState()!)
-    expect(state.diagnostics.errorCount).toBe(0)
-    expect(
-      state.board.you
-        .filter((card) => [firstCommander, secondCommander].includes(card.name))
-        .map((card) => card.name)
-        .sort(),
-    ).toEqual([firstCommander, secondCommander].sort())
-    await page.mouse.move(640, 300)
-    await page.screenshot({
-      path: info.outputPath(`partner-${execution.toLowerCase()}-battlefield.png`),
-    })
-    if (recordDemos) {
-      await page.waitForTimeout(600)
-    }
+    .click()
+  // Setup checks both decks in the engine the match then reuses; after the reload it starts cold.
+  await expect(page).toHaveURL(/\/match\/commander$/, { timeout: 240_000 })
+  await expect
+    .poll(() => page.evaluate(() => window.__greState?.()?.connected), { timeout: 240_000 })
+    .toBe(true)
+  await expect
+    .poll(() => page.evaluate(() => window.__greState?.()?.horizon), { timeout: 30_000 })
+    .toBeTruthy()
+  await runGreAcceptanceSteps(page, {
+    steps: [{ pass_until: { action: { type: 'play_land', card: 'Plains' } } }],
   })
-}
+  await runGreAcceptanceSteps(page, { steps: [{ play_land: 'Plains' }] })
+  const rail = page.getByRole('region', { name: 'Cards outside your hand', exact: true })
+  const commander = (name: string) =>
+    rail.getByRole('button', {
+      name: new RegExp(
+        `^Cast ${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} from command zone(?: · Cost .+)?$`,
+      ),
+    })
+  await expect(commander(firstCommander)).toBeVisible()
+  await expect(commander(secondCommander)).toBeVisible()
+  await expect(page.locator('[data-player="self"] [data-life]')).toHaveText('40')
+  await expect(page.locator('[data-board]')).toHaveAttribute('data-card-art', 'off')
+  readyForVideo.add(page)
+  await page.mouse.move(640, 300)
+  await page.screenshot({
+    path: info.outputPath(`partner-browser-command-zone.png`),
+  })
+  if (recordDemos) {
+    await page.waitForTimeout(600)
+  }
+  for (const name of [secondCommander, firstCommander]) {
+    await resolveTo(
+      page,
+      { zone_contains: { side: 'ours', zone: 'battlefield', card: name }, stack_empty: true },
+      () => commander(name).click(),
+    )
+    await expect(commander(name)).toHaveCount(0)
+  }
+  await expect(
+    page.getByRole('region', { name: 'Your creatures', exact: true }).locator('[data-card]'),
+  ).toHaveCount(2)
+  const state = await page.evaluate(() => window.__greState()!)
+  expect(state.diagnostics.errorCount).toBe(0)
+  expect(
+    state.board.you
+      .filter((card) => [firstCommander, secondCommander].includes(card.name))
+      .map((card) => card.name)
+      .sort(),
+  ).toEqual([firstCommander, secondCommander].sort())
+  await page.mouse.move(640, 300)
+  await page.screenshot({
+    path: info.outputPath(`partner-browser-battlefield.png`),
+  })
+  if (recordDemos) {
+    await page.waitForTimeout(600)
+  }
+})
 
 test('Partner import rejects incompatible pairs and off-color cards while retaining single-commander import', async ({
   page,

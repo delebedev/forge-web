@@ -22,7 +22,7 @@ for (const shuffle of [false, true]) {
     expect(releaseResponse.ok()).toBe(true)
     const release = (await releaseResponse.json()) as { releaseId: string }
     writeFileSync(info.outputPath('served-release.json'), JSON.stringify(release))
-    await startScenario(page, 'optional-shuffle', 'browser', 42)
+    await startScenario(page, 'optional-shuffle', 42)
     expect(page.workers().some((worker) => worker.url().includes('engine-worker.js'))).toBe(true)
     await expect(page.locator('[data-board]')).toHaveAttribute('data-card-art', 'off')
     readyForVideo.add(page)

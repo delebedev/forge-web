@@ -8,7 +8,7 @@ test('browser proliferate changes chosen card and player counters and continues'
 }) => {
   test.setTimeout(240_000)
   await authenticateShell(page)
-  await startScenario(page, 'proliferate', 'browser')
+  await startScenario(page, 'proliferate')
   expect(await page.evaluate(() => window.__greState?.()?.matchId)).toMatch(/^browser-/)
   await page.getByRole('button', { name: 'Board options', exact: true }).click()
   await page.getByRole('checkbox', { name: 'Hide card art', exact: true }).check()

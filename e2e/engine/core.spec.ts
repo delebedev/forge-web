@@ -174,19 +174,11 @@ test('browser bootstrap stays visible and a second local game keeps its card cat
   await expect(page.getByRole('heading', { name: 'What are you playing?' })).toBeVisible()
 })
 
-test('a browser without required APIs shows an honest retry without server play', async ({
-  page,
-}) => {
+test('a browser without required APIs shows an honest retry', async ({ page }) => {
   await page.addInitScript(() =>
     Object.defineProperty(window, 'Worker', { value: undefined, configurable: true }),
   )
   await authenticate(page)
-  const starts: string[] = []
-  page.on('request', (request) => {
-    if (new URL(request.url()).pathname === '/api/gre/start') {
-      starts.push(request.url())
-    }
-  })
   await page.goto('/play/game?traffic=smoke')
   await expect(
     page.getByRole('button', { name: 'Browser unavailable', exact: true }),
@@ -196,7 +188,6 @@ test('a browser without required APIs shows an honest retry without server play'
   await expect(
     page.getByRole('button', { name: 'Browser unavailable', exact: true }),
   ).toBeDisabled()
-  expect(starts).toEqual([])
 })
 
 test('an initializing browser game can be cancelled without leaving a stale match', async ({
@@ -220,14 +211,8 @@ test('an initializing browser game can be cancelled without leaving a stale matc
 })
 
 for (const fault of ['release', 'runtime', 'worker'] as const) {
-  test(`a blocked ${fault} stays local and offers a retry`, async ({ page, context }, info) => {
+  test(`a blocked ${fault} offers a retry`, async ({ page, context }, info) => {
     await authenticate(page)
-    const starts: string[] = []
-    page.on('request', (request) => {
-      if (new URL(request.url()).pathname === '/api/gre/start') {
-        starts.push(request.url())
-      }
-    })
     if (fault === 'release') {
       await context.route('**/browser-engine/release.json', (route) =>
         route.fulfill({ status: 503 }),
@@ -251,7 +236,6 @@ for (const fault of ['release', 'runtime', 'worker'] as const) {
       timeout: 240_000,
     })
     await expect(page.getByRole('alert')).toContainText('could not start')
-    expect(starts).toEqual([])
     await page.screenshot({ path: info.outputPath(`${fault}-failure.png`) })
   })
 }
@@ -320,89 +304,70 @@ test('background suspension survives and refresh offers a fresh local match', as
   await cdp.detach()
 })
 
-for (const execution of ['browser'] as const) {
-  for (const [name, keyword] of [
-    ['Goblin Trailblazer', 'Menace'],
-    ['Zurgo Bellstriker', 'Dash'],
-  ] as const) {
-    test(`${execution} card inspection shows ${keyword} help with optional artwork`, async ({
-      page,
-    }) => {
-      await authenticate(page)
-      const starts: string[] = []
-      const workers: string[] = []
-      page.on('request', (request) => {
-        if (new URL(request.url()).pathname === '/api/gre/start') {
-          starts.push(request.url())
-        }
-      })
-      page.on('worker', (worker) => workers.push(worker.url()))
-      await startScenario(page, `inspection-${name.toLowerCase().replaceAll(' ', '-')}`, execution)
-      expect(await page.evaluate(() => window.__greState?.()?.matchId.startsWith('browser-'))).toBe(
-        execution === 'browser',
-      )
+for (const [name, keyword] of [
+  ['Goblin Trailblazer', 'Menace'],
+  ['Zurgo Bellstriker', 'Dash'],
+] as const) {
+  test(`card inspection shows ${keyword} help with optional artwork`, async ({ page }) => {
+    await authenticate(page)
+    const workers: string[] = []
+    page.on('worker', (worker) => workers.push(worker.url()))
+    await startScenario(page, `inspection-${name.toLowerCase().replaceAll(' ', '-')}`)
 
-      expect(starts).toEqual([])
-      expect(workers.some((url) => url.includes('engine-worker.js'))).toBe(true)
+    expect(workers.some((url) => url.includes('engine-worker.js'))).toBe(true)
 
-      const card = page
-        .locator(`[data-zone="hand"][data-owner="self"] [data-card="${name}"]`)
-        .first()
-      await card.hover()
-      const help = page.getByRole('complementary', { name: 'Card mechanics' })
-      await expect(
-        help.getByRole('heading', { name: new RegExp(`^${keyword}(?: Cost|$)`) }),
-      ).toBeVisible()
-      const inspection = page.getByRole('complementary', { name: `${name} inspection` })
-      await expect(inspection.locator('[data-layout]').first()).not.toContainText(
-        keyword === 'Menace'
-          ? 'two or more creatures'
-          : 'You may cast this spell for its dash cost',
+    const card = page.locator(`[data-zone="hand"][data-owner="self"] [data-card="${name}"]`).first()
+    await card.hover()
+    const help = page.getByRole('complementary', { name: 'Card mechanics' })
+    await expect(
+      help.getByRole('heading', { name: new RegExp(`^${keyword}(?: Cost|$)`) }),
+    ).toBeVisible()
+    const inspection = page.getByRole('complementary', { name: `${name} inspection` })
+    await expect(inspection.locator('[data-layout]').first()).not.toContainText(
+      keyword === 'Menace' ? 'two or more creatures' : 'You may cast this spell for its dash cost',
+    )
+    if (keyword === 'Dash') {
+      await expect(help.getByLabel('Cost 1 R')).toBeVisible()
+    }
+    await page.getByRole('button', { name: 'Board options', exact: true }).click()
+    await page.getByRole('checkbox', { name: 'Hide card art', exact: true }).check()
+    await page.keyboard.press('Escape')
+    await card.hover()
+    await expect
+      .poll(() =>
+        page
+          .locator('[data-board] img')
+          .evaluateAll((images) =>
+            images.every((img) => getComputedStyle(img).visibility === 'hidden'),
+          ),
       )
-      if (keyword === 'Dash') {
-        await expect(help.getByLabel('Cost 1 R')).toBeVisible()
-      }
-      await page.getByRole('button', { name: 'Board options', exact: true }).click()
-      await page.getByRole('checkbox', { name: 'Hide card art', exact: true }).check()
-      await page.keyboard.press('Escape')
-      await card.hover()
-      await expect
-        .poll(() =>
-          page
-            .locator('[data-board] img')
-            .evaluateAll((images) =>
-              images.every((img) => getComputedStyle(img).visibility === 'hidden'),
-            ),
-        )
-        .toBe(true)
-      await page.mouse.move(2, 2)
-      let focused = false
-      for (let tabs = 0; tabs < 100 && !focused; tabs += 1) {
-        await page.keyboard.press('Tab')
-        focused = await card.evaluate(
-          (element) =>
-            element === document.activeElement || element.contains(document.activeElement),
-        )
-      }
-      expect(focused).toBe(true)
-      await expect(
-        help.getByRole('heading', { name: new RegExp(`^${keyword}(?: Cost|$)`) }),
-      ).toBeVisible()
-      await page.getByRole('button', { name: 'Board options', exact: true }).click()
-      await page.getByRole('checkbox', { name: 'Hide card art', exact: true }).uncheck()
-      await page.keyboard.press('Escape')
-      await expect
-        .poll(() =>
-          page
-            .locator('[data-board] img')
-            .evaluateAll((images) =>
-              images.some((img) => getComputedStyle(img).visibility === 'visible'),
-            ),
-        )
-        .toBe(true)
-      await page.evaluate(() => window.__greAct('concede'))
-    })
-  }
+      .toBe(true)
+    await page.mouse.move(2, 2)
+    let focused = false
+    for (let tabs = 0; tabs < 100 && !focused; tabs += 1) {
+      await page.keyboard.press('Tab')
+      focused = await card.evaluate(
+        (element) => element === document.activeElement || element.contains(document.activeElement),
+      )
+    }
+    expect(focused).toBe(true)
+    await expect(
+      help.getByRole('heading', { name: new RegExp(`^${keyword}(?: Cost|$)`) }),
+    ).toBeVisible()
+    await page.getByRole('button', { name: 'Board options', exact: true }).click()
+    await page.getByRole('checkbox', { name: 'Hide card art', exact: true }).uncheck()
+    await page.keyboard.press('Escape')
+    await expect
+      .poll(() =>
+        page
+          .locator('[data-board] img')
+          .evaluateAll((images) =>
+            images.some((img) => getComputedStyle(img).visibility === 'visible'),
+          ),
+      )
+      .toBe(true)
+    await page.evaluate(() => window.__greAct('concede'))
+  })
 }
 
 test('Selvala Browser Local vote resolves in the actual browser engine', async ({ page }) => {

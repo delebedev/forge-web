@@ -26,7 +26,7 @@ for (const scenario of [
     expect(response.ok()).toBe(true)
     const release = await response.json()
     writeFileSync(info.outputPath('served-release.json'), JSON.stringify(release))
-    await startScenario(page, scenario.name, 'browser', 42)
+    await startScenario(page, scenario.name, 42)
     await expect(page.locator('[data-board]')).toHaveAttribute('data-card-art', 'off')
     await expect(
       page.locator('[data-zone="hand"][data-owner="self"] [data-card="Juggernaut"]'),

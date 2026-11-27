@@ -21,7 +21,7 @@ for (const [color, name] of [
     const response = await page.request.get('/browser-engine/release.json')
     expect(response.ok()).toBe(true)
     const release = await response.json()
-    await startScenario(page, 'prairie-mana', 'browser', 42)
+    await startScenario(page, 'prairie-mana', 42)
     await expect(page.locator('[data-board]')).toHaveAttribute('data-card-art', 'off')
     await runGreAcceptanceSteps(page, { steps: [], headless: { full_control: true } })
     const land = page.locator(
@@ -159,7 +159,7 @@ test('Elder manual mana activation produces both colors and funds a spell', asyn
   const releaseResponse = await page.request.get('/browser-engine/release.json')
   expect(releaseResponse.ok()).toBe(true)
   const release = (await releaseResponse.json()) as { releaseId: string }
-  await startScenario(page, 'faeburrow-mana', 'browser', 42)
+  await startScenario(page, 'faeburrow-mana', 42)
   await expect(page.locator('[data-board]')).toHaveAttribute('data-card-art', 'off')
   await runGreAcceptanceSteps(page, { steps: [], headless: { full_control: true } })
   readyForVideo.add(page)
@@ -228,15 +228,14 @@ test('browser AI pays for Arena with three lands and resolves its upkeep', async
     localStorage.setItem('forge:gre:priority-flag:hideCardArt', 'false')
   })
   await authenticateShell(page)
-  await startScenario(page, 'arena-mana-payment', 'browser')
+  await startScenario(page, 'arena-mana-payment')
   const releaseResponse = await page.request.get('/browser-engine/release.json')
   expect(releaseResponse.ok()).toBe(true)
   const release = await releaseResponse.json()
   const runtime = await page.evaluate(() => {
     const config = JSON.parse(sessionStorage.getItem('forge:gre:lastMatchConfig') ?? '{}')
-    return { execution: config.execution, engineBuild: config.engineBuild, matchId: config.matchId }
+    return { engineBuild: config.engineBuild, matchId: config.matchId }
   })
-  expect(runtime.execution).toBe('browser')
   expect(runtime.engineBuild).toBe(release.releaseId)
   await info.attach('loaded-runtime', {
     body: JSON.stringify({ runtime, release }),

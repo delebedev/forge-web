@@ -168,7 +168,7 @@ demoTest('browser Outpost Siege choice resolves and play continues', async ({ pa
     localStorage.setItem('forge:gre:priority-flag:hideCardArt', 'true'),
   )
   await authenticate(page)
-  await startScenario(page, 'outpost-siege', 'browser')
+  await startScenario(page, 'outpost-siege')
   await runSteps(page, [
     { cast: 'Outpost Siege' },
     { pass_until: { prompt: 'CastingTimeOptionsReq' } },
@@ -200,7 +200,7 @@ demoTest(
       localStorage.setItem('forge:gre:priority-flag:hideCardArt', 'true'),
     )
     await authenticate(page)
-    await startScenario(page, 'subability-modal-choice', 'browser', 42)
+    await startScenario(page, 'subability-modal-choice', 42)
     const release = await (await page.request.get('/browser-engine/release.json')).json()
     writeFileSync(testInfo.outputPath('served-release.json'), JSON.stringify(release))
     await runSteps(page, [
@@ -246,7 +246,7 @@ demoTest(
       localStorage.setItem('forge:gre:priority-flag:hideCardArt', 'true'),
     )
     await authenticate(page)
-    await startScenario(page, 'zodiark-zero-sacrifice', 'browser')
+    await startScenario(page, 'zodiark-zero-sacrifice')
     expect(await page.evaluate(() => window.__greState()!.matchId)).toMatch(/^browser-/)
     readyForVideo.add(page)
     await runSteps(page, [

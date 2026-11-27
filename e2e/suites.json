@@ -40,9 +40,7 @@
     "e2e/match/gre-lost-keywords.spec.ts",
     "e2e/match/gre-hand-reach.spec.ts"
   ],
-  "catalog": [
-    "e2e/engine/forge-catalog.spec.ts"
-  ],
+  "catalog": ["e2e/engine/forge-catalog.spec.ts"],
   "transport": [
     "e2e/match/gre-prompt-transport.spec.ts",
     "e2e/match/gre-static-choice-transport.spec.ts",

@@ -4,115 +4,113 @@ import { startScenario } from '../support/gre-scenario'
 import { castSpell } from '../support/gre-actions'
 import { runGreAcceptanceSteps } from '../support/gre-acceptance'
 
-for (const execution of ['browser'] as const) {
-  test(`known opponent hand is inspectable and withdraws with its permission (${execution})`, async ({
-    page,
-  }, info) => {
-    test.setTimeout(240_000)
-    let releaseImages!: () => void
-    const imagesReady = new Promise<void>((resolve) => {
-      releaseImages = resolve
-    })
-    let delayedImages = 0
-    let completedImages = 0
-    await page.route('https://cards.scryfall.io/**', async (route) => {
-      delayedImages++
-      await imagesReady
-      await route.fulfill({
-        status: 200,
-        contentType: 'image/png',
-        body: Buffer.from(
-          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jN1kAAAAASUVORK5CYII=',
-          'base64',
-        ),
-      })
-      completedImages++
-    })
-    try {
-      await page.addInitScript(() =>
-        localStorage.setItem('forge:gre:priority-flag:hideCardArt', 'true'),
-      )
-      await authenticateShell(page, 'known-hand-proof')
-      await startScenario(page, 'known-opponent-hand', execution)
-      await expect(page.locator('[data-board]')).toHaveAttribute('data-card-art', 'off')
-      const hand = page.getByRole('region', { name: 'Opponent hand: 2 cards', exact: true })
-      const bears = hand.getByRole('button', {
-        name: "Inspect Grizzly Bears in opponent's hand",
-        exact: true,
-      })
-      await expect(bears).toBeVisible()
-      await expect(
-        hand.getByRole('button', {
-          name: "Inspect Lightning Bolt in opponent's hand",
-          exact: true,
-        }),
-      ).toBeVisible()
-      await expect(hand).toHaveAttribute('data-zone-count', '2')
-      await bears.hover()
-      await expect(
-        page.getByRole('complementary', { name: 'Grizzly Bears inspection', exact: true }),
-      ).toBeVisible()
-      readyForVideo.add(page)
-      await page.screenshot({ path: info.outputPath('known-hand.png') })
-      if (recordDemos) {
-        await page.waitForTimeout(800)
-      }
-      await bears.click()
-      const inspection = page.getByRole('dialog', { name: 'Known opponent hand — 2', exact: true })
-      await expect(inspection).toBeVisible()
-      await expect(inspection.locator('[data-card="Grizzly Bears"]')).toBeVisible()
-      await expect(inspection.locator('[data-card="Lightning Bolt"]')).toBeVisible()
-      await page.screenshot({ path: info.outputPath('known-hand-inspection.png') })
-      await expect.poll(() => delayedImages).toBeGreaterThan(0)
-      await castSpell(page, {
-        card: 'Naturalize',
-        target: { side: 'ours', zone: 'battlefield', card: 'Telepathy' },
-        until: {
-          zone_contains: { side: 'ours', zone: 'graveyard', card: 'Telepathy' },
-          stack_empty: true,
-        },
-      })
-      await expect(inspection).toHaveCount(0)
-      await expect(hand.locator('[data-card]')).toHaveCount(0)
-      await expect(hand).toHaveAttribute('data-zone-count', '2')
-      await expect(
-        page.getByRole('complementary', { name: 'Grizzly Bears inspection', exact: true }),
-      ).toHaveCount(0)
-      releaseImages()
-      await expect.poll(() => completedImages).toBeGreaterThan(0)
-      await expect
-        .poll(() =>
-          page
-            .locator('[data-card] img')
-            .evaluateAll((images) =>
-              images.every((image) => getComputedStyle(image).visibility === 'hidden'),
-            ),
-        )
-        .toBe(true)
-      await expect(hand.locator('[data-card]')).toHaveCount(0)
-      await expect(inspection).toHaveCount(0)
-      await runGreAcceptanceSteps(page, {
-        steps: [
-          { play_land: 'Plains' },
-          { expect: { zone_contains: { side: 'ours', zone: 'battlefield', card: 'Plains' } } },
-        ],
-      })
-      await expect(page.getByRole('button', { name: 'Pass', exact: true })).toBeEnabled()
-      await page.getByRole('status', { name: 'Match status', exact: true }).hover()
-      await page.screenshot({ path: info.outputPath('concealed-and-continued.png') })
-      if (recordDemos) {
-        await page.waitForTimeout(800)
-      }
-      await startScenario(page, 'modal-cancel', execution)
-      await expect(page.getByRole('region', { name: /^Opponent hand:/ })).toHaveCount(0)
-      await expect(
-        page.getByRole('complementary', { name: 'Grizzly Bears inspection', exact: true }),
-      ).toHaveCount(0)
-    } finally {
-      releaseImages()
-    }
+test(`known opponent hand is inspectable and withdraws with its permission`, async ({
+  page,
+}, info) => {
+  test.setTimeout(240_000)
+  let releaseImages!: () => void
+  const imagesReady = new Promise<void>((resolve) => {
+    releaseImages = resolve
   })
-}
+  let delayedImages = 0
+  let completedImages = 0
+  await page.route('https://cards.scryfall.io/**', async (route) => {
+    delayedImages++
+    await imagesReady
+    await route.fulfill({
+      status: 200,
+      contentType: 'image/png',
+      body: Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jN1kAAAAASUVORK5CYII=',
+        'base64',
+      ),
+    })
+    completedImages++
+  })
+  try {
+    await page.addInitScript(() =>
+      localStorage.setItem('forge:gre:priority-flag:hideCardArt', 'true'),
+    )
+    await authenticateShell(page, 'known-hand-proof')
+    await startScenario(page, 'known-opponent-hand')
+    await expect(page.locator('[data-board]')).toHaveAttribute('data-card-art', 'off')
+    const hand = page.getByRole('region', { name: 'Opponent hand: 2 cards', exact: true })
+    const bears = hand.getByRole('button', {
+      name: "Inspect Grizzly Bears in opponent's hand",
+      exact: true,
+    })
+    await expect(bears).toBeVisible()
+    await expect(
+      hand.getByRole('button', {
+        name: "Inspect Lightning Bolt in opponent's hand",
+        exact: true,
+      }),
+    ).toBeVisible()
+    await expect(hand).toHaveAttribute('data-zone-count', '2')
+    await bears.hover()
+    await expect(
+      page.getByRole('complementary', { name: 'Grizzly Bears inspection', exact: true }),
+    ).toBeVisible()
+    readyForVideo.add(page)
+    await page.screenshot({ path: info.outputPath('known-hand.png') })
+    if (recordDemos) {
+      await page.waitForTimeout(800)
+    }
+    await bears.click()
+    const inspection = page.getByRole('dialog', { name: 'Known opponent hand — 2', exact: true })
+    await expect(inspection).toBeVisible()
+    await expect(inspection.locator('[data-card="Grizzly Bears"]')).toBeVisible()
+    await expect(inspection.locator('[data-card="Lightning Bolt"]')).toBeVisible()
+    await page.screenshot({ path: info.outputPath('known-hand-inspection.png') })
+    await expect.poll(() => delayedImages).toBeGreaterThan(0)
+    await castSpell(page, {
+      card: 'Naturalize',
+      target: { side: 'ours', zone: 'battlefield', card: 'Telepathy' },
+      until: {
+        zone_contains: { side: 'ours', zone: 'graveyard', card: 'Telepathy' },
+        stack_empty: true,
+      },
+    })
+    await expect(inspection).toHaveCount(0)
+    await expect(hand.locator('[data-card]')).toHaveCount(0)
+    await expect(hand).toHaveAttribute('data-zone-count', '2')
+    await expect(
+      page.getByRole('complementary', { name: 'Grizzly Bears inspection', exact: true }),
+    ).toHaveCount(0)
+    releaseImages()
+    await expect.poll(() => completedImages).toBeGreaterThan(0)
+    await expect
+      .poll(() =>
+        page
+          .locator('[data-card] img')
+          .evaluateAll((images) =>
+            images.every((image) => getComputedStyle(image).visibility === 'hidden'),
+          ),
+      )
+      .toBe(true)
+    await expect(hand.locator('[data-card]')).toHaveCount(0)
+    await expect(inspection).toHaveCount(0)
+    await runGreAcceptanceSteps(page, {
+      steps: [
+        { play_land: 'Plains' },
+        { expect: { zone_contains: { side: 'ours', zone: 'battlefield', card: 'Plains' } } },
+      ],
+    })
+    await expect(page.getByRole('button', { name: 'Pass', exact: true })).toBeEnabled()
+    await page.getByRole('status', { name: 'Match status', exact: true }).hover()
+    await page.screenshot({ path: info.outputPath('concealed-and-continued.png') })
+    if (recordDemos) {
+      await page.waitForTimeout(800)
+    }
+    await startScenario(page, 'modal-cancel')
+    await expect(page.getByRole('region', { name: /^Opponent hand:/ })).toHaveCount(0)
+    await expect(
+      page.getByRole('complementary', { name: 'Grizzly Bears inspection', exact: true }),
+    ).toHaveCount(0)
+  } finally {
+    releaseImages()
+  }
+})
 
 test('replay known hand remains usable at eight cards and retires inspection on withdrawal and seek', async ({
   page,
