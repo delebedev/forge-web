@@ -34,6 +34,9 @@ checkout, create ready sibling worktrees with `just ws <branch>`.
   `src/engine/debug/gre-debug-bridge.ts`.
 - **Browser driver:** read `tools/browser-driver/AGENTS.md` before running
   autonomous gameplay, evaluating puzzle candidates, or changing the driver.
+- **Code review:** before reviewing any change, `/code-review` and the
+  `claude-review` label included, read `REVIEW.md`. It defines what blocks a
+  merge, what not to report, and how to check the PR description's claims.
 - **Analytics:** read `docs/analytics.md` before changing tracking, replay, or
   privacy behavior.
 - **SEO:** read `docs/seo.md` before changing public HTML, metadata, or routes.
