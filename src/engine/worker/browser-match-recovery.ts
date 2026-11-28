@@ -55,9 +55,9 @@ export async function replayBrowserMatch(
     .filter((event) => event.direction === 'outbound' && event.seq < last.seq)
     .flatMap((event) => journal.batches[event.batchIndex]?.messages ?? [])
     .filter(isRecord)
-  // A response carries the latest state id, which can belong to an update that followed its
-  // request; msgId alone identifies the request.
-  const target = expected.find((message) => message['msgId'] === last.gre['respId'])
+  // msgId alone identifies the request. Journals from older clients can carry a response state
+  // id taken from an update that followed the request.
+  const target = [...expected].reverse().find((message) => message['msgId'] === last.gre['respId'])
   if (!target) {
     throw new Error('The saved decision request is missing.')
   }

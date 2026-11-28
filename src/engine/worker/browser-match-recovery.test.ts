@@ -54,7 +54,7 @@ async function fixture(
   })
   const first = await frame([board(3), request(3, 7)])
   const second = await frame([board(9), request(9, 11)])
-  // A state update can follow the request; the response then carries its newer state id.
+  // Older clients answered with the state id of an update that followed the request.
   const update = await frame([
     { type: 1, gameStateId: 10, gameStateMessage: { type: 2, gameStateId: 10, update: 1 } },
   ])
@@ -152,7 +152,7 @@ it('replays only through the previous decision and retains a complete continuati
   expect(routing['matchId']).toBe('new-match')
 })
 
-it('recovers a decision answered after a later state update', async () => {
+it('recovers an older-client journal whose response carries a later state id', async () => {
   const f = await fixture(false, false, 'full', true)
   const recovered = await replayBrowserMatch(
     f.engine,
