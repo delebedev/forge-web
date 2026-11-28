@@ -37,6 +37,8 @@ export type GameState = {
   persistentAnnotations: Map<number, ProtoObject>
   actions: Action[]
   pendingActionsMsgId: number
+  /** A response repeats its request's state id, even after later state updates. */
+  pendingActionsGameStateId: number
   gameOver: boolean
   outcome: GameOutcome | null
   startingHandSeen: boolean
@@ -58,6 +60,7 @@ export const EMPTY_GAME_STATE: GameState = {
   persistentAnnotations: new Map(),
   actions: [],
   pendingActionsMsgId: 0,
+  pendingActionsGameStateId: 0,
   gameOver: false,
   outcome: null,
   startingHandSeen: false,
@@ -123,7 +126,12 @@ export function applyGsm(state: GameState, gsm: ProtoObject): GameState {
 export function applyActions(state: GameState, message: ProtoObject): GameState {
   const req = message['actionsAvailableReq']
   const actions = (isRecord(req) ? asArray(req['actions']) : []) as Action[]
-  return { ...state, actions, pendingActionsMsgId: asNumber(message['msgId']) }
+  return {
+    ...state,
+    actions,
+    pendingActionsMsgId: asNumber(message['msgId']),
+    pendingActionsGameStateId: asNumber(message['gameStateId']) || state.gameStateId,
+  }
 }
 
 export function viewerTeamId(tables: GreTables, viewerSeatId: number): number {

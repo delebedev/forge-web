@@ -23,6 +23,7 @@ import {
   type ZoneViewerSource,
 } from './board/types'
 import styles from './GrePlay.module.css'
+import { BrowserStoppedPanel } from './BrowserStoppedPanel'
 
 function isAbortError(error: unknown): boolean {
   return (
@@ -53,6 +54,7 @@ export function GrePlay({
   onPlayAgain,
   onRecoverBrowser,
   browserRecovered = false,
+  browserRecoveryFailed = false,
   browserPhase = 'idle',
   browserStatus = '',
   browserError = '',
@@ -74,6 +76,7 @@ export function GrePlay({
   onPlayAgain?: () => void | Promise<unknown>
   onRecoverBrowser?: () => Promise<unknown>
   browserRecovered?: boolean
+  browserRecoveryFailed?: boolean
   browserPhase?: 'idle' | 'preparing' | 'active' | 'recovering' | 'failed' | 'lost'
   browserStatus?: string
   browserError?: string
@@ -494,31 +497,16 @@ export function GrePlay({
         )}
 
         {browserPhase === 'failed' && browserError && !launchError && (
-          <section className={styles.launchError} role="alert">
-            <strong>Browser game stopped</strong>
-            <p>{browserError}</p>
-            {onRecoverBrowser && (
-              <p>
-                Experimental recovery. Undoes your last choice and later progress. One try per game
-                in this tab.
-              </p>
-            )}
-            <div>
-              {onRecoverBrowser && (
-                <button type="button" onClick={() => void onRecoverBrowser()}>
-                  Recover game
-                </button>
-              )}
-              {onBackToPlay && (
-                <button type="button" onClick={leaveGame}>
-                  Choose another deck
-                </button>
-              )}
-              <a href={bugReport.url} target="_blank" rel="noreferrer" onClick={bugReport.onOpen}>
-                Report a problem
-              </a>
-            </div>
-          </section>
+          <BrowserStoppedPanel
+            error={browserError}
+            recoveryFailed={browserRecoveryFailed}
+            courseUnsaved={courseUnsaved}
+            onRecover={onRecoverBrowser ? () => void onRecoverBrowser() : undefined}
+            onStartAgain={onPlayAgain ? restartGame : undefined}
+            onChooseDeck={onBackToPlay ? leaveGame : undefined}
+            reportUrl={bugReport.url}
+            onReportOpen={bugReport.onOpen}
+          />
         )}
 
         {launchError && (

@@ -439,6 +439,8 @@ it('preserves the recovery timeout reason and diagnostic after abort retires the
     expect(session.snapshot()).toMatchObject({
       browserPhase: 'failed',
       browserError: 'Recovery took too long.',
+      browserRecoveryAvailable: false,
+      browserRecoveryFailed: true,
     })
     expect(lifecycle).toHaveBeenCalledWith(
       'failed',
@@ -449,6 +451,14 @@ it('preserves the recovery timeout reason and diagnostic after abort retires the
         kind: 'timeout',
       }),
     )
+    const failed = session.config!
+    expect(await session.playAgain()).toBe(true)
+    expect(session.snapshot()).toMatchObject({
+      browserPhase: 'idle',
+      browserRecoveryFailed: false,
+    })
+    expect(session.config).toMatchObject({ seat1Deck: '60 Forest', seat2Deck: '60 Mountain' })
+    expect(session.config!.matchId).not.toBe(failed.matchId)
   } finally {
     session.clear()
     lifecycle.mockRestore()

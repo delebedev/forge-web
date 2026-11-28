@@ -55,6 +55,7 @@ export function MatchRoute() {
         browserStatus={session.browserStatus}
         browserError={session.browserError}
         browserRecovered={session.browserRecovered}
+        browserRecoveryFailed={session.browserRecoveryFailed}
         onRecoverBrowser={
           session.browserRecoveryAvailable ? () => greSession.recoverBrowser() : undefined
         }

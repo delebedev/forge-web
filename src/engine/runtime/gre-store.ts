@@ -349,7 +349,7 @@ export class GreStore {
     if (this.gameOver || respId <= 0 || (!this.canPass && this.legalActions.length === 0)) {
       return null
     }
-    const gameStateId = this.gameStateId
+    const gameStateId = this.state.pendingActionsGameStateId
     return { kind: 'actions', promptKey: `${gameStateId}:${respId}`, gameStateId, respId }
   }
 
@@ -931,7 +931,7 @@ export class GreStore {
     this.submittingActionOwner = owner
     this.publish()
     const systemSeatId = this.responseSeatId()
-    const gameStateId = this.gameStateId
+    const gameStateId = this.state.pendingActionsGameStateId
     const respId = this.state.pendingActionsMsgId
     try {
       const type = await enumValue('ClientMessageType', 'PerformActionResp_097b')

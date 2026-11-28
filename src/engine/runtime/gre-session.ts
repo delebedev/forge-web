@@ -32,6 +32,8 @@ export interface GreSessionSnapshot {
   browserError: string
   browserRecoveryAvailable: boolean
   browserRecovered: boolean
+  /** The one recovery attempt for this game ran and did not restore it. */
+  browserRecoveryFailed: boolean
 }
 
 type BrowserEngineFactory = (onEvent: (event: BrowserEngineEvent) => void) => BrowserEngine
@@ -131,6 +133,8 @@ export class GreSessionStore {
       browserError: this.browserError,
       browserRecoveryAvailable: this.browserRecovery != null,
       browserRecovered: this.browserRecovered,
+      browserRecoveryFailed:
+        this.browserPhase === 'failed' && this.browserRecoveryAttempted && !this.browserRecovered,
     }
   }
 

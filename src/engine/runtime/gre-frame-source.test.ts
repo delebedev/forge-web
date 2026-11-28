@@ -242,6 +242,23 @@ test('local disconnect presents a reconnectable fallback without replacing a ter
   expect(store.snapshot().connectionClose).toEqual({ category: 'terminated', code: 1011 })
 })
 
+test('a pass after a later state update answers with the request state id', async () => {
+  const store = await freshStore()
+  const source = new FakeSource()
+  source.canSend = true
+  store.attachSource(source)
+  source.sink!.onBatch({ byteLength: 0, messages: [actionsRequest(916)] })
+  source.sink!.onBatch({ byteLength: 0, messages: [diffGameState(917, {})] })
+  expect(store.gameStateId).toBe(917)
+  expect(store.decisionHorizon).toMatchObject({ gameStateId: 916, respId: 917 })
+
+  await store.passPriority()
+
+  const wrapper = await decodeMessage('ClientToMatchServiceMessage', source.sent[0]!)
+  const response = await decodeMessage('ClientToGREMessage', expectBytes(wrapper['payload']))
+  expect(response).toMatchObject({ gameStateId: 916, respId: 917 })
+})
+
 test('an action whose source closes during its write can be retried', async () => {
   const store = await freshStore()
   const source = new FakeSource()
