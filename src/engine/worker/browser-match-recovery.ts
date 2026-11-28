@@ -55,10 +55,9 @@ export async function replayBrowserMatch(
     .filter((event) => event.direction === 'outbound' && event.seq < last.seq)
     .flatMap((event) => journal.batches[event.batchIndex]?.messages ?? [])
     .filter(isRecord)
-  const target = expected.find(
-    (message) =>
-      message['gameStateId'] === last.gre['gameStateId'] && message['msgId'] === last.gre['respId'],
-  )
+  // A response carries the latest state id, which can belong to an update that followed its
+  // request; msgId alone identifies the request.
+  const target = expected.find((message) => message['msgId'] === last.gre['respId'])
   if (!target) {
     throw new Error('The saved decision request is missing.')
   }

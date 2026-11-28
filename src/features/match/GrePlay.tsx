@@ -53,6 +53,7 @@ export function GrePlay({
   onPlayAgain,
   onRecoverBrowser,
   browserRecovered = false,
+  browserRecoveryFailed = false,
   browserPhase = 'idle',
   browserStatus = '',
   browserError = '',
@@ -74,6 +75,7 @@ export function GrePlay({
   onPlayAgain?: () => void | Promise<unknown>
   onRecoverBrowser?: () => Promise<unknown>
   browserRecovered?: boolean
+  browserRecoveryFailed?: boolean
   browserPhase?: 'idle' | 'preparing' | 'active' | 'recovering' | 'failed' | 'lost'
   browserStatus?: string
   browserError?: string
@@ -495,8 +497,14 @@ export function GrePlay({
 
         {browserPhase === 'failed' && browserError && !launchError && (
           <section className={styles.launchError} role="alert">
-            <strong>Browser game stopped</strong>
-            <p>{browserError}</p>
+            <strong>
+              {browserRecoveryFailed ? 'Game could not be recovered' : 'Browser game stopped'}
+            </strong>
+            <p>
+              {browserRecoveryFailed
+                ? 'Start again with the same decks, or choose another deck.'
+                : browserError}
+            </p>
             {onRecoverBrowser && (
               <p>
                 Experimental recovery. Undoes your last choice and later progress. One try per game
@@ -507,6 +515,11 @@ export function GrePlay({
               {onRecoverBrowser && (
                 <button type="button" onClick={() => void onRecoverBrowser()}>
                   Recover game
+                </button>
+              )}
+              {!onRecoverBrowser && onPlayAgain && !courseUnsaved && (
+                <button type="button" onClick={restartGame}>
+                  Start again
                 </button>
               )}
               {onBackToPlay && (

@@ -40,6 +40,7 @@ async function fixture(
   diverge = false,
   wrongBoard = false,
   resync: 'full' | 'diff' | 'no-connect' | 'split' = 'full',
+  trailing = false,
 ) {
   const board = (state: number, life = 20): ProtoObject => ({
     type: 1,
@@ -53,6 +54,12 @@ async function fixture(
   })
   const first = await frame([board(3), request(3, 7)])
   const second = await frame([board(9), request(9, 11)])
+  // A state update can follow the request; the response then carries its newer state id.
+  const update = await frame([
+    { type: 1, gameStateId: 10, gameStateMessage: { type: 2, gameStateId: 10, update: 1 } },
+  ])
+  const answered = trailing ? 10 : 9
+  const next = answered + 1
   const response = await buildGreWrapper({
     type: 15,
     gameStateId: 3,
@@ -61,7 +68,7 @@ async function fixture(
   })
   const final = await buildGreWrapper({
     type: 15,
-    gameStateId: 9,
+    gameStateId: answered,
     respId: 11,
     performActionResp: { actions: [{ actionType: 5 }] },
   })
@@ -72,6 +79,9 @@ async function fixture(
   collector.incoming(first.messages)
   collector.outgoing(response)
   collector.incoming(second.messages)
+  if (trailing) {
+    collector.incoming(update.messages)
+  }
   collector.outgoing(final)
   const sent: Uint8Array[] = []
   const source = new BrowserMatchSource({ send() {} }, 'new-match')
@@ -80,11 +90,11 @@ async function fixture(
     sendAndWait: async (_source: unknown, bytes: Uint8Array, silent: boolean) => {
       sent.push(bytes)
       if (!silent && sent.length === 5) {
-        const prompt = request(10, 14)
+        const prompt = request(next, 14)
         if (diverge) {
           prompt['actionsAvailableReq'] = { actions: [{ actionType: 4 }] }
         }
-        const currentBoard = board(10, wrongBoard ? 19 : 20)
+        const currentBoard = board(next, wrongBoard ? 19 : 20)
         if (resync === 'diff') {
           ;(currentBoard['gameStateMessage'] as ProtoObject)['type'] = 2
         }
@@ -140,6 +150,20 @@ it('replays only through the previous decision and retains a complete continuati
     connect['payload'] as Uint8Array,
   )
   expect(routing['matchId']).toBe('new-match')
+})
+
+it('recovers a decision answered after a later state update', async () => {
+  const f = await fixture(false, false, 'full', true)
+  const recovered = await replayBrowserMatch(
+    f.engine,
+    f.match,
+    config,
+    f.journal,
+    AbortSignal.timeout(1000),
+  )
+  expect(f.sent).toHaveLength(5)
+  expect(recovered.request['msgId']).toBe(14)
+  expect(recovered.request['gameStateId']).toBe(11)
 })
 
 it('accepts full state and a choice delivered after a separate connection response', async () => {
